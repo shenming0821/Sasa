@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+if [ -n "${FUYU_GO:-}" ]; then
+  toolchain="$FUYU_GO"
+elif command -v go >/dev/null 2>&1; then
+  toolchain="$(command -v go)"
+else
+  toolchain="$HOME/.local/share/fuyu/toolchains/go1.27.3/bin/go"
+fi
+if [ ! -x "$toolchain" ]; then
+  echo "Go is unavailable. Install Go 1.27.3 or set FUYU_GO to its executable." >&2
+  exit 1
+fi
+case "${1:-}" in
+  build|test|run|vet)
+    exec python3 "$(dirname "$0")/mygo-input-style.py" "$toolchain" "$@"
+    ;;
+  *) exec "$toolchain" "$@" ;;
+esac

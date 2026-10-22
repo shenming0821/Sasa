@@ -2,21 +2,31 @@
 
 ## 1. 当前状态与环境
 
-当前仓库处于 P1 开始前，尚无 `go.mod`、应用源码、构建脚本或 CI 工作流。环境快照与下一动作维护在[实施计划](implementation-plan.md)，继续时重新核对。
+当前已实现 P1 的首个可运行版本，进度见[实施计划](implementation-plan.md)，验收证据见[本轮记录](verification/2026-10-22-p1.md)。
 
-第一轮工程初始化需要完成：
+本机已验证环境：macOS arm64、Command Line Tools、Go `1.27.3`、Codex CLI `0.163.0`。`go.mod` 要求 Go `1.27.1`，指定工具链 `go1.27.3`；MyGo 固定为 `v0.6.3-0.20261022014156-976f17c9391f`。
 
-1. 核验本机 Go、Codex、macOS 开发环境及选定 MyGo 版本的要求。
-2. 固定经过验证的 Go / MyGo 工具与依赖版本，记录对应配置文件。
-3. 建立最小原生工程，实际运行后在本文记录启动、构建和测试命令。
+Go 安装在 `~/.local/share/fuyu/toolchains/go1.27.3/`，未修改系统工具链。`scripts/go` 按 `FUYU_GO`、PATH 中的 `go`、本机专用安装路径的顺序选择；其他机器可安装 Go 后直接使用包装脚本。
 
-当前所研究的 MyGo 提交要求 Go 1.27.1，见[参考核验](reference-verification.md)。这属于研究版本的要求，最终以项目锁定版本的配置为准。
+构建、运行、test、vet 统一使用 `scripts/go`，并需要 Python 3 标准库。包装脚本通过 `scripts/mygo-input-style.py` 将锁定的 MyGo 复制到项目内被忽略的 `.cache/mygo-input-style/`，调整输入占位文字和光标绘制，再通过临时 `-modfile` 使用该副本；共享模块缓存、项目 `go.mod` 和 `go.sum` 保持原内容。缓存可删除后重建。原生 `go build/test` 不包含此样式补丁，界面验收以包装脚本构建为准；升级 MyGo 时须重新核对补丁，版本或源码不匹配会明确失败。
+
+```sh
+./scripts/go version
+./scripts/build
+open bin/Fuyu.app
+```
+
+`scripts/build` 构建未签名的本地开发 `.app`，输出 `bin/Fuyu.app`，包含 bundle 元数据；尚未涉及发布、签名、公证或安装器。终端启动便于查看退出错误：
+
+```sh
+bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
+```
+
+通过 Finder 启动时，`codex` 必须在应用继承的 PATH 中；定位失败时可从终端使用 `-codex` 指定绝对路径。首次连接失败会在窗口中显示具体错误。
 
 ## 2. 目录与代码定位
 
-当前已存在的工程资料为根目录规范和 `docs/`。规划中的应用包见[设计文档](design.md)，责任划分见[子系统索引](subsystems/README.md)。
-
-当某个包实际创建时，将入口文件、关键符号和对应验证方式补入子系统文档。先核对源码，再依据文档修改。
+入口为 `cmd/desktop/main.go`。现有包与状态/进程边界见[子系统索引](subsystems/README.md)和[运行时说明](subsystems/codex-runtime.md)。
 
 ## 3. 验证方式
 
@@ -29,15 +39,23 @@
 | 原生 UI | 组件验证加真实窗口操作，覆盖输入法、焦点、滚动和缩放 |
 | Codex 任务链路 | 临时工作目录中的真实调用、文件结果、原生终态和自有进程核验 |
 
-工程初始化后，可按实际包结构核验以下标准 Go 命令；当前未执行，也不是已验证的构建入口：
+已执行的基础验证入口：
 
 ```sh
-go test ./...
-go vet ./...
-go test -race ./...
+./scripts/go test ./...
+./scripts/go vet ./...
+./scripts/go test -race ./...
 ```
 
-`gofmt` 作用于改动的 Go 文件。MyGo 的开发/打包命令在工具版本固定并运行成功后补入；存在条件不适用或环境缺失时，记录原因和未验证项。
+对修改过的 Go 文件运行 `./scripts/go fmt ./...`。普通测试使用受控子进程与 MyGo 内存渲染器，不启动真实模型任务。
+
+单独执行真实 Codex 验证会使用本机已有登录和模型服务，在临时目录创建测试文件，并产生真实模型调用：
+
+```sh
+FUYU_LIVE=1 ./scripts/go test ./internal/codex -run '^TestLiveCodexLoop$' -v -count=1
+```
+
+该测试验证实际文件、同 thread 的第二轮上下文、原生中断终态和 App Server 退出；它不证明所有后台命令都随 `turn/interrupt` 退出。原生 GUI、真实输入法与进程检查单独记录。
 
 ## 4. 自动化与真实验收
 

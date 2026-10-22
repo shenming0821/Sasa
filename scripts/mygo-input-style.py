@@ -1,0 +1,85 @@
+"""Build with an isolated, reproducible copy of the pinned MyGo input painter."""
+
+import hashlib
+import json
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+    toolchain, command, *args = sys.argv[1:]
+    module = json.loads(subprocess.check_output(
+        [toolchain, "list", "-m", "-json", "github.com/egoist/mygo"], text=True
+    ))
+    if module["Version"] != "v0.6.3-0.20261022014156-976f17c9391f":
+        raise SystemExit("Review the MyGo input paint patch before changing MyGo versions.")
+    if "Replace" in module:
+        raise SystemExit("Review the MyGo input paint patch before using a module replacement.")
+    if "Dir" not in module:
+        module = json.loads(subprocess.check_output(
+            [toolchain, "mod", "download", "-json", module["Path"] + "@" + module["Version"]],
+            text=True,
+        ))
+    root = pathlib.Path(__file__).resolve().parent.parent
+    source = pathlib.Path(module["Dir"])
+    edits = {
+        "editor_layout.go": [
+            (
+                "p.textLayout(pl, e.x+e.contentX(), oy, t.TextMuted, ts, nil)",
+                """placeholderColor := t.TextMuted.Alpha(0.4)
+        if t.Dark {
+            placeholderColor = t.TextMuted.Alpha(0.65)
+        }
+        p.textLayout(pl, e.x+e.contentX(), oy, placeholderColor, ts, nil)""",
+            ),
+        ],
+        "textarea.go": [],
+    }
+    for changes in edits.values():
+        changes.extend([
+            ("op.Rect.W = max(round(p.scale), 1)",
+             "op.Rect.W = max(round(2*p.scale), 1)"),
+            ("Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{})",
+             "Color: t.Text.scene(), Wide: p.wide(t.Text, Color{}, Color{})"),
+        ])
+    # Go forbids overlays inside GOMODCACHE, so patch an isolated project cache.
+    revision = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()[:16]
+    cache = root / ".cache" / "mygo-input-style"
+    cache.mkdir(parents=True, exist_ok=True)
+    patched_module = cache / revision
+    if not patched_module.exists():
+        with tempfile.TemporaryDirectory(prefix="prepare-", dir=cache) as tmp:
+            prepared = pathlib.Path(tmp) / "mygo"
+            shutil.copytree(source, prepared)
+            prepared.chmod(0o755)
+            for name, changes in edits.items():
+                original = source / "ui" / name
+                content = original.read_text()
+                for before, after in changes:
+                    if content.count(before) != 1:
+                        raise SystemExit(f"MyGo input paint changed: review {name}: {before}")
+                    content = content.replace(before, after, 1)
+                patched = prepared / "ui" / name
+                patched.chmod(0o644)
+                patched.write_text(content)
+            try:
+                prepared.rename(patched_module)
+            except OSError:
+                if not patched_module.is_dir():
+                    raise
+    # A temporary modfile leaves the checked-in module and sums unchanged.
+    with tempfile.TemporaryDirectory(prefix="fuyu-mygo-") as tmp:
+        modfile = pathlib.Path(tmp) / "go.mod"
+        modfile.write_text(
+            (root / "go.mod").read_text()
+            + "\nreplace github.com/egoist/mygo => " + json.dumps(str(patched_module)) + "\n"
+        )
+        shutil.copyfile(root / "go.sum", pathlib.Path(tmp) / "go.sum")
+        return subprocess.call([toolchain, command, f"-modfile={modfile}", *args])
+
+
+if __name__ == "__main__":
+    sys.exit(main())

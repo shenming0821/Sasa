@@ -1,0 +1,268 @@
+package ui
+
+import (
+	"path/filepath"
+	"strings"
+
+	native "github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/markdown"
+	"github.com/shenming0821/Fuyu/internal/app"
+)
+
+const (
+	readingWidth     float32 = 800
+	returnButtonSize float32 = 32
+	returnButtonGap  float32 = 20
+	scrollFadeHeight float32 = 80
+)
+
+var (
+	folderIcon = icon(`<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 1h18"/>`)
+	newIcon    = icon(`<path d="M12 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M15 3l6 6M10 14l2-5 7-7 4 4-7 7-6 1Z"/>`)
+	upIcon     = icon(`<path d="M12 19V5m-6 6 6-6 6 6"/>`)
+	downIcon   = icon(`<path d="M12 5v14m-6-6 6 6 6-6"/>`)
+	stopIcon   = icon(`<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none"/>`)
+	copyIcon   = icon(`<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>`)
+	checkIcon  = icon(`<path d="m5 12 4 4L19 6"/>`)
+	chevron    = icon(`<path d="m7 10 5 5 5-5"/>`)
+)
+
+func icon(paths string) *native.SVG {
+	return native.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">` + paths + `</svg>`))
+}
+
+func quietButton(c *native.Context, label string) native.Element {
+	t := c.Theme()
+	b := native.ButtonBase(c).Label(label).Tooltip(label).Radius(8).Padding(6).TextColor(t.TextMuted)
+	if b.Pressed() {
+		b.Background(t.SurfacePressed)
+	} else if b.Hovered() {
+		b.Background(t.SurfaceHover)
+	}
+	return b
+}
+
+// Each message and the composer share this width independently of list scrolling.
+func readingColumn(c *native.Context, build func()) {
+	native.Row(c).FillWidth().Justify(native.Center).Children(func() {
+		native.Column(c).FillWidth().MaxWidth(readingWidth).MinWidth(0).Children(build)
+	})
+}
+
+func (a *App) view(c *native.Context) {
+	t := c.Theme()
+	a.list.Key = func(i int) any { return a.State.Messages[i].ID }
+	a.list.FollowEnd = true
+	native.Column(c).Fill().Background(t.Background).Children(func() {
+		a.toolbar(c)
+		if len(a.State.Messages) == 0 {
+			native.Column(c).Grow(1).FillWidth().Center().Gap(12).Padding(24).Children(func() {
+				native.Text(c, "从一个清晰的任务开始").FontSize(25)
+				native.Text(c, "与 Codex 一起，把想法变成现实。").FontSize(14).TextColor(t.TextMuted)
+			})
+		} else {
+			a.conversation(c)
+		}
+		native.Column(c).FillWidth().Padding(0, 24, 16, 24).Children(func() {
+			readingColumn(c, func() {
+				if a.State.Error != "" {
+					native.Text(c, a.State.Error).Selectable().FontSize(12).
+						TextColor(t.Danger).Padding(0, 4, 10, 4)
+				}
+				a.composer(c)
+			})
+		})
+	})
+}
+
+func (a *App) conversation(c *native.Context) {
+	t := c.Theme()
+	native.Box(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+		// Keep the latest content clear of the floating control, even while it is hidden.
+		native.List(c, &a.list, len(a.State.Messages), func(i int) {
+			a.message(c, a.State.Messages[i])
+		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(28)
+		if !a.list.AtEnd() {
+			// The tint fades into the composer surface without intercepting scrolling.
+			native.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(scrollFadeHeight).
+				PassThrough().Gradient(t.Background.Alpha(0), t.Background, 180)
+			native.Row(c).Absolute().Left(0).Right(0).Bottom(returnButtonGap).
+				Height(returnButtonSize).Justify(native.Center).PassThrough().Children(func() {
+				b := quietButton(c, "返回最新消息").Size(returnButtonSize, returnButtonSize).
+					Radius(returnButtonSize/2).Background(t.Background).TextColor(t.Text).
+					Border(1, t.Border).Shadow(0, 1, 4, 0, native.RGBA(0, 0, 0, 0.06))
+				b.Children(func() { native.Icon(c, downIcon).Size(18, 18) })
+				if b.Clicked() {
+					a.list.ScrollToEnd()
+				}
+			})
+		}
+	})
+}
+
+func (a *App) toolbar(c *native.Context) {
+	t := c.Theme()
+	native.Row(c).FillWidth().Height(46).Padding(0, 16).Gap(12).
+		AlignItems(native.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.5)).Children(func() {
+		project := "Fuyu"
+		if a.State.Cwd != "" {
+			project = filepath.Base(a.State.Cwd)
+		}
+		b := quietButton(c, "工作目录").MinWidth(0).Shrink(1).Gap(8)
+		b.Children(func() {
+			native.Icon(c, folderIcon).Size(17, 17)
+			native.Text(c, project).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+			native.Icon(c, chevron).Size(12, 12)
+		})
+		if b.Clicked() {
+			a.projectOpen = !a.projectOpen
+		}
+		native.Popover(c, b, &a.projectOpen, func() {
+			native.Column(c).Width(360).Gap(10).Children(func() {
+				path := a.State.Cwd
+				if path == "" {
+					path = "选择工作目录后开始任务"
+				}
+				native.Text(c, path).FontSize(13).Selectable()
+				if native.Button(c, "选择目录").Disabled(a.State.Busy || a.State.Disconnected).Clicked() {
+					a.projectOpen = false
+					go a.chooseDirectory(a.State.Cwd)
+				}
+			})
+		})
+		native.Spacer(c)
+		native.Text(c, a.State.Phase).FontSize(12).TextColor(t.TextMuted).SingleLine()
+		label := "选择目录"
+		if a.State.ThreadID != "" {
+			label = "新会话"
+		}
+		next := quietButton(c, label).Size(30, 30).Disabled(a.State.Busy || a.State.Disconnected)
+		next.Children(func() { native.Icon(c, newIcon).Size(17, 17) })
+		if next.Clicked() {
+			go a.chooseDirectory(a.State.Cwd)
+		}
+	})
+}
+
+func (a *App) composer(c *native.Context) {
+	t := c.Theme()
+	native.Column(c).FillWidth().Padding(14, 14, 10, 14).Gap(8).Radius(22).
+		Border(1, t.Border.Alpha(0.7)).Background(t.Background).
+		Shadow(0, 2, 12, 0, native.RGBA(0, 0, 0, 0.04)).Children(func() {
+		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
+			Placeholder("与 Codex 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
+		composing := composer.Composing()
+		composer.OnTextKey(func(k native.TextKey) bool {
+			if composing {
+				return false
+			}
+			if k.Key == native.KeyEnter && k.Mods == native.Cmd {
+				a.State.Draft = k.Text()
+				if a.canSend() {
+					a.submit()
+					k.SetText(a.State.Draft)
+				}
+				return true
+			}
+			return false
+		})
+		native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
+			model := "Codex"
+			if a.State.Model != "" {
+				model = a.State.Model[strings.LastIndex(a.State.Model, "/")+1:]
+			}
+			details := quietButton(c, "运行详情").Gap(5).MinWidth(0).Shrink(1)
+			details.Children(func() {
+				native.Text(c, model).FontSize(12).SingleLine().Shrink(1).MinWidth(0)
+				native.Icon(c, chevron).Size(12, 12)
+			})
+			if details.Clicked() {
+				a.detailsOpen = !a.detailsOpen
+			}
+			native.Popover(c, details, &a.detailsOpen, func() { a.runtimeDetails(c) })
+			native.Spacer(c)
+			action, glyph := "发送", upIcon
+			hint := "⌘ Enter 发送 · Enter 换行"
+			disabled := !a.canSend()
+			if a.State.Busy {
+				action, glyph = "停止", stopIcon
+				hint = "停止当前任务"
+				disabled = a.State.TurnID == "" || a.State.Phase == "正在停止"
+			}
+			button := native.ButtonBase(c).Label(action).Tooltip(hint).
+				Size(34, 34).Radius(17).Background(t.Text).TextColor(t.Background).Disabled(disabled)
+			if button.Hovered() {
+				button.Opacity(0.8)
+			}
+			button.Children(func() { native.Icon(c, glyph).Size(20, 20) })
+			if button.Clicked() {
+				if a.State.Busy {
+					a.stop()
+				} else {
+					a.submit()
+				}
+			}
+		})
+	})
+}
+
+func (a *App) runtimeDetails(c *native.Context) {
+	t := c.Theme()
+	native.Column(c).Width(420).Gap(10).Children(func() {
+		native.Text(c, "运行详情").FontSize(14).Bold()
+		values := [][2]string{
+			{"版本", a.version}, {"模型", a.State.Model},
+			{"审批", a.State.Policy}, {"沙箱", a.State.Sandbox},
+		}
+		for _, value := range values {
+			text := value[1]
+			if text == "" {
+				text = "会话建立后确认"
+			}
+			native.Column(c).Gap(3).Children(func() {
+				native.Text(c, value[0]).FontSize(11).TextColor(t.TextMuted)
+				native.Text(c, text).FontSize(12).Selectable()
+			})
+		}
+		native.Text(c, "⌘ Enter 发送 · Enter 换行").FontSize(11).TextColor(t.TextMuted)
+	})
+}
+
+func (a *App) message(c *native.Context, m *app.Message) {
+	t := c.Theme()
+	readingColumn(c, func() {
+		native.Column(c.Key(m.ID)).FillWidth().Gap(8).Children(func() {
+			if m.Role == "user" {
+				native.Row(c).FillWidth().Justify(native.End).Children(func() {
+					native.Text(c, m.Text).Selectable().FontSize(15).
+						MaxWidthPercent(85).Padding(12, 16).Radius(20).Background(t.Surface)
+				})
+			} else if m.Role == "assistant" {
+				if m.Done {
+					markdown.View(c, m.Text, &a.md)
+				} else {
+					markdown.Stream(c, m.Text, &a.md)
+				}
+				if m.Done && m.Text != "" {
+					native.Row(c).Children(func() {
+						glyph, label := copyIcon, "复制回复"
+						if a.copiedID == m.ID {
+							glyph, label = checkIcon, "已复制"
+						}
+						b := quietButton(c, label).Size(28, 28)
+						b.Children(func() { native.Icon(c, glyph).Size(16, 16) })
+						if b.Clicked() {
+							c.WriteClipboard(m.Text)
+							a.copiedID = m.ID
+						}
+					})
+				}
+			} else {
+				native.Column(c).FillWidth().Gap(6).Padding(12, 14).Radius(10).Background(t.Surface).Children(func() {
+					native.Text(c, "工具").FontSize(11).TextColor(t.TextMuted)
+					native.Text(c, m.Text).Selectable().Font("monospace").FontSize(12)
+				})
+			}
+		})
+	})
+}

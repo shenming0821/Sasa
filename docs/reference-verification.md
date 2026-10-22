@@ -191,7 +191,7 @@ schema 生成只证明安装包导出这些结构，不能证明实验能力默�
 
 Fuyu 的具体规则依据本项目的 Codex Runtime、MyGo 原生 UI 和当前开发阶段编写。Magpie 的订阅迁移、社区作者名单、Web GUI 测试、跨平台发布流程和历史缺陷属于其自身项目背景，不作为 Fuyu 的现有机制或经历。
 
-规范入口为根目录 `AGENTS.md`，`CLAUDE.md` 仅引用该入口。当前应用代码尚未建立，构建/测试命令明确标注可用条件；未复制上游实现或新增发布流程。
+规范入口为根目录 `AGENTS.md`，`CLAUDE.md` 仅引用该入口。规范建立时应用代码尚未创建；随后 P1 已建立可运行实现，实际构建/测试命令见[开发指南](development.md)，结果见[P1 验证记录](verification/2026-10-22-p1.md)。本节仅记录规范参考来源。
 
 固定参考：
 
@@ -200,4 +200,34 @@ https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/A
 https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/docs/code-standards.md
 https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/docs/subsystems/README.md
 https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/LESSONS.md
+```
+
+## 10. cdesktop：已确认采用的五项设计参考
+
+2026-10-22，用户确认记录以下五项，作为后续实现与审核的检查依据。源码核对版本为 `75bd015e88f9797d785c9fabcfca03c7151fd5cc`；本次仅进行源码分析，未运行 cdesktop。下表描述 Fuyu 待落实的动作，完成状态维护在[实施计划](implementation-plan.md)，不代表这些能力已实现。
+
+| 参考点 | 在什么条件下，执行什么动作 | 落实阶段与验收 |
+|---|---|---|
+| 审批独立状态 | 收到审批或用户提问时，保存原生请求 ID 及 thread/turn/item 归属；分别处理待回答、提交中、已解决、取消和失效。任务结束或连接失效时更新入口，防止重复响应；等待用户期间保持协议读取可用 | P2：覆盖批准、拒绝、回答、中断、晚到结果与重复点击 |
+| 明确滚动意图 | 用户位于末尾时跟随流式输出；用户向上阅读时保持阅读锚点；用户主动返回最新消息时恢复跟随。历史补入和内容高度变化时按相同规则处理 | P1：验收真实窗口的流式阅读；P3：补齐会话切换和历史加载时的阅读恢复 |
+| 结构化工具状态 | 展示工具事件时，以原生 item ID 合并结构化的工具类型、输入/输出、审批及执行状态；依据 item 终态更新工具结果，独立于 turn 终态。第二种 Agent 接入时再按实际差异提取公共模型 | P2：核对命令、文件修改、失败、拒绝与超时；保留必要原生字段 |
+| 总量受控的事件缓冲 | 处理持续输出时，限制事件队列和显示缓存的总容量，检测消费者落后及事件缺口；发生缺口时通过快照重新核验，无法补齐时明确显示结果不完整 | P2：大量输出期间输入、停止和阅读可用；超限后仍能核对终态。容量值在实现时确定并实测，避免直接复制参考项目阈值 |
+| 应用历史与 Runtime 历史分工 | 实现持久化时，应用保存会话索引、草稿、阅读位置等自身数据；对话历史和任务状态向 Codex 原生接口核验。恢复时分别判断可读历史、可继续对话和可重新接入活动任务 | P3：覆盖正常重开、异常退出、失联与状态校准，保持原始凭据和配置 |
+
+架构保持：继续采用 Go + MyGo 原生 UI，当前连续对话复用同一 App Server 和原生 thread；用户明确要求从历史分支会话时再引入 fork。上述参考不引入 Web UI、多 Agent 框架或每轮重启进程的要求。
+
+进程清理单独核验：可以参考 cdesktop 的分级信号与执行监控，但进程组清理本身不能证明独立后台进程组已退出。Fuyu 继续分别记录原生中断终态、工具终态和实际进程退出结果。
+
+固定源码路径（均相对于上述 cdesktop 提交）：
+
+```text
+crates/services/src/services/approvals/executor_approvals.rs
+crates/executors/src/executors/codex/client.rs
+packages/web-core/src/features/workspace-chat/model/conversation-scroll-commands.ts
+crates/executors/src/logs/mod.rs
+crates/utils/src/msg_store.rs
+crates/services/src/services/execution_process.rs
+crates/executors/src/executors/codex.rs
+crates/local-deployment/src/container.rs
+crates/utils/src/process.rs
 ```

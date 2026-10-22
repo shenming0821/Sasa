@@ -10,8 +10,10 @@
 | [设计文档](design.md) | 范围、架构、状态、原生交互及恢复约定 |
 | [开发指南](development.md) | 环境、验证方式、命令状态与文档分工 |
 | [代码标准](code-standards.md) | Go、原生 UI、协议、进程及测试规则 |
-| [子系统索引](subsystems/README.md) | 设计边界与后续实际源码定位 |
+| [子系统索引](subsystems/README.md) | 责任边界与实际源码定位 |
 | [经验记录](../LESSONS.md) | 已核验的问题、预防动作及证据 |
+| [Codex 运行时](subsystems/codex-runtime.md) | 当前协议、状态与资源归属 |
+| [P1 验证记录](verification/2026-10-22-p1.md) | 自动化、真实 Codex、原生窗口与待验收项 |
 | [参考项目核验](reference-verification.md) | 固定源码、协议依据与尚待运行验证的边界 |
 
 实施计划是进度的统一记录入口；设计文档保留设计约定，参考核验保留证据来源。
