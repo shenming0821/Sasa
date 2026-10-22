@@ -1,0 +1,43 @@
+# 构建与打包产物（MyGo 在 dist/ 下生成 .app/.dmg，Go 二进制在根目录或 bin/）
+/dist/
+/build/
+/bin/
+/Fuyu
+/fuyu
+/*.app
+/*.dmg
+*.test
+*.out
+
+# MyGo 生成内容与缓存
+.mygo/
+
+# Go 覆盖率与性能分析产物
+coverage.out
+coverage.html
+*.prof
+
+# 日志
+*.log
+logs/
+
+# 本地秘密与私有配置（保留 *.example 模板）
+.env
+.env.*
+!.env.example
+*.local
+secrets/
+*.pem
+*.key
+
+# 系统与编辑器
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+.idea/
+.vscode/
+
+# 本地临时文件
+tmp/
+.cache/
