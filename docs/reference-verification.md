@@ -177,3 +177,27 @@ schema 生成只证明安装包导出这些结构，不能证明实验能力默�
 - 断流后快照与活动事件的合并边界，不能只靠本地序号声称可靠重放。
 - 应用退出、异常退出、残留进程和原生历史恢复。
 - 后续如需复用第三方代码，再核对相关文件的许可和署名要求。
+
+## 9. Magpie：项目规范的参考
+
+用户指定参考 `yetone/magpie` 的 `AGENTS.md`。本次从远程确认 main 提交为 `ea6be1592706ea4a0dd6cd526acec0b5d1fb967e`，读取其 Agent 指南、代码标准、子系统文档索引，以及经验记录中与配置、测试、并发和交付有关的内容。
+
+采用的组织方式：
+
+- Agent 指南作为短入口，链接代码规则、子系统约定和经验记录。
+- 说明行为变化时追踪完整路径，同步维护对应文档和验证证据。
+- 测试按行为和风险选择，隔离真实用户配置，并明确资源清理责任。
+- 已发生的问题以条件、动作、原因和证据沉淀，通用规则归入代码标准。
+
+Fuyu 的具体规则依据本项目的 Codex Runtime、MyGo 原生 UI 和当前开发阶段编写。Magpie 的订阅迁移、社区作者名单、Web GUI 测试、跨平台发布流程和历史缺陷属于其自身项目背景，不作为 Fuyu 的现有机制或经历。
+
+规范入口为根目录 `AGENTS.md`，`CLAUDE.md` 仅引用该入口。当前应用代码尚未建立，构建/测试命令明确标注可用条件；未复制上游实现或新增发布流程。
+
+固定参考：
+
+```text
+https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/AGENTS.md
+https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/docs/code-standards.md
+https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/docs/subsystems/README.md
+https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/LESSONS.md
+```
