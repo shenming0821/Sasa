@@ -1,4 +1,4 @@
-"""Build with an isolated, reproducible copy of the pinned MyGo input painter."""
+"""Build with an isolated copy of pinned MyGo input and accessibility fixes."""
 
 import hashlib
 import json
@@ -26,7 +26,7 @@ def main():
     root = pathlib.Path(__file__).resolve().parent.parent
     source = pathlib.Path(module["Dir"])
     edits = {
-        "editor_layout.go": [
+        "ui/editor_layout.go": [
             (
                 "p.textLayout(pl, e.x+e.contentX(), oy, t.TextMuted, ts, nil)",
                 """placeholderColor := t.TextMuted.Alpha(0.4)
@@ -36,7 +36,7 @@ def main():
         p.textLayout(pl, e.x+e.contentX(), oy, placeholderColor, ts, nil)""",
             ),
         ],
-        "textarea.go": [],
+        "ui/textarea.go": [],
     }
     for changes in edits.values():
         changes.extend([
@@ -47,10 +47,35 @@ def main():
         ])
     # Let multiline inputs handle Cmd+Enter through the editor's normal insertion,
     # preserving the selection, caret, undo history and native IME routing.
-    edits["editor_navigation.go"] = [(
+    edits["ui/editor_navigation.go"] = [(
         "case KeyEnter:\n\t\treturn m == 0",
         "case KeyEnter:\n\t\treturn m == 0 || (ed.multiline && k.mods == Cmd)",
     )]
+    # AX setters cache their argument in AppKit even when the next projected
+    # password value is still empty. Redact that cache, retaining the original
+    # argument only for the editor action.
+    edits["internal/darwin/access.go"] = [
+        (
+            'method("setAccessibilityValue:", func(self id, cmd objc.SEL, value id) {\n'
+            '\t\t\tsendSuper(self, "MyGoAccessibilityElement", cmd, uintptr(value))',
+            'method("setAccessibilityValue:", func(self id, cmd objc.SEL, value id) {\n'
+            '\t\t\tcached := value\n'
+            '\t\t\tif el := b().accessElementOf(self); el != nil && el.node.States&platform.AccessPassword != 0 {\n'
+            '\t\t\t\tcached = nsString("")\n'
+            '\t\t\t}\n'
+            '\t\t\tsendSuper(self, "MyGoAccessibilityElement", cmd, uintptr(cached))',
+        ),
+        (
+            'method("setAccessibilitySelectedText:", func(self id, cmd objc.SEL, text id) {\n'
+            '\t\t\tsendSuper(self, "MyGoAccessibilityElement", cmd, uintptr(text))',
+            'method("setAccessibilitySelectedText:", func(self id, cmd objc.SEL, text id) {\n'
+            '\t\t\tcached := text\n'
+            '\t\t\tif el := b().accessElementOf(self); el != nil && el.node.States&platform.AccessPassword != 0 {\n'
+            '\t\t\t\tcached = nsString("")\n'
+            '\t\t\t}\n'
+            '\t\t\tsendSuper(self, "MyGoAccessibilityElement", cmd, uintptr(cached))',
+        ),
+    ]
     # Go forbids overlays inside GOMODCACHE, so patch an isolated project cache.
     revision = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()[:16]
     cache = root / ".cache" / "mygo-input-style"
@@ -62,13 +87,13 @@ def main():
             shutil.copytree(source, prepared)
             prepared.chmod(0o755)
             for name, changes in edits.items():
-                original = source / "ui" / name
+                original = source / name
                 content = original.read_text()
                 for before, after in changes:
                     if content.count(before) != 1:
                         raise SystemExit(f"MyGo input paint changed: review {name}: {before}")
                     content = content.replace(before, after, 1)
-                patched = prepared / "ui" / name
+                patched = prepared / name
                 patched.chmod(0o644)
                 patched.write_text(content)
             try:

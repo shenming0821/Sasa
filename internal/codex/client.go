@@ -16,9 +16,11 @@ import (
 )
 
 type Event struct {
-	Method string
-	Params json.RawMessage
-	Err    error
+	ID        json.RawMessage
+	Method    string
+	Params    json.RawMessage
+	Err       error
+	Truncated bool
 }
 
 type RPCError struct {
@@ -41,15 +43,19 @@ type Client struct {
 	writeMu sync.Mutex
 	mu      sync.Mutex
 	pending map[string]chan envelope
+	server  map[string]*serverRequest
 	nextID  atomic.Int64
 	done    chan struct{}
 	abort   chan struct{}
 	close   sync.Once
 
-	queueMu sync.Mutex
-	queue   []Event
-	wake    chan struct{}
-	events  chan Event
+	queueMu    sync.Mutex
+	queue      []Event
+	queueBytes int
+	gap        bool
+	overflow   bool
+	wake       chan struct{}
+	events     chan Event
 }
 
 func Start(ctx context.Context, executable, cwd string) (*Client, error) {
@@ -59,7 +65,8 @@ func Start(ctx context.Context, executable, cwd string) (*Client, error) {
 	}
 	var result json.RawMessage
 	err = c.Call(ctx, "initialize", map[string]any{
-		"clientInfo": map[string]string{"name": "fuyu", "title": "Fuyu", "version": "0.1.0"},
+		"clientInfo":   map[string]string{"name": "fuyu", "title": "Fuyu", "version": "0.1.0"},
+		"capabilities": map[string]bool{"experimentalApi": true},
 	}, &result)
 	if err == nil {
 		err = c.write(map[string]any{"method": "initialized"})
@@ -83,7 +90,7 @@ func startProcess(executable string, args []string, cwd string) (*Client, error)
 		return nil, fmt.Errorf("start Codex: %w", err)
 	}
 	c := &Client{
-		process: p, pending: make(map[string]chan envelope), done: make(chan struct{}), abort: make(chan struct{}),
+		process: p, pending: make(map[string]chan envelope), server: make(map[string]*serverRequest), done: make(chan struct{}), abort: make(chan struct{}),
 		wake: make(chan struct{}, 1), events: make(chan Event),
 	}
 	go c.dispatch()
@@ -151,6 +158,12 @@ func (c *Client) write(message any) error {
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	if pipe, ok := c.process.Stdin.(interface{ SetWriteDeadline(time.Time) error }); ok {
+		if err := pipe.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return err
+		}
+		defer pipe.SetWriteDeadline(time.Time{})
+	}
 	_, err = c.process.Stdin.Write(append(data, '\n'))
 	return err
 }
@@ -167,9 +180,10 @@ func (c *Client) read() {
 		}
 		switch {
 		case msg.Method != "" && len(msg.ID) > 0:
-			c.rejectUnsupported(msg)
+			c.handleRequest(msg)
 		case msg.Method != "":
-			c.enqueue(Event{Method: msg.Method, Params: msg.Params})
+			c.expireRequests(msg)
+			c.enqueue(displayEvent(Event{Method: msg.Method, Params: msg.Params}))
 		case len(msg.ID) > 0:
 			c.mu.Lock()
 			ch := c.pending[string(msg.ID)]
@@ -196,7 +210,6 @@ func (c *Client) read() {
 }
 
 func (c *Client) rejectUnsupported(msg envelope) {
-	// P1 surfaces the request and fails closed; interactive forms arrive in P2.
 	var result any
 	switch msg.Method {
 	case "item/commandExecution/requestApproval", "item/fileChange/requestApproval":
@@ -206,7 +219,7 @@ func (c *Client) rejectUnsupported(msg envelope) {
 	case "mcpServer/elicitation/request":
 		result = map[string]string{"action": "decline"}
 	default:
-		err := c.write(map[string]any{"id": msg.ID, "error": RPCError{Code: -32601, Message: "Fuyu P1 does not support this interaction"}})
+		err := c.write(map[string]any{"id": msg.ID, "error": RPCError{Code: -32601, Message: "Fuyu does not support this interaction"}})
 		c.unsupported(msg, err)
 		return
 	}
@@ -222,9 +235,55 @@ func (c *Client) unsupported(msg envelope, err error) {
 	c.enqueue(Event{Method: "fuyu/unsupported", Params: msg.Params, Err: detail})
 }
 
+const MaxQueueBytes = 4 * 1024 * 1024
+const MaxQueueEvents = 4096
+
+func eventBytes(e Event) int { return len(e.Params) + len(e.ID) + len(e.Method) + 128 }
+
+func isDelta(e Event) bool {
+	return e.Method == "item/agentMessage/delta" || e.Method == "item/commandExecution/outputDelta" ||
+		e.Method == "item/fileChange/outputDelta"
+}
+
 func (c *Client) enqueue(e Event) {
 	c.queueMu.Lock()
+	if c.overflow {
+		c.queueMu.Unlock()
+		return
+	}
+	// Drop only incremental display data. Lifecycle and request events either fit
+	// or close the connection explicitly; RPC response routing never waits on UI.
+	for len(c.queue) >= MaxQueueEvents || c.queueBytes+eventBytes(e) > MaxQueueBytes {
+		drop := -1
+		for i, old := range c.queue {
+			if isDelta(old) {
+				drop = i
+				break
+			}
+		}
+		if drop < 0 {
+			if isDelta(e) {
+				c.gap = true
+				c.queueMu.Unlock()
+				c.signal()
+				return
+			}
+			c.queue = []Event{{Method: "fuyu/disconnected", Err: errors.New("Codex control event buffer exceeded capacity; results require verification")}}
+			c.queueBytes = eventBytes(c.queue[0])
+			c.overflow = true
+			c.queueMu.Unlock()
+			c.signal()
+			go c.process.Close()
+			return
+		}
+		c.queueBytes -= eventBytes(c.queue[drop])
+		copy(c.queue[drop:], c.queue[drop+1:])
+		c.queue[len(c.queue)-1] = Event{}
+		c.queue = c.queue[:len(c.queue)-1]
+		c.gap = true
+	}
 	c.queue = append(c.queue, e)
+	c.queueBytes += eventBytes(e)
 	c.queueMu.Unlock()
 	c.signal()
 }
@@ -240,8 +299,19 @@ func (c *Client) dispatch() {
 	defer close(c.events)
 	for {
 		c.queueMu.Lock()
+		if c.gap {
+			c.gap = false
+			c.queueMu.Unlock()
+			select {
+			case c.events <- Event{Method: "fuyu/eventGap"}:
+			case <-c.abort:
+				return
+			}
+			continue
+		}
 		if len(c.queue) > 0 {
 			event := c.queue[0]
+			c.queueBytes -= eventBytes(event)
 			c.queue[0] = Event{}
 			c.queue = c.queue[1:]
 			c.queueMu.Unlock()
@@ -314,6 +384,12 @@ func (c *Client) Send(ctx context.Context, threadID, text string) (Turn, error) 
 
 func (c *Client) Interrupt(ctx context.Context, threadID, turnID string) error {
 	return c.Call(ctx, "turn/interrupt", map[string]string{"threadId": threadID, "turnId": turnID}, nil)
+}
+
+func (c *Client) ReadThread(ctx context.Context, threadID string) (json.RawMessage, error) {
+	var result json.RawMessage
+	err := c.Call(ctx, "thread/read", map[string]any{"threadId": threadID, "includeTurns": true}, &result)
+	return result, err
 }
 
 func RequestContext() (context.Context, context.CancelFunc) {

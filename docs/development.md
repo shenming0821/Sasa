@@ -2,7 +2,7 @@
 
 ## 1. 当前状态与环境
 
-当前已实现 P1 的首个可运行版本，进度见[实施计划](implementation-plan.md)，验收证据见[本轮记录](verification/2026-10-22-p1.md)。
+当前已实现 P1 任务闭环及 P2 的工具卡片、原生交互与有界输出，进度见[实施计划](implementation-plan.md)，验收证据见 [P1](verification/2026-10-22-p1.md) 与 [P2](verification/2026-10-22-p2.md)。
 
 本机已验证环境：macOS arm64、Command Line Tools、Go `1.27.3`、Codex CLI `0.163.0`。`go.mod` 要求 Go `1.27.1`，指定工具链 `go1.27.3`；MyGo 固定为 `v0.6.3-0.20261022014156-976f17c9391f`。
 
@@ -11,6 +11,8 @@ Go 安装在 `~/.local/share/fuyu/toolchains/go1.27.3/`，未修改系统工具�
 构建、运行、test、vet 统一使用 `scripts/go`，并需要 Python 3 标准库。包装脚本通过 `scripts/mygo-input-style.py` 将锁定的 MyGo 复制到项目内被忽略的 `.cache/mygo-input-style/`，调整输入占位文字和光标绘制，再通过临时 `-modfile` 使用该副本；共享模块缓存、项目 `go.mod` 和 `go.sum` 保持原内容。缓存可删除后重建。原生 `go build/test` 不包含此样式补丁，界面验收以包装脚本构建为准；升级 MyGo 时须重新核对补丁，版本或源码不匹配会明确失败。
 
 该补丁同时让多行编辑器接收 `Cmd+Enter`，通过原有编辑器插入换行，保留光标、选区与撤销逻辑；输入框视图使用普通 Enter 发送，输入法组合门控继续保留。
+
+P2 另在该隔离副本中修复 macOS 无障碍密码字段 setter 的缓存：AX value/selectedText 写入原文时，只将原文发送给编辑器，不保存在可读的 AppKit 无障碍值中。版本或目标代码不匹配时同样明确失败；升级框架后重新核对原生秘密输入和自动填充。
 
 ```sh
 ./scripts/go version

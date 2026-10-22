@@ -231,3 +231,29 @@ crates/executors/src/executors/codex.rs
 crates/local-deployment/src/container.rs
 crates/utils/src/process.rs
 ```
+
+## 11. P2 实现时的再次核验
+
+P2 再次读取 cdesktop 固定提交 `75bd015e88f9797d785c9fabcfca03c7151fd5cc` 的审批桥接、Codex 客户端和消息存储源码。参考其设计后按 Fuyu 的 Go/MyGo 与原生协议独立实现，未运行 cdesktop，也未将其测试作为本项目证据。
+
+| 固定源码 | 读到的机制 | Fuyu 的落实 |
+|---|---|---|
+| `crates/services/src/services/approvals/executor_approvals.rs` | 创建请求与等待结果分开，waiter 按 ID 保存，处理取消和移除 | `internal/codex/interactions.go` 独立登记原生请求，等待用户时读取和其他 RPC 继续；一次性响应，resolved/turn 完成释放 |
+| `crates/executors/src/executors/codex/client.rs` | 双向请求、审批/提问和原生事件分别处理 | 保留四类已支持请求及原生响应值；UI 状态和工具状态分别投影 |
+| `crates/utils/src/msg_store.rs` | 记录每条消息的估算字节数，限制历史总量，识别 broadcast lag | 队列 4 MiB / 4096 条，显示缓存 8 MiB / 1000 条；超限显式 gap，终态后读取原生快照校准。阈值按 Fuyu 场景选取 |
+
+固定来源：
+
+```text
+https://github.com/cdesktop-ai/cdesktop/blob/75bd015e88f9797d785c9fabcfca03c7151fd5cc/crates/services/src/services/approvals/executor_approvals.rs
+https://github.com/cdesktop-ai/cdesktop/blob/75bd015e88f9797d785c9fabcfca03c7151fd5cc/crates/executors/src/executors/codex/client.rs
+https://github.com/cdesktop-ai/cdesktop/blob/75bd015e88f9797d785c9fabcfca03c7151fd5cc/crates/utils/src/msg_store.rs
+```
+
+原生协议按本机 `codex-cli 0.163.0` 执行下列官方命令生成，再核对 `ServerRequest.json`、`ClientRequest.json` 和 `ServerNotification.json`：
+
+```sh
+codex app-server generate-json-schema --experimental --out /tmp/fuyu-p2-schema
+```
+
+已确认 `serverRequest/resolved` 的关联字段为 threadId/requestId；question 按 ID 映射并含 isOther/isSecret/isBlocking；命令审批有原始 availableDecisions 和策略修订对象；文件新增/删除 diff 为原始文件内容。运行验证、未触发分支和容量边界统一见 [P2 验收](verification/2026-10-22-p2.md)。

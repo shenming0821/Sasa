@@ -21,7 +21,7 @@ func (a *App) thinking() bool {
 		if m.Role == "user" {
 			return true
 		}
-		if m.Role == "tool" || (m.Role == "assistant" && strings.TrimSpace(m.Text) != "") {
+		if m.Role == "tool" || m.Role == "interaction" || (m.Role == "assistant" && strings.TrimSpace(m.Text) != "") {
 			return false
 		}
 	}

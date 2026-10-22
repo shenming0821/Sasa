@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -54,6 +55,25 @@ func (a *App) view(c *native.Context) {
 	a.list.FollowEnd = true
 	native.Column(c).Fill().Background(t.Background).Children(func() {
 		a.toolbar(c)
+		if pending := a.State.PendingInteractions(); len(pending) > 0 {
+			native.Row(c).FillWidth().Padding(6, 24).Children(func() {
+				b := actionButton(c, fmt.Sprintf("处理待办（%d）", len(pending))).TextColor(t.Text)
+				if b.Clicked() {
+					row := 0
+					for _, m := range a.State.Messages {
+						if m.Role == "assistant" && m.Text == "" {
+							continue
+						}
+						if m.Interaction == pending[0] {
+							a.list.ScrollTo(row, native.Start)
+							break
+						}
+						row++
+					}
+				}
+				native.Text(c, "Codex 需要你的决定").FontSize(12).TextColor(t.TextMuted)
+			})
+		}
 		if len(a.State.Messages) == 0 {
 			native.Column(c).Grow(1).FillWidth().Center().Gap(12).Padding(24).Children(func() {
 				native.Text(c, "从一个清晰的任务开始").FontSize(25)
@@ -65,8 +85,31 @@ func (a *App) view(c *native.Context) {
 		native.Column(c).FillWidth().Padding(0, 24, 16, 24).Children(func() {
 			readingColumn(c, func() {
 				if a.State.Error != "" {
-					native.Text(c, a.State.Error).Selectable().FontSize(12).
-						TextColor(t.Danger).Padding(0, 4, 10, 4)
+					native.Scroll(c).FillWidth().MaxHeight(54).Children(func() {
+						native.Text(c, a.State.Error).Selectable().FontSize(12).TextColor(t.Danger).Padding(0, 4, 8, 4)
+					})
+				}
+				if a.State.Notice != "" {
+					native.Scroll(c).FillWidth().MaxHeight(38).Children(func() {
+						native.Text(c, a.State.Notice).FontSize(11).TextColor(t.TextMuted).Padding(0, 4, 6, 4)
+					})
+				}
+				if a.State.Incomplete && !a.State.Busy && !a.State.Disconnected {
+					if actionButton(c, "重新核验结果").Disabled(a.snapshotPending).Clicked() {
+						a.State.NeedsSnapshot = true
+						a.reconcileIfNeeded()
+					}
+				}
+				if a.State.Phase == "执行失败" && !a.State.Disconnected && !a.State.Busy {
+					if actionButton(c, "重试本次任务").Clicked() {
+						for i := len(a.State.Messages) - 1; i >= 0; i-- {
+							if a.State.Messages[i].Role == "user" {
+								a.State.Draft = a.State.Messages[i].Text
+								a.submit()
+								break
+							}
+						}
+					}
 				}
 				a.composer(c)
 			})
@@ -277,6 +320,10 @@ func (a *App) message(c *native.Context, m *app.Message) {
 						}
 					})
 				}
+			} else if m.Interaction != nil {
+				a.interactionCard(c, m.Interaction)
+			} else if m.Tool != nil {
+				a.toolCard(c, m.Tool)
 			} else {
 				native.Column(c).FillWidth().Gap(6).Padding(12, 14).Radius(10).Background(t.Surface).Children(func() {
 					native.Text(c, "工具").FontSize(11).TextColor(t.TextMuted)
