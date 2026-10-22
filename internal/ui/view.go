@@ -51,7 +51,6 @@ func readingColumn(c *native.Context, build func()) {
 
 func (a *App) view(c *native.Context) {
 	t := c.Theme()
-	a.list.Key = func(i int) any { return a.State.Messages[i].ID }
 	a.list.FollowEnd = true
 	native.Column(c).Fill().Background(t.Background).Children(func() {
 		a.toolbar(c)
@@ -77,10 +76,31 @@ func (a *App) view(c *native.Context) {
 
 func (a *App) conversation(c *native.Context) {
 	t := c.Theme()
+	messages := make([]*app.Message, 0, len(a.State.Messages))
+	for _, m := range a.State.Messages {
+		if m.Role != "assistant" || m.Text != "" {
+			messages = append(messages, m)
+		}
+	}
+	thinking := a.thinking()
+	count := len(messages)
+	if thinking {
+		count++
+	}
+	a.list.Key = func(i int) any {
+		if i == len(messages) {
+			return thinkingKey{a.State.Sequence}
+		}
+		return messages[i].ID
+	}
 	native.Box(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		// Keep the latest content clear of the floating control, even while it is hidden.
-		native.List(c, &a.list, len(a.State.Messages), func(i int) {
-			a.message(c, a.State.Messages[i])
+		native.List(c, &a.list, count, func(i int) {
+			if i == len(messages) {
+				readingColumn(c, func() { thinkingIndicator(c) })
+			} else {
+				a.message(c, messages[i])
+			}
 		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(28)
 		if !a.list.AtEnd() {
 			// The tint fades into the composer surface without intercepting scrolling.
@@ -156,7 +176,7 @@ func (a *App) composer(c *native.Context) {
 			if composing {
 				return false
 			}
-			if k.Key == native.KeyEnter && k.Mods == native.Cmd {
+			if k.Key == native.KeyEnter && k.Mods == 0 {
 				a.State.Draft = k.Text()
 				if a.canSend() {
 					a.submit()
@@ -182,7 +202,7 @@ func (a *App) composer(c *native.Context) {
 			native.Popover(c, details, &a.detailsOpen, func() { a.runtimeDetails(c) })
 			native.Spacer(c)
 			action, glyph := "发送", upIcon
-			hint := "⌘ Enter 发送 · Enter 换行"
+			hint := "Enter 发送 · ⌘ Enter 换行"
 			disabled := !a.canSend()
 			if a.State.Busy {
 				action, glyph = "停止", stopIcon
@@ -224,7 +244,7 @@ func (a *App) runtimeDetails(c *native.Context) {
 				native.Text(c, text).FontSize(12).Selectable()
 			})
 		}
-		native.Text(c, "⌘ Enter 发送 · Enter 换行").FontSize(11).TextColor(t.TextMuted)
+		native.Text(c, "Enter 发送 · ⌘ Enter 换行").FontSize(11).TextColor(t.TextMuted)
 	})
 }
 

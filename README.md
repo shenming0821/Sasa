@@ -23,7 +23,7 @@ open bin/Fuyu.app
 bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 ```
 
-先选择目录，再输入任务。`⌘ Enter` 发送，`Enter` 换行。停止以 Codex 返回的 turn 终态为准；已转入后台的命令可能继续运行。当前会话仅保留在内存，退出前自行保留需要的内容。
+先选择目录，再输入任务。`Enter` 发送，`⌘ Enter` 换行。停止以 Codex 返回的 turn 终态为准；已转入后台的命令可能继续运行。当前会话仅保留在内存，退出前自行保留需要的内容。
 
 ## 文档
 

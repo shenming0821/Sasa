@@ -45,6 +45,12 @@ def main():
             ("Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{})",
              "Color: t.Text.scene(), Wide: p.wide(t.Text, Color{}, Color{})"),
         ])
+    # Let multiline inputs handle Cmd+Enter through the editor's normal insertion,
+    # preserving the selection, caret, undo history and native IME routing.
+    edits["editor_navigation.go"] = [(
+        "case KeyEnter:\n\t\treturn m == 0",
+        "case KeyEnter:\n\t\treturn m == 0 || (ed.multiline && k.mods == Cmd)",
+    )]
     # Go forbids overlays inside GOMODCACHE, so patch an isolated project cache.
     revision = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()[:16]
     cache = root / ".cache" / "mygo-input-style"

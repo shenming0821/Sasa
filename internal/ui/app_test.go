@@ -83,38 +83,52 @@ func TestComposerAndSendGates(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Type("第一行")
-	tt.Key(0, native.KeyEnter)
+	tt.Key(native.Cmd, native.KeyEnter)
 	tt.Type("第二行")
 	if a.State.Draft != "第一行\n第二行" {
 		t.Fatalf("draft=%q", a.State.Draft)
 	}
-	tt.Key(native.Cmd, native.KeyEnter)
+	tt.Key(0, native.KeyEnter)
 	if count != 0 {
 		t.Fatal("sent without directory")
 	}
 	a.State.Cwd = "/tmp/fuyu-component"
 	tt.Frame()
-	tt.Compose("输入法组合", 5)
+	tt.Key(native.Cmd, native.KeyA)
+	tt.Type("甲乙")
+	tt.Key(0, native.KeyLeft)
 	tt.Key(native.Cmd, native.KeyEnter)
+	tt.Type("中")
+	if count != 0 || a.State.Draft != "甲\n中乙" {
+		t.Fatalf("newline did not preserve caret: count=%d draft=%q", count, a.State.Draft)
+	}
+	tt.Key(native.Cmd, native.KeyA)
+	tt.Key(native.Cmd, native.KeyEnter)
+	if count != 0 || a.State.Draft != "\n" {
+		t.Fatalf("newline did not replace selection: count=%d draft=%q", count, a.State.Draft)
+	}
+	tt.Type("任务")
+	tt.Compose("输入法组合", 5)
+	tt.Key(0, native.KeyEnter)
 	if count != 0 {
 		t.Fatal("sent while IME composition was active")
 	}
 	tt.Compose("", 0)
-	tt.Key(native.Cmd, native.KeyEnter)
+	tt.Key(0, native.KeyEnter)
 	if count != 1 || a.State.Draft != "" {
 		t.Fatalf("count=%d draft=%q", count, a.State.Draft)
 	}
 	a.State.Busy = true
 	a.State.Draft = "wait"
 	tt.Frame()
-	tt.Key(native.Cmd, native.KeyEnter)
+	tt.Key(0, native.KeyEnter)
 	if count != 1 {
 		t.Fatal("sent during active turn")
 	}
 	a.State.Busy = false
 	a.State.Disconnected = true
 	tt.Frame()
-	tt.Key(native.Cmd, native.KeyEnter)
+	tt.Key(0, native.KeyEnter)
 	if count != 1 {
 		t.Fatal("sent while disconnected")
 	}
