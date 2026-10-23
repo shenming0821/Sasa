@@ -38,7 +38,7 @@ func pretty(raw json.RawMessage) string {
 func (a *App) toolCard(c *native.Context, t *app.Tool) {
 	theme := c.Theme()
 	native.Column(c).FillWidth().Gap(8).Padding(12, 14).Radius(12).
-		Border(1, theme.Border.Alpha(.65)).Background(theme.Surface).Children(func() {
+		Border(1, theme.Border.Alpha(.65)).Background(theme.Surface).Clip().Children(func() {
 		native.Row(c).FillWidth().Gap(8).Children(func() {
 			native.Text(c, t.Title()).FontSize(12).Grow(1)
 			status := native.Text(c, t.StatusLabel()).FontSize(11).TextColor(theme.TextMuted)
@@ -47,7 +47,7 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 			}
 		})
 		if t.Command != "" {
-			native.Text(c, t.Command).Selectable().Font("monospace").FontSize(12).FillWidth().MaxHeight(72)
+			native.Text(c, t.Command).Label("命令预览").Selectable().Font("monospace").FontSize(12).FillWidth().MaxLines(4)
 		}
 		if t.Cwd != "" {
 			detailText(c, "工作目录", t.Cwd)
@@ -68,21 +68,29 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 		if len(metrics) > 0 {
 			native.Text(c, strings.Join(metrics, " · ")).FontSize(11).TextColor(theme.TextMuted)
 		}
-		hasDetails := t.Output != "" || t.Input != ""
+		hasDetails := t.Command != "" || t.Output != "" || t.Input != ""
 		for _, change := range t.Changes {
 			hasDetails = hasDetails || change.Diff != ""
 		}
 		if hasDetails {
-			label := "展开输出"
+			noun := "输出"
+			if t.Command != "" {
+				noun = "详情"
+			}
+			label := "展开" + noun
 			if t.Expanded {
-				label = "收起输出"
+				label = "收起" + noun
 			}
 			if actionButton(c, label).Clicked() {
 				t.Expanded = !t.Expanded
 			}
 			if t.Expanded {
-				native.Scroll(c).FillWidth().MaxHeight(180).Children(func() {
+				native.Scroll(c).Label("工具详情").FillWidth().MaxHeight(180).Children(func() {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
+						if t.Command != "" {
+							native.Text(c, "完整命令").FontSize(11).TextColor(theme.TextMuted)
+							native.Text(c, t.Command).Label("完整命令内容").Selectable().Font("monospace").FontSize(12).FillWidth()
+						}
 						if t.Input != "" {
 							detailText(c, "输入", t.Input)
 						}

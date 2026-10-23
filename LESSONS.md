@@ -33,6 +33,10 @@
 
 `thread/resume` 报告已有 active writer 时，表示另一进程持有写入权。此时以原生只读接口加载历史，并提供重试或独立分叉；保留原会话及草稿。仅管理 Fuyu 自有任务，不因外部占用创建 Busy 状态或提交不确定标记。分叉时明确延后目标自动续跑，直接使用 fork 返回状态分页，等待用户发送下一项任务。依据：`internal/ui/occupied_test.go`、`internal/codex/history_test.go`、[占用交互验收](docs/verification/2026-10-23-occupied-session.md)。
 
+## 2026-10-23：工具卡片文字越界
+
+长多行命令使用 `Text.MaxHeight(72)` 时只限制布局占位，实际文字仍继续向下绘制，覆盖卡片元数据及后续消息。限制文字预览时使用 `MaxLines`，并通过独立滚动详情提供完整内容；卡片同时裁切绘制边界。回归应读取实际渲染像素，检查命令与元数据之间的间距及卡片下方留白，单独检查元素高度无法发现该问题。依据：[布局验收](docs/verification/2026-10-23-tool-layout.md)。
+
 ## 2026-10-23：桌面启动环境
 
 Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改为绝对路径还不足以启动 npm/Bun 包装脚本，因为 `env node` 仍依赖子进程 PATH。桌面启动时根据当前用户恢复安装目录与登录 shell 路径，并将相同环境用于版本探测、App Server 和后续工具；保留显式路径和原生配置。回归使用精简 PATH、临时安装目录和真实初始化分别核验，不能用终端中的 `codex --version` 代替桌面启动验证。依据：[启动路径验收](docs/verification/2026-10-23-codex-discovery.md)。

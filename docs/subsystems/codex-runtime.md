@@ -28,7 +28,7 @@
 
 `internal/ui/app.go` 通过 `Window.Update` 将后台结果投递到主线程。MyGo 的 Update **异步返回**，不能将其当成同步屏障。事件按 40 ms / 最多 256 条批量应用，等待本批主线程回调完成后再派发下一批，同时限制 UI 的待执行工作量；使用原生虚拟列表、稳定消息 ID 与跟随末尾。
 
-工具投影位于 `internal/app/tools.go`，卡片位于 `internal/ui/activity.go`。命令、文件、MCP/动态工具按 item ID 合并，命令输出可折叠，展开区域最高 180 DIP。单项输出/文件内容裁剪为 256 KiB；总显示缓存按字节估算限制为 8 MiB / 1000 条消息，优先移除较早且非活动交互的显示项并提示。该上限控制显示数据，不能作为整个进程的 RSS 上限。
+工具投影位于 `internal/app/tools.go`，卡片位于 `internal/ui/activity.go`。命令默认显示最多四行并使用省略号结束；含命令的卡片通过“展开详情”查看完整命令及输入/输出。详情使用最高 180 DIP 的独立滚动区，卡片裁切绘制边界，长脚本不会覆盖元数据和后续消息。纯输出卡片保留“展开输出”入口。命令、文件、MCP/动态工具按 item ID 合并，命令输出可折叠，展开区域最高 180 DIP。单项输出/文件内容裁剪为 256 KiB；总显示缓存按字节估算限制为 8 MiB / 1000 条消息，优先移除较早且非活动交互的显示项并提示。该上限控制显示数据，不能作为整个进程的 RSS 上限。
 
 `internal/app/snapshot.go` 在增量缺口后以 `thread/read(includeTurns=true)` 核验相同 thread/turn 的原生终态和最终 items；错误或不匹配时保留“不完整”，提供重新核验入口。该路径用于当前连接的缺口校准；重启后的历史恢复由 `thread/resume` 与分页 `thread/turns/list` 完成，见[会话管理](sessions.md)。
 
