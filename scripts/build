@@ -4,6 +4,8 @@ cd "$(dirname "$0")/.."
 bundle="bin/Fuyu.app/Contents"
 mkdir -p "$bundle/MacOS" "$bundle/Resources"
 ./scripts/go build -o "$bundle/MacOS/Fuyu" ./cmd/desktop
+# Keep the original command pointing to the same application executable.
+ln -sfn Fuyu.app/Contents/MacOS/Fuyu bin/fuyu
 icon_work=$(mktemp -d "${TMPDIR:-/tmp}/fuyu-icon.XXXXXX")
 trap 'rm -rf "$icon_work"' 0
 iconset="$icon_work/Fuyu.iconset"

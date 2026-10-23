@@ -96,3 +96,7 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 | 恢复快照可能已包含缓冲 delta，重放会重复正文 | 控制事件与增量分别处理，缺口读取原生权威条目校准 | `internal/ui/history.go`、`internal/ui/recovery_test.go` |
 | 锚点在更早页或超出显示容量，恢复标志会造成无效刷新 | 自动分页寻找锚点，到达容量或历史末尾时结束恢复并提示实际边界 | `TestRecoveryAutomaticallyLoadsSavedReadingAnchor`、`TestHistoryCapacityEndsUnresolvedAnchorRestoration` |
 | 中断 RPC 返回成功或连接丢失，均不能证明任务已停止 | 逐个等待原生终态，断线保留未确认目标，超时后由用户选择返回核验或强退 | `internal/ui/lifecycle_test.go` |
+
+## 2026-10-23：工作区卡片悬停
+
+当一个列表项包含主入口与辅助操作时，由共同外层绘制完整悬停和选中背景，主入口使用透明按钮，辅助操作仅显示小范围反馈。仅把子按钮放进同一圆角容器，仍会因子按钮各自绘制 hover 造成割裂；用文字区、操作区的背景像素和跨区域悬停验证。见 `TestWorktreeCardHoverCoversActionArea`。

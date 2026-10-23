@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/project"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
@@ -31,6 +32,11 @@ type App struct {
 	win               *mygo.Window
 	md                markdown.Options
 	sessions          []*session
+	repositories      []project.Repository
+	projectsLoading   bool
+	projectsError     string
+	projectErrors     map[string]string
+	projectsRefreshed time.Time
 	nextSession       int
 	sidebarOpen       bool
 	sidebarWidth      float32
@@ -90,6 +96,7 @@ func (a *App) Run() error {
 			Content: native.View(a.view),
 		})
 		a.installLifecycle()
+		a.refreshProjects()
 		if a.backend != nil {
 			go a.receive()
 			if a.historyOpen {

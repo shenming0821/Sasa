@@ -17,6 +17,9 @@ func (a *App) autosave() {
 			applied := make(chan struct{})
 			a.update(func() {
 				a.advanceQuit()
+				if !a.projectsLoading && time.Since(a.projectsRefreshed) >= 30*time.Second {
+					a.refreshProjects()
+				}
 				close(applied)
 			})
 			select {

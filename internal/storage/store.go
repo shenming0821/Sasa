@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/shenming0821/Fuyu/internal/project"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -30,6 +32,7 @@ type Session struct {
 }
 
 type Snapshot struct {
+	Repositories      []project.Repository
 	Selected          int
 	OpenTabs          []int
 	SidebarOpen       bool

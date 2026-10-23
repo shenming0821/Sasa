@@ -12,6 +12,7 @@
 | [代码标准](code-standards.md) | Go、原生 UI、协议、进程及测试规则 |
 | [子系统索引](subsystems/README.md) | 责任边界与实际源码定位 |
 | [经验记录](../LESSONS.md) | 已核验的问题、预防动作及证据 |
+| [项目管理](subsystems/projects.md) | 本地仓库导入、worktree 扫描、分支与会话绑定 |
 | [Codex 运行时](subsystems/codex-runtime.md) | 当前协议、状态与资源归属 |
 | [P1 验证记录](verification/2026-10-22-p1.md) | 自动化、真实 Codex、原生窗口与待验收项 |
 | [P2 验证记录](verification/2026-10-22-p2.md) | 工具状态、审批、问题表单、有界输出及真实/夹具覆盖 |

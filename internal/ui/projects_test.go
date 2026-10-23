@@ -1,0 +1,427 @@
+package ui
+
+import (
+	"context"
+	"image/png"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+
+	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/project"
+	"github.com/shenming0821/Fuyu/internal/storage"
+)
+
+func projectFixture(t *testing.T) project.Repository {
+	t.Helper()
+	base := t.TempDir()
+	root := filepath.Join(base, "repository")
+	if err := os.Mkdir(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", root}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_AUTHOR_NAME=Fixture", "GIT_AUTHOR_EMAIL=fixture@example.invalid", "GIT_COMMITTER_NAME=Fixture", "GIT_COMMITTER_EMAIL=fixture@example.invalid")
+		if raw, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git: %v %s", err, raw)
+		}
+	}
+	run("init", "-b", "main")
+	run("-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", "fixture")
+	run("worktree", "add", "-b", "feature/chat", filepath.Join(base, "chat-worktree"))
+	repo, err := project.Discover(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return repo
+}
+
+func TestRepositoryImportGroupsBranchesAndSessions(t *testing.T) {
+	repo := projectFixture(t)
+	a := New(stubBackend{}, "test", repo.Path, nil)
+	first := a.session
+	first.State.Draft = "main draft"
+	queue := make(chan func(), 10)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.importRepository(repo.Worktrees[1].Path)
+	pumpUpdate(t, queue)
+	if len(a.repositories) != 1 || len(a.sessions) != 1 {
+		t.Fatal("import did not discover repository or created all sessions eagerly")
+	}
+	a.importRepository(repo.Path)
+	pumpUpdate(t, queue)
+	if len(a.repositories) != 1 {
+		t.Fatal("duplicate repository imported through linked worktree")
+	}
+	tt := native.NewTester(a.view, 1000, 760)
+	if !tt.HasText("main") || !tt.HasText("feature/chat") || !tt.HasText("主要") {
+		t.Fatal("repository branch hierarchy missing")
+	}
+	if err := tt.Click("打开工作区 " + repo.Worktrees[1].Path); err != nil {
+		t.Fatal(err)
+	}
+	second := a.session
+	if second == first || a.State.Cwd != repo.Worktrees[1].Path {
+		t.Fatal("worktree selection did not bind session cwd")
+	}
+	second.State.Draft = "feature draft"
+	if err := tt.Click("打开工作区 " + repo.Path); err != nil {
+		t.Fatal(err)
+	}
+	if a.session != first || a.State.Draft != "main draft" {
+		t.Fatal("switching worktree lost independent draft")
+	}
+	if err := tt.Click("新建工作区会话 " + repo.Worktrees[1].Path); err != nil {
+		t.Fatal(err)
+	}
+	if a.session == second || a.State.Cwd != second.State.Cwd || second.State.Draft != "feature draft" {
+		t.Fatal("worktree cannot own multiple conversations")
+	}
+	if len(a.projectGroups()) != 0 {
+		t.Fatal("repository sessions duplicated in directory groups")
+	}
+	if err := tt.Click("搜索会话"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("feature/chat")
+	if !tt.HasText("打开工作区 "+repo.Worktrees[1].Path) || tt.HasText("打开工作区 "+repo.Path) {
+		t.Fatal("branch search failed")
+	}
+}
+
+func TestProjectRefreshPersistenceAndScanFailure(t *testing.T) {
+	repo := projectFixture(t)
+	a := New(nil, "test", repo.Path, nil)
+	store, err := storage.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := a.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	queue := make(chan func(), 10)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.refreshProjects()
+	pumpUpdate(t, queue)
+	if len(a.repositories) != 1 {
+		t.Fatal("existing directory session did not discover repository")
+	}
+	b := New(nil, "test", "", nil)
+	if err := b.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.repositories) != 1 || len(b.repositories[0].Worktrees) != 2 {
+		t.Fatal("repository catalog not restored")
+	}
+	linked := repo.Worktrees[1].Path
+	cmd := exec.Command("git", "-C", repo.Path, "worktree", "remove", linked)
+	if raw, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("fixture remove: %v %s", err, raw)
+	}
+	a.refreshProjects()
+	pumpUpdate(t, queue)
+	if len(a.repositories[0].Worktrees) != 1 {
+		t.Fatal("refresh did not reflect external worktree removal")
+	}
+	cmd = exec.Command("git", "-C", repo.Path, "worktree", "add", "-b", "feature/external", linked)
+	if raw, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("fixture add: %v %s", err, raw)
+	}
+	a.refreshProjects()
+	pumpUpdate(t, queue)
+	if len(a.repositories[0].Worktrees) != 2 || a.repositories[0].Worktrees[1].Branch != "feature/external" {
+		t.Fatal("refresh did not discover external worktree creation")
+	}
+	cmd = exec.Command("git", "-C", repo.Path, "worktree", "remove", linked)
+	if raw, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("fixture remove: %v %s", err, raw)
+	}
+	a.refreshProjects()
+	pumpUpdate(t, queue)
+	if err := os.Rename(repo.Path, repo.Path+"-moved"); err != nil {
+		t.Fatal(err)
+	}
+	a.refreshProjects()
+	pumpUpdate(t, queue)
+	if len(a.repositories) != 1 || len(a.repositories[0].Worktrees) != 1 || a.projectErrors[repo.CommonDir] == "" {
+		t.Fatal("failed scan erased cached repository instead of showing error")
+	}
+	a.importRepository(t.TempDir())
+	pumpUpdate(t, queue)
+	if a.projectsError == "" || len(a.repositories) != 1 {
+		t.Fatal("failed import lost catalog or hid error")
+	}
+}
+
+func TestRepositoryNavigationLayoutAndCollapse(t *testing.T) {
+	for _, width := range []int{640, 1000, 1400} {
+		a := New(stubBackend{}, "test", "/workspace/fuyu", nil)
+		a.repositories = []project.Repository{{CommonDir: "/workspace/fuyu/.git", Path: "/workspace/fuyu", Name: "Fuyu", Worktrees: []project.Worktree{
+			{Path: "/workspace/fuyu", Branch: "main", Main: true},
+			{Path: "/workspace/feature-chat", Branch: "feature/chat-navigation"},
+		}}}
+		a.saved.Title = "优化项目导航"
+		a.newSession("/workspace/feature-chat")
+		a.saved.Title = "实现独立工作区会话"
+		tt := native.NewTester(a.view, width, 760)
+		if width == 640 {
+			if err := tt.Click("切换左侧边栏"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		branch, ok := tt.Find("打开工作区 /workspace/feature-chat")
+		add, addOK := tt.Find("新建工作区会话 /workspace/feature-chat")
+		if !ok || !addOK || branch.W <= 0 || branch.X+branch.W > add.X+1 {
+			t.Fatalf("worktree row overlapped at %d: %+v %+v", width, branch, add)
+		}
+		if preview := os.Getenv("FUYU_PROJECT_PREVIEW"); preview != "" && width == 1000 {
+			file, err := os.Create(preview)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = png.Encode(file, tt.Image())
+			file.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := tt.Click("展开仓库 /workspace/fuyu/.git"); err != nil {
+			t.Fatal(err)
+		}
+		if tt.HasText("打开工作区 /workspace/feature-chat") {
+			t.Fatal("collapsed repository retained worktree rows")
+		}
+	}
+}
+
+func TestNestedRepositoryOwnershipAndUnavailableWorktrees(t *testing.T) {
+	a := New(nil, "test", "/repo/nested/src", nil)
+	a.repositories = []project.Repository{
+		{CommonDir: "/repo/.git", Path: "/repo", Worktrees: []project.Worktree{{Path: "/repo"}}},
+		{CommonDir: "/repo/nested/.git", Path: "/repo/nested", Worktrees: []project.Worktree{{Path: "/repo/nested"}}},
+	}
+	if owner := a.worktreeFor(a.State.Cwd); owner == nil || owner.Path != "/repo/nested" {
+		t.Fatal("parent repository captured nested repository session")
+	}
+	if a.worktreeFor("/repository-other") != nil {
+		t.Fatal("directory-prefix collision assigned unrelated session")
+	}
+	for _, tree := range []project.Worktree{{Path: "/bare", Bare: true}, {Path: "/missing", Missing: true}, {Path: "/pruned", Prunable: true}} {
+		a.openWorktree(tree)
+		if len(a.sessions) != 1 {
+			t.Fatal("unavailable worktree created session")
+		}
+	}
+}
+
+// Opt-in verification of user-retained local worktrees. Git is only read here;
+// optional app data must point to a dedicated test directory.
+func TestLiveProjectWorktreesReadOnly(t *testing.T) {
+	path := os.Getenv("FUYU_PROJECT_TEST_REPO")
+	if path == "" {
+		t.Skip("set FUYU_PROJECT_TEST_REPO to a retained test repository")
+	}
+	repo, err := project.Discover(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.Worktrees) < 5 {
+		t.Fatalf("expected at least five real worktrees, got %d", len(repo.Worktrees))
+	}
+	data := os.Getenv("FUYU_PROJECT_TEST_DATA")
+	if data == "" {
+		data = t.TempDir()
+	}
+	store, err := storage.Open(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	a := New(nil, "worktree-test", repo.Path, nil)
+	if err := a.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	queue := make(chan func(), 8)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.importRepository(repo.Worktrees[len(repo.Worktrees)-1].Path)
+	pumpUpdate(t, queue)
+	a.importRepository(repo.Path)
+	pumpUpdate(t, queue)
+	if len(a.repositories) != 1 {
+		t.Fatal("real worktree import duplicated repository")
+	}
+	tt := native.NewTester(a.view, 1100, 900)
+	drafts := make(map[string]string)
+	for _, w := range repo.Worktrees {
+		if !w.Available() {
+			t.Fatalf("retained fixture worktree unavailable: %+v", w)
+		}
+		if err := tt.Click("打开工作区 " + w.Path); err != nil {
+			t.Fatal(err)
+		}
+		if a.State.Cwd != w.Path {
+			t.Fatalf("wrong cwd: %s want %s", a.State.Cwd, w.Path)
+		}
+		drafts[w.Path] = "draft: " + w.Label()
+		a.State.Draft = drafts[w.Path]
+		t.Logf("worktree=%s branch=%s main=%v locked=%v detached=%v session=%d", w.Path, w.Label(), w.Main, w.Locked, w.Detached, a.session.id)
+	}
+	for _, w := range repo.Worktrees {
+		if err := tt.Click("打开工作区 " + w.Path); err != nil {
+			t.Fatal(err)
+		}
+		if a.State.Draft != drafts[w.Path] {
+			t.Fatal("draft leaked between real worktree sessions")
+		}
+	}
+	a.refreshProjects()
+	pumpUpdate(t, queue)
+	if len(a.repositories[0].Worktrees) != len(repo.Worktrees) {
+		t.Fatal("refresh changed real worktree count")
+	}
+	if err := a.persist(); err != nil {
+		t.Fatal(err)
+	}
+	b := New(nil, "worktree-test", "", nil)
+	if err := b.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.snapshot().OpenTabs) != len(repo.Worktrees) || len(b.repositories) != 1 {
+		t.Fatal("restart lost real worktree tabs/catalog")
+	}
+	for _, s := range b.sessions {
+		if s.State.Draft != drafts[s.State.Cwd] || s.State.ThreadID != "" {
+			t.Fatal("restart lost draft or created model task")
+		}
+	}
+	if preview := os.Getenv("FUYU_PROJECT_PREVIEW"); preview != "" {
+		tt.Frame()
+		file, err := os.Create(preview)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = png.Encode(file, tt.Image())
+		file.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestWorktreeHidesBlankSessionRowsUntilConversationStarts(t *testing.T) {
+	a := New(nil, "test", "/repo", nil)
+	first := a.session
+	a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "repo", Worktrees: []project.Worktree{
+		{Path: "/repo", Main: true, Branch: "main"}, {Path: "/feature", Branch: "feature/chat"},
+	}}}
+	a.newSession("/feature")
+	draft := a.session
+	draft.State.Draft = "unsent draft"
+	tt := native.NewTester(a.view, 1000, 760)
+	if tt.HasText("切换会话 1") || tt.HasText("切换会话 2") {
+		t.Fatal("blank or draft-only conversations created placeholder sidebar rows")
+	}
+	if !tt.HasText("打开工作区 /repo") || !tt.HasText("打开工作区 /feature") || !tt.HasText("会话标签 2") {
+		t.Fatal("hiding placeholder removed worktree navigation or draft tab")
+	}
+	if err := tt.Click("打开工作区 /repo"); err != nil {
+		t.Fatal(err)
+	}
+	if a.session != first || len(a.sessions) != 2 {
+		t.Fatal("opening worktree did not reuse hidden blank conversation")
+	}
+	if err := tt.Click("打开工作区 /feature"); err != nil {
+		t.Fatal(err)
+	}
+	if a.session != draft || a.State.Draft != "unsent draft" {
+		t.Fatal("hidden draft became unreachable")
+	}
+	draft.State.Begin("实现聊天交互")
+	tt.Frame()
+	if !tt.HasText("打开工作区 /feature") || tt.HasText("切换会话 1") {
+		t.Fatal("submitted task did not become a sidebar conversation")
+	}
+	if err := tt.Click("新建工作区会话 /feature"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("切换会话 3") || !tt.HasText("打开工作区 /feature") {
+		t.Fatal("new blank session duplicated placeholder beside real task")
+	}
+	if err := tt.Click("打开工作区 /feature"); err != nil {
+		t.Fatal(err)
+	}
+	if a.session != draft || !a.State.Busy {
+		t.Fatal("real task was no longer reachable")
+	}
+	first.State.ThreadID, first.loaded = "saved-history", false
+	tt.Frame()
+	if !tt.HasText("打开工作区 /repo") {
+		t.Fatal("unloaded native history was hidden as blank")
+	}
+}
+
+func TestWorktreeCardShowsOnlyLatestConversation(t *testing.T) {
+	a := New(stubBackend{}, "test", "/repo", nil)
+	a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "repo", Worktrees: []project.Worktree{{Path: "/repo", Branch: "main"}}}}
+	a.saved.Title = "older conversation"
+	a.newSession("/repo")
+	latest := a.session
+	latest.saved.Title = "latest conversation"
+	a.newSession("/repo")
+	tt := native.NewTester(a.view, 1000, 760)
+	if tt.HasText("切换会话 1") || tt.HasText("切换会话 2") || tt.HasText("切换会话 3") {
+		t.Fatal("worktree card must contain only its latest conversation")
+	}
+	if err := tt.Click("打开工作区 /repo"); err != nil {
+		t.Fatal(err)
+	}
+	if a.session != latest {
+		t.Fatal("worktree card did not open its displayed conversation")
+	}
+}
+
+func TestWorktreeCardHoverCoversActionArea(t *testing.T) {
+	a := New(stubBackend{}, "test", "/repo", nil)
+	a.saved.Title = "审阅 Fuyu 设计文档 v2.0"
+	a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "Fuyu", Worktrees: []project.Worktree{{Path: "/repo", Branch: "main", Main: true}, {Path: "/other", Branch: "feature/chat"}}}}
+	a.newSession("/other")
+	tt := native.NewTester(a.view, 1000, 760)
+	body, ok := tt.Find("打开工作区 /repo")
+	action, addOK := tt.Find("新建工作区会话 /repo")
+	if !ok || !addOK {
+		t.Fatal("missing card controls")
+	}
+	// Sample empty background on both sides, outside the small action button.
+	x1, x2, y := int(body.X+2), int(action.X+action.W+2), int(body.Y+body.H/2)
+	before := tt.Image().RGBAAt(x1, y)
+	tt.Move(body.X+body.W/2, body.Y+body.H/2)
+	hover := tt.Image()
+	if hover.RGBAAt(x1, y) == before || hover.RGBAAt(x1, y) != hover.RGBAAt(x2, y) {
+		t.Fatal("hover background must cover both content and action area")
+	}
+	tt.Move(action.X+action.W/2, action.Y+action.H/2)
+	if tt.Image().RGBAAt(x1, y) != hover.RGBAAt(x1, y) {
+		t.Fatal("moving onto action split the card background")
+	}
+	if preview := os.Getenv("FUYU_CARD_PREVIEW"); preview != "" {
+		file, err := os.Create(preview)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = png.Encode(file, tt.Image())
+		file.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	count := len(a.sessions)
+	if err := tt.Click("新建工作区会话 /repo"); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.sessions) != count+1 || a.State.Cwd != "/repo" {
+		t.Fatal("action did not independently create a conversation")
+	}
+}

@@ -25,6 +25,7 @@ func (a *App) AttachStore(store *storage.Store) error {
 		return err
 	}
 	a.store = store
+	a.repositories = snapshot.Repositories
 	if len(snapshot.Sessions) == 0 {
 		return a.persist()
 	}
@@ -91,7 +92,8 @@ func (a *App) AttachStore(store *storage.Store) error {
 
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
-		Selected: a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
+		Repositories: a.repositories,
+		Selected:     a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
 	}
 	for _, s := range a.sessions {

@@ -20,7 +20,7 @@ P2 另在该隔离副本中修复 macOS 无障碍密码字段 setter 的缓存�
 open bin/Fuyu.app
 ```
 
-`scripts/build` 构建本地开发 `.app`，输出 `bin/Fuyu.app`，包含 bundle 元数据和应用图标；尚未配置正式发布签名、公证或安装器。图标源文件为 `assets/app-icon.png`，构建时通过 macOS 自带的 `sips` 和 `iconutil` 生成 16–1024 像素的多尺寸 `Resources/Fuyu.icns`，并写入 `CFBundleIconFile`。当前图标采用用户确认的蓝色 F 与橙色 Y 组合，底色为不透明纯白 `#FFFFFF`，PNG 为 1024×1024；可编辑矢量源保存在 `assets/app-icon.svg`。更新矢量源后，执行 `sips -s format png assets/app-icon.svg --out assets/app-icon.png` 导出 PNG，再重新构建以更新图标。终端启动便于查看退出错误：
+`scripts/build` 构建本地开发 `.app`，输出 `bin/Fuyu.app`；原有 `bin/fuyu` 入口通过符号链接指向包内同一可执行文件，每次构建自动同步，使用同一默认数据目录。包含 bundle 元数据和应用图标；尚未配置正式发布签名、公证或安装器。图标源文件为 `assets/app-icon.png`，构建时通过 macOS 自带的 `sips` 和 `iconutil` 生成 16–1024 像素的多尺寸 `Resources/Fuyu.icns`，并写入 `CFBundleIconFile`。当前图标采用用户确认的蓝色 F 与橙色 Y 组合，底色为不透明纯白 `#FFFFFF`，PNG 为 1024×1024；可编辑矢量源保存在 `assets/app-icon.svg`。更新矢量源后，执行 `sips -s format png assets/app-icon.svg --out assets/app-icon.png` 导出 PNG，再重新构建以更新图标。终端启动便于查看退出错误：
 
 ```sh
 bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex

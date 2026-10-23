@@ -23,6 +23,9 @@ func (a *App) projectGroups() []projectGroup {
 	indices := make(map[string]int)
 	for i := len(a.sessions) - 1; i >= 0; i-- {
 		s := a.sessions[i]
+		if a.worktreeFor(s.State.Cwd) != nil {
+			continue
+		}
 		if !matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
 			continue
 		}
@@ -79,19 +82,36 @@ func (a *App) sidebar(c *native.Context) {
 		})
 		native.Column(c).FillWidth().Padding(8, 12).Gap(10).Children(func() {
 			native.TextInput(c, &a.sessionQuery).Label("搜索会话").Placeholder("搜索项目与会话").FillWidth().FontSize(12)
-			b := quietButton(c, "打开项目").FillWidth().Gap(8)
-			b.Children(func() {
-				native.Icon(c, folderIcon).Size(16, 16)
-				native.Text(c, "打开项目").FontSize(12)
-			})
-			if b.Clicked() {
+		})
+		native.Row(c).FillWidth().Padding(4, 12, 4, 18).Gap(2).AlignItems(native.Center).Children(func() {
+			native.Text(c, "项目").FontSize(11).TextColor(t.TextMuted)
+			native.Spacer(c)
+			bImport := quietButton(c, "导入项目").Size(26, 26).Tooltip("导入项目（自动发现 Git 工作区）").Disabled(a.projectsLoading)
+			bImport.Children(func() { native.Icon(c, importProjectIcon).Size(14, 14) })
+			if bImport.Clicked() {
+				go a.chooseRepository(a.State.Cwd)
+			}
+			open := quietButton(c, "打开项目").Size(26, 26).Tooltip("打开项目文件夹")
+			open.Children(func() { native.Icon(c, openProjectIcon).Size(14, 14) })
+			if open.Clicked() {
 				owner, cwd := a.session, a.State.Cwd
 				go a.chooseDirectory(owner, cwd)
 			}
+			refresh := quietButton(c, "刷新项目").Size(26, 26).Disabled(a.projectsLoading)
+			if a.projectsLoading {
+				refresh.Tooltip("正在刷新项目…")
+			}
+			refresh.Children(func() { native.Icon(c, refreshProjectIcon).Size(14, 14) })
+			if refresh.Clicked() {
+				a.refreshProjects()
+			}
 		})
-		native.Text(c, "项目").FontSize(11).TextColor(t.TextMuted).Padding(12, 18, 6, 18)
+		if a.projectsError != "" {
+			native.Text(c, a.projectsError).FontSize(11).TextColor(t.Danger).Padding(4, 12).MaxLines(3)
+		}
 		native.Scroll(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
 			native.Column(c).FillWidth().Padding(4, 8).Gap(12).Children(func() {
+				a.repositoryRows(c)
 				groups := a.projectGroups()
 				for _, group := range groups {
 					gc := c.Key(group.path)
@@ -140,7 +160,11 @@ func (a *App) sidebar(c *native.Context) {
 						}
 					})
 				}
-				if len(groups) == 0 {
+				matched := len(groups) > 0
+				for _, repo := range a.repositories {
+					matched = matched || a.repositoryMatches(repo)
+				}
+				if !matched {
 					native.Text(c, "没有匹配的会话").FontSize(12).TextColor(t.TextMuted).Padding(12)
 				}
 			})
@@ -149,6 +173,10 @@ func (a *App) sidebar(c *native.Context) {
 			BorderWidth(1, 0, 0, 0).BorderColor(t.Border.Alpha(0.5))
 	})
 }
+
+var importProjectIcon = icon(`<path d="M3 8V6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2M3 12h10m-3-3 3 3-3 3"/>`)
+var openProjectIcon = icon(`<path d="M3 18V6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 20h15l4-9H7l-4 9Z"/>`)
+var refreshProjectIcon = icon(`<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>`)
 
 var iconRight = icon(`<path d="m10 7 5 5-5 5"/>`)
 var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
