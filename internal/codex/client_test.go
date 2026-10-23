@@ -32,6 +32,27 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "skills":
+			if m.Method == "skills/list" {
+				var params struct {
+					Cwds        []string `json:"cwds"`
+					ForceReload bool     `json:"forceReload"`
+				}
+				if json.Unmarshal(m.Params, &params) != nil || len(params.Cwds) != 1 || params.Cwds[0] != "/workspace" || !params.ForceReload {
+					os.Exit(2)
+				}
+				enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"data": []any{map[string]any{"cwd": "/workspace", "skills": []any{map[string]any{"name": "design", "path": "/skills/SKILL.md", "description": "Design", "enabled": true}}, "errors": []any{map[string]any{"path": "/bad/SKILL.md", "message": "invalid metadata"}}}}}})
+			} else if m.Method == "turn/start" {
+				var params struct {
+					Thread string                                    `json:"threadId"`
+					Input  []struct{ Type, Name, Path, Text string } `json:"input"`
+				}
+				if json.Unmarshal(m.Params, &params) != nil || params.Thread != "thread" || len(params.Input) != 2 || params.Input[0].Type != "text" || params.Input[0].Text != "$design task" || params.Input[1].Type != "skill" || params.Input[1].Name != "design" || params.Input[1].Path != "/skills/SKILL.md" {
+					os.Exit(3)
+				}
+				enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]any{"id": "turn", "status": "inProgress"}}})
+			}
+			continue
 		case "flood":
 			for i := 0; i < 1024; i++ {
 				enc.Encode(map[string]any{"method": "notice", "params": map[string]int{"n": i}})

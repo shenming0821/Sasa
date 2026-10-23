@@ -370,16 +370,7 @@ func (c *Client) StartThread(ctx context.Context, cwd string) (Thread, error) {
 }
 
 func (c *Client) Send(ctx context.Context, threadID, text string) (Turn, error) {
-	var result struct {
-		Turn Turn `json:"turn"`
-	}
-	err := c.Call(ctx, "turn/start", map[string]any{
-		"threadId": threadID,
-		"input": []any{map[string]any{
-			"type": "text", "text": text, "textElements": []any{},
-		}},
-	}, &result)
-	return result.Turn, err
+	return c.SendWithSkills(ctx, threadID, text, nil)
 }
 
 func (c *Client) Interrupt(ctx context.Context, threadID, turnID string) error {

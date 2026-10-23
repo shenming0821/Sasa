@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Fuyu/internal/codex"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
@@ -38,6 +39,11 @@ func (a *App) AttachStore(store *storage.Store) error {
 	for _, saved := range snapshot.Sessions {
 		s := &session{id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == ""}
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
+		s.completion.cwd = saved.Cwd
+		s.completion.chosen = make(map[string]codex.Skill)
+		for name, path := range saved.DraftSkills {
+			s.completion.chosen[name] = codex.Skill{Name: name, Path: path, Enabled: true}
+		}
 		if saved.ThreadID != "" {
 			s.State.Phase, s.recoveryBlocked = "等待恢复", true
 		} else if saved.Active {
@@ -83,6 +89,10 @@ func (a *App) snapshot() storage.Snapshot {
 		item := s.saved
 		item.ID, item.ThreadID, item.Cwd = s.id, s.State.ThreadID, s.State.Cwd
 		item.Draft, item.Title = s.State.Draft, s.title()
+		item.DraftSkills = make(map[string]string)
+		for _, skill := range s.draftSkills(s.State.Draft) {
+			item.DraftSkills[skill.Name] = skill.Path
+		}
 		if s.loaded && !s.recovering {
 			if !s.recoveryBlocked {
 				item.TurnID = s.State.TurnID

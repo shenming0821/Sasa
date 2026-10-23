@@ -18,6 +18,7 @@ type session struct {
 	scroll          native.ScrollState
 	rows            map[string]*native.Handle
 	commandGroups   map[string]*bool
+	completion      inputCompletion
 	readingContext  *native.Context
 	restoreOffset   bool
 	projectOpen     bool

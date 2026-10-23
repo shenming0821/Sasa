@@ -19,6 +19,7 @@ type Session struct {
 	Cwd          string
 	Title        string
 	Draft        string
+	DraftSkills  map[string]string
 	TurnID       string
 	Active       bool
 	Anchor       string

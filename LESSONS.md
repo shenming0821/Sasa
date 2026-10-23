@@ -25,6 +25,10 @@
 规则归属：代码标准或相关子系统文档
 ```
 
+## 2026-10-23：输入事件与原生元素有效期
+
+MyGo 的 Element 只在当前构建阶段有效。输入候选处理键盘时，在构建阶段读取组合输入和光标状态，回调通过 TextKey 读取、替换文本；跨阶段访问控件时使用原生 Handle。直接在 OnTextKey 中调用捕获 Element 的方法会触发有效期 panic。依据：输入候选实现时复现该异常，调整后已有输入测试及 `internal/ui/completion_test.go` 通过。
+
 ## 2026-10-23：内容宽度与 Grow
 
 命令组箭头需要紧随文字时，标题使用自然宽度并允许在空间不足时收缩。MyGo 的 `Grow(0)` 仍设置零宽 flex basis，先 `Grow(1)` 再 `Grow(0)` 会把短标题压到零宽。按条件创建布局时，仅对需要填满剩余空间的分支调用 `Grow`；验证短标题实际宽度、相邻箭头位置和长短状态切换。依据：`TestCommandGroupTitleKeepsContentWidthAndAdjacentArrow` 修复前在 320 / 800 DIP 下复现宽度为 0，修复后通过。

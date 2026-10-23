@@ -12,7 +12,7 @@
 | 已完成 | Go/MyGo 工程、分层源码、原生窗口、Codex 双向协议、状态/协议/UI 组件测试 |
 | 已实现功能 | P1/P2 任务交互；P3 多会话、SQLite 索引与迁移、原生分页历史、草稿/阅读/折叠恢复、异常状态核验、窗口驻留和退出流程 |
 | 已有文件 | `cmd/desktop/`、`internal/{ui,app,codex,runtime,storage}/`、`go.mod`、`go.sum`、`scripts/` |
-| 下一动作 | 已按 ChatGPT 参考实现命令分组、悬停箭头与展开/收起动画，见[命令交互验收](verification/2026-10-23-command-disclosure.md)；重启新构建后复核真实窗口交互。P4 文件变更与 Diff 功能仍待开始，提交与推送按用户授权执行 |
+| 下一动作 | 已补上 `/` 命令与 `$` 技能候选，见[输入候选验收](verification/2026-10-23-input-completion.md)；重启新构建后复核原生窗口中的候选选择、输入法与发送。P4 文件变更与 Diff 功能仍待开始，提交与推送按用户授权执行 |
 | 工具链 | 本机 Go 1.27.3 位于 `~/.local/share/fuyu/toolchains/go1.27.3`；MyGo 锁定提交 `976f17c9391f` |
 | Git 关联 | `main`，`origin` 为 `git@github.com:shenming0821/Fuyu.git`；首个应用代码快照范围见本页末尾，提交与工作区状态以 `git log`、`git status` 核对 |
 | Codex 版本 | 2026-10-22 核验为 `codex-cli 0.163.0`；macOS arm64 |
@@ -63,6 +63,15 @@
 - [x] 命令详情保持完整内容与最高 180 DIP 滚动区；分组、详情状态分别保存，兼容旧阅读锚点并校正待办定位。
 - [x] 分组、状态、持久化、动画中间帧、悬停像素、长脚本裁切和输入区回归通过；完整 test、vet、race 与构建结果见[命令交互验收](verification/2026-10-23-command-disclosure.md)。
 - [ ] 原生窗口中对照用户录屏复验悬停、展开/收起与长输出滚动；当前证据为 MyGo 内存渲染与受控状态，未完成真实窗口验收。
+
+### 输入框命令与技能候选（2026-10-23）
+
+- [x] 本机 CLI 核对 `/` 命令筛选、`$` 技能名称与简介、Enter 插入技能而不发送的交互；未发送模型任务。
+- [x] 输入框上方加入候选浮层，支持上下选择、Enter / Tab 确认、Esc / 点击外部关闭、中文输入法门控和正文中间插入。
+- [x] `/new`、`/resume`、`/status`、`/skills` 接已有功能；其他 CLI 命令按功能实现后逐项接入。
+- [x] 通过原生 `skills/list` 按 cwd 读取 enabled 技能，发送时携带准确技能 name/path；草稿保存技能引用，异步结果归属原会话。
+- [x] 当前目录真实只读核验返回 41 个技能、41 个 enabled、0 个错误；完整 test、vet、race、构建及内存渲染检查见[输入候选验收](verification/2026-10-23-input-completion.md)。
+- [ ] 重启 Fuyu 后复验原生窗口中的键盘、鼠标与中文输入法，真实模型的技能执行未在本轮验证。
 
 ## 2. 执行原则
 

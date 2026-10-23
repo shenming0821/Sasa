@@ -138,6 +138,10 @@ func (a *App) send() {
 		return
 	}
 	text := strings.TrimSpace(a.State.Draft)
+	if a.runSlashCommand(text) {
+		return
+	}
+	skills := a.draftSkills(text)
 	a.State.Begin(text)
 	if err := a.persist(); err != nil {
 		a.abortBeforeTurn(text, err)
@@ -179,7 +183,15 @@ func (a *App) send() {
 				return
 			}
 		}
-		turn, err := a.backend.Send(ctx, threadID, text)
+		var turn codex.Turn
+		var err error
+		if sender, ok := a.backend.(interface {
+			SendWithSkills(context.Context, string, string, []codex.Skill) (codex.Turn, error)
+		}); ok && len(skills) > 0 {
+			turn, err = sender.SendWithSkills(ctx, threadID, text, skills)
+		} else {
+			turn, err = a.backend.Send(ctx, threadID, text)
+		}
 		if err != nil {
 			a.fail(sequence, text, err, true)
 			return

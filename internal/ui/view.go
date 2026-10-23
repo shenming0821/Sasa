@@ -282,10 +282,61 @@ func (a *App) composer(c *native.Context) {
 		Shadow(0, 2, 12, 0, native.RGBA(0, 0, 0, 0.04)).Children(func() {
 		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
 			Placeholder("与 Codex 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
+		if a.completion.focus {
+			composer.Focus().SetTextSelection(a.completion.caret, a.completion.caret)
+			a.completion.focus = false
+		}
 		composing := composer.Composing()
+		// Element handles are valid during build; key callbacks use the captured caret.
+		anchor, caret := composer.TextAnchorCaret()
+		query, show := queryCompletion(a.State.Draft, anchor, caret)
+		if show && !composing {
+			if query.kind == '$' {
+				a.loadCompletionSkills()
+			}
+			key := completionKey(query)
+			if a.completion.key != key {
+				a.completion.key = key
+				a.completion.selected = 0
+				a.completion.reveal = true
+			}
+			if a.completion.dismissed != key {
+				native.Overlay(c, func() { a.completionPanel(c, composer, query) })
+			}
+		} else {
+			a.completion.dismissed = ""
+			a.completion.key = ""
+		}
+
 		composer.OnTextKey(func(k native.TextKey) bool {
 			if composing {
 				return false
+			}
+			q, ok := queryCompletion(k.Text(), anchor, caret)
+			if ok && k.Mods == 0 && a.completion.dismissed != completionKey(q) {
+				items := a.completionItems(q)
+				switch k.Key {
+				case native.KeyEscape:
+					a.completion.dismissed = completionKey(q)
+					return true
+				case native.KeyDown, native.KeyUp:
+					if len(items) > 0 {
+						delta := 1
+						if k.Key == native.KeyUp {
+							delta = -1
+						}
+						a.completion.selected = (a.completion.selected + delta + len(items)) % len(items)
+						a.completion.reveal = true
+					}
+					return true
+				case native.KeyEnter, native.KeyTab:
+					if len(items) > 0 {
+						a.State.Draft = k.Text()
+						a.acceptCompletion(q, items[a.completion.selected%len(items)])
+						k.SetText(a.State.Draft)
+					}
+					return true
+				}
 			}
 			if k.Key == native.KeyEnter && k.Mods == 0 {
 				a.State.Draft = k.Text()
