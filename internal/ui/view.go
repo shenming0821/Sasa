@@ -18,14 +18,15 @@ const (
 )
 
 var (
-	folderIcon = icon(`<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 1h18"/>`)
-	newIcon    = icon(`<path d="M12 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M15 3l6 6M10 14l2-5 7-7 4 4-7 7-6 1Z"/>`)
-	upIcon     = icon(`<path d="M12 19V5m-6 6 6-6 6 6"/>`)
-	downIcon   = icon(`<path d="M12 5v14m-6-6 6 6 6-6"/>`)
-	stopIcon   = icon(`<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none"/>`)
-	copyIcon   = icon(`<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>`)
-	checkIcon  = icon(`<path d="m5 12 4 4L19 6"/>`)
-	chevron    = icon(`<path d="m7 10 5 5 5-5"/>`)
+	folderIcon  = icon(`<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 1h18"/>`)
+	newIcon     = icon(`<path d="M12 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M15 3l6 6M10 14l2-5 7-7 4 4-7 7-6 1Z"/>`)
+	upIcon      = icon(`<path d="M12 19V5m-6 6 6-6 6 6"/>`)
+	downIcon    = icon(`<path d="M12 5v14m-6-6 6 6 6-6"/>`)
+	stopIcon    = icon(`<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none"/>`)
+	copyIcon    = icon(`<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>`)
+	checkIcon   = icon(`<path d="m5 12 4 4L19 6"/>`)
+	chevron     = icon(`<path d="m7 10 5 5 5-5"/>`)
+	sidebarIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`)
 )
 
 func icon(paths string) *native.SVG {
@@ -51,10 +52,26 @@ func readingColumn(c *native.Context, build func()) {
 }
 
 func (a *App) view(c *native.Context) {
+	native.Row(c).Fill().Children(func() {
+		if a.sidebarOpen {
+			a.sidebar(c)
+		}
+		a.sessionView(c.Key(a.session.id))
+	})
+}
+
+func (a *App) sessionView(c *native.Context) {
 	t := c.Theme()
 	a.list.FollowEnd = true
-	native.Column(c).Fill().Background(t.Background).Children(func() {
+	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 		a.toolbar(c)
+		if a.historyCursor != nil {
+			native.Row(c).FillWidth().Padding(4, 24).Justify(native.Center).Children(func() {
+				if actionButton(c, "加载更早消息").Disabled(a.historyLoading || a.recovering).Clicked() {
+					a.loadOlder()
+				}
+			})
+		}
 		if pending := a.State.PendingInteractions(); len(pending) > 0 {
 			native.Row(c).FillWidth().Padding(6, 24).Children(func() {
 				b := actionButton(c, fmt.Sprintf("处理待办（%d）", len(pending))).TextColor(t.Text)
@@ -84,6 +101,23 @@ func (a *App) view(c *native.Context) {
 		}
 		native.Column(c).FillWidth().Padding(0, 24, 16, 24).Children(func() {
 			readingColumn(c, func() {
+				if a.application().storageError != "" {
+					native.Text(c, a.application().storageError).FontSize(12).TextColor(t.Danger)
+					if actionButton(c, "重试保存").Clicked() {
+						a.persist()
+					}
+				}
+				if a.recoveryBlocked && !a.recovering && !a.State.Disconnected {
+					if a.State.ThreadID != "" && actionButton(c, "重新核验原生会话").Clicked() {
+						a.recoverSession(a.session)
+					}
+					if a.reviewRequired && actionButton(c, "确认历史后继续").Clicked() {
+						a.reviewRequired, a.recoveryBlocked = false, false
+						a.saved.Active = false
+						a.State.Phase = "就绪"
+						a.State.Notice = "已确认历史，可输入下一项任务；未自动重发上次请求。"
+					}
+				}
 				if a.State.Error != "" {
 					native.Scroll(c).FillWidth().MaxHeight(54).Children(func() {
 						native.Text(c, a.State.Error).Selectable().FontSize(12).TextColor(t.Danger).Padding(0, 4, 8, 4)
@@ -119,10 +153,22 @@ func (a *App) view(c *native.Context) {
 
 func (a *App) conversation(c *native.Context) {
 	t := c.Theme()
+	a.session.restoreRowOffset(c)
 	messages := make([]*app.Message, 0, len(a.State.Messages))
 	for _, m := range a.State.Messages {
 		if m.Role != "assistant" || m.Text != "" {
 			messages = append(messages, m)
+		}
+	}
+	if len(a.rows) > len(messages) {
+		visibleIDs := make(map[string]bool, len(messages))
+		for _, m := range messages {
+			visibleIDs[m.ID] = true
+		}
+		for id := range a.rows {
+			if !visibleIDs[id] {
+				delete(a.rows, id)
+			}
 		}
 	}
 	thinking := a.thinking()
@@ -142,9 +188,11 @@ func (a *App) conversation(c *native.Context) {
 			if i == len(messages) {
 				readingColumn(c, func() { thinkingIndicator(c) })
 			} else {
-				a.message(c, messages[i])
+				native.Column(c).FillWidth().Bind(a.rowHandle(messages[i].ID)).Children(func() {
+					a.message(c, messages[i])
+				})
 			}
-		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(28)
+		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(28).TrackScroll(&a.scroll)
 		if !a.list.AtEnd() {
 			// The tint fades into the composer surface without intercepting scrolling.
 			native.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(scrollFadeHeight).
@@ -167,6 +215,11 @@ func (a *App) toolbar(c *native.Context) {
 	t := c.Theme()
 	native.Row(c).FillWidth().Height(46).Padding(0, 16).Gap(12).
 		AlignItems(native.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.5)).Children(func() {
+		toggle := quietButton(c, "切换侧栏").Size(28, 28)
+		toggle.Children(func() { native.Icon(c, sidebarIcon).Size(17, 17) })
+		if toggle.Clicked() {
+			a.sidebarOpen = !a.sidebarOpen
+		}
 		project := "Fuyu"
 		if a.State.Cwd != "" {
 			project = filepath.Base(a.State.Cwd)
@@ -187,22 +240,18 @@ func (a *App) toolbar(c *native.Context) {
 					path = "选择工作目录后开始任务"
 				}
 				native.Text(c, path).FontSize(13).Selectable()
-				if native.Button(c, "选择目录").Disabled(a.State.Busy || a.State.Disconnected).Clicked() {
+				if native.Button(c, "选择目录").Disabled(a.State.Disconnected).Clicked() {
 					a.projectOpen = false
-					go a.chooseDirectory(a.State.Cwd)
+					go a.chooseDirectory(a.session, a.State.Cwd)
 				}
 			})
 		})
 		native.Spacer(c)
 		native.Text(c, a.State.Phase).FontSize(12).TextColor(t.TextMuted).SingleLine()
-		label := "选择目录"
-		if a.State.ThreadID != "" {
-			label = "新会话"
-		}
-		next := quietButton(c, label).Size(30, 30).Disabled(a.State.Busy || a.State.Disconnected)
+		next := quietButton(c, "新会话").Size(30, 30)
 		next.Children(func() { native.Icon(c, newIcon).Size(17, 17) })
 		if next.Clicked() {
-			go a.chooseDirectory(a.State.Cwd)
+			a.newSession(a.State.Cwd)
 		}
 	})
 }
@@ -288,6 +337,10 @@ func (a *App) runtimeDetails(c *native.Context) {
 			})
 		}
 		native.Text(c, "Enter 发送 · ⌘ Enter 换行").FontSize(11).TextColor(t.TextMuted)
+		if native.Button(c, "刷新原生历史").Disabled(a.State.ThreadID == "" || a.State.Busy || a.State.Disconnected || a.recovering).Clicked() {
+			a.detailsOpen = false
+			a.recoverSession(a.session)
+		}
 	})
 }
 

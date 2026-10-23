@@ -2,7 +2,7 @@
 
 ## 1. 当前状态与环境
 
-当前已实现 P1 任务闭环及 P2 的工具卡片、原生交互与有界输出，进度见[实施计划](implementation-plan.md)，验收证据见 [P1](verification/2026-10-22-p1.md) 与 [P2](verification/2026-10-22-p2.md)。
+当前已实现并完成当前环境下的 P1/P2/P3 验收，包括多会话、SQLite 索引、原生历史恢复及窗口生命周期。进度见[实施计划](implementation-plan.md)，实际覆盖与支持边界见 [P3 验证](verification/2026-10-22-p3.md)。
 
 本机已验证环境：macOS arm64、Command Line Tools、Go `1.27.3`、Codex CLI `0.163.0`。`go.mod` 要求 Go `1.27.1`，指定工具链 `go1.27.3`；MyGo 固定为 `v0.6.3-0.20261022014156-976f17c9391f`。
 
@@ -27,6 +27,8 @@ bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 ```
 
 通过 Finder 启动时，`codex` 必须在应用继承的 PATH 中；定位失败时可从终端使用 `-codex` 指定绝对路径。首次连接失败会在窗口中显示具体错误。
+
+默认数据目录为 `~/Library/Application Support/Fuyu`，可用 `-data-dir /absolute/path` 隔离测试实例。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的 `CODEX_HOME`（默认 `~/.codex`），切换原生历史目录时使用独立数据目录。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
 
 ## 2. 目录与代码定位
 
@@ -59,7 +61,13 @@ bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 FUYU_LIVE=1 ./scripts/go test ./internal/codex -run '^TestLiveCodexLoop$' -v -count=1
 ```
 
-该测试验证实际文件、同 thread 的第二轮上下文、原生中断终态和 App Server 退出；它不证明所有后台命令都随 `turn/interrupt` 退出。原生 GUI、真实输入法与进程检查单独记录。
+P3 的真实双目录、重开恢复与小型开发任务验证：
+
+```sh
+FUYU_LIVE=1 ./scripts/go test ./internal/codex -run '^TestLiveP3DirectoriesAndRestart$' -v -count=1
+```
+
+P1 的 `TestLiveCodexLoop` 验证实际文件、同 thread 的第二轮上下文、原生中断终态和 App Server 退出；它不证明所有后台命令都随 `turn/interrupt` 退出。原生 GUI、真实输入法与进程检查单独记录。
 
 ## 4. 自动化与真实验收
 

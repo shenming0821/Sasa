@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/storage"
 	"github.com/shenming0821/Fuyu/internal/ui"
 )
 
@@ -21,7 +22,38 @@ func main() {
 func run() error {
 	cwd := flag.String("cwd", "", "Initial working directory")
 	executable := flag.String("codex", "codex", "Codex executable")
+	dataDir := flag.String("data-dir", "", "Application data directory (default: user config directory/Fuyu)")
 	flag.Parse()
+	if *dataDir == "" {
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			return err
+		}
+		*dataDir = filepath.Join(configDir, "Fuyu")
+	}
+	store, err := storage.Open(*dataDir)
+	if err != nil {
+		return fmt.Errorf("open application index: %w", err)
+	}
+	defer store.Close()
+	codexHome := os.Getenv("CODEX_HOME")
+	if codexHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		codexHome = filepath.Join(home, ".codex")
+	}
+	codexHome, err = filepath.Abs(codexHome)
+	if err != nil {
+		return err
+	}
+	if canonical, err := filepath.EvalSymlinks(codexHome); err == nil {
+		codexHome = canonical
+	}
+	if err := store.BindRuntime(codexHome); err != nil {
+		return err
+	}
 	if *cwd != "" {
 		path, err := filepath.Abs(*cwd)
 		if err != nil {
@@ -50,5 +82,8 @@ func run() error {
 		backend = client
 	}
 	desktop := ui.New(backend, strings.TrimSpace(version), *cwd, err)
+	if err := desktop.AttachStore(store); err != nil {
+		return fmt.Errorf("restore application index (original data preserved): %w", err)
+	}
 	return desktop.Run()
 }

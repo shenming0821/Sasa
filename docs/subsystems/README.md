@@ -2,15 +2,15 @@
 
 ## 当前阶段
 
-P1 已建立下列源码包，P2 在其中补充结构化工具、原生交互和有界输出。实际协议、状态和生命周期见[Codex 运行时](codex-runtime.md)；存储仍为 P3 规划。
+P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLite 索引、原生历史恢复和窗口驻留，当前环境验收已完成。实际协议、状态和生命周期见[Codex 运行时](codex-runtime.md)、[会话管理](sessions.md)与[存储与恢复](storage.md)。
 
 | 子系统 | 责任与边界 | 源码或规划路径 | 当前参考 |
 |---|---|---|---|
-| 原生 UI | 消息、输入、状态和交互入口；通过应用层发送命令 | `internal/ui/` | [设计](../design.md)、[P1/P2 计划](../implementation-plan.md) |
+| 原生 UI | 会话侧栏、消息、输入、状态和交互入口；会话绑定的异步派发 | `internal/ui/` | [会话管理](sessions.md)、[实施计划](../implementation-plan.md) |
 | 应用状态 | thread/turn 投影、活动会话与用户动作协调 | `internal/app/` | [设计](../design.md) |
 | Codex 客户端 | 双向 RPC、消息分类、请求关联与协议事件 | `internal/codex/` | [协议核验](../reference-verification.md) |
 | 进程管理 | 自有 App Server 启停、cwd、退出检测与取消 | `internal/runtime/` | [生命周期设计](../design.md) |
-| 存储与恢复 | 应用索引、界面状态与原生历史核验，P3 引入 | `internal/storage/` | [恢复设计](../design.md)、[P3 计划](../implementation-plan.md) |
+| 存储与恢复 | 应用索引、界面状态与原生历史核验，P3 引入 | `internal/storage/` | [存储与恢复](storage.md)、[P3 计划](../implementation-plan.md) |
 
 ## 何时建立专项文档
 

@@ -49,3 +49,22 @@
 | 密码字段使用 AX setValue 后，AppKit 缓存 setter 原文；后续投影仍为空而未刷新缓存 | 对原生密码字段的 AX value/selectedText setter 隔离修复，缓存空值，仅将原文传给编辑器动作；同时核对圆点、AX 和响应映射 | `scripts/mygo-input-style.py`、P2 原生 setValue 回归 |
 | turn 已中断后工具终态晚到，旧警告仍显示“尚未报告结束” | 按原生 item/turn 接收已知工具的晚到终态，最后一个工具结束时仅清除对应警告 | `TestToolLifecycleOutputAndTurnRemainIndependent` |
 | 原生云配置加载失败，thread/start 返回明确 RPC 错误，尚未提交 turn | 会话创建被明确拒绝时保留草稿并允许重发；提交结果不确定时禁止自动重发，显示核验动作 | `TestSubmissionFailuresSeparateRejectedCreationFromUncertainExecution` |
+
+## 2026-10-22：P3 会话隔离
+
+| 触发场景与原因 | 后续动作 | 证据 |
+|---|---|---|
+| 会话切换后，异步发送/停止/审批/快照仍通过当前 State 写回，可能覆盖另一个会话 | 启动异步工作时固定所属会话，回调仅修改该会话；thread/start 的所属状态先写入主线程，再提交 turn/start | `internal/ui/app.go`、`TestSwitchWhileStartingThreadKeepsSubmissionAndEffectiveSettings` |
+| 用整个 App 的副本绑定会话，vet 发现 Markdown Options 内含 sync.Map，复制会复制锁 | 构造会话回调接收者时仅传递会话、连接和派发资源，含锁的渲染配置保留原实例 | `internal/ui/sessions.go`、[P3 首步验证](docs/verification/2026-10-22-p3-sessions.md) |
+
+## 2026-10-22 至 2026-10-23：P3 持久化与恢复
+
+| 触发场景与原因 | 后续动作 | 证据 |
+|---|---|---|
+| 一条长回复占据多屏，仅保存 item ID 会回到回复开头 | 保存首可见原生 ID 和条目内相对偏移，分页找回锚点后再恢复偏移 | `TestRestartRestoresOffsetInsideLongNativeMessage`、[P3 验证](docs/verification/2026-10-22-p3.md) |
+| 新页尚未加载旧工具，直接重建展开字典会丢失旧页设置；分页改变首条可见任务导致标题跳变 | 保存时合并未加载条目的设置，标题优先使用已保存摘要 | `TestCheckpointPreservesUnloadedToolExpansionAndStableTitle` |
+| 同一目录有多个会话，启动参数 cwd 匹配遍历覆盖上次选中项 | 先保留匹配目录的选中会话，再查找其他匹配会话 | `TestStartupKeepsSelectedSessionWhenDirectoryMatches` |
+| 发送未取得 thread/turn ID 就异常退出，空闲界面可能覆盖原有不确定标记 | 持久保留提交不确定性，读取原生历史并显式确认后才允许继续 | `internal/ui/recovery_test.go` |
+| 恢复快照可能已包含缓冲 delta，重放会重复正文 | 控制事件与增量分别处理，缺口读取原生权威条目校准 | `internal/ui/history.go`、`internal/ui/recovery_test.go` |
+| 锚点在更早页或超出显示容量，恢复标志会造成无效刷新 | 自动分页寻找锚点，到达容量或历史末尾时结束恢复并提示实际边界 | `TestRecoveryAutomaticallyLoadsSavedReadingAnchor`、`TestHistoryCapacityEndsUnresolvedAnchorRestoration` |
+| 中断 RPC 返回成功或连接丢失，均不能证明任务已停止 | 逐个等待原生终态，断线保留未确认目标，超时后由用户选择返回核验或强退 | `internal/ui/lifecycle_test.go` |

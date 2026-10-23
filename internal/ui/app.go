@@ -14,6 +14,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
 type Backend interface {
@@ -24,25 +25,44 @@ type Backend interface {
 }
 
 type App struct {
-	State       app.State
-	backend     Backend
-	version     string
-	win         *mygo.Window
-	list        native.ListState
-	md          markdown.Options
-	projectOpen bool
-	detailsOpen bool
-	copiedID    string
+	*session
+	backend        Backend
+	version        string
+	win            *mygo.Window
+	md             markdown.Options
+	sessions       []*session
+	nextSession    int
+	sidebarOpen    bool
+	root           *App
+	store          *storage.Store
+	lastSaved      []byte
+	storageError   string
+	historyOpen    bool
+	nativeThreads  []codex.ThreadMeta
+	threadsCursor  *string
+	threadsLoading bool
+	threadsError   string
+	quitting       bool
+	quitDialog     bool
+	quitStopping   bool
+	quitDeadline   time.Time
+	quitSent       map[string]bool
+	quitTargets    map[int]bool
+	quitApp        func()
+	quitPrompt     func(mygo.MessageOptions) (mygo.MessageResult, error)
 	// Replaced in component tests so no task or native dialog is started.
-	submit          func()
-	respond         func(*app.Interaction, any)
-	shutdown        chan struct{}
-	snapshotPending bool
-	followResponses map[string]bool
+	submit   func()
+	respond  func(*app.Interaction, any)
+	dispatch func(func())
+	shutdown chan struct{}
 }
 
 func New(backend Backend, version, cwd string, startupErr error) *App {
-	a := &App{State: app.New(cwd), backend: backend, version: strings.TrimSpace(version), shutdown: make(chan struct{})}
+	a := &App{
+		backend: backend, version: strings.TrimSpace(version), shutdown: make(chan struct{}), sidebarOpen: true,
+		quitApp: mygo.App.Quit, quitPrompt: mygo.Dialog.Message,
+	}
+	a.newSession(cwd)
 	// MyGo measures proportional digits but renders tabular list markers.
 	// Reserve room for common multi-digit markers throughout streaming.
 	a.md.Theme = &markdown.Theme{ListIndent: 3, FontSize: 15, LineHeight: 1.5}
@@ -62,58 +82,57 @@ func (a *App) Run() error {
 			Title: "Fuyu", Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
 			Content: native.View(a.view),
 		})
-		a.win.OnClose(func(e *mygo.CloseEvent) {
-			if a.State.Busy {
-				e.PreventDefault()
-				a.State.Error = "任务仍在运行，请先停止任务，再关闭窗口。"
-				a.win.Invalidate()
-			}
-		})
-		mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
-			if a.State.Busy {
-				e.PreventDefault()
-				a.State.Error = "任务仍在运行，请先停止任务，再退出 Fuyu。"
-				a.win.Invalidate()
-			}
-		})
+		a.installLifecycle()
 		if a.backend != nil {
 			go a.receive()
+			for _, s := range a.sessions {
+				if !s.loaded {
+					a.recoverSession(s)
+				}
+			}
 		}
+		go a.autosave()
 	})
 	return mygo.App.Run()
 }
 
 func (a *App) canSend() bool {
-	return a.backend != nil && !a.State.Busy && !a.State.Disconnected &&
+	return a.backend != nil && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked &&
 		a.State.Cwd != "" && strings.TrimSpace(a.State.Draft) != ""
 }
 
-func (a *App) chooseDirectory(defaultPath string) {
+func (a *App) chooseDirectory(owner *session, defaultPath string) {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 		Parent: a.win, Title: "选择工作目录", Directory: true,
 		DefaultPath: defaultPath, ButtonLabel: "选择此目录",
 	})
-	a.win.Update(func() {
+	a.update(func() {
 		if err != nil {
-			a.State.Error = err.Error()
+			owner.State.Error = err.Error()
 			return
 		}
-		if len(paths) > 0 && !a.State.Busy {
-			next := app.New(filepath.Clean(paths[0]))
-			next.Sequence = a.State.Sequence + 1
-			a.State = next
-			a.list = native.ListState{}
-			a.projectOpen, a.detailsOpen, a.copiedID = false, false, ""
+		if len(paths) > 0 {
+			cwd := filepath.Clean(paths[0])
+			if owner.State.ThreadID == "" && !owner.State.Busy && len(owner.State.Messages) == 0 {
+				owner.State.Cwd = cwd
+			} else {
+				a.newSession(cwd)
+			}
 		}
 	})
 }
 
 func (a *App) send() {
+	a = a.forSession(a.session)
 	if !a.canSend() {
 		return
 	}
 	text := strings.TrimSpace(a.State.Draft)
 	a.State.Begin(text)
+	if err := a.persist(); err != nil {
+		a.abortBeforeTurn(text, err)
+		return
+	}
 	sequence, cwd, threadID := a.State.Sequence, a.State.Cwd, a.State.ThreadID
 	go func() {
 		ctx, cancel := codex.RequestContext()
@@ -125,21 +144,37 @@ func (a *App) send() {
 				return
 			}
 			threadID = thread.Thread.ID
-			a.win.Update(func() {
+			installed := make(chan struct{})
+			var checkpointErr error
+			a.update(func() {
+				defer close(installed)
 				if a.State.Sequence != sequence {
 					return
 				}
 				a.State.ThreadID, a.State.Model, a.State.Cwd = threadID, thread.Model, thread.Cwd
 				a.State.Policy = string(thread.ApprovalPolicy)
 				a.State.Sandbox = string(thread.Sandbox)
+				checkpointErr = a.persist()
+				if checkpointErr != nil {
+					a.abortBeforeTurn(text, checkpointErr)
+				}
 			})
+			// Register the owner before turn/start can emit events for this thread.
+			select {
+			case <-installed:
+			case <-a.shutdown:
+				return
+			}
+			if checkpointErr != nil {
+				return
+			}
 		}
 		turn, err := a.backend.Send(ctx, threadID, text)
 		if err != nil {
 			a.fail(sequence, text, err, true)
 			return
 		}
-		a.win.Update(func() {
+		a.update(func() {
 			if a.State.Sequence == sequence && a.State.Busy {
 				a.State.TurnID, a.State.Phase = turn.ID, "正在执行"
 			}
@@ -147,8 +182,16 @@ func (a *App) send() {
 	}()
 }
 
+func (a *App) abortBeforeTurn(text string, err error) {
+	a.State.Busy = false
+	a.State.Error, a.State.Phase = "会话状态未能保存，本次未发送："+err.Error(), "未发送"
+	if a.State.Draft == "" {
+		a.State.Draft = text
+	}
+}
+
 func (a *App) fail(sequence int, text string, err error, turnSubmitted bool) {
-	a.win.Update(func() {
+	a.update(func() {
 		a.applySubmissionFailure(sequence, text, err, turnSubmitted)
 	})
 }
@@ -173,6 +216,7 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 }
 
 func (a *App) stop() {
+	a = a.forSession(a.session)
 	a.State.BeginStop()
 	threadID, turnID := a.State.ThreadID, a.State.TurnID
 	go func() {
@@ -180,7 +224,7 @@ func (a *App) stop() {
 		defer cancel()
 		err := a.backend.Interrupt(ctx, threadID, turnID)
 		if err != nil {
-			a.win.Update(func() {
+			a.update(func() {
 				if a.State.ThreadID != threadID || a.State.TurnID != turnID || !a.State.Busy {
 					return
 				}
@@ -215,7 +259,7 @@ func (a *App) receive() {
 			}
 		}
 		applied := make(chan struct{})
-		a.win.Update(func() {
+		a.update(func() {
 			defer close(applied)
 			a.applyBatch(batch)
 		})
@@ -230,9 +274,34 @@ func (a *App) receive() {
 }
 
 func (a *App) applyBatch(batch []codex.Event) {
+	for _, s := range a.sessions {
+		a.forSession(s).applySessionBatch(batch)
+	}
+}
+
+func (a *App) applySessionBatch(batch []codex.Event) {
 	follow := false
 	for _, e := range batch {
+		if a.recovering && e.Method == "fuyu/eventGap" {
+			a.historyOverflow = true
+			continue
+		}
+		if a.session.bufferRecovery(e) {
+			continue
+		}
+		if e.Method == "fuyu/disconnected" {
+			a.recoveryEpoch++
+			a.recovering, a.recoveryBlocked = false, true
+			a.recoveryEvents, a.recoveryBytes = nil, 0
+		}
+		if e.Method == "fuyu/eventGap" && a.State.ThreadID == "" {
+			continue
+		}
+		wasBusy := a.State.Busy
 		a.State.Apply(e)
+		if e.Method == "turn/completed" && wasBusy && !a.State.Busy && !a.State.Disconnected {
+			delete(a.application().quitTargets, a.session.id)
+		}
 		if e.Method == "serverRequest/resolved" {
 			var p struct {
 				RequestID json.RawMessage `json:"requestId"`
@@ -255,6 +324,7 @@ func (a *App) applyBatch(batch []codex.Event) {
 }
 
 func (a *App) answer(r *app.Interaction, result any) {
+	a = a.forSession(a.session)
 	if a.State.Disconnected || !a.State.Busy || a.State.Stopping() {
 		return
 	}
@@ -275,7 +345,7 @@ func (a *App) answer(r *app.Interaction, result any) {
 	a.followResponses[string(r.Request.ID)] = true
 	go func() {
 		err := backend.Respond(r.Request.ID, response)
-		a.win.Update(func() {
+		a.update(func() {
 			if r.Status != "提交中" {
 				return
 			}
@@ -291,6 +361,7 @@ func (a *App) answer(r *app.Interaction, result any) {
 }
 
 func (a *App) reconcileIfNeeded() {
+	a = a.forSession(a.session)
 	if !a.State.NeedsSnapshot || a.State.Busy || a.State.Disconnected || a.snapshotPending {
 		return
 	}
@@ -308,7 +379,7 @@ func (a *App) reconcileIfNeeded() {
 		ctx, cancel := codex.RequestContext()
 		defer cancel()
 		raw, err := backend.ReadThread(ctx, threadID)
-		a.win.Update(func() {
+		a.update(func() {
 			a.snapshotPending = false
 			if a.State.ThreadID != threadID || a.State.Sequence != sequence {
 				return
@@ -322,4 +393,16 @@ func (a *App) reconcileIfNeeded() {
 			}
 		})
 	}()
+}
+
+func (a *App) update(fn func()) {
+	wrapped := func() {
+		fn()
+		a.persist()
+	}
+	if a.dispatch != nil {
+		a.dispatch(wrapped)
+		return
+	}
+	a.win.Update(wrapped)
 }

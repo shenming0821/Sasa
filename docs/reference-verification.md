@@ -257,3 +257,15 @@ codex app-server generate-json-schema --experimental --out /tmp/fuyu-p2-schema
 ```
 
 已确认 `serverRequest/resolved` 的关联字段为 threadId/requestId；question 按 ID 映射并含 isOther/isSecret/isBlocking；命令审批有原始 availableDecisions 和策略修订对象；文件新增/删除 diff 为原始文件内容。运行验证、未触发分支和容量边界统一见 [P2 验收](verification/2026-10-22-p2.md)。
+
+## 12. P3 原生历史与生命周期核验
+
+按本机 `codex-cli 0.163.0` 生成 `/tmp/fuyu-p3-schema`，核对当前安装版本的 `ThreadResumeParams`、`ThreadResumeResponse`、`ThreadTurnsListParams`、`ThreadTurnsListResponse` 和 thread/list 相关定义。
+
+```sh
+codex app-server generate-json-schema --experimental --out /tmp/fuyu-p3-schema
+```
+
+采用 `thread/resume` 的 `excludeTurns=true`，不覆盖原生 cwd/model/权限配置；从响应读取真实设置和 thread.status。`thread/turns/list` 使用 `itemsView=full`、`sortDirection=desc`、`limit=20` 和不透明 nextCursor；thread/list 按 `updated_at` 降序，每页20条。完整历史由原生记录提供，应用 SQLite 只保存界面元数据和原生 ID。实际字段及调用见 `internal/codex/history.go`；分页、真实恢复与边界见 [P3 验证](verification/2026-10-22-p3.md)。
+
+窗口生命周期按固定 MyGo 提交的 `Window.OnClose` / `Hide` / `Show`、`App.OnActivate`、`Dock.SetMenu`、`App.OnBeforeQuit` 核对实现；SQLite 固定 `modernc.org/sqlite v1.60.1`。本节记录本机 schema 与固定依赖核验，不将上游示例当作本应用运行证据。

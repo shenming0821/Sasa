@@ -122,7 +122,7 @@ func (s *State) limitDisplay() {
 		copy(s.Messages[drop:], s.Messages[drop+1:])
 		s.Messages[len(s.Messages)-1] = nil
 		s.Messages = s.Messages[:len(s.Messages)-1]
-		s.Notice = "较早的显示内容已移除以控制内存；完整任务记录请在后续历史功能中核验。"
+		s.Notice = "较早的显示内容已移除以控制内存；完整记录仍由 Codex 保留，可刷新原生历史核验。"
 	}
 }
 
