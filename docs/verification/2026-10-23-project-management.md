@@ -101,3 +101,20 @@ Computer Use 返回 `Computer Use was not approved to use Fuyu`，因此未核�
 - `TestAddProjectSupportsPlainFoldersAndPreservesGitErrors` 覆盖普通文件夹添加、重复添加保留草稿、统一入口、损坏 Git 配置与无效 gitdir 保留错误。
 - 保留的六工作区真实 Git 测试已通过，选择任一关联目录可发现整个仓库的六个工作区，包括中文、空格、locked 和 detached 目录；未执行模型任务。
 - 全量测试、vet 与 project/ui race 检查通过。组件预览 `/tmp/fuyu-add-project.png` 已检查，展示单一加号入口和全部六个工作区。原生目录选择器尚未自动操作核验。
+
+### 移除工作区右侧新建按钮
+
+- `TestWorktreeCardHoverAndClickCoverFullWidth` 替代早期带辅助按钮的悬停回归，验证卡片没有独立新建控件、悬停完整覆盖、右缘点击进入已有会话且不创建重复项。
+- 项目导航用例通过顶部新建入口验证同工作区多会话；点击工作区没有会话时创建首个会话的路径继续沿用。
+
+### 目录树动画
+
+`TestProjectDisclosureAnimatesHeightAndHonorsReducedMotion` 已通过，覆盖展开/收起的中间高度、收起期间保留内容、结束卸载、展开中反向收起以及 ReduceMotion 立即切换。仓库和普通目录的搜索/折叠回归均通过。原生动画手感待用户在重开应用后查看。
+
+### 目录树按下背景
+
+`TestTreeMouseDownKeepsHoverBackground` 已通过：仓库标题、工作区卡片、普通目录标题与会话条目在按下前后的背景像素保持一致。UI 测试和构建通过，原有选中态保留。
+
+### 2026-10-24：目录行无路径气泡
+
+`TestRepositoryAndWorktreeHoverDoNotShowTooltips` 已通过，仓库标题和分支工作区悬停一秒后不新增任何气泡文字；覆盖此前遗漏的工作区行路径 Tooltip。UI 测试和构建通过。

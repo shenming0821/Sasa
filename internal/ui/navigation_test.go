@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/codex"
@@ -25,6 +26,7 @@ func TestProjectNavigationSearchCollapseAndTabs(t *testing.T) {
 	if err := tt.Click("展开项目 /one/project"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Advance(300 * time.Millisecond)
 	if tt.HasText("切换会话 1") {
 		t.Fatal("collapsed project still shows sessions")
 	}

@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/project"
@@ -73,7 +75,10 @@ func TestRepositoryImportGroupsBranchesAndSessions(t *testing.T) {
 	if a.session != first || a.State.Draft != "main draft" {
 		t.Fatal("switching worktree lost independent draft")
 	}
-	if err := tt.Click("新建工作区会话 " + repo.Worktrees[1].Path); err != nil {
+	if err := tt.Click("打开工作区 " + repo.Worktrees[1].Path); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("新建会话"); err != nil {
 		t.Fatal(err)
 	}
 	if a.session == second || a.State.Cwd != second.State.Cwd || second.State.Draft != "feature draft" {
@@ -173,9 +178,8 @@ func TestRepositoryNavigationLayoutAndCollapse(t *testing.T) {
 			}
 		}
 		branch, ok := tt.Find("打开工作区 /workspace/feature-chat")
-		add, addOK := tt.Find("新建工作区会话 /workspace/feature-chat")
-		if !ok || !addOK || branch.W <= 0 || branch.X+branch.W > add.X+1 {
-			t.Fatalf("worktree row overlapped at %d: %+v %+v", width, branch, add)
+		if !ok || branch.W <= 0 || tt.HasText("新建工作区会话 /workspace/feature-chat") {
+			t.Fatalf("worktree row missing or retains removed action at %d: %+v", width, branch)
 		}
 		if preview := os.Getenv("FUYU_PROJECT_PREVIEW"); preview != "" && width == 1000 {
 			file, err := os.Create(preview)
@@ -191,6 +195,7 @@ func TestRepositoryNavigationLayoutAndCollapse(t *testing.T) {
 		if err := tt.Click("展开仓库 /workspace/fuyu/.git"); err != nil {
 			t.Fatal(err)
 		}
+		tt.Advance(300 * time.Millisecond)
 		if tt.HasText("打开工作区 /workspace/feature-chat") {
 			t.Fatal("collapsed repository retained worktree rows")
 		}
@@ -344,7 +349,7 @@ func TestWorktreeHidesBlankSessionRowsUntilConversationStarts(t *testing.T) {
 	if !tt.HasText("打开工作区 /feature") || tt.HasText("切换会话 1") {
 		t.Fatal("submitted task did not become a sidebar conversation")
 	}
-	if err := tt.Click("新建工作区会话 /feature"); err != nil {
+	if err := tt.Click("新建会话"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("切换会话 3") || !tt.HasText("打开工作区 /feature") {
@@ -383,28 +388,27 @@ func TestWorktreeCardShowsOnlyLatestConversation(t *testing.T) {
 	}
 }
 
-func TestWorktreeCardHoverCoversActionArea(t *testing.T) {
+func TestWorktreeCardHoverAndClickCoverFullWidth(t *testing.T) {
 	a := New(stubBackend{}, "test", "/repo", nil)
 	a.saved.Title = "审阅 Fuyu 设计文档 v2.0"
 	a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "Fuyu", Worktrees: []project.Worktree{{Path: "/repo", Branch: "main", Main: true}, {Path: "/other", Branch: "feature/chat"}}}}
 	a.newSession("/other")
 	tt := native.NewTester(a.view, 1000, 760)
 	body, ok := tt.Find("打开工作区 /repo")
-	action, addOK := tt.Find("新建工作区会话 /repo")
-	if !ok || !addOK {
+	if !ok || tt.HasText("新建工作区会话 /repo") {
 		t.Fatal("missing card controls")
 	}
-	// Sample empty background on both sides, outside the small action button.
-	x1, x2, y := int(body.X+2), int(action.X+action.W+2), int(body.Y+body.H/2)
+	// Both edges belong to the same full-width navigation button.
+	x1, x2, y := int(body.X+2), int(body.X+body.W-2), int(body.Y+body.H/2)
 	before := tt.Image().RGBAAt(x1, y)
 	tt.Move(body.X+body.W/2, body.Y+body.H/2)
 	hover := tt.Image()
 	if hover.RGBAAt(x1, y) == before || hover.RGBAAt(x1, y) != hover.RGBAAt(x2, y) {
-		t.Fatal("hover background must cover both content and action area")
+		t.Fatal("hover background must cover the entire card")
 	}
-	tt.Move(action.X+action.W/2, action.Y+action.H/2)
+	tt.Move(body.X+body.W-2, body.Y+body.H/2)
 	if tt.Image().RGBAAt(x1, y) != hover.RGBAAt(x1, y) {
-		t.Fatal("moving onto action split the card background")
+		t.Fatal("moving to the right edge split the card background")
 	}
 	if preview := os.Getenv("FUYU_CARD_PREVIEW"); preview != "" {
 		file, err := os.Create(preview)
@@ -418,11 +422,9 @@ func TestWorktreeCardHoverCoversActionArea(t *testing.T) {
 		}
 	}
 	count := len(a.sessions)
-	if err := tt.Click("新建工作区会话 /repo"); err != nil {
-		t.Fatal(err)
-	}
-	if len(a.sessions) != count+1 || a.State.Cwd != "/repo" {
-		t.Fatal("action did not independently create a conversation")
+	tt.ClickAt(body.X+body.W-2, body.Y+body.H/2)
+	if len(a.sessions) != count || a.State.Cwd != "/repo" {
+		t.Fatal("right edge did not navigate to the existing conversation")
 	}
 }
 
@@ -464,5 +466,107 @@ func TestAddProjectSupportsPlainFoldersAndPreservesGitErrors(t *testing.T) {
 	pumpUpdate(t, queue)
 	if a.projectsError == "" || len(a.sessions) != count {
 		t.Fatal("missing linked Git directory was treated as a plain folder")
+	}
+}
+
+func TestProjectDisclosureAnimatesHeightAndHonorsReducedMotion(t *testing.T) {
+	a := New(nil, "test", "/repo", nil)
+	tt := native.NewTester(func(c *native.Context) {
+		native.Column(c).FillWidth().Children(func() {
+			a.projectDisclosure(c, "/repo", "toggle", func() {
+				native.Text(c, "repo")
+				native.Spacer(c)
+			}, func() { native.Button(c, "inside").Height(100) })
+			native.Button(c, "after")
+		})
+	}, 300, 300)
+	position := func() float32 {
+		t.Helper()
+		r, ok := tt.Find("after")
+		if !ok {
+			t.Fatal("missing following row")
+		}
+		return r.Y
+	}
+	expanded := position()
+	if err := tt.Click("toggle"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(60 * time.Millisecond)
+	closing := position()
+	if closing <= 0 || closing >= expanded || !tt.HasText("inside") {
+		t.Fatal("closing skipped intermediate height or removed content too early")
+	}
+	tt.Advance(300 * time.Millisecond)
+	collapsed := position()
+	if collapsed >= closing || tt.HasText("inside") {
+		t.Fatal("collapse did not finish")
+	}
+	if err := tt.Click("toggle"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(60 * time.Millisecond)
+	opening := position()
+	if opening <= collapsed || opening >= expanded {
+		t.Fatal("opening skipped intermediate height")
+	}
+	// Reverse while opening; the transition must finish in the requested state.
+	if err := tt.Click("toggle"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(300 * time.Millisecond)
+	if tt.HasText("inside") || position() != collapsed {
+		t.Fatal("reversing transition did not settle closed")
+	}
+	tt.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
+	if err := tt.Click("toggle"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("inside") || position() != expanded {
+		t.Fatal("reduced motion did not expand immediately")
+	}
+}
+
+func TestTreeMouseDownKeepsHoverBackground(t *testing.T) {
+	for _, label := range []string{"展开仓库 /repo/.git", "打开工作区 /repo", "展开项目 /plain", "切换会话 2"} {
+		t.Run(label, func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/repo", nil)
+			a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "repo", Worktrees: []project.Worktree{{Path: "/repo", Branch: "main"}}}}
+			a.newSession("/plain")
+			a.newSession("/other")
+			tt := native.NewTester(a.view, 1000, 760)
+			r, ok := tt.Find(label)
+			if !ok {
+				t.Fatal("missing tree row")
+			}
+			x, y := r.X+2, r.Y+r.H/2
+			tt.Move(x, y)
+			hover := tt.Image().RGBAAt(int(x), int(y))
+			tt.Press(x, y)
+			if tt.Image().RGBAAt(int(x), int(y)) != hover {
+				t.Fatal("mouse-down darkened the tree row")
+			}
+			tt.Release(x, y)
+		})
+	}
+}
+
+func TestRepositoryAndWorktreeHoverDoNotShowTooltips(t *testing.T) {
+	for _, label := range []string{"展开仓库 /repo/.git", "打开工作区 /repo"} {
+		t.Run(label, func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/repo", nil)
+			a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "repo", Worktrees: []project.Worktree{{Path: "/repo", Branch: "main"}}}}
+			tt := native.NewTester(a.view, 1000, 760)
+			before := tt.Texts()
+			r, ok := tt.Find(label)
+			if !ok {
+				t.Fatal("missing directory row")
+			}
+			tt.Move(r.X+r.W/2, r.Y+r.H/2)
+			tt.Advance(time.Second)
+			if !slices.Equal(before, tt.Texts()) {
+				t.Fatal("directory hover added tooltip text")
+			}
+		})
 	}
 }

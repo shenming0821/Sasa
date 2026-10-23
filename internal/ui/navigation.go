@@ -110,48 +110,33 @@ func (a *App) sidebar(c *native.Context) {
 				for _, group := range groups {
 					gc := c.Key(group.path)
 					native.Column(gc).FillWidth().Gap(3).Children(func() {
-						b := quietButton(gc, "展开项目 "+group.path).FillWidth().Padding(8).Gap(7)
-						b.Tooltip(group.path).Children(func() {
-							glyph := chevron
-							if a.collapsedProjects[group.path] && a.sessionQuery == "" {
-								glyph = iconRight
-							}
-							native.Icon(gc, glyph).Size(11, 11)
+						a.projectDisclosure(gc, group.path, "展开项目 "+group.path, func() {
 							native.Icon(gc, folderIcon).Size(14, 14)
 							native.Text(gc, projectName(group.path)).FontSize(12).Bold().TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 							native.Spacer(gc)
-							native.Text(gc, fmt.Sprint(len(group.sessions))).FontSize(10).TextColor(t.TextMuted)
-						})
-						if b.Clicked() {
-							if a.collapsedProjects == nil {
-								a.collapsedProjects = make(map[string]bool)
-							}
-							a.collapsedProjects[group.path] = !a.collapsedProjects[group.path]
-						}
-						if a.collapsedProjects[group.path] && a.sessionQuery == "" {
-							return
-						}
-						for _, s := range group.sessions {
-							b := quietButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
-							if a.session == s && s.open {
-								b.Background(t.SurfacePressed)
-							}
-							b.Children(func() {
-								native.Column(gc).FillWidth().Gap(4).Children(func() {
-									native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-									if status := s.navigationStatus(); status != "" {
-										color := t.TextMuted
-										if s.State.Error != "" {
-											color = t.Danger
+						}, func() {
+							for _, s := range group.sessions {
+								b := treeButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).Tooltip(fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
+								if a.session == s && s.open {
+									b.Background(t.SurfacePressed)
+								}
+								b.Children(func() {
+									native.Column(gc).FillWidth().Gap(4).Children(func() {
+										native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+										if status := s.navigationStatus(); status != "" {
+											color := t.TextMuted
+											if s.State.Error != "" {
+												color = t.Danger
+											}
+											native.Text(gc, status).FontSize(10).TextColor(color).SingleLine()
 										}
-										native.Text(gc, status).FontSize(10).TextColor(color).SingleLine()
-									}
+									})
 								})
-							})
-							if b.Clicked() {
-								a.selectSession(s)
+								if b.Clicked() {
+									a.selectSession(s)
+								}
 							}
-						}
+						})
 					})
 				}
 				matched := len(groups) > 0
@@ -171,7 +156,6 @@ func (a *App) sidebar(c *native.Context) {
 var addProjectIcon = icon(`<path d="M12 5v14M5 12h14"/>`)
 var refreshProjectIcon = icon(`<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>`)
 
-var iconRight = icon(`<path d="m10 7 5 5-5 5"/>`)
 var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 
 func (a *App) sessionTabs(c *native.Context) {
@@ -286,4 +270,14 @@ func (a *App) historyPanel(c *native.Context) {
 		})
 		a.historyBrowser(c)
 	})
+}
+
+// Tree rows use the same background on hover and mouse-down.
+func treeButton(c *native.Context, label string) native.Element {
+	t := c.Theme()
+	b := native.ButtonBase(c).Label(label).Radius(8).Padding(6).TextColor(t.TextMuted)
+	if b.Hovered() || b.FocusVisible() {
+		b.Background(t.SurfaceHover)
+	}
+	return b
 }
