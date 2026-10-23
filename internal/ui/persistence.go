@@ -38,6 +38,7 @@ func (a *App) AttachStore(store *storage.Store) error {
 	a.historyOpen, a.collapsedProjects = snapshot.HistoryOpen, snapshot.CollapsedProjects
 	for _, saved := range snapshot.Sessions {
 		s := &session{id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == ""}
+		s.open = slices.Contains(snapshot.OpenTabs, saved.ID)
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
 		s.completion.cwd = saved.Cwd
 		s.completion.chosen = make(map[string]codex.Skill)
@@ -60,7 +61,8 @@ func (a *App) AttachStore(store *storage.Store) error {
 			a.session = s
 		}
 	}
-	found := a.session != nil && slices.Contains(a.sessions, a.session)
+	found := a.session != nil && slices.Contains(a.sessions, a.session) &&
+		(snapshot.OpenTabs == nil || a.session.open)
 	if cwd != "" && (!found || a.State.Cwd != cwd) {
 		found = false
 		for i := len(a.sessions) - 1; i >= 0; i-- {
@@ -75,6 +77,12 @@ func (a *App) AttachStore(store *storage.Store) error {
 			a.newSession(cwd)
 		} else {
 			a.session = a.sessions[len(a.sessions)-1]
+			for i := len(a.sessions) - 1; i >= 0; i-- {
+				if a.sessions[i].open {
+					a.session = a.sessions[i]
+					break
+				}
+			}
 		}
 	}
 	a.session.open = true
@@ -87,6 +95,9 @@ func (a *App) snapshot() storage.Snapshot {
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
 	}
 	for _, s := range a.sessions {
+		if s.open {
+			result.OpenTabs = append(result.OpenTabs, s.id)
+		}
 		item := s.saved
 		item.ID, item.ThreadID, item.Cwd = s.id, s.State.ThreadID, s.State.Cwd
 		item.Draft, item.Title = s.State.Draft, s.title()

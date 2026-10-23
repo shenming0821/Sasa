@@ -31,6 +31,7 @@ type Session struct {
 
 type Snapshot struct {
 	Selected          int
+	OpenTabs          []int
 	SidebarOpen       bool
 	SidebarWidth      float32
 	HistoryOpen       bool

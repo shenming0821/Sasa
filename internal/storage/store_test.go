@@ -13,7 +13,7 @@ func TestReopenDraftsMetadataAndExclusiveOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Snapshot{Selected: 2, SidebarOpen: true, Sessions: []Session{
+	want := Snapshot{Selected: 2, OpenTabs: []int{1, 2}, SidebarOpen: true, Sessions: []Session{
 		{ID: 1, ThreadID: "native-first", Cwd: "/first", Draft: "unsent\n任务", Active: true, TurnID: "turn",
 			Anchor: "message", ScrollY: 30, Expanded: map[string]bool{"tool": true}},
 		{ID: 2, Cwd: "/second", Draft: "second"},

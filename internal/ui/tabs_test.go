@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
@@ -98,8 +99,8 @@ func TestStartupLoadsOnlySelectedTabAndOpensHistoryOnDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, s := range b.sessions {
-		if s.open != (s.id == first.id) {
-			t.Fatal("restart reopened all prior tabs")
+		if s.open != (s.id == 1 || s.id == 2) {
+			t.Fatal("restart did not preserve open tabs")
 		}
 	}
 }
@@ -185,5 +186,116 @@ func TestTabCloseButtonLayout(t *testing.T) {
 		if !ok || !found || close.W < 24 || close.H < 24 || title.X+title.W > close.X+1 {
 			t.Fatalf("tab title and close overlap at width %d: title=%+v close=%+v", width, title, close)
 		}
+	}
+}
+
+func TestRestartRestoresOpenTabsAndSelectionLazily(t *testing.T) {
+	store, err := storage.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	a := New(nil, "test", "/project", nil)
+	if err := a.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	first := a.session
+	first.State.ThreadID, first.State.Draft = "1", "first draft"
+	a.newSession("/other")
+	closed := a.session
+	closed.State.ThreadID, closed.State.Draft = "2", "closed draft"
+	a.newSession("/project")
+	third := a.session
+	third.State.ThreadID = "3"
+	a.closeSession(closed)
+	a.selectSession(first)
+	if err := a.persist(); err != nil {
+		t.Fatal(err)
+	}
+	backend := &lazyTabsBackend{requests: make(chan string, 8)}
+	backend.pages = []codex.TurnsPage{{}}
+	b := New(backend, "test", "", nil)
+	if err := b.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	queue := make(chan func(), 8)
+	b.dispatch = func(fn func()) { queue <- fn }
+	tt := native.NewTester(b.view, 1000, 760)
+	if b.session.id != first.id || !tt.HasText("会话标签 1") || tt.HasText("会话标签 2") || !tt.HasText("会话标签 3") {
+		t.Fatal("restart lost open tabs, restored a closed tab, or changed selection")
+	}
+	if len(backend.requests) != 0 || b.sessions[2].loaded || b.sessions[1].State.Draft != "closed draft" {
+		t.Fatal("restoring tabs eagerly fetched history or lost a closed draft")
+	}
+	b.recoverSelectedSession()
+	pumpUpdate(t, queue)
+	if id := <-backend.requests; id != "1" {
+		t.Fatal("startup resumed the wrong tab")
+	}
+	if b.sessions[2].loaded {
+		t.Fatal("background tab loaded history at startup")
+	}
+	if err := tt.Click("会话标签 3"); err != nil {
+		t.Fatal(err)
+	}
+	pumpUpdate(t, queue)
+	if id := <-backend.requests; id != "3" {
+		t.Fatal("clicking restored tab did not load its history")
+	}
+	b.closeSession(b.session)
+	if err := b.persist(); err != nil {
+		t.Fatal(err)
+	}
+	c := New(nil, "test", "", nil)
+	if err := c.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range c.sessions {
+		if s.open != (s.id == 1) {
+			t.Fatal("closed tab returned after second restart")
+		}
+	}
+}
+
+func TestOpenTabSettingsCompatibilityAndLaunchDirectory(t *testing.T) {
+	cases := []struct {
+		name         string
+		tabs         []int
+		selected     int
+		cwd          string
+		wantSelected int
+		wantTabs     []int
+	}{
+		{name: "legacy", selected: 2, wantSelected: 2, wantTabs: []int{2}},
+		{name: "blank draft and multiple projects", tabs: []int{1, 3}, selected: 3, wantSelected: 3, wantTabs: []int{1, 3}},
+		{name: "stale selection and IDs", tabs: []int{1, 99, 3}, selected: 99, wantSelected: 3, wantTabs: []int{1, 3}},
+		{name: "closed selection", tabs: []int{1, 3}, selected: 2, wantSelected: 3, wantTabs: []int{1, 3}},
+		{name: "explicit directory", tabs: []int{1, 3}, selected: 1, cwd: "/two", wantSelected: 2, wantTabs: []int{1, 2, 3}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, err := storage.Open(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			if err := store.Save(storage.Snapshot{Selected: tc.selected, OpenTabs: tc.tabs, Sessions: []storage.Session{
+				{ID: 1, Cwd: "/one", ThreadID: "first"},
+				{ID: 2, Cwd: "/two", ThreadID: "second"},
+				{ID: 3, Cwd: "/three", Draft: "blank draft"},
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			a := New(nil, "test", tc.cwd, nil)
+			if err := a.AttachStore(store); err != nil {
+				t.Fatal(err)
+			}
+			if a.session.id != tc.wantSelected {
+				t.Fatalf("selected=%d want=%d", a.session.id, tc.wantSelected)
+			}
+			if got := a.snapshot().OpenTabs; !slices.Equal(got, tc.wantTabs) {
+				t.Fatalf("tabs=%v want=%v", got, tc.wantTabs)
+			}
+		})
 	}
 }
