@@ -122,6 +122,7 @@ func TestLargeToolOutputKeepsComposerAndStopUsable(t *testing.T) {
 			a.State.Messages = []*app.Message{{ID: "tool", Role: "tool", Tool: &app.Tool{
 				Kind: "commandExecution", Command: "go test ./...", Status: "inProgress", Expanded: true, Output: strings.Repeat("long output with unicode 中文\n", 4000),
 			}}}
+			*a.commandGroupOpen("tool") = true
 			tt := native.NewTester(a.view, 640, 480)
 			tt.SetDark(dark)
 			for _, label := range []string{"任务输入", "停止"} {

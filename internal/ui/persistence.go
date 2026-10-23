@@ -94,6 +94,9 @@ func (a *App) snapshot() storage.Snapshot {
 			if item.Expanded == nil {
 				item.Expanded = make(map[string]bool)
 			}
+			for key, open := range s.commandGroups {
+				item.Expanded[key] = *open
+			}
 			for _, m := range s.State.Messages {
 				if m.Tool != nil {
 					item.Expanded[m.ID] = m.Tool.Expanded
@@ -120,10 +123,8 @@ func (a *App) snapshot() storage.Snapshot {
 
 func (s *session) displayMessages() []*app.Message {
 	var messages []*app.Message
-	for _, m := range s.State.Messages {
-		if m.Role != "assistant" || m.Text != "" {
-			messages = append(messages, m)
-		}
+	for _, row := range s.conversationRows() {
+		messages = append(messages, row.message)
 	}
 	return messages
 }

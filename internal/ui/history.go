@@ -161,8 +161,15 @@ func (s *session) restoreReading() {
 		s.list.ScrollToEnd()
 		return
 	}
-	for i, m := range s.displayMessages() {
-		if m.ID == s.saved.Anchor {
+	for i, row := range s.conversationRows() {
+		matches := row.message.ID == s.saved.Anchor
+		for _, command := range row.commands {
+			matches = matches || command.ID == s.saved.Anchor
+		}
+		if matches {
+			if row.message.ID != s.saved.Anchor {
+				s.saved.Anchor, s.saved.AnchorOffset = row.message.ID, 0
+			}
 			s.list.ScrollTo(i, native.Start)
 			s.restoreOffset = true
 			return

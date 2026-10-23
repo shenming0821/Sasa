@@ -99,10 +99,7 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 				b := actionButton(c, fmt.Sprintf("处理待办（%d）", len(pending))).TextColor(t.Text)
 				if b.Clicked() {
 					row := 0
-					for _, m := range a.State.Messages {
-						if m.Role == "assistant" && m.Text == "" {
-							continue
-						}
+					for _, m := range a.session.displayMessages() {
 						if m.Interaction == pending[0] {
 							a.list.ScrollTo(row, native.Start)
 							break
@@ -180,12 +177,8 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 func (a *App) conversation(c *native.Context) {
 	t := c.Theme()
 	a.session.restoreRowOffset(c)
-	messages := make([]*app.Message, 0, len(a.State.Messages))
-	for _, m := range a.State.Messages {
-		if m.Role != "assistant" || m.Text != "" {
-			messages = append(messages, m)
-		}
-	}
+	rows := a.session.conversationRows()
+	messages := a.session.displayMessages()
 	if len(a.rows) > len(messages) {
 		visibleIDs := make(map[string]bool, len(messages))
 		for _, m := range messages {
@@ -215,7 +208,11 @@ func (a *App) conversation(c *native.Context) {
 				readingColumn(c, func() { thinkingIndicator(c) })
 			} else {
 				native.Column(c).FillWidth().Bind(a.rowHandle(messages[i].ID)).Children(func() {
-					a.message(c, messages[i])
+					if len(rows[i].commands) > 0 {
+						readingColumn(c, func() { a.commandGroup(c.Key(messages[i].ID), rows[i].commands) })
+					} else {
+						a.message(c, messages[i])
+					}
 				})
 			}
 		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(28).TrackScroll(&a.scroll)
