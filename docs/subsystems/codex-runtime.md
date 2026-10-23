@@ -4,6 +4,8 @@
 
 `cmd/desktop/main.go` 校验初始目录并启动自有 App Server。`run()` 返回前执行 `Client.Close()`，随后 main 才根据错误设置退出码。Fuyu 不连接或终止共享 Codex daemon，不改动用户登录、模型或权限配置。
 
+桌面入口先调用 `internal/runtime/codex.go` 的 `ResolveCodex`：根据当前用户目录、继承环境和有时限的交互式登录 shell 探测定位可执行文件，并返回包含 Node.js 安装目录的 PATH。仅在 UI 与 App Server 创建前更新 Fuyu 进程的 PATH；保留其余环境、`CODEX_HOME` 与用户原生配置。显式路径失效时直接报错，不替换为另一安装。脚本包装入口单独检查 Node.js 依赖；自动搜索不使用项目当前目录。版本探测与 App Server 初始化分别采用 5 秒和 60 秒截止时间，普通 RPC 截止时间保持原约定。安装方式与回归证据见[启动路径验收](../verification/2026-10-23-codex-discovery.md)。
+
 `internal/runtime/` 通过参数数组启动进程，为其建立独立进程组。stdio 关闭后读取者负责清理自有组并回收 leader；正常关闭先关闭 stdin，等待最多 2 秒，超时再终止自有组。隔离测试确认：忽略 EOF 的 leader 能强制退出并回收；另建进程组的后代仍可能残留。当前只保证原进程组清理，不保证所有后代清理，也不以模糊名称匹配终止进程。测试自行按精确 PID 清理受控后代。
 
 ## 协议客户端

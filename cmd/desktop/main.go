@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/shenming0821/Fuyu/internal/codex"
+	process "github.com/shenming0821/Fuyu/internal/runtime"
 	"github.com/shenming0821/Fuyu/internal/storage"
 	"github.com/shenming0821/Fuyu/internal/ui"
 )
@@ -65,23 +68,35 @@ func run() error {
 		}
 		*cwd = path
 	}
-	ctx, cancel := codex.RequestContext()
-	defer cancel()
-	version, versionErr := codex.Version(ctx, *executable)
-	if versionErr != nil {
-		version = "Codex 不可用"
+	resolved, searchPath, launchErr := process.ResolveCodex(*executable)
+	if launchErr == nil {
+		launchErr = os.Setenv("PATH", searchPath)
+	}
+	version := "Codex 不可用"
+	if launchErr == nil {
+		versionCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		value, err := codex.Version(versionCtx, resolved)
+		cancel()
+		if err == nil {
+			version = value
+		}
 	}
 	serverDir, err := os.UserHomeDir()
 	if err != nil {
 		serverDir = os.TempDir()
 	}
-	client, err := codex.Start(ctx, *executable, serverDir)
+	var client *codex.Client
+	if launchErr == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		client, launchErr = codex.Start(ctx, resolved, serverDir)
+		cancel()
+	}
 	var backend ui.Backend
 	if client != nil {
 		defer client.Close()
 		backend = client
 	}
-	desktop := ui.New(backend, strings.TrimSpace(version), *cwd, err)
+	desktop := ui.New(backend, strings.TrimSpace(version), *cwd, launchErr)
 	if err := desktop.AttachStore(store); err != nil {
 		return fmt.Errorf("restore application index (original data preserved): %w", err)
 	}

@@ -37,6 +37,14 @@
 - [x] 用户确认采用“极简 F”右下角改为 Y 的设计；正式源文件为 `assets/app-icon.svg` 与 1024×1024 不透明纯白底 `assets/app-icon.png`，已重新构建并更新应用登记。资源核验见[图标验收](verification/2026-10-23-app-icon.md)。
 - [ ] 最终 F＋Y 图标的 Finder / Dock 实际显示待核验：本轮工具未获准读取 Finder；重新启动应用后查看。
 
+### Codex 桌面启动修复（2026-10-23）
+
+- [x] 修复 Finder / Dock 环境找不到 Codex 的问题，使用当前用户路径发现与登录 shell 环境探测，同时补齐 Node.js 包装入口的依赖路径。
+- [x] 保留显式 `-codex` 路径与原生配置；缺少安装或 Node.js 时显示具体原因。实现不包含开发者固定用户名或安装路径。
+- [x] 隔离测试覆盖安装优先级、含空格目录、nvm 版本排序、失效路径、权限、相对搜索项、shell 噪声/超时/输出上限；完整 test、vet、race 和构建通过。
+- [x] 精简 PATH 下真实读取 Codex 版本、初始化并关闭 App Server；未创建 thread 或模型任务。详情见[启动路径验收](verification/2026-10-23-codex-discovery.md)。
+- [ ] Finder / Dock 直接启动的 GUI 复核：工具未获准操作 Fuyu；当前已构建最新版，保留该界面验收边界。
+
 ## 2. 执行原则
 
 - 第一阶段把 MyGo 窗口与真实 Codex Runtime 连起来，尽早验证实际使用链路。
