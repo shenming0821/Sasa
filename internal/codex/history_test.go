@@ -87,3 +87,54 @@ pending:
 		t.Fatal("old approval revived on a new transport")
 	}
 }
+
+func TestOccupiedReadForkAndRetryProtocol(t *testing.T) {
+	dir := t.TempDir()
+	raw := `{"source":{"cwd":"/tmp","title":"original","turns":[{"id":"old","status":"completed","itemsView":"full","items":[{"type":"agentMessage","id":"reply","text":"history"}]}]}}`
+	if err := os.WriteFile(filepath.Join(dir, "native-history.json"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	lock := filepath.Join(dir, "source.occupied")
+	if err := os.WriteFile(lock, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	script, err := filepath.Abs("testdata/p3_server.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := startProcess("/usr/bin/python3", []string{script, "--fixture-dir", dir}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := c.ResumeThread(ctx, "source"); !IsActiveWriter(err, "source") {
+		t.Fatal("writer conflict not recognized", err)
+	}
+	meta, err := c.ReadThreadMeta(ctx, "source")
+	if err != nil || meta.ID != "source" || len(meta.Turns) != 0 {
+		t.Fatal("metadata-only read failed", err)
+	}
+	page, err := c.ListTurns(ctx, "source", nil)
+	if err != nil || len(page.Data) != 1 || page.Data[0].ID != "old" {
+		t.Fatal("occupied history unavailable", err)
+	}
+	branch, err := c.ForkThread(ctx, "source")
+	if err != nil || branch.ThreadMeta.ID == "" || branch.ThreadMeta.ID == "source" {
+		t.Fatal("fork identity not independent", err)
+	}
+	forkPage, err := c.ListTurns(ctx, branch.ThreadMeta.ID, nil)
+	if err != nil || len(forkPage.Data) != 1 || forkPage.Data[0].ID != "old" {
+		t.Fatal("fork did not preserve history", err)
+	}
+	if _, err := c.ResumeThread(ctx, "source"); !IsActiveWriter(err, "source") {
+		t.Fatal("fork changed original writer ownership", err)
+	}
+	if err := os.Remove(lock); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ResumeThread(ctx, "source"); err != nil {
+		t.Fatal("retry after unlock failed", err)
+	}
+}

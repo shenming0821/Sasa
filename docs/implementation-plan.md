@@ -12,7 +12,7 @@
 | 已完成 | Go/MyGo 工程、分层源码、原生窗口、Codex 双向协议、状态/协议/UI 组件测试 |
 | 已实现功能 | P1/P2 任务交互；P3 多会话、SQLite 索引与迁移、原生分页历史、草稿/阅读/折叠恢复、异常状态核验、窗口驻留和退出流程 |
 | 已有文件 | `cmd/desktop/`、`internal/{ui,app,codex,runtime,storage}/`、`go.mod`、`go.sum`、`scripts/` |
-| 下一动作 | Orca 参考布局调整已实现并验证，见[导航验收](verification/2026-10-23-navigation.md)；可重开正式应用查看。P4 文件变更与 Diff 功能仍待开始，提交与推送按用户授权执行 |
+| 下一动作 | Orca 导航布局和 ChatGPT 参考的会话占用交互已实现，见[导航验收](verification/2026-10-23-navigation.md)与[占用交互验收](verification/2026-10-23-occupied-session.md)；重启正式应用查看新构建。P4 文件变更与 Diff 功能仍待开始，提交与推送按用户授权执行 |
 | 工具链 | 本机 Go 1.27.3 位于 `~/.local/share/fuyu/toolchains/go1.27.3`；MyGo 锁定提交 `976f17c9391f` |
 | Git 关联 | `main`，`origin` 为 `git@github.com:shenming0821/Fuyu.git`；首个应用代码快照范围见本页末尾，提交与工作区状态以 `git log`、`git status` 核对 |
 | Codex 版本 | 2026-10-22 核验为 `codex-cli 0.163.0`；macOS arm64 |
@@ -32,6 +32,7 @@
 - [x] 展开历史时中间会话让出宽度，窄窗口将历史缩至最小 240 DIP，并优先收起左侧项目；历史不覆盖聊天。
 - [x] 两侧切换按钮随面板移动：展开时位于侧栏顶部，收起时位于主聊天区顶栏；提示为“切换左侧边栏”和“切换右侧边栏”。
 - [x] 完成组件回归、test/vet/race、构建和原生窗口验收，更新文档；实际范围见[导航验收](verification/2026-10-23-navigation.md)。
+- [x] 外部进程占用会话时加载只读历史，以底部锁定提示卡替代输入区；支持重试和创建独立聊天分叉，保留原会话及草稿。分叉通过原生接口创建，延后目标自动续跑，直接使用返回状态加载历史；覆盖边界见[占用交互验收](verification/2026-10-23-occupied-session.md)。
 
 ## 2. 执行原则
 

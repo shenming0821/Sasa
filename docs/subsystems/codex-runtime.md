@@ -30,6 +30,8 @@
 
 `internal/app/snapshot.go` 在增量缺口后以 `thread/read(includeTurns=true)` 核验相同 thread/turn 的原生终态和最终 items；错误或不匹配时保留“不完整”，提供重新核验入口。该路径用于当前连接的缺口校准；重启后的历史恢复由 `thread/resume` 与分页 `thread/turns/list` 完成，见[会话管理](sessions.md)。
 
+`internal/codex/history.go` 为外部 writer 冲突提供精确 RPC 分类，要求错误码为 `-32600`，消息中的 thread ID 与请求一致。此时以 `thread/read(includeTurns=false)` 和 `thread/turns/list` 读取未加载会话，不取得原 thread 写入权。“创建聊天分叉”使用 `thread/fork(threadId, excludeTurns=true, deferGoalContinuation=true)`，保留原生配置和独立 ID；直接使用返回状态加载历史，不再次 resume 新分叉或自动发起 turn。参数由本机 0.163.0 的 experimental JSON schema 核验；真实只读接口及受控分叉验收分别见[占用交互记录](../verification/2026-10-23-occupied-session.md)。
+
 交互状态位于 `internal/app/interactions.go`：待处理、提交中、已响应、已解决、已取消、已失效、发送待核验。任务停止、结束或断线会清除回答并关闭入口；响应失败保留错误和核验提示，禁止重复提交。秘密回答只传入协议响应，不写入时间线。构建包装对 MyGo 的 macOS AX setter 做隔离修复，防止自动填充将秘密原文留在无障碍值中。
 
 待办按钮定位最早待处理交互；自己提交的响应解决后定位后续流程，其他请求的解决事件保留阅读位置。输入区始终独立于工具卡片和表单滚动。

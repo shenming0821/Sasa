@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Local P3 acceptance server. No model, credentials, or shell commands."""
 import json
+import copy
 import pathlib
 import sys
 
@@ -55,6 +56,19 @@ for line in sys.stdin:
                   "approvalPolicy": "on-request", "sandbox": {"type": "readOnly"}}
     elif method == "thread/resume":
         thread = p["threadId"]
+        if (root / (thread + ".occupied")).exists():
+            emit({"id": m["id"], "error": {"code": -32600,
+                  "message": "thread " + thread + " already has an active writer"}})
+            continue
+        result = {"thread": metadata(thread), "cwd": threads[thread]["cwd"],
+                  "model": "P3-fixture", "approvalPolicy": "on-request",
+                  "sandbox": {"type": "readOnly"}}
+    elif method == "thread/fork":
+        source = p["threadId"]
+        assert p["excludeTurns"] and p["deferGoalContinuation"]
+        thread = "fixture-fork-" + str(len(threads) + 1)
+        threads[thread] = copy.deepcopy(threads[source])
+        save()
         result = {"thread": metadata(thread), "cwd": threads[thread]["cwd"],
                   "model": "P3-fixture", "approvalPolicy": "on-request",
                   "sandbox": {"type": "readOnly"}}
@@ -70,7 +84,8 @@ for line in sys.stdin:
                   "nextCursor": str(start + 20) if start + 20 < len(values) else None}
     elif method == "thread/read":
         thread = p["threadId"]
-        result = {"thread": {**metadata(thread), "turns": threads[thread]["turns"]}}
+        result = {"thread": {**metadata(thread),
+                            "turns": threads[thread]["turns"] if p.get("includeTurns") else []}}
     elif method == "turn/start":
         thread = p["threadId"]
         text = p["input"][0]["text"]

@@ -19,11 +19,17 @@ type historyBackend interface {
 }
 
 func (a *App) recoverSession(s *session) {
+	a.loadSessionHistory(s, nil)
+}
+
+// A fork already belongs to this transport. Read its returned state directly,
+// preserving the fork's deferred goal instead of resuming it a second time.
+func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 	backend, ok := a.backend.(historyBackend)
-	if !ok || s.State.Disconnected || s.recovering || s.State.ThreadID == "" {
+	if !ok || s.State.Disconnected || s.recovering || s.forking || s.State.ThreadID == "" {
 		return
 	}
-	if s.loaded && !s.recoveryBlocked {
+	if s.loaded && (!s.recoveryBlocked || s.writerOccupied) {
 		for _, saved := range a.application().snapshot().Sessions {
 			if saved.ID == s.id {
 				s.saved = saved
@@ -40,7 +46,22 @@ func (a *App) recoverSession(s *session) {
 	go func() {
 		ctx, cancel := codex.RequestContext()
 		defer cancel()
-		resumed, err := backend.ResumeThread(ctx, threadID)
+		var resumed codex.ResumedThread
+		var err error
+		if fork != nil {
+			resumed = *fork
+		} else {
+			resumed, err = backend.ResumeThread(ctx, threadID)
+		}
+		occupied := codex.IsActiveWriter(err, threadID)
+		if occupied {
+			if reader, ok := backend.(interface {
+				ReadThreadMeta(context.Context, string) (codex.ThreadMeta, error)
+			}); ok {
+				resumed.ThreadMeta, err = reader.ReadThreadMeta(ctx, threadID)
+				resumed.Cwd = resumed.ThreadMeta.Cwd
+			}
+		}
 		var page codex.TurnsPage
 		if err == nil {
 			page, err = backend.ListTurns(ctx, threadID, nil)
@@ -50,8 +71,13 @@ func (a *App) recoverSession(s *session) {
 				return
 			}
 			s.recovering = false
+			s.writerOccupied = occupied
 			if err != nil {
-				s.State.Error, s.State.Phase = "恢复失败，可重试核验："+err.Error(), "恢复失败"
+				if occupied {
+					s.State.Error, s.State.Phase = "历史暂时无法读取："+err.Error(), "已在另一个应用中打开"
+				} else {
+					s.State.Error, s.State.Phase = "恢复失败，可重试核验："+err.Error(), "恢复失败"
+				}
 				s.recoveryEvents, s.recoveryBytes = nil, 0
 				return
 			}
@@ -85,7 +111,7 @@ func (a *App) recoverSession(s *session) {
 				}
 			}
 			s.recoveryBlocked = unfinished || resumed.ThreadMeta.Status.Type != "idle" ||
-				s.historyOverflow || unconfirmed || s.reviewRequired
+				s.historyOverflow || unconfirmed || s.reviewRequired || occupied
 			if s.recoveryBlocked {
 				s.State.Phase = "旧任务待核验"
 				s.State.Notice = "已恢复历史，但旧任务尚无确定终态；无法重新附着旧 stdio 或恢复旧审批。核验前暂停发送。"
@@ -102,6 +128,14 @@ func (a *App) recoverSession(s *session) {
 			}
 			events := s.recoveryEvents
 			s.recoveryEvents, s.recoveryBytes = nil, 0
+			if occupied {
+				s.State.Phase, s.State.Notice = "已在另一个应用中打开", ""
+				s.restoreReading()
+				if s.restoreOffset && !s.hasSavedAnchor() && s.historyCursor != nil {
+					bound.loadOlder()
+				}
+				return
+			}
 			var controls []codex.Event
 			for _, e := range events {
 				switch e.Method {

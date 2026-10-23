@@ -35,6 +35,9 @@ type session struct {
 	recoveryEpoch   int
 	historyOverflow bool
 	reviewRequired  bool
+	writerOccupied  bool
+	forking         bool
+	forkUncertain   bool
 }
 
 func (s *session) rowHandle(id string) *native.Handle {

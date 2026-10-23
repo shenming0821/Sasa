@@ -87,7 +87,9 @@ func (a *App) snapshot() storage.Snapshot {
 			if !s.recoveryBlocked {
 				item.TurnID = s.State.TurnID
 			}
-			item.Active = s.State.Busy || s.recoveryBlocked
+			if !s.writerOccupied {
+				item.Active = s.State.Busy || s.recoveryBlocked
+			}
 			item.Expanded = maps.Clone(s.saved.Expanded)
 			if item.Expanded == nil {
 				item.Expanded = make(map[string]bool)

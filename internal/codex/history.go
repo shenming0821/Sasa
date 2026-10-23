@@ -3,7 +3,30 @@ package codex
 import (
 	"context"
 	"encoding/json"
+	"errors"
 )
+
+func IsActiveWriter(err error, id string) bool {
+	var rpc *RPCError
+	return errors.As(err, &rpc) && rpc.Code == -32600 &&
+		rpc.Message == "thread "+id+" already has an active writer"
+}
+
+func (c *Client) ReadThreadMeta(ctx context.Context, id string) (ThreadMeta, error) {
+	var result struct {
+		Thread ThreadMeta `json:"thread"`
+	}
+	err := c.Call(ctx, "thread/read", map[string]any{"threadId": id, "includeTurns": false}, &result)
+	return result.Thread, err
+}
+
+func (c *Client) ForkThread(ctx context.Context, id string) (ResumedThread, error) {
+	var result ResumedThread
+	err := c.Call(ctx, "thread/fork", map[string]any{
+		"threadId": id, "excludeTurns": true, "deferGoalContinuation": true,
+	}, &result)
+	return result, err
+}
 
 type HistoryTurn struct {
 	ID        string            `json:"id"`

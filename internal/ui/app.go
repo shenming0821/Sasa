@@ -107,7 +107,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
-	return a.backend != nil && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked &&
+	return a.backend != nil && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		a.State.Cwd != "" && strings.TrimSpace(a.State.Draft) != ""
 }
 
@@ -299,6 +299,9 @@ func (a *App) applySessionBatch(batch []codex.Event) {
 		if a.session.bufferRecovery(e) {
 			continue
 		}
+		if a.writerOccupied && e.Method != "fuyu/disconnected" {
+			continue
+		}
 		if e.Method == "fuyu/disconnected" {
 			a.recoveryEpoch++
 			a.recovering, a.recoveryBlocked = false, true
@@ -372,7 +375,7 @@ func (a *App) answer(r *app.Interaction, result any) {
 
 func (a *App) reconcileIfNeeded() {
 	a = a.forSession(a.session)
-	if !a.State.NeedsSnapshot || a.State.Busy || a.State.Disconnected || a.snapshotPending {
+	if !a.State.NeedsSnapshot || a.State.Busy || a.State.Disconnected || a.snapshotPending || a.writerOccupied {
 		return
 	}
 	backend, ok := a.backend.(interface {

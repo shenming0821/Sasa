@@ -129,6 +129,10 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 						a.persist()
 					}
 				}
+				if a.writerOccupied {
+					a.occupiedCard(c)
+					return
+				}
 				if a.recoveryBlocked && !a.recovering && !a.State.Disconnected {
 					if a.State.ThreadID != "" && actionButton(c, "重新核验原生会话").Clicked() {
 						a.recoverSession(a.session)

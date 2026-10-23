@@ -29,6 +29,10 @@
 
 用户确认参考 Orca 的右侧历史侧栏时，在默认窗口下仍应将历史放在窗口内部，与聊天并排。根据截图实现导航布局时，先核对默认尺寸下的面板占位方式；展开历史为会话区让出宽度，空间不足时优先收起项目导航。组件验证同时断言历史、正文和发送按钮的实际边界。依据：`internal/ui/navigation_test.go`、[导航验收](docs/verification/2026-10-23-navigation.md)。
 
+## 2026-10-23：外部会话占用
+
+`thread/resume` 报告已有 active writer 时，表示另一进程持有写入权。此时以原生只读接口加载历史，并提供重试或独立分叉；保留原会话及草稿。仅管理 Fuyu 自有任务，不因外部占用创建 Busy 状态或提交不确定标记。分叉时明确延后目标自动续跑，直接使用 fork 返回状态分页，等待用户发送下一项任务。依据：`internal/ui/occupied_test.go`、`internal/codex/history_test.go`、[占用交互验收](docs/verification/2026-10-23-occupied-session.md)。
+
 ## 2026-10-22：P1 实测案例
 
 | 触发场景与原因 | 后续动作 | 证据 |
