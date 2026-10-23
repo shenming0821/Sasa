@@ -275,7 +275,7 @@ func (a *App) repositoryRows(c *native.Context) {
 				}
 				wc := rc.Key(w.Path)
 				card := native.Column(wc).FillWidth().Gap(0).Radius(10)
-				if current := a.worktreeFor(a.State.Cwd); current != nil && current.Path == w.Path {
+				if current := a.worktreeFor(a.State.Cwd); current != nil && current.Path == w.Path && a.open {
 					card.Background(t.SurfacePressed)
 				} else if card.Hovered() {
 					card.Background(t.SurfaceHover)

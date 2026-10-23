@@ -63,7 +63,11 @@ func (a *App) view(c *native.Context) {
 	native.Box(c).Fill().Children(func() {
 		center := func() {
 			native.Row(c).Fill().Children(func() {
-				a.sessionView(c.Key(a.session.id), leftShown, rightShown)
+				if a.open {
+					a.sessionView(c.Key(a.session.id), leftShown, rightShown)
+				} else {
+					a.emptyWorkspace(c.Key("empty-workspace"), leftShown, rightShown)
+				}
 				if rightShown {
 					a.historyPanel(c)
 				}
@@ -78,6 +82,26 @@ func (a *App) view(c *native.Context) {
 			native.Column(c.Key("project-overlay")).Absolute().Left(0).Top(46).Bottom(0).Width(240).
 				Shadow(4, 0, 16, 0, native.RGBA(0, 0, 0, 0.12)).Children(func() { a.sidebar(c) })
 		}
+	})
+}
+
+func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
+	t := c.Theme()
+	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
+		native.Row(c).FillWidth().Height(46).Padding(0, 16).Gap(12).AlignItems(native.Center).Children(func() {
+			if !leftShown {
+				a.sidebarToggle(c, true)
+			}
+			native.Spacer(c)
+			create := quietButton(c, "新会话").Size(28, 28)
+			create.Children(func() { native.Icon(c, newIcon).Size(15, 15) })
+			if create.Clicked() {
+				a.newSession(a.State.Cwd)
+			}
+			if !rightShown {
+				a.sidebarToggle(c, false)
+			}
+		})
 	})
 }
 

@@ -103,11 +103,11 @@ func (a *App) closeSession(s *session) {
 			return
 		}
 	}
-	a.newSession(s.State.Cwd)
+	// Retain the protocol owner without opening or creating a replacement tab.
 }
 
 func (a *App) recoverSelectedSession() {
-	if !a.loaded {
+	if a.open && !a.loaded {
 		a.recoverSession(a.session)
 	}
 }

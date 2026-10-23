@@ -141,10 +141,10 @@ func TestCloseTabsPreservesBackgroundWorkflowAndLastTabFallback(t *testing.T) {
 	if err := tt.Click("关闭会话标签 2"); err != nil {
 		t.Fatal(err)
 	}
-	if a.session == second || !a.open || a.State.Cwd != "/other" || a.State.ThreadID != "" {
-		t.Fatal("last tab did not leave a usable blank conversation")
+	if a.open || tt.HasText("从一个清晰的任务开始") || tt.HasText("会话标签 2") {
+		t.Fatal("last tab did not leave an empty workspace")
 	}
-	if len(a.sessions) != 3 || first.open || second.open {
+	if len(a.sessions) != 2 || first.open || second.open {
 		t.Fatal("closing removed history or kept closed tab open")
 	}
 	a.applyBatch([]codex.Event{{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"background","turn":{"id":"turn","status":"completed"}}`)}})
@@ -297,5 +297,57 @@ func TestOpenTabSettingsCompatibilityAndLaunchDirectory(t *testing.T) {
 				t.Fatalf("tabs=%v want=%v", got, tc.wantTabs)
 			}
 		})
+	}
+}
+
+func TestLastClosedTabRestoresEmptyWorkspace(t *testing.T) {
+	store, err := storage.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	a := New(nil, "test", "/project", nil)
+	if err := a.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	a.State.Draft = "preserved draft"
+	a.closeSession(a.session)
+	if err := a.persist(); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.OpenTabs == nil || len(saved.OpenTabs) != 0 || saved.Selected != 0 || len(saved.Sessions) != 1 {
+		t.Fatal("empty tab selection was not persisted explicitly")
+	}
+	backend := &lazyTabsBackend{requests: make(chan string, 8)}
+	b := New(backend, "test", "", nil)
+	if err := b.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	b.recoverSelectedSession()
+	if b.open || len(b.sessions) != 1 || len(backend.requests) != 0 || b.State.Draft != "preserved draft" {
+		t.Fatal("restart created or recovered a tab, or lost the closed draft")
+	}
+	tt := native.NewTester(b.view, 1000, 760)
+	if tt.HasText("从一个清晰的任务开始") || tt.HasText("会话标签 1") || !tt.HasText("新会话") {
+		t.Fatal("empty workspace shows conversation content or lacks a new-chat entry")
+	}
+	if err := tt.Click("切换会话 1"); err != nil {
+		t.Fatal(err)
+	}
+	if !b.open || b.State.Draft != "preserved draft" || len(b.sessions) != 1 {
+		t.Fatal("closed conversation could not be reopened")
+	}
+	b.closeSession(b.session)
+	b.sidebarOpen = false
+	tt.Frame()
+	if err := tt.Click("新会话"); err != nil {
+		t.Fatal(err)
+	}
+	if !b.open || len(b.sessions) != 2 || b.State.Cwd != "/project" {
+		t.Fatalf("explicit new-chat action: open=%v sessions=%d cwd=%q", b.open, len(b.sessions), b.State.Cwd)
 	}
 }

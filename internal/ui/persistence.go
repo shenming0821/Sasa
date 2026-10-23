@@ -62,6 +62,13 @@ func (a *App) AttachStore(store *storage.Store) error {
 			a.session = s
 		}
 	}
+	// An explicit empty list records the user's choice to close every tab.
+	if cwd == "" && snapshot.OpenTabs != nil && len(snapshot.OpenTabs) == 0 {
+		if !slices.Contains(a.sessions, a.session) {
+			a.session = a.sessions[len(a.sessions)-1]
+		}
+		return nil
+	}
 	found := a.session != nil && slices.Contains(a.sessions, a.session) &&
 		(snapshot.OpenTabs == nil || a.session.open)
 	if cwd != "" && (!found || a.State.Cwd != cwd) {
@@ -93,8 +100,12 @@ func (a *App) AttachStore(store *storage.Store) error {
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
 		Repositories: a.repositories,
+		OpenTabs:     []int{},
 		Selected:     a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
+	}
+	if !a.open {
+		result.Selected = 0
 	}
 	for _, s := range a.sessions {
 		if s.open {

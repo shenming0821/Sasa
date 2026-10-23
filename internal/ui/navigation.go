@@ -133,7 +133,7 @@ func (a *App) sidebar(c *native.Context) {
 						}
 						for _, s := range group.sessions {
 							b := quietButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
-							if a.session == s {
+							if a.session == s && s.open {
 								b.Background(t.SurfacePressed)
 							}
 							b.Children(func() {

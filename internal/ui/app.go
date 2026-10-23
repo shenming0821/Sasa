@@ -110,7 +110,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
-	return a.backend != nil && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
+	return a.open && a.backend != nil && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		a.State.Cwd != "" && strings.TrimSpace(a.State.Draft) != ""
 }
 
