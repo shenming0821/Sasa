@@ -45,12 +45,12 @@ func TestRepositoryImportGroupsBranchesAndSessions(t *testing.T) {
 	first.State.Draft = "main draft"
 	queue := make(chan func(), 10)
 	a.dispatch = func(fn func()) { queue <- fn }
-	a.importRepository(repo.Worktrees[1].Path)
+	a.addProject(repo.Worktrees[1].Path)
 	pumpUpdate(t, queue)
 	if len(a.repositories) != 1 || len(a.sessions) != 1 {
 		t.Fatal("import did not discover repository or created all sessions eagerly")
 	}
-	a.importRepository(repo.Path)
+	a.addProject(repo.Path)
 	pumpUpdate(t, queue)
 	if len(a.repositories) != 1 {
 		t.Fatal("duplicate repository imported through linked worktree")
@@ -149,7 +149,7 @@ func TestProjectRefreshPersistenceAndScanFailure(t *testing.T) {
 	if len(a.repositories) != 1 || len(a.repositories[0].Worktrees) != 1 || a.projectErrors[repo.CommonDir] == "" {
 		t.Fatal("failed scan erased cached repository instead of showing error")
 	}
-	a.importRepository(t.TempDir())
+	a.addProject(filepath.Join(t.TempDir(), "missing"))
 	pumpUpdate(t, queue)
 	if a.projectsError == "" || len(a.repositories) != 1 {
 		t.Fatal("failed import lost catalog or hid error")
@@ -246,9 +246,9 @@ func TestLiveProjectWorktreesReadOnly(t *testing.T) {
 	}
 	queue := make(chan func(), 8)
 	a.dispatch = func(fn func()) { queue <- fn }
-	a.importRepository(repo.Worktrees[len(repo.Worktrees)-1].Path)
+	a.addProject(repo.Worktrees[len(repo.Worktrees)-1].Path)
 	pumpUpdate(t, queue)
-	a.importRepository(repo.Path)
+	a.addProject(repo.Path)
 	pumpUpdate(t, queue)
 	if len(a.repositories) != 1 {
 		t.Fatal("real worktree import duplicated repository")
@@ -423,5 +423,46 @@ func TestWorktreeCardHoverCoversActionArea(t *testing.T) {
 	}
 	if len(a.sessions) != count+1 || a.State.Cwd != "/repo" {
 		t.Fatal("action did not independently create a conversation")
+	}
+}
+
+func TestAddProjectSupportsPlainFoldersAndPreservesGitErrors(t *testing.T) {
+	a := New(stubBackend{}, "test", "/initial", nil)
+	queue := make(chan func(), 10)
+	a.dispatch = func(fn func()) { queue <- fn }
+	folder := project.Canonical(t.TempDir())
+	a.addProject(folder)
+	pumpUpdate(t, queue)
+	if a.projectsError != "" || len(a.repositories) != 0 || a.State.Cwd != folder {
+		t.Fatal("ordinary folder was not added as a project")
+	}
+	first := a.session
+	first.State.Draft = "keep draft"
+	count := len(a.sessions)
+	a.addProject(folder)
+	pumpUpdate(t, queue)
+	if a.session != first || len(a.sessions) != count || a.State.Draft != "keep draft" {
+		t.Fatal("adding the same folder duplicated a session or lost its draft")
+	}
+	tt := native.NewTester(a.view, 1000, 760)
+	if !tt.HasText("添加项目") || tt.HasText("导入项目") || tt.HasText("打开项目") {
+		t.Fatal("sidebar must expose a single add-project action")
+	}
+	broken := t.TempDir()
+	if err := os.WriteFile(filepath.Join(broken, ".git"), []byte("invalid gitfile\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.addProject(broken)
+	pumpUpdate(t, queue)
+	if a.projectsError == "" || len(a.sessions) != count || a.session != first {
+		t.Fatal("broken Git repository was silently treated as an ordinary folder")
+	}
+	if err := os.WriteFile(filepath.Join(broken, ".git"), []byte("gitdir: /missing-fuyu-test-git-dir\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.addProject(broken)
+	pumpUpdate(t, queue)
+	if a.projectsError == "" || len(a.sessions) != count {
+		t.Fatal("missing linked Git directory was treated as a plain folder")
 	}
 }

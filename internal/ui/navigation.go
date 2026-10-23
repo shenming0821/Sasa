@@ -86,16 +86,10 @@ func (a *App) sidebar(c *native.Context) {
 		native.Row(c).FillWidth().Padding(4, 12, 4, 18).Gap(2).AlignItems(native.Center).Children(func() {
 			native.Text(c, "项目").FontSize(11).TextColor(t.TextMuted)
 			native.Spacer(c)
-			bImport := quietButton(c, "导入项目").Size(26, 26).Tooltip("导入项目（自动发现 Git 工作区）").Disabled(a.projectsLoading)
-			bImport.Children(func() { native.Icon(c, importProjectIcon).Size(14, 14) })
-			if bImport.Clicked() {
-				go a.chooseRepository(a.State.Cwd)
-			}
-			open := quietButton(c, "打开项目").Size(26, 26).Tooltip("打开项目文件夹")
-			open.Children(func() { native.Icon(c, openProjectIcon).Size(14, 14) })
-			if open.Clicked() {
-				owner, cwd := a.session, a.State.Cwd
-				go a.chooseDirectory(owner, cwd)
+			add := quietButton(c, "添加项目").Size(26, 26).Tooltip("添加项目文件夹（自动识别 Git 工作区）").Disabled(a.projectsLoading)
+			add.Children(func() { native.Icon(c, addProjectIcon).Size(14, 14) })
+			if add.Clicked() {
+				go a.chooseProject(a.State.Cwd)
 			}
 			refresh := quietButton(c, "刷新项目").Size(26, 26).Disabled(a.projectsLoading)
 			if a.projectsLoading {
@@ -174,8 +168,7 @@ func (a *App) sidebar(c *native.Context) {
 	})
 }
 
-var importProjectIcon = icon(`<path d="M3 8V6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2M3 12h10m-3-3 3 3-3 3"/>`)
-var openProjectIcon = icon(`<path d="M3 18V6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2M3 20h15l4-9H7l-4 9Z"/>`)
+var addProjectIcon = icon(`<path d="M12 5v14M5 12h14"/>`)
 var refreshProjectIcon = icon(`<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/>`)
 
 var iconRight = icon(`<path d="m10 7 5 5-5 5"/>`)

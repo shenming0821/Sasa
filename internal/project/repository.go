@@ -3,12 +3,15 @@ package project
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
+
+var ErrNotRepository = errors.New("所选目录不属于 Git 仓库")
 
 type Worktree struct {
 	Path     string
@@ -50,7 +53,7 @@ func git(ctx context.Context, cwd string, args ...string) (string, error) {
 		}
 		cmd.Env = append(cmd.Env, entry)
 	}
-	cmd.Env = append(cmd.Env, "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(cmd.Env, "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
 	raw, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(raw)))
@@ -62,6 +65,9 @@ func Discover(ctx context.Context, path string) (Repository, error) {
 	path = Canonical(path)
 	raw, err := git(ctx, path, "rev-parse", "--git-common-dir")
 	if err != nil {
+		if ctx.Err() == nil && strings.Contains(err.Error(), "not a git repository (or any") {
+			return Repository{}, fmt.Errorf("%w: %v", ErrNotRepository, err)
+		}
 		return Repository{}, err
 	}
 	common := strings.TrimSuffix(raw, "\n")

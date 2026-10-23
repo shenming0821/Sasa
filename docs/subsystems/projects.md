@@ -2,7 +2,7 @@
 
 ## 范围与入口
 
-左侧按“仓库 → Git worktree / 分支 → 会话”显示。“项目”标题右侧按顺序放置导入项目、打开项目、刷新三个图标按钮，通过悬停提示说明动作；搜索框独立保留。导入项目选择本地目录，既可选择主工作目录，也可选择已关联的 worktree；不会克隆仓库或创建、删除 Git 分支与工作区。“打开项目”继续提供普通工作目录入口，非 Git 会话保留原有目录分组。
+左侧按“仓库 → Git worktree / 分支 → 会话”显示。“项目”标题右侧提供“添加项目”和“刷新”两个图标按钮。“添加项目”统一选择本地文件夹：有 Git 信息时自动发现整个仓库的全部已登记 worktree，包括主目录、关联分支目录及 detached 工作区；从任一关联工作区添加都按 common dir 去重。没有 Git 信息的文件夹按普通目录项目添加，重复添加复用已有会话与草稿。不会创建尚无 worktree 的分支文件夹，也不会克隆、checkout 或创建 Git 工作区。Git 配置损坏、权限及扫描失败继续显示错误，保留已有列表。
 
 `internal/project/repository.go` 只读执行 `git -C <path> rev-parse --git-common-dir` 和 `git -C <path> worktree list --porcelain -z`，规范化公共 Git 目录作为仓库身份。列表使用 NUL 分隔，保留中文、空格、换行路径；主工作区按 Git 列表首项标识。branch、HEAD、detached、bare、locked、prunable 各自解析，目录存在性在后台扫描时核验。扫描使用当前机器可执行的 Git；调用错误原样保留上下文，不将失败当作成功的空列表。
 

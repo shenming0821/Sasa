@@ -2,6 +2,9 @@ package ui
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,20 +36,20 @@ func (a *App) projectContext(timeout time.Duration) (context.Context, context.Ca
 	return ctx, cancel
 }
 
-func (a *App) chooseRepository(defaultPath string) {
-	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: "导入 Git 仓库", Directory: true, DefaultPath: defaultPath, ButtonLabel: "导入仓库"})
+func (a *App) chooseProject(defaultPath string) {
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{Parent: a.win, Title: "添加项目", Directory: true, DefaultPath: defaultPath, ButtonLabel: "添加项目"})
 	a.update(func() {
 		if err != nil {
 			a.projectsError = err.Error()
 			return
 		}
 		if len(paths) > 0 {
-			a.importRepository(paths[0])
+			a.addProject(paths[0])
 		}
 	})
 }
 
-func (a *App) importRepository(path string) {
+func (a *App) addProject(path string) {
 	if a.projectsLoading {
 		return
 	}
@@ -54,11 +57,31 @@ func (a *App) importRepository(path string) {
 	go func() {
 		ctx, cancel := a.projectContext(10 * time.Second)
 		defer cancel()
+		path = project.Canonical(path)
+		info, err := os.Stat(path)
+		if err != nil || !info.IsDir() {
+			if err == nil {
+				err = fmt.Errorf("所选路径不是文件夹：%s", path)
+			}
+			a.update(func() { a.projectsLoading = false; a.projectsError = "添加项目失败：" + err.Error() })
+			return
+		}
 		repo, err := project.Discover(ctx, path)
 		a.update(func() {
 			a.projectsLoading = false
+			if errors.Is(err, project.ErrNotRepository) {
+				delete(a.collapsedProjects, path)
+				for _, s := range a.sessions {
+					if filepath.Clean(s.State.Cwd) == path {
+						a.selectSession(s)
+						return
+					}
+				}
+				a.newSession(path)
+				return
+			}
 			if err != nil {
-				a.projectsError = "导入仓库失败：" + err.Error()
+				a.projectsError = "添加项目失败：" + err.Error()
 				return
 			}
 			a.repositories = mergeRepository(a.repositories, repo)

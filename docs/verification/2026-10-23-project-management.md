@@ -95,3 +95,9 @@ Computer Use 返回 `Computer Use was not approved to use Fuyu`，因此未核�
 - 已按 Orca 层级调整仓库、工作区与会话文字；卡片隐藏外部应用占用提示。
 - 导入项目、打开项目、刷新统一到项目标题右侧。
 - 全量 `./scripts/go test ./...`、`./scripts/go vet ./...`、`./scripts/go test -race ./...` 通过；最新侧栏构建成功并已重开日常应用。组件预览 `/tmp/fuyu-project-actions.png` 已检查，原生交互验收边界保持如上。
+
+### 统一“添加项目”入口
+
+- `TestAddProjectSupportsPlainFoldersAndPreservesGitErrors` 覆盖普通文件夹添加、重复添加保留草稿、统一入口、损坏 Git 配置与无效 gitdir 保留错误。
+- 保留的六工作区真实 Git 测试已通过，选择任一关联目录可发现整个仓库的六个工作区，包括中文、空格、locked 和 detached 目录；未执行模型任务。
+- 全量测试、vet 与 project/ui race 检查通过。组件预览 `/tmp/fuyu-add-project.png` 已检查，展示单一加号入口和全部六个工作区。原生目录选择器尚未自动操作核验。
