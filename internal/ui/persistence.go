@@ -77,6 +77,7 @@ func (a *App) AttachStore(store *storage.Store) error {
 			a.session = a.sessions[len(a.sessions)-1]
 		}
 	}
+	a.session.open = true
 	return nil
 }
 

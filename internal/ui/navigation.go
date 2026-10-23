@@ -49,6 +49,12 @@ func projectName(path string) string {
 }
 
 func (s *session) navigationStatus() string {
+	if !s.loaded && !s.recovering && !s.State.Disconnected {
+		if s.saved.Active {
+			return "上次任务待核验"
+		}
+		return ""
+	}
 	if n := len(s.State.PendingInteractions()); n > 0 {
 		return fmt.Sprintf("待处理 · %d", n)
 	}
@@ -145,6 +151,7 @@ func (a *App) sidebar(c *native.Context) {
 }
 
 var iconRight = icon(`<path d="m10 7 5 5-5 5"/>`)
+var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 
 func (a *App) sessionTabs(c *native.Context) {
 	t := c.Theme()
@@ -153,21 +160,34 @@ func (a *App) sessionTabs(c *native.Context) {
 		native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
 			native.Row(c).FillHeight().Children(func() {
 				for _, s := range a.sessions {
-					b := quietButton(c.Key(s.id), fmt.Sprintf("会话标签 %d", s.id)).
-						Width(168).FillHeight().Radius(0).Padding(0, 14).
-						Tooltip(s.title() + "\n" + s.State.Cwd)
+					if !s.open {
+						continue
+					}
+					tc := c.Key(s.id)
+					row := native.Row(tc).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
 					if s == a.session {
-						b.Background(t.Surface).BorderWidth(0, 0, 2, 0).BorderColor(t.TextMuted)
+						row.Background(t.Surface).BorderWidth(0, 0, 2, 0).BorderColor(t.TextMuted)
 						if a.tabsSelected != selected {
-							b.ScrollIntoView()
+							row.ScrollIntoView()
 						}
 					}
-					b.Children(func() {
-						native.Text(c, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+					row.Children(func() {
+						b := quietButton(tc, fmt.Sprintf("会话标签 %d", s.id)).
+							Grow(1).MinWidth(0).FillHeight().Radius(0).Padding(0, 14).
+							Tooltip(s.title() + "\n" + s.State.Cwd)
+						b.Children(func() {
+							native.Text(tc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+						})
+						if b.Clicked() {
+							a.selectSession(s)
+						}
+						close := quietButton(tc, fmt.Sprintf("关闭会话标签 %d", s.id)).Size(24, 24).
+							Tooltip("关闭标签，保留会话和后台任务")
+						close.Children(func() { native.Icon(tc, tabCloseIcon).Size(13, 13).TextColor(t.TextMuted) })
+						if close.Clicked() {
+							a.closeSession(s)
+						}
 					})
-					if b.Clicked() {
-						a.selectSession(s)
-					}
 				}
 			})
 		})

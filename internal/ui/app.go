@@ -95,11 +95,7 @@ func (a *App) Run() error {
 			if a.historyOpen {
 				a.loadThreadList()
 			}
-			for _, s := range a.sessions {
-				if !s.loaded {
-					a.recoverSession(s)
-				}
-			}
+			a.recoverSelectedSession()
 		}
 		go a.autosave()
 	})

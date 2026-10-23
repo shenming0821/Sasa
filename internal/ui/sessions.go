@@ -13,6 +13,7 @@ import (
 // Switching the selected session never changes the owner of a pending callback.
 type session struct {
 	id              int
+	open            bool
 	State           app.State
 	list            native.ListState
 	scroll          native.ScrollState
@@ -64,11 +65,50 @@ func (a *App) newSession(cwd string) {
 }
 
 func (a *App) selectSession(s *session) {
+	s.open = true
 	a.session = s
 	a.compactSidebar = false
 	s.projectOpen, s.detailsOpen = false, false
-	if !s.loaded && a.win != nil {
+	if !s.loaded && (a.win != nil || a.dispatch != nil) {
 		a.recoverSession(s)
+	}
+}
+
+// Closing a tab leaves its draft and live protocol owner available in history.
+func (a *App) closeSession(s *session) {
+	if !s.open {
+		return
+	}
+	s.open = false
+	s.completion.focus = false
+	if a.session != s {
+		return
+	}
+	index := 0
+	for i, candidate := range a.sessions {
+		if candidate == s {
+			index = i
+			break
+		}
+	}
+	for i := index - 1; i >= 0; i-- {
+		if a.sessions[i].open {
+			a.selectSession(a.sessions[i])
+			return
+		}
+	}
+	for _, candidate := range a.sessions[index+1:] {
+		if candidate.open {
+			a.selectSession(candidate)
+			return
+		}
+	}
+	a.newSession(s.State.Cwd)
+}
+
+func (a *App) recoverSelectedSession() {
+	if !a.loaded {
+		a.recoverSession(a.session)
 	}
 }
 

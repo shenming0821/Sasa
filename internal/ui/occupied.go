@@ -80,7 +80,7 @@ func (a *App) forkSession() {
 			// Register and persist the new native identity before fetching history.
 			// A late result may add a tab, but never replace the user's selection.
 			root.nextSession++
-			branch := &session{id: root.nextSession, State: app.New(result.Cwd), recoveryBlocked: true}
+			branch := &session{id: root.nextSession, State: app.New(result.Cwd), recoveryBlocked: true, open: true}
 			branch.State.ThreadID, branch.State.Draft = result.ThreadMeta.ID, draft
 			branch.saved.Title = title + "（分叉）"
 			branch.saved.AtEnd = true
