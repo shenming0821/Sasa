@@ -570,3 +570,31 @@ func TestRepositoryAndWorktreeHoverDoNotShowTooltips(t *testing.T) {
 		})
 	}
 }
+
+func TestProjectTreeHidesMissingAndPrunableWorktrees(t *testing.T) {
+	a := New(stubBackend{}, "test", "/repo", nil)
+	a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "repo", Worktrees: []project.Worktree{
+		{Path: "/repo", Branch: "main"}, {Path: "/missing", Branch: "stale/missing", Missing: true},
+		{Path: "/prunable", Branch: "stale/prunable", Prunable: true}, {Path: "/locked", Branch: "feature/locked", Locked: true},
+		{Path: "/detached", Detached: true, Head: "12345678"},
+	}}}
+	tt := native.NewTester(a.view, 1000, 760)
+	for _, path := range []string{"/missing", "/prunable"} {
+		if tt.HasText("打开工作区 " + path) {
+			t.Fatal("invalid worktree remains visible")
+		}
+	}
+	for _, path := range []string{"/repo", "/locked", "/detached"} {
+		if !tt.HasText("打开工作区 " + path) {
+			t.Fatal("valid worktree was hidden")
+		}
+	}
+	a.sessionQuery = "stale/"
+	tt.Frame()
+	if a.repositoryMatches(a.repositories[0]) {
+		t.Fatal("hidden worktree still matches search")
+	}
+	if len(a.repositories[0].Worktrees) != 5 {
+		t.Fatal("filter modified repository metadata")
+	}
+}

@@ -118,3 +118,7 @@ Computer Use 返回 `Computer Use was not approved to use Fuyu`，因此未核�
 ### 2026-10-24：目录行无路径气泡
 
 `TestRepositoryAndWorktreeHoverDoNotShowTooltips` 已通过，仓库标题和分支工作区悬停一秒后不新增任何气泡文字；覆盖此前遗漏的工作区行路径 Tooltip。UI 测试和构建通过。
+
+### 2026-10-24：隐藏失效工作区
+
+`TestProjectTreeHidesMissingAndPrunableWorktrees` 已通过：Missing/Prunable 条目不渲染、不参与搜索匹配；有效 locked/detached 工作区保留，底层元数据未被删除。UI 测试与构建通过。

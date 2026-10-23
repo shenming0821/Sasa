@@ -209,6 +209,9 @@ func (a *App) repositoryMatches(repo project.Repository) bool {
 		return true
 	}
 	for _, w := range repo.Worktrees {
+		if w.Missing || w.Prunable {
+			continue
+		}
 		if matchesQuery(a.sessionQuery, w.Path, w.Branch) {
 			return true
 		}
@@ -275,6 +278,9 @@ func (a *App) repositoryRows(c *native.Context) {
 				}
 				whole := matchesQuery(a.sessionQuery, repo.Name, repo.Path)
 				for _, w := range repo.Worktrees {
+					if w.Missing || w.Prunable {
+						continue
+					}
 					sessions := a.worktreeSessions(w)
 					match := whole || matchesQuery(a.sessionQuery, w.Path, w.Branch)
 					if !match {
