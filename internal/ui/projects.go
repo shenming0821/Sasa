@@ -309,7 +309,7 @@ func (a *App) repositoryRows(c *native.Context) {
 						card.Background(t.SurfaceHover)
 					}
 					card.Children(func() {
-						b := native.ButtonBase(wc).Label("打开工作区 "+w.Path).FillWidth().MinWidth(0).Radius(10).Padding(10, 16).Disabled(!w.Available())
+						b := native.ButtonBase(wc).Label("打开工作区 "+w.Path).FillWidth().MinWidth(0).Radius(10).Padding(10, 16, 10, 29).Disabled(!w.Available())
 						if b.FocusVisible() {
 							card.Background(t.SurfacePressed)
 						}
