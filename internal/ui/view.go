@@ -27,6 +27,7 @@ var (
 	checkIcon   = icon(`<path d="m5 12 4 4L19 6"/>`)
 	chevron     = icon(`<path d="m7 10 5 5 5-5"/>`)
 	sidebarIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`)
+	historyIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>`)
 )
 
 func icon(paths string) *native.SVG {
@@ -52,19 +53,40 @@ func readingColumn(c *native.Context, build func()) {
 }
 
 func (a *App) view(c *native.Context) {
-	native.Row(c).Fill().Children(func() {
-		if a.sidebarOpen {
-			a.sidebar(c)
+	width, _ := c.Size()
+	a.sidebarWidth = min(max(a.sidebarWidth, 200), 320)
+	sidebar := a.sidebarVisible(width)
+	if sidebar {
+		a.compactSidebar = false
+	}
+	leftShown, rightShown := sidebar || a.compactSidebar, a.historyOpen
+	native.Box(c).Fill().Children(func() {
+		center := func() {
+			native.Row(c).Fill().Children(func() {
+				a.sessionView(c.Key(a.session.id), leftShown, rightShown)
+				if rightShown {
+					a.historyPanel(c)
+				}
+			})
 		}
-		a.sessionView(c.Key(a.session.id))
+		if sidebar {
+			native.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, center).Fill()
+		} else {
+			center()
+		}
+		if !sidebar && leftShown {
+			native.Column(c.Key("project-overlay")).Absolute().Left(0).Top(46).Bottom(0).Width(240).
+				Shadow(4, 0, 16, 0, native.RGBA(0, 0, 0, 0.12)).Children(func() { a.sidebar(c) })
+		}
 	})
 }
 
-func (a *App) sessionView(c *native.Context) {
+func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	a.list.FollowEnd = true
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
-		a.toolbar(c)
+		a.toolbar(c, leftShown, rightShown)
+		a.sessionTabs(c)
 		if a.historyCursor != nil {
 			native.Row(c).FillWidth().Padding(4, 24).Justify(native.Center).Children(func() {
 				if actionButton(c, "加载更早消息").Disabled(a.historyLoading || a.recovering).Clicked() {
@@ -211,14 +233,12 @@ func (a *App) conversation(c *native.Context) {
 	})
 }
 
-func (a *App) toolbar(c *native.Context) {
+func (a *App) toolbar(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	native.Row(c).FillWidth().Height(46).Padding(0, 16).Gap(12).
 		AlignItems(native.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.5)).Children(func() {
-		toggle := quietButton(c, "切换侧栏").Size(28, 28)
-		toggle.Children(func() { native.Icon(c, sidebarIcon).Size(17, 17) })
-		if toggle.Clicked() {
-			a.sidebarOpen = !a.sidebarOpen
+		if !leftShown {
+			a.sidebarToggle(c, true)
 		}
 		project := "Fuyu"
 		if a.State.Cwd != "" {
@@ -248,10 +268,8 @@ func (a *App) toolbar(c *native.Context) {
 		})
 		native.Spacer(c)
 		native.Text(c, a.State.Phase).FontSize(12).TextColor(t.TextMuted).SingleLine()
-		next := quietButton(c, "新会话").Size(30, 30)
-		next.Children(func() { native.Icon(c, newIcon).Size(17, 17) })
-		if next.Clicked() {
-			a.newSession(a.State.Cwd)
+		if !rightShown {
+			a.sidebarToggle(c, false)
 		}
 	})
 }

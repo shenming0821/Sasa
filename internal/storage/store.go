@@ -29,9 +29,12 @@ type Session struct {
 }
 
 type Snapshot struct {
-	Selected    int
-	SidebarOpen bool
-	Sessions    []Session
+	Selected          int
+	SidebarOpen       bool
+	SidebarWidth      float32
+	HistoryOpen       bool
+	CollapsedProjects map[string]bool
+	Sessions          []Session
 }
 
 type Store struct {

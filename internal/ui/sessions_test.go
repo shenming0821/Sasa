@@ -166,7 +166,7 @@ func TestSidebarNewSessionWhileOtherTaskRuns(t *testing.T) {
 	first := a.session
 	first.State.Begin("working")
 	first.State.ThreadID, first.State.TurnID = "first", "turn"
-	tt := native.NewTester(a.view, 640, 480)
+	tt := native.NewTester(a.view, 1000, 760)
 	if err := tt.Click("新建会话"); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestSidebarNewSessionWhileOtherTaskRuns(t *testing.T) {
 	if a.session != first || !tt.HasText("停止") {
 		t.Fatal("cannot return to background task")
 	}
-	if err := tt.Click("切换侧栏"); err != nil {
+	if err := tt.Click("切换左侧边栏"); err != nil {
 		t.Fatal(err)
 	}
 	if tt.HasText("切换会话 1") || !tt.HasText("任务输入") {

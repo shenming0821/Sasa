@@ -29,7 +29,11 @@ func TestConversationLayoutAndDetails(t *testing.T) {
 					stop.Y+stop.H > float32(size[1])-8 || stop.X+stop.W > float32(size[0]) {
 					t.Fatalf("controls outside window: composer=%+v stop=%+v", composer, stop)
 				}
-				if composer.W > readingWidth || math.Abs(float64(composer.X+composer.W/2-(float32(size[0])+204)/2)) > 1 {
+				sidebar := float32(0)
+				if size[0] >= 900 {
+					sidebar = 241
+				}
+				if composer.W > readingWidth || math.Abs(float64(composer.X+composer.W/2-(float32(size[0])+sidebar)/2)) > 1 {
 					t.Fatalf("composer not centered/bounded: %+v", composer)
 				}
 				if tt.HasText(a.version) || tt.HasText(a.State.Policy) {
@@ -62,6 +66,7 @@ func TestConversationLayoutAndDetails(t *testing.T) {
 func TestUserBubbleAlignment(t *testing.T) {
 	a := New(stubBackend{}, "test", "/tmp", nil)
 	a.sidebarOpen = false
+	a.saved.Title = "布局测试会话"
 	a.State.Messages = []*app.Message{{ID: "user", Role: "user", Text: "简短任务", Done: true}}
 	tt := native.NewTester(a.view, 1000, 760)
 	bubble, ok := tt.Find("简短任务")

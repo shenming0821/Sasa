@@ -26,30 +26,37 @@ type Backend interface {
 
 type App struct {
 	*session
-	backend        Backend
-	version        string
-	win            *mygo.Window
-	md             markdown.Options
-	sessions       []*session
-	nextSession    int
-	sidebarOpen    bool
-	root           *App
-	store          *storage.Store
-	lastSaved      []byte
-	storageError   string
-	historyOpen    bool
-	nativeThreads  []codex.ThreadMeta
-	threadsCursor  *string
-	threadsLoading bool
-	threadsError   string
-	quitting       bool
-	quitDialog     bool
-	quitStopping   bool
-	quitDeadline   time.Time
-	quitSent       map[string]bool
-	quitTargets    map[int]bool
-	quitApp        func()
-	quitPrompt     func(mygo.MessageOptions) (mygo.MessageResult, error)
+	backend           Backend
+	version           string
+	win               *mygo.Window
+	md                markdown.Options
+	sessions          []*session
+	nextSession       int
+	sidebarOpen       bool
+	sidebarWidth      float32
+	compactSidebar    bool
+	sessionQuery      string
+	tabsSelected      int
+	collapsedProjects map[string]bool
+	historyQuery      string
+	historyScope      int
+	root              *App
+	store             *storage.Store
+	lastSaved         []byte
+	storageError      string
+	historyOpen       bool
+	nativeThreads     []codex.ThreadMeta
+	threadsCursor     *string
+	threadsLoading    bool
+	threadsError      string
+	quitting          bool
+	quitDialog        bool
+	quitStopping      bool
+	quitDeadline      time.Time
+	quitSent          map[string]bool
+	quitTargets       map[int]bool
+	quitApp           func()
+	quitPrompt        func(mygo.MessageOptions) (mygo.MessageResult, error)
 	// Replaced in component tests so no task or native dialog is started.
 	submit   func()
 	respond  func(*app.Interaction, any)
@@ -60,7 +67,7 @@ type App struct {
 func New(backend Backend, version, cwd string, startupErr error) *App {
 	a := &App{
 		backend: backend, version: strings.TrimSpace(version), shutdown: make(chan struct{}), sidebarOpen: true,
-		quitApp: mygo.App.Quit, quitPrompt: mygo.Dialog.Message,
+		quitApp: mygo.App.Quit, quitPrompt: mygo.Dialog.Message, sidebarWidth: 240,
 	}
 	a.newSession(cwd)
 	// MyGo measures proportional digits but renders tabular list markers.
@@ -85,6 +92,9 @@ func (a *App) Run() error {
 		a.installLifecycle()
 		if a.backend != nil {
 			go a.receive()
+			if a.historyOpen {
+				a.loadThreadList()
+			}
 			for _, s := range a.sessions {
 				if !s.loaded {
 					a.recoverSession(s)

@@ -31,6 +31,10 @@ func (a *App) AttachStore(store *storage.Store) error {
 	startupError, disconnected := a.State.Error, a.State.Disconnected
 	a.sessions = nil
 	a.sidebarOpen = snapshot.SidebarOpen
+	if snapshot.SidebarWidth >= 200 && snapshot.SidebarWidth <= 320 {
+		a.sidebarWidth = snapshot.SidebarWidth
+	}
+	a.historyOpen, a.collapsedProjects = snapshot.HistoryOpen, snapshot.CollapsedProjects
 	for _, saved := range snapshot.Sessions {
 		s := &session{id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == ""}
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
@@ -71,7 +75,10 @@ func (a *App) AttachStore(store *storage.Store) error {
 }
 
 func (a *App) snapshot() storage.Snapshot {
-	result := storage.Snapshot{Selected: a.session.id, SidebarOpen: a.sidebarOpen}
+	result := storage.Snapshot{
+		Selected: a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
+		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
+	}
 	for _, s := range a.sessions {
 		item := s.saved
 		item.ID, item.ThreadID, item.Cwd = s.id, s.State.ThreadID, s.State.Cwd

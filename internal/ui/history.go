@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"slices"
 
 	native "github.com/egoist/mygo/ui"
@@ -265,9 +266,13 @@ func (a *App) loadThreadList() {
 }
 
 func (a *App) historyBrowser(c *native.Context) {
-	native.Scroll(c).FillWidth().MaxHeight(220).Children(func() {
-		native.Column(c).FillWidth().Padding(8).Gap(4).Children(func() {
+	native.Scroll(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
+		native.Column(c).FillWidth().Padding(8).Gap(6).Children(func() {
+			count := 0
 			for _, thread := range a.nativeThreads {
+				if a.historyScope == 0 && filepath.Clean(thread.Cwd) != filepath.Clean(a.State.Cwd) {
+					continue
+				}
 				title := thread.Preview
 				if thread.Name != nil && *thread.Name != "" {
 					title = *thread.Name
@@ -275,7 +280,17 @@ func (a *App) historyBrowser(c *native.Context) {
 				if title == "" {
 					title = thread.Cwd
 				}
-				b := actionButton(c.Key(thread.ID), title).FillWidth().Tooltip(thread.Cwd)
+				if !matchesQuery(a.historyQuery, title, thread.Cwd) {
+					continue
+				}
+				count++
+				b := quietButton(c.Key(thread.ID), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(thread.Cwd)
+				b.Children(func() {
+					native.Column(c).FillWidth().Gap(6).Children(func() {
+						native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)
+						native.Text(c, thread.Cwd).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Shrink(1).MinWidth(0)
+					})
+				})
 				if b.Clicked() {
 					for _, s := range a.sessions {
 						if s.State.ThreadID == thread.ID {
@@ -289,6 +304,9 @@ func (a *App) historyBrowser(c *native.Context) {
 					s.saved.Title = title
 					a.recoverSession(s)
 				}
+			}
+			if count == 0 && !a.threadsLoading && a.threadsError == "" {
+				native.Text(c, "已加载的历史中没有匹配会话").FontSize(12).TextColor(c.Theme().TextMuted).Padding(12)
 			}
 			if a.threadsError != "" {
 				native.Text(c, a.threadsError).FontSize(11).TextColor(c.Theme().Danger)

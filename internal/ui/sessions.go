@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fmt"
-	"path/filepath"
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
@@ -62,6 +60,7 @@ func (a *App) newSession(cwd string) {
 
 func (a *App) selectSession(s *session) {
 	a.session = s
+	a.compactSidebar = false
 	s.projectOpen, s.detailsOpen = false, false
 	if !s.loaded && a.win != nil {
 		a.recoverSession(s)
@@ -104,59 +103,4 @@ func (s *session) title() string {
 		return s.saved.Title
 	}
 	return "新会话"
-}
-
-func (a *App) sidebar(c *native.Context) {
-	t := c.Theme()
-	native.Column(c).Width(204).FillHeight().Background(t.Surface).
-		BorderWidth(0, 1, 0, 0).BorderColor(t.Border.Alpha(0.5)).Children(func() {
-		native.Row(c).FillWidth().Height(46).Padding(0, 12).AlignItems(native.Center).Children(func() {
-			native.Text(c, "Fuyu").FontSize(14).Bold()
-			native.Spacer(c)
-			b := quietButton(c, "新建会话").Size(30, 30)
-			b.Children(func() { native.Icon(c, newIcon).Size(17, 17) })
-			if b.Clicked() {
-				a.newSession(a.State.Cwd)
-			}
-		})
-		native.Scroll(c).FillWidth().Grow(1).Children(func() {
-			native.Column(c).FillWidth().Padding(8).Gap(4).Children(func() {
-				for i := len(a.sessions) - 1; i >= 0; i-- {
-					s := a.sessions[i]
-					b := quietButton(c.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(10).Radius(8)
-					if a.session == s {
-						b.Background(t.SurfacePressed)
-					}
-					b.Children(func() {
-						native.Column(c).FillWidth().Gap(5).Children(func() {
-							native.Text(c, s.title()).FontSize(13).TextColor(t.Text).SingleLine()
-							status := filepath.Base(s.State.Cwd)
-							if s.State.Cwd == "" {
-								status = "选择工作目录"
-							}
-							if pending := len(s.State.PendingInteractions()); pending > 0 {
-								status += fmt.Sprintf(" · %d 个待办", pending)
-							} else if s.State.Busy || s.State.Disconnected {
-								status += " · " + s.State.Phase
-							}
-							native.Text(c, status).FontSize(11).TextColor(t.TextMuted).SingleLine()
-						})
-					})
-					if b.Clicked() {
-						a.selectSession(s)
-					}
-				}
-			})
-		})
-		b := actionButton(c, "浏览 Codex 历史").FillWidth().Margin(8)
-		if b.Clicked() {
-			a.historyOpen = !a.historyOpen
-			if a.historyOpen && len(a.nativeThreads) == 0 {
-				a.loadThreadList()
-			}
-		}
-		if a.historyOpen {
-			a.historyBrowser(c)
-		}
-	})
 }
