@@ -96,7 +96,6 @@ func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 				s.saved.Title = resumed.ThreadMeta.Preview
 			}
 			state.Model, state.Policy, state.Sandbox = resumed.Model, string(resumed.Policy), string(resumed.Sandbox)
-			state.Notice = "已按原生记录恢复历史，可继续对话。"
 			s.State, s.loaded, s.historyCursor = state, true, page.NextCursor
 			// On a new transport an active/unfinished snapshot is evidence to
 			// investigate, not authority to replay a turn or revive an approval.
