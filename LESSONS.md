@@ -33,6 +33,10 @@
 
 `thread/resume` 报告已有 active writer 时，表示另一进程持有写入权。此时以原生只读接口加载历史，并提供重试或独立分叉；保留原会话及草稿。仅管理 Fuyu 自有任务，不因外部占用创建 Busy 状态或提交不确定标记。分叉时明确延后目标自动续跑，直接使用 fork 返回状态分页，等待用户发送下一项任务。依据：`internal/ui/occupied_test.go`、`internal/codex/history_test.go`、[占用交互验收](docs/verification/2026-10-23-occupied-session.md)。
 
+## 2026-10-23：应用图标缓存
+
+原地构建 `.app` 时，包内图标与 `CFBundleIconFile` 已正确更新，但外层目录时间保留旧值，Finder 实测仍显示默认图标。构建完成后更新包修改时间并重新登记当前应用，再通过 Finder 实际预览及应用启动核验。图标资源格式检查和用户实际可见效果分别验证。依据：`scripts/build`、[图标验收](docs/verification/2026-10-23-app-icon.md)。
+
 ## 2026-10-22：P1 实测案例
 
 | 触发场景与原因 | 后续动作 | 证据 |
