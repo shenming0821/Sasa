@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -32,6 +33,11 @@ type Session struct {
 }
 
 type Snapshot struct {
+	WorkspaceTabs     []Tab
+	ActiveTabID       string
+	ActiveWorkspace   string
+	RightTab          string
+	ExpandedFiles     map[string][]string
 	Repositories      []project.Repository
 	Selected          int
 	OpenTabs          []int
@@ -42,10 +48,20 @@ type Snapshot struct {
 	Sessions          []Session
 }
 
+type Tab struct {
+	ID, Kind, Workspace, Path, Compare string
+	SessionID                          int
+	Caret                              int
+	ScrollY                            float32
+}
+
 type Store struct {
 	db   *sql.DB
 	lock *os.File
+	dir  string
 }
+
+func (s *Store) Directory() string { return s.dir }
 
 func Open(dir string) (_ *Store, err error) {
 	if err = os.MkdirAll(dir, 0700); err != nil {
@@ -59,7 +75,7 @@ func Open(dir string) (_ *Store, err error) {
 		lock.Close()
 		return nil, fmt.Errorf("Fuyu 数据目录正在使用：%w", err)
 	}
-	s := &Store{lock: lock}
+	s := &Store{lock: lock, dir: dir}
 	defer func() {
 		if err != nil {
 			s.Close()
@@ -86,8 +102,8 @@ func Open(dir string) (_ *Store, err error) {
 	if err = s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return nil, err
 	}
-	if version > 2 {
-		return nil, fmt.Errorf("数据库版本 %d 高于当前支持版本 2，保留原文件", version)
+	if version > 3 {
+		return nil, fmt.Errorf("数据库版本 %d 高于当前支持版本 3，保留原文件", version)
 	}
 	if version == 0 {
 		tx, e := s.db.Begin()
@@ -120,7 +136,85 @@ func Open(dir string) (_ *Store, err error) {
 			return nil, err
 		}
 	}
+	if version < 3 {
+		if _, err := s.Load(); err != nil {
+			return nil, fmt.Errorf("迁移前读取索引，保留原数据库：%w", err)
+		}
+		if version > 0 {
+			backup := filepath.Join(dir, "fuyu-before-v3.db")
+			info, statErr := os.Lstat(backup)
+			if statErr != nil && !os.IsNotExist(statErr) {
+				return nil, fmt.Errorf("核对迁移备份：%w", statErr)
+			}
+			if statErr == nil {
+				if !info.Mode().IsRegular() {
+					return nil, fmt.Errorf("迁移备份不是普通文件，保留原数据库：%s", backup)
+				}
+				if err := validateMigrationBackup(backup); err != nil {
+					return nil, fmt.Errorf("迁移备份不可用，保留原数据库：%w", err)
+				}
+				// A previous valid backup may predate newer work in schema 2.
+				// Keep it and take a fresh snapshot for this migration attempt.
+				f, err := os.CreateTemp(dir, "fuyu-before-v3-*.db")
+				if err != nil {
+					return nil, fmt.Errorf("创建迁移备份：%w", err)
+				}
+				backup = f.Name()
+				if err := f.Close(); err != nil {
+					return nil, err
+				}
+				if err := os.Remove(backup); err != nil {
+					return nil, err
+				}
+			}
+			if _, err = s.db.Exec("VACUUM INTO ?", backup); err != nil {
+				return nil, fmt.Errorf("迁移前备份 %s：%w", backup, err)
+			}
+			if err = os.Chmod(backup, 0600); err != nil {
+				return nil, err
+			}
+			if err := validateMigrationBackup(backup); err != nil {
+				return nil, fmt.Errorf("迁移备份不可用，保留原数据库：%w", err)
+			}
+		}
+		tx, err := s.db.Begin()
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+		if _, err := tx.Exec("PRAGMA user_version=3"); err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+	}
 	return s, nil
+}
+
+func validateMigrationBackup(path string) error {
+	uri := url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro"}
+	db, err := sql.Open("sqlite", uri.String())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		return err
+	}
+	if version != 2 {
+		return fmt.Errorf("备份版本为 %d，期望迁移前版本 2", version)
+	}
+	var integrity string
+	if err := db.QueryRow("PRAGMA quick_check").Scan(&integrity); err != nil {
+		return err
+	}
+	if integrity != "ok" {
+		return fmt.Errorf("备份完整性检查失败：%s", integrity)
+	}
+	return nil
 }
 
 func (s *Store) BindRuntime(home string) error {

@@ -19,17 +19,22 @@ func (a *App) application() *App {
 	return a
 }
 
-func (a *App) AttachStore(store *storage.Store) error {
+func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	snapshot, err := store.Load()
 	if err != nil {
 		return err
 	}
 	a.store = store
+	cwd := a.State.Cwd
+	defer func() {
+		if resultErr == nil {
+			resultErr = a.restoreWorkspaceTabs(snapshot, cwd)
+		}
+	}()
 	a.repositories = snapshot.Repositories
 	if len(snapshot.Sessions) == 0 {
 		return a.persist()
 	}
-	cwd := a.State.Cwd
 	startupError, disconnected := a.State.Error, a.State.Disconnected
 	a.sessions = nil
 	a.sidebarOpen = snapshot.SidebarOpen
@@ -104,6 +109,7 @@ func (a *App) snapshot() storage.Snapshot {
 		Selected:     a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
 	}
+	a.snapshotWorkspaceTabs(&result)
 	if !a.open {
 		result.Selected = 0
 	}

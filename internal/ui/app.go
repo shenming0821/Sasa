@@ -27,6 +27,7 @@ type Backend interface {
 
 type App struct {
 	*session
+	editorState
 	backend           Backend
 	version           string
 	win               *mygo.Window
@@ -42,7 +43,7 @@ type App struct {
 	sidebarWidth      float32
 	compactSidebar    bool
 	sessionQuery      string
-	tabsSelected      int
+	tabsSelected      string
 	collapsedProjects map[string]bool
 	historyQuery      string
 	historyScope      int
@@ -75,6 +76,7 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 		backend: backend, version: strings.TrimSpace(version), shutdown: make(chan struct{}), sidebarOpen: true,
 		quitApp: mygo.App.Quit, quitPrompt: mygo.Dialog.Message, sidebarWidth: 240,
 	}
+	a.rightTab = "history"
 	a.newSession(cwd)
 	// MyGo measures proportional digits but renders tabular list markers.
 	// Reserve room for common multi-digit markers throughout streaming.
@@ -90,6 +92,7 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 
 func (a *App) Run() error {
 	defer close(a.shutdown)
+	defer a.closeWorkspaceResources()
 	mygo.App.WhenReady(func() {
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Fuyu", Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
@@ -110,7 +113,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
-	return a.open && a.backend != nil && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
+	return a.open && a.backend != nil && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		a.State.Cwd != "" && strings.TrimSpace(a.State.Draft) != ""
 }
 

@@ -306,11 +306,12 @@ func (a *App) loadThreadList() {
 }
 
 func (a *App) historyBrowser(c *native.Context) {
-	native.Scroll(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
+	w := a.workspace(a.workspaceRoot(a.workspaceCwd()))
+	native.Scroll(c).TrackScroll(&w.historyScroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
 		native.Column(c).FillWidth().Padding(8).Gap(6).Children(func() {
 			count := 0
 			for _, thread := range a.nativeThreads {
-				if a.historyScope == 0 && filepath.Clean(thread.Cwd) != filepath.Clean(a.State.Cwd) {
+				if a.historyScope == 0 && filepath.Clean(thread.Cwd) != filepath.Clean(a.workspaceCwd()) {
 					continue
 				}
 				title := thread.Preview

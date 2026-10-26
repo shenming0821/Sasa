@@ -269,3 +269,22 @@ codex app-server generate-json-schema --experimental --out /tmp/fuyu-p3-schema
 采用 `thread/resume` 的 `excludeTurns=true`，不覆盖原生 cwd/model/权限配置；从响应读取真实设置和 thread.status。`thread/turns/list` 使用 `itemsView=full`、`sortDirection=desc`、`limit=20` 和不透明 nextCursor；thread/list 按 `updated_at` 降序，每页20条。完整历史由原生记录提供，应用 SQLite 只保存界面元数据和原生 ID。实际字段及调用见 `internal/codex/history.go`；分页、真实恢复与边界见 [P3 验证](verification/2026-10-22-p3.md)。
 
 窗口生命周期按固定 MyGo 提交的 `Window.OnClose` / `Hide` / `Show`、`App.OnActivate`、`Dock.SetMenu`、`App.OnBeforeQuit` 核对实现；SQLite 固定 `modernc.org/sqlite v1.60.1`。本节记录本机 schema 与固定依赖核验，不将上游示例当作本应用运行证据。
+
+## 13. Mayoi：P4 轻量原生编辑器参考
+
+2026-10-24 按用户提供的仓库克隆并只读核对，固定提交 `2650b9bfa90c87ffe0d48fffb140dd2fc428ff1c`，本地参考为 `/tmp/fuyu-mayoi-reference-20261024`。Mayoi 使用 Go + MyGo 原生 UI，许可为 MIT（Copyright 2026 chencheng）。本轮未构建或运行 Mayoi，未移植代码。
+
+| 固定源码（相对 Mayoi 仓库） | 核对结果与 Fuyu 设计用途 |
+|---|---|
+| `cmd/mayoi/document.go`、`history.go` | 文档拥有 TextBuffer、保存基线和历史；视图独立保留选择/滚动，供混合标签设计参考 |
+| `cmd/mayoi/editor.go` | TextAreaBufferBase、TrackLines、可见区域 TextRanges；供原生编辑器和行号/高亮参考 |
+| `internal/highlight/highlight.go` | Chroma 后台 worker、版本与行文本校验、可见区域优先；供异步高亮参考 |
+| `internal/workspace/tree.go` | 按目录读取、fsnotify、事件合并和 Close 资源释放；供文件树参考 |
+| `internal/git/git.go`、`cmd/mayoi/scm.go` | porcelain v2 NUL 状态、staged/unstaged 区分、源代码管理展示；只采用本轮只读范围 |
+| `docs/ARCHITECTURE.md`、`go.mod`、`LICENSE` | 架构说明、实际依赖分叉和 MIT 许可；性能描述属于上游自述 |
+
+Mayoi 当前声明 MyGo v0.6.0，但通过 replace 实际使用 `github.com/sorrycc/mygo v0.4.9-0.20261022125358-4bd079439ee7`；Fuyu 使用 `github.com/egoist/mygo v0.6.3-0.20261022014156-976f17c9391f` 及本项目输入补丁。已在 Fuyu 本机依赖源码核对 TextBuffer/Snapshot、TextAreaBufferBase、TextRanges、TrackLines 存在；编辑、绘制和中文输入行为兼容性待 P4.0 验证，不据此直接替换依赖或复制整个应用。
+
+进一步核对 Mayoi 的 `go.mod` 提交记录：`34c00c4946c33cc388f65e47e4118d9fdc19e83f` 于 2026-10-21 升级官方 MyGo 0.6.0 并删除分叉；`046b499868f4d21d44ac6f00d6e309d8565dbebb` 随后说明为保留 Linux Pango Tab 宽度与旧 Cairo 文字渲染修复而恢复分叉，等待上游 #614 发布。该记录解释当时的依赖选择，不表示未来同步有保证，也不证明 macOS 编辑必须使用分叉。Fuyu P4 默认保留官方依赖，缺口按实际兼容验证处理。
+
+固定来源：[Mayoi 源码](https://github.com/sorrycc/Mayoi/tree/2650b9bfa90c87ffe0d48fffb140dd2fc428ff1c)。P4 范围、待验证限额和分步方案见[P4 设计](p4-editor-design.md)。

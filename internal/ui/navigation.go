@@ -76,7 +76,7 @@ func (a *App) sidebar(c *native.Context) {
 			b := quietButton(c, "新建会话").Size(28, 28)
 			b.Children(func() { native.Icon(c, newIcon).Size(16, 16) })
 			if b.Clicked() {
-				a.newSession(a.State.Cwd)
+				a.newSession(a.workspaceCwd())
 			}
 			a.sidebarToggle(c, true)
 		})
@@ -160,37 +160,82 @@ var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 
 func (a *App) sessionTabs(c *native.Context) {
 	t := c.Theme()
-	selected := a.session.id
-	native.Row(c).FillWidth().Height(38).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.5)).Children(func() {
+	renderedActive := a.activeTab
+	native.Row(c).FillWidth().Height(38).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(.5)).Children(func() {
 		native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
 			native.Row(c).FillHeight().Children(func() {
-				for _, s := range a.sessions {
-					if !s.open {
-						continue
+				for _, tab := range a.tabs {
+					if tab.Kind == "session" {
+						valid := false
+						for _, s := range a.sessions {
+							if s.id == tab.SessionID && s.open {
+								valid = true
+							}
+						}
+						if !valid {
+							continue
+						}
 					}
-					tc := c.Key(s.id)
+					tc := c.Key(tab.ID)
 					row := native.Row(tc).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
-					if s == a.session {
+					if tab.ID == a.activeTab {
 						row.Background(t.Surface).BorderWidth(0, 0, 2, 0).BorderColor(t.TextMuted)
-						if a.tabsSelected != selected {
+						if a.tabsSelected != a.activeTab {
 							row.ScrollIntoView()
 						}
 					}
 					row.Children(func() {
-						b := quietButton(tc, fmt.Sprintf("会话标签 %d", s.id)).
-							Grow(1).MinWidth(0).FillHeight().Radius(0).Padding(0, 14).
-							Tooltip(s.title() + "\n" + s.State.Cwd)
+						label := "文件标签 " + tab.Path
+						closeLabel := "关闭文件标签 " + tab.Path
+						if tab.Kind == "session" {
+							label = fmt.Sprintf("会话标签 %d", tab.SessionID)
+							closeLabel = fmt.Sprintf("关闭会话标签 %d", tab.SessionID)
+						}
+						b := quietButton(tc, label).Grow(1).MinWidth(0).FillHeight().Radius(0).Padding(0, 12).Tooltip(a.tabTitle(tab) + "\n" + tab.Workspace)
+						if a.tabHandles == nil {
+							a.tabHandles = map[string]*native.Handle{}
+						}
+						if a.tabHandles[tab.ID] == nil {
+							a.tabHandles[tab.ID] = &native.Handle{}
+						}
+						b.Bind(a.tabHandles[tab.ID])
 						b.Children(func() {
-							native.Text(tc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+							native.Row(tc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
+								if tab.Kind != "session" {
+									glyph := fileIcon
+									if tab.Kind == "diff" {
+										glyph = gitIcon
+									}
+									native.Icon(tc, glyph).Size(12, 12).TextColor(t.TextMuted)
+								}
+								native.Text(tc, a.tabTitle(tab)).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+							})
 						})
 						if b.Clicked() {
-							a.selectSession(s)
+							a.selectWorkspaceTab(tab)
+							if d := a.currentFile(); d != nil {
+								d.focusOwner = a.tabHandles[tab.ID]
+							}
 						}
-						close := quietButton(tc, fmt.Sprintf("关闭会话标签 %d", s.id)).Size(24, 24).
-							Tooltip("关闭标签，保留会话和后台任务")
-						close.Children(func() { native.Icon(tc, tabCloseIcon).Size(13, 13).TextColor(t.TextMuted) })
+						close := quietButton(tc, closeLabel).Size(24, 24).Tooltip("关闭标签")
+						close.Children(func() {
+							if d := a.files[tab.ID]; d != nil && d.dirty() && !close.Hovered() && !close.FocusVisible() {
+								native.Text(tc, "●").FontSize(9).TextColor(t.TextMuted)
+							} else {
+								native.Icon(tc, tabCloseIcon).Size(13, 13).TextColor(t.TextMuted)
+							}
+						})
 						if close.Clicked() {
-							a.closeSession(s)
+							if tab.Kind == "session" {
+								for _, s := range a.sessions {
+									if s.id == tab.SessionID {
+										a.closeSession(s)
+										break
+									}
+								}
+							} else if d := a.files[tab.ID]; d != nil {
+								a.closeFile(d)
+							}
 						}
 					})
 				}
@@ -199,10 +244,12 @@ func (a *App) sessionTabs(c *native.Context) {
 		b := quietButton(c, "新会话").Size(38, 36)
 		b.Children(func() { native.Icon(c, newIcon).Size(15, 15) })
 		if b.Clicked() {
-			a.newSession(a.State.Cwd)
+			a.newSession(a.workspaceCwd())
 		}
 	})
-	a.tabsSelected = selected
+	// A click in this pass can change activeTab after its row was built.
+	// Retain the rendered selection so the following pass reveals the new row.
+	a.tabsSelected = renderedActive
 }
 
 func historyPanelWidth(width float32) float32 {
@@ -221,7 +268,13 @@ func (a *App) sidebarFits(width float32) bool {
 func (a *App) toggleHistory() {
 	a.historyOpen = !a.historyOpen
 	a.compactSidebar = false
-	if a.historyOpen && len(a.nativeThreads) == 0 {
+	if a.activeWorkspace != "" {
+		w := a.workspace(a.activeWorkspace)
+		if !a.gitWorkspaceVisible(w) {
+			a.cancelGitRefresh(w)
+		}
+	}
+	if a.historyOpen && a.rightTab == "history" && len(a.nativeThreads) == 0 {
 		a.loadThreadList()
 	}
 }

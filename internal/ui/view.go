@@ -53,23 +53,32 @@ func readingColumn(c *native.Context, build func()) {
 }
 
 func (a *App) view(c *native.Context) {
+	if !a.quitDialog && c.Shortcut(native.Cmd, native.KeyW) {
+		if d := a.currentFile(); d != nil {
+			a.closeFile(d)
+		} else if a.open {
+			a.closeSession(a.session)
+		}
+	}
 	width, _ := c.Size()
 	a.sidebarWidth = min(max(a.sidebarWidth, 200), 320)
 	sidebar := a.sidebarVisible(width)
 	if sidebar {
 		a.compactSidebar = false
 	}
-	leftShown, rightShown := sidebar || a.compactSidebar, a.historyOpen
+	leftShown, rightShown := sidebar || a.compactSidebar, a.historyOpen && width >= 640
 	native.Box(c).Fill().Children(func() {
 		center := func() {
 			native.Row(c).Fill().Children(func() {
-				if a.open {
+				if d := a.currentFile(); d != nil {
+					a.fileView(c.Key(d.id), d, leftShown, rightShown)
+				} else if a.open {
 					a.sessionView(c.Key(a.session.id), leftShown, rightShown)
 				} else {
 					a.emptyWorkspace(c.Key("empty-workspace"), leftShown, rightShown)
 				}
 				if rightShown {
-					a.historyPanel(c)
+					a.rightPanel(c)
 				}
 			})
 		}
@@ -96,12 +105,13 @@ func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
 			create := quietButton(c, "新会话").Size(28, 28)
 			create.Children(func() { native.Icon(c, newIcon).Size(15, 15) })
 			if create.Clicked() {
-				a.newSession(a.State.Cwd)
+				a.newSession(a.workspaceCwd())
 			}
 			if !rightShown {
 				a.sidebarToggle(c, false)
 			}
 		})
+		a.fileExitNotice(c)
 	})
 }
 
@@ -111,6 +121,7 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 		a.toolbar(c, leftShown, rightShown)
 		a.sessionTabs(c)
+		a.fileExitNotice(c)
 		if a.historyCursor != nil {
 			native.Row(c).FillWidth().Padding(4, 24).Justify(native.Center).Children(func() {
 				if actionButton(c, "加载更早消息").Disabled(a.historyLoading || a.recovering).Clicked() {

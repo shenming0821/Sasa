@@ -75,6 +75,13 @@ FUYU_LIVE=1 ./scripts/go test ./internal/codex -run '^TestLiveP3DirectoriesAndRe
 
 P1 的 `TestLiveCodexLoop` 验证实际文件、同 thread 的第二轮上下文、原生中断终态和 App Server 退出；它不证明所有后台命令都随 `turn/interrupt` 退出。原生 GUI、真实输入法与进程检查单独记录。
 
+P4 的真实文件监听联动与 500 文件负载分别按需执行；普通测试跳过真实调用。两者使用临时目录和内存渲染器，覆盖磁盘、缓冲和真实协议联动，原生窗口另行验收：
+
+```sh
+FUYU_LIVE=1 ./scripts/go test ./internal/ui -run '^TestLiveP4AgentWritesWhileEditing$' -v -count=1
+FUYU_LIVE_BATCH=1 ./scripts/go test ./internal/ui -run '^TestLiveP4BatchWritesWhileEditing$' -v -count=1
+```
+
 ## 4. 自动化与真实验收
 
 自动化测试使用临时目录、受控子进程和协议夹具。使用 `t.Setenv` 等测试内机制隔离需要的配置路径；如测试框架需要独立 HOME，由测试启动器设置，保持开发者现有 shell 环境。隔离时保留可用的构建缓存路径。

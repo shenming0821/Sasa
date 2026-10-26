@@ -1,6 +1,6 @@
 # Fuyu 设计文档 v2.2
 
-> 更新日期：2026-10-22  
+> 更新日期：2026-10-24
 > 当前交付目标：Codex 原生 UI 交互  
 > 原始方案：`/Users/shenming/Downloads/Fuyu 设计文档v2.0.md`  
 > 参考源码与核验边界：[参考项目核验](reference-verification.md)  
@@ -10,7 +10,7 @@
 
 Fuyu 使用 Go + MyGo Native UI，为 Codex 原生 Runtime 提供桌面交互。第一阶段围绕一个用户选择的本地工作目录，逐步完成创建会话、连续对话、流式输出、工具展示、审批、回答问题、中断及历史恢复。
 
-多 Agent、Repository → Worktree 管理、文件浏览和 Git Review 保留为后续方向。当前只实现 Codex，不为了未来的 Adapter 提前建立完整插件框架。
+当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)实现中，已通过组件验收，原生交互验收未完成。多 Agent 仍为后续方向。当前只实现 Codex，不为了未来的 Adapter 提前建立完整插件框架。
 
 ### 1.1 当前需要实现
 
@@ -29,7 +29,7 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 原生 Runtime 提供桌面交互。
 |---|---|
 | Claude Code、OpenCode 及统一 Adapter 框架 | Codex 交互稳定后单独规划 |
 | Repository / Worktree 自动发现和管理 | 已实现本地导入、发现与会话导航；创建和删除另行确认 |
-| 文件树、代码只读查看、完整 Git Diff | 暂不安排，后续按新计划确认 |
+| 文件树、轻量文件编辑、Git 状态与只读 Diff | 按 [P4 设计](p4-editor-design.md)实现中；组件验收通过，原生交互待验收 |
 | Commit Graph、Blame、暂存与提交 | 后续 Git 功能阶段 |
 | 原生终端、远程 Daemon、退出后持续运行 | 后续运行管理阶段 |
 | Windows / Linux | macOS 交互验证后 |
@@ -272,6 +272,12 @@ P3 后按用户确认参考 Orca 整理导航层级。沿用现有 MyGo 原生�
 - 中断、退出及恢复显示实际状态，不将连接丢失视为成功。
 - 会话切换保留输入与阅读位置，后台运行保持原目录。
 - 每项验证记录真实 Codex / 协议夹具 / UI 样例的来源，区分通过、未验证和暂缓。
+
+### 7.2 新 P4：文件与轻量编辑器（实现与验收进行中）
+
+右侧侧栏规划三个 Tab：文件、会话历史、Git。文件与会话共用主窗口标签栏，文件视图占满中心可用宽度；工作区上下文独立于 Session，切换文件不停止后台任务。参考 Mayoi 的 Go/MyGo 原生文本缓冲、后台高亮与懒加载机制，MyGo 依赖兼容性已核对，继续使用官方依赖。
+
+本轮覆盖编辑和显式保存、外部变更保护、恢复草稿；Git 先提供分组状态与只读差异。步骤、容量初值、恢复迁移与验收边界统一见 [P4 专项设计](p4-editor-design.md)。原先取消的代码审查阶段不恢复。
 
 ## 8. 工程与版本准备
 

@@ -86,8 +86,11 @@ func (a *App) forkSession() {
 			branch.saved.AtEnd = true
 			branch.State.Disconnected = s.State.Disconnected
 			root.sessions = append(root.sessions, branch)
-			if root.session == s {
+			root.ensureSessionTab(branch)
+			if root.session == s && root.currentFile() == nil {
 				root.session = branch
+				root.activeTab = sessionTabID(branch.id)
+				root.activeWorkspace = root.workspaceRoot(branch.State.Cwd)
 			}
 			root.persist()
 			root.loadSessionHistory(branch, &result)

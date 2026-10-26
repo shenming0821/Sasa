@@ -17,6 +17,18 @@ func (a *App) autosave() {
 			applied := make(chan struct{})
 			a.update(func() {
 				a.advanceQuit()
+				a.advanceFileExit()
+				a.checkpointFiles()
+				a.trimEditorCaches()
+				if d := a.currentFile(); d != nil && d.loaded && d.kind == "file" && time.Since(d.checkedAt) > 2*time.Second {
+					a.checkFile(d)
+				}
+				if a.activeWorkspace != "" && (a.historyOpen && a.rightTab == "git" || a.currentFile() != nil && a.currentFile().kind == "diff") {
+					w := a.workspace(a.activeWorkspace)
+					if time.Since(w.gitTime) > 5*time.Second {
+						a.refreshGit(w)
+					}
+				}
 				if !a.projectsLoading && time.Since(a.projectsRefreshed) >= 30*time.Second {
 					a.refreshProjects()
 				}
@@ -62,6 +74,10 @@ func (a *App) installLifecycle() {
 		if !a.quitting {
 			e.PreventDefault()
 			a.persist()
+			for _, d := range a.files {
+				d.changedAt = time.Time{}
+			}
+			a.checkpointFiles()
 			a.win.Hide()
 		}
 	})
@@ -85,6 +101,11 @@ func (a *App) installLifecycle() {
 		}
 		tasks := a.activeTasks()
 		if len(tasks) == 0 {
+			if a.hasUnsavedFiles() {
+				e.PreventDefault()
+				a.requestFileExit()
+				return
+			}
 			a.quitting = true
 			return
 		}
@@ -122,6 +143,10 @@ func (a *App) advanceQuit() {
 	}
 	if len(a.activeTasks()) == 0 {
 		a.quitStopping = false
+		if a.hasUnsavedFiles() {
+			a.requestFileExit()
+			return
+		}
 		if a.persist() == nil {
 			a.quitting = true
 			a.quitApp()
@@ -149,9 +174,8 @@ func (a *App) advanceQuit() {
 		})
 		a.update(func() {
 			a.quitDialog = false
-			if err == nil && result.Button == 1 && a.persist() == nil {
-				a.quitting = true
-				a.quitApp()
+			if err == nil && result.Button == 1 {
+				a.requestFileExit()
 			}
 		})
 	}()

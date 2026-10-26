@@ -67,6 +67,9 @@ func (a *App) newSession(cwd string) {
 func (a *App) selectSession(s *session) {
 	s.open = true
 	a.session = s
+	a.activeTab = sessionTabID(s.id)
+	a.selectWorkspace(a.workspaceRoot(s.State.Cwd))
+	a.ensureSessionTab(s)
 	a.compactSidebar = false
 	s.projectOpen, s.detailsOpen = false, false
 	if !s.loaded && (a.win != nil || a.dispatch != nil) {
@@ -79,35 +82,29 @@ func (a *App) closeSession(s *session) {
 	if !s.open {
 		return
 	}
-	s.open = false
-	s.completion.focus = false
-	if a.session != s {
-		return
-	}
-	index := 0
-	for i, candidate := range a.sessions {
-		if candidate == s {
-			index = i
+	tabIndex := 0
+	id := sessionTabID(s.id)
+	for i, tab := range a.tabs {
+		if tab.ID == id {
+			tabIndex = i
 			break
 		}
 	}
-	for i := index - 1; i >= 0; i-- {
-		if a.sessions[i].open {
-			a.selectSession(a.sessions[i])
-			return
-		}
+	s.open = false
+	a.removeWorkspaceTab(id)
+	s.completion.focus = false
+	if a.activeTab != id {
+		return
 	}
-	for _, candidate := range a.sessions[index+1:] {
-		if candidate.open {
-			a.selectSession(candidate)
-			return
-		}
+	a.activeTab = ""
+	if len(a.tabs) > 0 {
+		a.selectWorkspaceTab(a.tabs[max(0, tabIndex-1)])
 	}
 	// Retain the protocol owner without opening or creating a replacement tab.
 }
 
 func (a *App) recoverSelectedSession() {
-	if a.open && !a.loaded {
+	if a.currentFile() == nil && a.open && !a.loaded {
 		a.recoverSession(a.session)
 	}
 }

@@ -100,3 +100,11 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 ## 2026-10-23：工作区卡片悬停
 
 当一个列表项包含主入口与辅助操作时，由共同外层绘制完整悬停和选中背景，主入口使用透明按钮，辅助操作仅显示小范围反馈。仅把子按钮放进同一圆角容器，仍会因子按钮各自绘制 hover 造成割裂；用文字区、操作区的背景像素和跨区域悬停验证。当前工作区卡片已移除辅助操作，全宽点击与背景回归见 `TestWorktreeCardHoverAndClickCoverFullWidth`。
+
+## 2026-10-24：Git 面板后台刷新跳动
+
+已有 Git 快照时，每 5 秒的后台检查仍插入、移除加载行，并切换刷新按钮禁用态，导致列表跳动和按钮闪动。当面板已有可用内容时，后台刷新保留其几何位置和操作外观，仅首次读取展示加载提示；滚动容器赋予稳定身份，错误单独呈现。回归覆盖首次读取及六次加载状态切换后的行位置、滚动与分组折叠，见 `TestP4GitBackgroundRefreshKeepsListSteady` 和 [P4 验证](docs/verification/2026-10-24-p4.md)。
+
+## 2026-10-24：删除目录后的展开状态与空目录重试
+
+验收夹具目录已删除，但其展开记录跨重启保留，恢复文件树时将 ENOENT 显示为常驻错误。读取发现子目录消失，或父目录快照已不含该目录时，移除对应导航状态及过时请求，并在后续快照保存清理结果；工作区根目录和权限错误继续提示，打开文件与草稿保留。空目录成功返回的切片可能为 nil，应使用缓存键是否存在区分“空目录”与“未加载”，避免逐帧重读。回归见 `TestP4RemovedExpandedDirectoryIsPruned`、`TestP4EmptyExpandedDirectoryDoesNotReloadEveryFrame`、`TestP4MissingRootAndDirectoryPermissionsRemainErrors`。
