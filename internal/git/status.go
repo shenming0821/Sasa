@@ -1,4 +1,4 @@
-// Package git exposes bounded, read-only worktree state and native patches.
+// Package git exposes bounded worktree state, patches and explicit Git actions.
 package git
 
 import (
@@ -93,6 +93,7 @@ func (b *limited) Write(p []byte) (int, error) {
 }
 func run(ctx context.Context, root string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks", "--literal-pathspecs", "-C", root, "-c", "core.fsmonitor=false"}, args...)...)
+	configureGitCommand(cmd)
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_EXTERNAL_DIFF=", "GIT_PAGER=cat")
 	var out, stderr limited
 	cmd.Stdout = &out
@@ -121,6 +122,7 @@ func (e Entry) Unstaged() bool {
 
 type Status struct {
 	Branch, Head, Upstream string
+	Ahead, Behind          int
 	Entries                []Entry
 }
 
@@ -148,6 +150,10 @@ func Parse(raw []byte) (Status, error) {
 				s.Head = value
 			case "branch.upstream":
 				s.Upstream = value
+			case "branch.ab":
+				if _, err := fmt.Sscanf(value, "+%d -%d", &s.Ahead, &s.Behind); err != nil {
+					return s, fmt.Errorf("Git ahead/behind 记录不完整：%w", err)
+				}
 			}
 			continue
 		}
@@ -231,6 +237,7 @@ func diff(ctx context.Context, root string, e Entry, staged bool) (string, error
 func noIndex(ctx context.Context, root, old, next string) (string, error) {
 	// --no-index also exits 1 for a successful nonempty diff.
 	cmd := exec.CommandContext(ctx, "git", "--no-pager", "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", "--", old, next)
+	configureGitCommand(cmd)
 	cmd.Dir = root
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0")
 	var out, errout limited

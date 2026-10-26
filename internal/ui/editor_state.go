@@ -27,10 +27,12 @@ type editorState struct {
 	workspaces                                map[string]*workspacePage
 	fileQuitPending                           bool
 	fileExitRequested                         bool
+	gitQuitPending                            bool
 	recoveryWarning                           string
 	tabHandles                                map[string]*native.Handle
 }
 type workspacePage struct {
+	gitWorkflow
 	root, query, error, selected string
 	children                     map[string][]workspace.Entry
 	expanded, loading            map[string]bool
@@ -72,6 +74,7 @@ type treeRow struct {
 	Scale float32
 }
 type filePage struct {
+	gitDiffState
 	id, root, path, kind, compare                                       string
 	file                                                                editor.File
 	buffer                                                              *native.TextBuffer
@@ -797,6 +800,9 @@ func (a *App) closeWorkspaceResources() {
 		}
 	}
 	for _, w := range a.workspaces {
+		if w.gitGenerateCancel != nil {
+			w.gitGenerateCancel()
+		}
 		a.cancelGitRefresh(w)
 		for _, task := range w.directoryTasks {
 			task.cancel()
@@ -841,7 +847,7 @@ func (a *App) gitWorkspaceVisible(w *workspacePage) bool {
 }
 
 func (a *App) refreshGit(w *workspacePage) {
-	if w.gitLoading || !a.canAsync() {
+	if w.gitLoading || w.gitBusy != "" || w.gitPreparing || !a.canAsync() {
 		return
 	}
 	w.gitLoading = true
@@ -850,9 +856,17 @@ func (a *App) refreshGit(w *workspacePage) {
 	a.runGitTaskContext(ctx, func() {
 		defer cancel()
 		var s gitview.Status
+		var branches []gitview.Branch
+		var remotes []string
+		var operation string
 		err := ctx.Err()
 		if err == nil {
 			s, err = gitview.Read(ctx, w.root)
+			if err == nil {
+				branches, _ = gitview.Branches(ctx, w.root)
+				remotes, _ = gitview.Remotes(ctx, w.root)
+				operation = gitview.InProgress(ctx, w.root)
+			}
 		}
 		a.update(func() {
 			if w.gitContext != ctx {
@@ -874,8 +888,10 @@ func (a *App) refreshGit(w *workspacePage) {
 			w.gitError = ""
 			fingerprint := fmt.Sprintf("%+v", s)
 			w.gitFingerprint = fingerprint
+			w.gitStatsFingerprint = ""
 			w.git = s
-			if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" {
+			w.gitBranches, w.gitRemotes, w.gitOperation = branches, remotes, operation
+			if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" && !strings.HasPrefix(d.compare, "提交 ") {
 				rel, _ := filepath.Rel(w.root, d.path)
 				found := false
 				for _, entry := range s.Entries {
@@ -886,6 +902,7 @@ func (a *App) refreshGit(w *workspacePage) {
 					}
 				}
 				if !found {
+					d.gitReview = nil
 					d.buffer = native.NewTextBuffer("没有差异")
 					d.file = editor.File{Path: d.path, Reason: "只读差异"}
 					d.loaded = true
@@ -922,10 +939,10 @@ func (a *App) loadGitDiff(d *filePage, e gitview.Entry, staged bool) {
 	d.readContext, d.readCancel = ctx, cancel
 	a.runGitTaskContext(ctx, func() {
 		defer cancel()
-		var text string
+		var review gitview.Review
 		err := ctx.Err()
 		if err == nil {
-			text, err = gitview.Diff(ctx, d.root, e, staged)
+			review, err = gitview.ReadReview(ctx, d.root, e, staged)
 		}
 		a.update(func() {
 			if a.files[d.id] != d || d.readContext != ctx {
@@ -940,18 +957,11 @@ func (a *App) loadGitDiff(d *filePage, e gitview.Entry, staged bool) {
 				d.err = err.Error()
 				return
 			}
-			d.err = ""
+			text := review.Patch
 			if text == "" {
 				text = "没有差异"
 			}
-			if d.loaded && d.buffer != nil && d.buffer.String() == text {
-				return
-			}
-			d.buffer = native.NewTextBuffer(text)
-			d.file = editor.File{Path: d.path, Text: text, Reason: "只读差异"}
-			d.observed = d.buffer.Snapshot()
-			d.loaded = true
-			d.resync = true
+			a.gitSetDiffText(d, text, &review)
 		})
 	})
 }

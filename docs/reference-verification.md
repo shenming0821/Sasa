@@ -288,3 +288,7 @@ Mayoi 当前声明 MyGo v0.6.0，但通过 replace 实际使用 `github.com/sorr
 进一步核对 Mayoi 的 `go.mod` 提交记录：`34c00c4946c33cc388f65e47e4118d9fdc19e83f` 于 2026-10-21 升级官方 MyGo 0.6.0 并删除分叉；`046b499868f4d21d44ac6f00d6e309d8565dbebb` 随后说明为保留 Linux Pango Tab 宽度与旧 Cairo 文字渲染修复而恢复分叉，等待上游 #614 发布。该记录解释当时的依赖选择，不表示未来同步有保证，也不证明 macOS 编辑必须使用分叉。Fuyu P4 默认保留官方依赖，缺口按实际兼容验证处理。
 
 固定来源：[Mayoi 源码](https://github.com/sorrycc/Mayoi/tree/2650b9bfa90c87ffe0d48fffb140dd2fc428ff1c)。P4 范围、待验证限额和分步方案见[P4 设计](p4-editor-design.md)。
+
+### 2026-10-26 Git 工作流补充核对
+
+本轮刷新本地参考至 `2ba263790582069d766860103ffac45c7142e399`，核对 `cmd/mayoi/` 中的 `scm.go`、`git.go`、`scmpanels.go`、`diffview.go`、`diffhunks.go`、`aicommit.go`、`mergeview.go`。参考其暂存/提交/远程、分页历史、分块差异、冲突源版本与提交说明生成的工作流结构。Fuyu 保留自己的工作区、异步派发、文件保存与 Codex 进程归属；Git 操作通过显式参数和临时仓库独立验证，未将 Mayoi 的测试视为 Fuyu 验收。采纳范围见 [Git 工作流扩展](git-workflow-design.md)。

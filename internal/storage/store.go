@@ -38,6 +38,7 @@ type Snapshot struct {
 	ActiveWorkspace   string
 	RightTab          string
 	ExpandedFiles     map[string][]string
+	GitDrafts         map[string]string
 	Repositories      []project.Repository
 	Selected          int
 	OpenTabs          []int

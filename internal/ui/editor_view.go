@@ -289,102 +289,6 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 		}
 	}).FillWidth().Grow(1).MinHeight(0)
 }
-func (a *App) gitPanel(c *native.Context, w *workspacePage) {
-	a.startWatcher(w)
-	t := c.Theme()
-	if w.gitTime.IsZero() && !w.gitLoading {
-		a.refreshGit(w)
-	}
-	// Background refreshes keep the last snapshot in place without adding rows.
-	initialLoading := w.gitLoading && w.gitFingerprint == ""
-	native.Row(c.Key("git-toolbar")).FillWidth().Height(36).Padding(0, 14).Gap(8).AlignItems(native.Center).Children(func() {
-		branch := w.git.Branch
-		if branch == "" {
-			branch = projectName(w.root)
-		}
-		native.Text(c, branch).FontSize(13).Bold().SingleLine().Shrink(1).MinWidth(0)
-		native.Spacer(c)
-		b := quietButton(c, "刷新 Git").Size(28, 28).Disabled(initialLoading)
-		b.Children(func() { native.Icon(c, refreshProjectIcon).Size(15, 15) })
-		if b.Clicked() {
-			a.refreshGit(w)
-		}
-	})
-	if w.git.Upstream != "" {
-		native.Text(c, "→ "+w.git.Upstream).FontSize(11).TextColor(t.TextMuted).SingleLine().Padding(0, 14, 4, 14)
-	}
-	if initialLoading {
-		native.Text(c, "正在读取 Git…").FontSize(11).TextColor(t.TextMuted).Padding(8, 14)
-	}
-	if w.gitError != "" {
-		message := w.gitError
-		if strings.Contains(message, "not a git repository") {
-			message = "当前文件夹未使用 Git"
-			native.Text(c, message).FontSize(11).TextColor(t.TextMuted).Padding(12)
-			return
-		}
-		native.Text(c, "读取失败，尚未刷新："+message).FontSize(11).TextColor(t.Danger).MaxLines(5).Padding(12)
-		if w.gitFingerprint == "" {
-			return
-		}
-	}
-	native.Scroll(c.Key("git-list")).TrackScroll(&w.gitScroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
-		native.Column(c).FillWidth().Padding(4, 8).Gap(8).Children(func() {
-			for _, group := range []string{"冲突", "更改", "已暂存的更改"} {
-				var entries []gitview.Entry
-				for _, e := range w.git.Entries {
-					if group == "冲突" && e.Conflict || group == "更改" && e.Unstaged() || group == "已暂存的更改" && e.Staged() {
-						entries = append(entries, e)
-					}
-				}
-				if group == "冲突" && len(entries) == 0 {
-					continue
-				}
-				native.Column(c.Key(group)).FillWidth().Gap(0).Children(func() {
-					header := treeButton(c.Key("header"), "折叠 "+group).FillWidth().Height(26).Padding(0, 6)
-					header.Children(func() {
-						native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
-							g := native.Icon(c, chevron).Size(12, 12)
-							if w.collapsed[group] {
-								g.Rotate(-90)
-							}
-							native.Text(c, group).FontSize(12).Bold().SingleLine()
-							native.Text(c, fmt.Sprint(len(entries))).FontSize(11).TextColor(t.TextMuted).SingleLine()
-						})
-					})
-					if header.Clicked() {
-						w.collapsed[group] = !w.collapsed[group]
-					}
-					if w.collapsed[group] {
-						return
-					}
-					if len(entries) == 0 {
-						native.Text(c, "没有"+group).FontSize(11).TextColor(t.TextMuted).Padding(4, 24)
-					}
-					for _, e := range entries {
-						b := treeButton(c.Key(e.Path), "Git "+group+" "+e.Path).FillWidth().Height(28).Padding(0, 8)
-						b.Children(func() {
-							native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
-								native.Icon(c, fileIcon).Size(13, 13).TextColor(t.TextMuted)
-								native.Text(c, filepath.Base(e.Path)).FontSize(12).SingleLine().Shrink(1).MinWidth(0)
-								parent := filepath.Dir(e.Path)
-								if parent != "." {
-									native.Text(c, parent).FontSize(10).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
-								} else {
-									native.Spacer(c)
-								}
-								native.Text(c, e.XY).Font("monospace").FontSize(10).TextColor(t.TextMuted).SingleLine().Width(18).Shrink(0)
-							})
-						})
-						if b.Clicked() {
-							a.openGitDiff(w, e, group == "已暂存的更改")
-						}
-					}
-				})
-			}
-		})
-	})
-}
 func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 	if d.pinFrame != 0 {
 		d.scroll.Y = d.pinY
@@ -395,6 +299,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 	if !d.loaded && !d.loading && d.err == "" {
 		if d.kind == "file" {
 			a.loadFile(d)
+		} else if strings.HasPrefix(d.compare, "提交 ") {
+			d.gitCommit = strings.TrimPrefix(d.compare, "提交 ")
+			a.gitLoadCommit(d, gitview.CommitInfo{Hash: d.gitCommit, Subject: "提交 " + d.gitCommit[:min(8, len(d.gitCommit))]})
 		} else if d.compare == "外部更改" {
 			d.err = "比较快照未保存，请从原文件重新打开外部更改比较"
 		} else {
@@ -424,6 +331,12 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		})
 		a.sessionTabs(c)
 		a.fileExitNotice(c)
+		if d.kind == "diff" && d.compare != "外部更改" {
+			a.gitDiffToolbar(c.Key("git-diff-toolbar"), d)
+		}
+		if d.kind == "file" && d.gitConflict != nil {
+			a.gitConflictToolbar(c.Key("conflict"), d)
+		}
 		if d.compare == "外部更改" {
 			source := a.files[d.comparisonSource]
 			if source != nil && source.buffer != nil && source.buffer.Version() != d.comparisonVersion {
@@ -443,7 +356,18 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			})
 		}
 		native.Row(c).Height(34).FillWidth().Padding(0, 16).Gap(8).AlignItems(native.Center).Children(func() {
-			rel, _ := filepath.Rel(d.root, d.path)
+			path, openable := d.path, true
+			if d.gitCommit != "" {
+				openable = false
+				if len(d.gitCommitFiles) > 0 {
+					entry := d.gitCommitFiles[d.gitCommitFile]
+					path = filepath.Join(d.root, entry.Path)
+					openable = !strings.HasPrefix(entry.XY, "D") && !d.loading
+				}
+			} else if d.gitReview != nil {
+				openable = gitStatusLabel(d.gitReview.Entry, d.gitReview.Staged) != "删除"
+			}
+			rel, _ := filepath.Rel(d.root, path)
 			native.ScrollHorizontal(c.Key("file-path")).Grow(1).FillHeight().MinWidth(0).Children(func() {
 				native.Row(c).FillHeight().AlignItems(native.Center).Children(func() {
 					native.Text(c, rel).FontSize(11).TextColor(t.TextMuted).SingleLine()
@@ -452,11 +376,11 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			copyPath := quietButton(c, "复制完整路径").Size(24, 24)
 			copyPath.Children(func() { native.Icon(c, copyIcon).Size(12, 12) })
 			if copyPath.Clicked() && a.win != nil {
-				mygo.Clipboard.WriteText(d.path)
+				mygo.Clipboard.WriteText(path)
 			}
 			if d.kind == "diff" {
-				if actionButton(c, "打开文件").Clicked() {
-					a.openFile(d.root, d.path)
+				if actionButton(c, "打开文件").Disabled(!openable).Clicked() {
+					a.openFile(d.root, path)
 				}
 			} else {
 				if actionButton(c, "保存").Disabled(!d.dirty() || d.saving || d.file.Reason != "").Clicked() {
@@ -587,6 +511,18 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 			}
 		}
+		available, _ := c.Size()
+		if left {
+			available -= a.sidebarWidth + 1
+		}
+		if right {
+			total, _ := c.Size()
+			available -= historyPanelWidth(total)
+		}
+		if d.kind == "diff" && d.gitSplit && d.gitReview != nil && len(d.gitReview.Hunks) > 0 && available >= 520 {
+			a.gitSplitView(c, d)
+			return
+		}
 		snap := d.buffer.Snapshot()
 		width := float32(600)
 		if d.contentWidth > width {
@@ -604,7 +540,16 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				c.AnimationFrame()
 				d.resync = false
 			}
+			previousCaret := d.caret
 			d.anchor, d.caret = area.TextAnchorCaret()
+			if d.kind == "diff" && d.gitReview != nil && d.caret != previousCaret {
+				line := snap.LineAt(d.caret)
+				for i, hunk := range d.gitReview.Hunks {
+					if hunk.PatchLine <= line {
+						d.gitHunk = i
+					}
+				}
+			}
 			if d.focus {
 				if d.focusOwner == nil || d.focusOwner.Focused(c) {
 					area.Focus()
@@ -673,6 +618,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					for i := first; i < last; i++ {
 						line := snap.Line(i)
 						var color native.Color
+						if d.gitReview != nil && d.gitHunk < len(d.gitReview.Hunks) && i == d.gitReview.Hunks[d.gitHunk].PatchLine {
+							color = t.Accent.Alpha(.12)
+						}
 						if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
 							color = t.Success.Alpha(.1)
 						}

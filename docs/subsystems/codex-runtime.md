@@ -56,6 +56,8 @@ Markdown 的列表缩进设为 3 em，兼容锁定版本按比例数字测宽、
 
 ## 当前边界
 
+Git 提交信息生成使用 `internal/codex/message.go` 的独立临时 CLI 进程，复用 App Server 已解析的可执行路径和原生模型配置。参数为 `exec --ephemeral --sandbox read-only --skip-git-repo-check -c approval_policy="never" --color never --output-last-message <临时文件> -`；只通过 stdin 提供用户选定差异和近期提交格式，cwd 是独立临时目录。输出上限 64 KiB，UI 输入差异上限 256 KiB、超时 2 分钟；临时目录完成后清理。取消/退出管理自有进程组，不建立应用会话或自动提交。受控 CLI 参数、阻塞输入取消及本机真实生成分别验证，见 [Git 工作流验证](../verification/2026-10-26-git-workflow.md)。
+
 P3 提供多个独立会话，共享一个 Fuyu 自有 App Server；各会话独立绑定 cwd 和原生 thread/turn，异步回调固定所属会话。历史来自原生接口，应用索引只保存界面元数据，详见[会话管理](sessions.md)与[存储与恢复](storage.md)。
 
 关闭窗口保存状态并隐藏，Dock 菜单或再次激活应用可打开原窗口。退出时列出全部活动任务，选择停止后逐个中断，最多等待 10 秒；未确认时提供返回核验或强制退出。连接丢失保留未确认任务，不能代替原生终态。进程清理仍只作用于自有原进程组。最终原生验收覆盖与支持边界见 [P3 记录](../verification/2026-10-22-p3.md)。

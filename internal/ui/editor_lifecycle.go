@@ -21,6 +21,10 @@ func (a *App) requestFileExit() {
 	if a.quitDialog || a.fileQuitPending {
 		return
 	}
+	if a.hasGitWrites() {
+		a.fileExitRequested = true
+		return
+	}
 	var dirty []*filePage
 	var names []string
 	for _, d := range a.files {
@@ -99,6 +103,9 @@ func (a *App) advanceFileExit() {
 	if !a.fileExitRequested || a.quitDialog || a.fileQuitPending {
 		return
 	}
+	if a.hasGitWrites() {
+		return
+	}
 	for _, d := range a.files {
 		if d.saving || d.checkpointBusy {
 			return
@@ -108,6 +115,9 @@ func (a *App) advanceFileExit() {
 }
 
 func (a *App) fileExitNotice(c *native.Context) {
+	if a.gitQuitPending {
+		native.Text(c, "正在等待 Git 操作完成后退出…").FontSize(11).TextColor(c.Theme().TextMuted).Padding(8, 14)
+	}
 	if a.recoveryWarning != "" {
 		native.Row(c).FillWidth().Padding(8, 14).Gap(8).AlignItems(native.Center).Children(func() {
 			native.Text(c, a.recoveryWarning).FontSize(11).TextColor(c.Theme().Danger).MaxLines(3).Grow(1)

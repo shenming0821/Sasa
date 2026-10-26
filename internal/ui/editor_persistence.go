@@ -31,6 +31,9 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 			w.expanded[path] = true
 		}
 	}
+	for root, message := range snapshot.GitDrafts {
+		a.workspace(root).gitMessage = message
+	}
 	if snapshot.WorkspaceTabs == nil {
 		for _, s := range a.sessions {
 			if s.open {
@@ -127,6 +130,7 @@ func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
 	s.ActiveWorkspace = a.activeWorkspace
 	s.RightTab = a.rightTab
 	s.ExpandedFiles = map[string][]string{}
+	s.GitDrafts = map[string]string{}
 	for _, tab := range a.tabs {
 		if tab.Kind == "session" {
 			valid := false
@@ -149,6 +153,9 @@ func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
 		s.ActiveTabID = ""
 	}
 	for root, w := range a.workspaces {
+		if w.gitMessage != "" {
+			s.GitDrafts[root] = w.gitMessage
+		}
 		var paths []string
 		for path, expanded := range w.expanded {
 			if expanded {

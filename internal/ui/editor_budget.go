@@ -30,9 +30,7 @@ func (a *App) trimEditorCaches() {
 	total, history, colors := 0, 0, 0
 	var hidden, cache []*filePage
 	for _, d := range a.files {
-		if d.buffer != nil {
-			total += d.buffer.ByteLen()
-		}
+		total += gitDocumentBytes(d)
 		for _, s := range d.undo {
 			history += s.ByteLen()
 		}
@@ -68,7 +66,7 @@ func (a *App) trimEditorCaches() {
 	}
 	for _, d := range hidden {
 		if total > 64<<20 {
-			total -= d.buffer.ByteLen()
+			total -= gitDocumentBytes(d)
 			d.buffer = nil
 			d.loaded = false
 			d.highlights = nil
@@ -77,6 +75,7 @@ func (a *App) trimEditorCaches() {
 			d.observed = native.TextSnapshot{}
 			d.undo = nil
 			d.redo = nil
+			d.gitReview, d.gitLeft, d.gitRight, d.gitConflict = nil, nil, nil, nil
 		}
 	}
 	// Release watchers once neither the selected workspace nor an open file uses them.
@@ -92,4 +91,25 @@ func (a *App) trimEditorCaches() {
 			w.children = map[string][]workspace.Entry{}
 		}
 	}
+}
+
+func gitDocumentBytes(d *filePage) int {
+	total := 0
+	for _, buffer := range []*native.TextBuffer{d.buffer, d.gitLeft, d.gitRight} {
+		if buffer != nil {
+			total += buffer.ByteLen()
+		}
+	}
+	if d.gitReview != nil {
+		total += len(d.gitReview.Patch)
+	}
+	if state := d.gitConflict; state != nil {
+		total += len(state.sides.Base) + len(state.sides.Current) + len(state.sides.Incoming)
+		for _, buffer := range []*native.TextBuffer{state.base, state.current, state.incoming} {
+			if buffer != nil {
+				total += buffer.ByteLen()
+			}
+		}
+	}
+	return total
 }

@@ -35,9 +35,10 @@ func TestGitPanelUsesContinuousCompactRows(t *testing.T) {
 			first := find("Git 更改 internal/ui/first.go")
 			second := find("Git 更改 internal/ui/a-long-file-name-to-check-narrow-layout.go")
 			staged := find("折叠 已暂存的更改")
+			stagedFile := find("Git 已暂存的更改 README.md")
 			if header.H != 26 || first.H != 28 || second.H != 28 ||
 				first.Y != header.Y+header.H || second.Y != first.Y+first.H ||
-				staged.Y != second.Y+second.H+8 {
+				stagedFile.Y != staged.Y+staged.H || header.Y != stagedFile.Y+stagedFile.H+8 {
 				t.Fatalf("unexpected row rhythm: header=%+v first=%+v second=%+v staged=%+v", header, first, second, staged)
 			}
 			if first.X < 0 || first.X+first.W > width || second.X != first.X || second.W != first.W {
@@ -49,7 +50,7 @@ func TestGitPanelUsesContinuousCompactRows(t *testing.T) {
 			if _, ok := tt.Find("Git 更改 internal/ui/first.go"); ok {
 				t.Fatal("folded group still displays files")
 			}
-			if folded := find("折叠 已暂存的更改"); folded.Y != header.Y+header.H+8 {
+			if folded := find("切换最近提交"); folded.Y != header.Y+header.H+8 {
 				t.Fatal("folding left empty file-row space", folded)
 			}
 		})

@@ -17,6 +17,10 @@ func (a *App) autosave() {
 			applied := make(chan struct{})
 			a.update(func() {
 				a.advanceQuit()
+				if a.gitQuitPending && !a.hasGitWrites() {
+					a.gitQuitPending = false
+					mygo.App.Quit()
+				}
 				a.advanceFileExit()
 				a.checkpointFiles()
 				a.trimEditorCaches()
@@ -93,6 +97,13 @@ func (a *App) installLifecycle() {
 		if a.quitting {
 			return
 		}
+		if a.hasGitWrites() {
+			e.PreventDefault()
+			a.gitQuitPending = true
+			a.win.Show()
+			a.win.Invalidate()
+			return
+		}
 		if err := a.persist(); err != nil {
 			e.PreventDefault()
 			a.win.Show()
@@ -139,6 +150,9 @@ func (a *App) installLifecycle() {
 
 func (a *App) advanceQuit() {
 	if !a.quitStopping {
+		return
+	}
+	if a.hasGitWrites() {
 		return
 	}
 	if len(a.activeTasks()) == 0 {
