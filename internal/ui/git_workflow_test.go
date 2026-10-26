@@ -302,7 +302,7 @@ func TestGitDiscardRechecksConfirmationAndProtectsUnsavedEditor(t *testing.T) {
 	a.gitDiscard(w, []gitview.Entry{entry})
 	p4Wait(t, tt, q, func() bool { return w.gitDecision != nil })
 	os.WriteFile(path, []byte("newer disk change\n"), 0600)
-	if err := tt.Click("丢弃改动"); err != nil {
+	if err := tt.Click("撤销改动"); err != nil {
 		t.Fatal(err)
 	}
 	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && w.gitActionError != "" })
@@ -405,6 +405,10 @@ func TestGitPanelLightDarkNarrowWorkflowLayout(t *testing.T) {
 				w.git = gitview.Status{Branch: "feature/long-branch-name", Upstream: "origin/main", Ahead: 2, Behind: 1,
 					Entries: []gitview.Entry{{Path: "internal/ui/long-filename.go", XY: ".M"}, {Path: "README.md", XY: ".M"}, {Path: "staged.go", XY: "M."}}}
 				w.gitRemotes = []string{"origin"}
+				w.gitStats = map[string]gitview.Review{
+					gitKey("false", "internal/ui/long-filename.go"): {Added: 12, Deleted: 3},
+					gitKey("false", "README.md"):                    {Added: 4},
+				}
 				w.gitMessage = "fix: 调整面板布局"
 				w.gitSelection = map[string]bool{gitKey("更改", "internal/ui/long-filename.go"): true, gitKey("更改", "README.md"): true}
 				tt := native.NewTester(func(c *native.Context) {
@@ -428,6 +432,17 @@ func TestGitPanelLightDarkNarrowWorkflowLayout(t *testing.T) {
 						t.Fatal(err)
 					}
 					f.Close()
+					r, _ := tt.Find("Git 更改 internal/ui/long-filename.go")
+					tt.Move(r.X+10, r.Y+10)
+					f, err = os.Create(filepath.Join(dir, fmt.Sprintf("git-hover-dark-%v-width-%d.png", dark, width)))
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = png.Encode(f, tt.Image())
+					f.Close()
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
 			})
 		}

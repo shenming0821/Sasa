@@ -112,14 +112,14 @@ func (a *App) gitDiscard(w *workspacePage, entries []gitview.Entry) {
 		rel, _ := filepath.Rel(w.root, d.path)
 		for _, name := range names {
 			if d.root == w.root && d.dirty() && rel == name {
-				w.gitActionError = "请先保存或撤销 " + name + " 的未保存编辑，再丢弃磁盘改动"
+				w.gitActionError = "请先保存或撤销 " + name + " 的未保存编辑，再撤销磁盘改动"
 				return
 			}
 		}
 	}
 	// Read exact versions before confirmation. A later change invalidates it.
 	var reviews []gitview.Review
-	a.gitAction(w, "核对丢弃范围", func(ctx context.Context) error {
+	a.gitAction(w, "核对撤销范围", func(ctx context.Context) error {
 		for _, entry := range entries {
 			review, err := gitview.ReadReview(ctx, w.root, entry, false)
 			if err != nil {
@@ -130,19 +130,19 @@ func (a *App) gitDiscard(w *workspacePage, entries []gitview.Entry) {
 		return nil
 	}, func() {
 		w.gitDecision = &gitDecision{
-			title:  fmt.Sprintf("丢弃 %d 个文件的改动？", len(entries)),
+			title:  fmt.Sprintf("撤销 %d 个文件的改动？", len(entries)),
 			detail: strings.Join(names, "\n") + "\n已跟踪文件恢复至暂存版本；未跟踪文件移至 Fuyu 回收目录。",
-			labels: []string{"取消", "丢弃改动"},
+			labels: []string{"取消", "撤销改动"},
 			actions: []func(){nil, func() {
 				recovery := filepath.Join(a.recoveryDir(), "discarded")
-				a.gitAction(w, "丢弃改动", func(ctx context.Context) error {
+				a.gitAction(w, "撤销改动", func(ctx context.Context) error {
 					for _, review := range reviews {
 						latest, err := gitview.ReadReview(ctx, w.root, review.Entry, false)
 						if err != nil {
 							return err
 						}
 						if latest.Token != review.Token {
-							return fmt.Errorf("%s 已变化，请重新核对丢弃范围", review.Entry.Path)
+							return fmt.Errorf("%s 已变化，请重新核对撤销范围", review.Entry.Path)
 						}
 					}
 					return gitview.Discard(ctx, w.root, entries, recovery)
