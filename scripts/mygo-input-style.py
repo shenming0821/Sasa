@@ -51,6 +51,16 @@ def main():
         "case KeyEnter:\n\t\treturn m == 0",
         "case KeyEnter:\n\t\treturn m == 0 || (ed.multiline && k.mods == Cmd)",
     )]
+    # Repositioning inside an already focused editor starts a visible caret
+    # phase too; focus changes alone do not cover repeated pointer clicks.
+    edits["ui/input.go"] = [(
+        "\tif target.editor != nil {\n\t\ttarget.editor.pressMods = mods",
+        "\tif target.editor != nil {\n"
+        "\t\tif button == 0 && target.editor.laidOut() {\n"
+        "\t\t\trt.blinkStart = rt.now()\n"
+        "\t\t}\n"
+        "\t\ttarget.editor.pressMods = mods",
+    )]
     # AX setters cache their argument in AppKit even when the next projected
     # password value is still empty. Redact that cache, retaining the original
     # argument only for the editor action.
