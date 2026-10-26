@@ -19,6 +19,12 @@ type gitDecision struct {
 	actions       []func()
 }
 
+type gitCommitTree struct {
+	expanded, loaded, loading bool
+	entries                   []gitview.Entry
+	err                       string
+}
+
 type gitWorkflow struct {
 	gitMessage, gitBusy, gitNotice, gitActionError string
 	gitSelection                                   map[string]bool
@@ -35,6 +41,8 @@ type gitWorkflow struct {
 	gitHistoryMore                                 bool
 	gitHistoryError                                string
 	gitHistoryTime                                 time.Time
+	gitHistoryScroll                               native.ScrollState
+	gitCommitTrees                                 map[string]*gitCommitTree
 	gitStats                                       map[string]gitview.Review
 	gitStatsLoading                                bool
 	gitStatsFingerprint                            string
@@ -292,11 +300,43 @@ func (a *App) gitLoadHistory(w *workspacePage, more bool) {
 			}
 			w.gitHistory = append(w.gitHistory, items...)
 			w.gitHistoryMore = len(items) == 20
+			if !more {
+				trees := make(map[string]*gitCommitTree)
+				for _, item := range items {
+					if tree := w.gitCommitTrees[item.Hash]; tree != nil {
+						trees[item.Hash] = tree
+					}
+				}
+				w.gitCommitTrees = trees
+			}
 		})
 	})
 }
 
-func (a *App) gitOpenCommit(w *workspacePage, info gitview.CommitInfo) {
+func (a *App) gitLoadCommitTree(w *workspacePage, info gitview.CommitInfo, tree *gitCommitTree) {
+	if tree.loading || tree.loaded || !a.canAsync() {
+		return
+	}
+	tree.loading, tree.err = true, ""
+	ctx, cancel := a.projectContext(5 * time.Second)
+	a.runGitTaskContext(ctx, func() {
+		defer cancel()
+		entries, err := gitview.CommitFiles(ctx, w.root, info.Hash)
+		a.update(func() {
+			if w.gitCommitTrees[info.Hash] != tree {
+				return
+			}
+			tree.loading = false
+			if err != nil {
+				tree.err = err.Error()
+				return
+			}
+			tree.entries, tree.loaded = entries, true
+		})
+	})
+}
+
+func (a *App) gitOpenCommit(w *workspacePage, info gitview.CommitInfo, path ...string) {
 	id := "commit-" + w.root + "-" + info.Hash
 	if a.files == nil {
 		a.files = map[string]*filePage{}
@@ -309,10 +349,13 @@ func (a *App) gitOpenCommit(w *workspacePage, info gitview.CommitInfo) {
 	}
 	a.selectFile(d)
 	d.gitCommitInfo = info
-	a.gitLoadCommit(d, info)
+	if len(path) > 0 {
+		a.cancelFileRead(d)
+	}
+	a.gitLoadCommit(d, info, path...)
 }
 
-func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo) {
+func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo, path ...string) {
 	if d.loading || !a.canAsync() {
 		return
 	}
@@ -325,6 +368,12 @@ func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo) {
 		entries, err := gitview.CommitFiles(ctx, d.root, info.Hash)
 		var text string
 		selected := min(max(0, fileIndex), max(0, len(entries)-1))
+		if err == nil && len(path) > 0 {
+			selected = slices.IndexFunc(entries, func(entry gitview.Entry) bool { return entry.Path == path[0] })
+			if selected < 0 {
+				err = fmt.Errorf("此提交不包含文件 %s", path[0])
+			}
+		}
 		if err == nil && len(entries) > 0 {
 			text, err = gitview.CommitDiff(ctx, d.root, info.Hash, entries[selected])
 		}

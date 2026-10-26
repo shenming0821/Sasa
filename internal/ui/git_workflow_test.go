@@ -79,12 +79,100 @@ func TestGitWorkflowStagesOnlyChosenFileAndCommitsIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 	p4Wait(t, tt, q, func() bool {
+		tree := w.gitCommitTrees[info.Hash]
+		return tree != nil && tree.loaded
+	})
+	if err := tt.Click("提交文件 " + info.Hash + " README.md"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool {
 		d := a.currentFile()
 		return d != nil && d.loaded && !d.loading && d.gitCommit == info.Hash
 	})
 	d := a.currentFile()
 	if len(d.gitCommitFiles) != 1 || d.gitCommitFiles[0].Path != "README.md" || !strings.Contains(d.buffer.String(), "+selected") {
 		t.Fatal("commit content not shown", d.err)
+	}
+}
+
+func TestGitHistoryCommitExpandCollapseAndOpenChosenFile(t *testing.T) {
+	a, q, root, git := gitWorkflowApp(t)
+	os.WriteFile(filepath.Join(root, "README.md"), []byte("history readme\n"), 0600)
+	os.WriteFile(filepath.Join(root, "internal/main.go"), []byte("package chosen\n"), 0600)
+	git("commit", "-am", "two files")
+	w := a.workspace(root)
+	w.collapsed["最近提交已展开"] = true
+	tt := native.NewTester(a.view, 1600, 900)
+	p4Wait(t, tt, q, func() bool { return w.gitHistoryLoaded && len(w.gitHistory) == 2 })
+	info := w.gitHistory[0]
+	tree := w.gitCommitTrees[info.Hash]
+	if tree == nil || tree.expanded || tree.loaded || tree.loading {
+		t.Fatal("collapsed commit should not read files")
+	}
+	fileLabel := "提交文件 " + info.Hash + " internal/main.go"
+	tt.Click("提交 " + info.Hash)
+	p4Wait(t, tt, q, func() bool { return tree.loaded })
+	if len(tree.entries) != 2 || a.currentFile() != nil {
+		t.Fatal("expansion should list files without opening a tab")
+	}
+	if _, ok := tt.Find(fileLabel); !ok {
+		t.Fatal("expanded commit file missing")
+	}
+	tt.Click("提交 " + info.Hash)
+	if _, ok := tt.Find(fileLabel); ok {
+		t.Fatal("collapsed commit still shows files")
+	}
+	tt.Click("提交 " + info.Hash)
+	if tree.loading || len(tree.entries) != 2 {
+		t.Fatal("reopening should reuse immutable commit file list")
+	}
+	if err := tt.Click(fileLabel); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded && !a.currentFile().loading })
+	d := a.currentFile()
+	if d.gitCommitFiles[d.gitCommitFile].Path != "internal/main.go" ||
+		!strings.Contains(d.buffer.String(), "+package chosen") || strings.Contains(d.buffer.String(), "+history readme") {
+		t.Fatal("file click did not select the corresponding historical diff", d.err)
+	}
+	a.gitOpenCommit(w, info, "README.md")
+	a.gitOpenCommit(w, info, "internal/main.go")
+	p4Wait(t, tt, q, func() bool { return !d.loading })
+	if d.gitCommitFiles[d.gitCommitFile].Path != "internal/main.go" || !strings.Contains(d.buffer.String(), "+package chosen") {
+		t.Fatal("late result replaced the last selected file")
+	}
+	other := a.workspace(t.TempDir())
+	if len(other.gitCommitTrees) != 0 {
+		t.Fatal("commit expansion leaked to another workspace")
+	}
+}
+
+func TestGitHistoryCommitReadFailureRetryAndEmptyCommit(t *testing.T) {
+	a, q, root, git := gitWorkflowApp(t)
+	git("commit", "--allow-empty", "-m", "empty")
+	w := a.workspace(root)
+	w.collapsed["最近提交已展开"] = true
+	info := gitview.CommitInfo{Hash: strings.Repeat("a", 40), Subject: "missing"}
+	w.gitHistory, w.gitHistoryLoaded = []gitview.CommitInfo{info}, true
+	tt := native.NewTester(a.view, 1600, 900)
+	tt.Click("提交 " + info.Hash)
+	tree := w.gitCommitTrees[info.Hash]
+	p4Wait(t, tt, q, func() bool { return !tree.loading && tree.err != "" })
+	if _, ok := tt.Find("重试读取文件"); !ok {
+		t.Fatal("file read failure lacks retry")
+	}
+	tt.Click("重试读取文件")
+	p4Wait(t, tt, q, func() bool { return !tree.loading && tree.err != "" })
+	a.gitLoadHistory(w, false)
+	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading })
+	if _, ok := w.gitCommitTrees[info.Hash]; ok {
+		t.Fatal("removed history entry retained cached state")
+	}
+	info = w.gitHistory[0]
+	tt.Click("提交 " + info.Hash)
+	p4Wait(t, tt, q, func() bool { return w.gitCommitTrees[info.Hash].loaded })
+	if !tt.HasText("此提交没有文件改动") {
+		t.Fatal("empty commit lacks explicit result")
 	}
 }
 

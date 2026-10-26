@@ -90,3 +90,30 @@ FUYU_UI_EVIDENCE=/tmp/fuyu-git-workflow-ui-20261026 ./scripts/go test ./internal
 完整 `./scripts/go test ./...`、`./scripts/go vet ./...` 和 `./scripts/build` 通过。新增 `TestGitFileRowHoverKeepsGeometryAndActiveComparison` 覆盖同文件两侧的联动判定、悬停前后位置稳定、三个操作入口、背景连续、状态行尾位置和 0 值隐藏；`TestGitGroupHoverKeepsCountAndBulkActionPositions` 覆盖标题批量入口和徽标位置稳定。浅/深色、260/360 DIP 含增删数及悬停截图位于 `/tmp/fuyu-git-row-20261026/`，已检查最窄浅色与 360 DIP 深色结果。
 
 原 `bin/Fuyu.app` 已正常退出并重开，实际窗口确认新文字层级、字母状态、数量徽标和点击后的选中底色。辅助按钮的连续悬停与同文件两侧选中由组件验证覆盖。原生新打开 `git_panel.go` 差异标签停留在加载状态，本次未将其正文加载计为通过；已关闭该新增标签，保留重开前的六个标签。未对 Fuyu 执行暂存、丢弃或提交。
+
+## Git 分组与吸底历史
+
+基线 `fa35179`，开始时工作区和暂存区均干净。文件分组顺序调整为冲突、更改、已暂存的更改；所有空组整体隐藏，移除空组占位。最近提交移出文件滚动区并固定在剩余内容区底部；展开后整个历史区最多占该区域 45%，内部列表最高 260 DIP，滚动状态与文件列表分开且归属各自工作区。折叠后仅保留底部标题。
+
+自动化验证：
+
+- 更新 `TestGitPanelUsesContinuousCompactRows` 的顺序与折叠断言，保留 26 DIP 标题、28 DIP 文件行及 8 DIP 组间距。
+- 新增 `TestGitPanelHidesEmptyGroups`，覆盖全部为空、仅工作区更改、仅已暂存三种状态，核对标题和占位均隐藏以及底部位置。
+- 新增 `TestGitHistoryStaysAtBottomWithIndependentBoundedScroll`，在 320/500/900 DIP 高度下覆盖冲突顺序、文件列表滚动、历史展开/折叠、45% 与 260 DIP 上限、历史独立滚动、上方空间保留及分页按钮可达。
+- `./scripts/go test ./...` 通过，UI 包耗时 13.567 秒；`./scripts/go vet ./...` 通过。指定的分块暂存未保存保护测试在定向执行和完整测试中均通过，本次未复现其偶发失败。
+- 根目录 `./scripts/go build` 返回 `no Go files in .../Fuyu`；根目录没有 Go 入口。随后 `./scripts/go build ./...` 和 `./scripts/go build -o bin/Fuyu.app/Contents/MacOS/Fuyu ./cmd/desktop` 均通过，全程使用包装脚本。`git diff --check` 通过。
+
+原应用已正常退出并重开，保留原数据目录。实际窗口确认空的已暂存分组隐藏、最近提交在底部展开，提交列表内部滚动后上方六个文件及历史标题保持原位。短窗口尺寸及冲突/已暂存的组合由组件验证覆盖，未在原仓库制造这些 Git 状态，未执行真实远程操作。提交前补跑定向 `./scripts/go test -race ./internal/ui -run 'TestGitHistoryStaysAtBottom|TestGitPanelHidesEmptyGroups|TestGitHistoryCommit|TestGitWorkflowStagesOnlyChosenFileAndCommitsIndex' -count=1` 通过。修改已提交。
+
+## 最近提交的变更文件树
+
+每条提交左侧显示展开/收起箭头，点击提交行切换文件列表，首次展开异步读取变更文件。读取失败可重试，空提交显示结果提示；成功结果按工作区和提交缓存，刷新历史时清理已移出列表的缓存。点击文件打开该提交中对应文件的历史 Diff，连续选择时以最后一次请求为准。保留吸底位置、独立滚动与高度上限。
+
+自动化验证：
+
+- `TestGitHistoryCommitExpandCollapseAndOpenChosenFile` 使用临时 Git 仓库，覆盖按需读取、展开不打开标签、收起隐藏、缓存复用、指定文件 Diff、连续选择及工作区状态隔离。
+- `TestGitHistoryCommitReadFailureRetryAndEmptyCommit` 覆盖失败重试、历史刷新清理缓存与真实空提交；既有提交工作流测试更新为先展开再选择文件。
+- `./scripts/go test ./...`、`./scripts/go vet ./...` 均通过；定向 `./scripts/go test -race ./internal/ui -run 'TestGitHistoryCommit|TestGitWorkflowStagesOnlyChosenFileAndCommitsIndex' -count=1` 通过。本次未重复执行全量 race。
+- `./scripts/go build -o bin/Fuyu.app/Contents/MacOS/Fuyu ./cmd/desktop` 和 `git diff --check` 通过。
+
+原 `bin/Fuyu.app` 已正常重开。原生窗口展开 `fa35179` 后列出八个变更文件，收起后文件行消失；点击 `docs/subsystems/editor.md` 后，主窗口正文实际加载该文件的历史差异。保留原数据目录、标签与草稿，未在 Fuyu 仓库执行 Git 写操作。代码和文档已提交。

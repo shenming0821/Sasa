@@ -127,7 +127,7 @@ func TestGitPanelUsesContinuousCompactRows(t *testing.T) {
 			stagedFile := find("Git 已暂存的更改 README.md")
 			if header.H != 26 || first.H != 28 || second.H != 28 ||
 				first.Y != header.Y+header.H || second.Y != first.Y+first.H ||
-				stagedFile.Y != staged.Y+staged.H || header.Y != stagedFile.Y+stagedFile.H+8 {
+				stagedFile.Y != staged.Y+staged.H || staged.Y != second.Y+second.H+8 {
 				t.Fatalf("unexpected row rhythm: header=%+v first=%+v second=%+v staged=%+v", header, first, second, staged)
 			}
 			if first.X < 0 || first.X+first.W > width || second.X != first.X || second.W != first.W {
@@ -139,8 +139,109 @@ func TestGitPanelUsesContinuousCompactRows(t *testing.T) {
 			if _, ok := tt.Find("Git 更改 internal/ui/first.go"); ok {
 				t.Fatal("folded group still displays files")
 			}
-			if folded := find("切换最近提交"); folded.Y != header.Y+header.H+8 {
+			if folded := find("切换最近提交"); folded.Y+folded.H != 396 {
+				t.Fatal("history should remain pinned to the bottom", folded)
+			}
+			if folded := find("折叠 已暂存的更改"); folded.Y != header.Y+header.H+8 {
 				t.Fatal("folding left empty file-row space", folded)
+			}
+		})
+	}
+}
+
+func TestGitPanelHidesEmptyGroups(t *testing.T) {
+	for _, xy := range []string{"", ".M", "M."} {
+		t.Run(xy, func(t *testing.T) {
+			a, _, root := p4App(t)
+			w := a.workspace(root)
+			w.gitTime, w.gitFingerprint = time.Now(), "fixture"
+			if xy != "" {
+				w.git.Entries = []gitview.Entry{{Path: "main.go", XY: xy}}
+			}
+			tt := native.NewTester(func(c *native.Context) {
+				native.Column(c).Fill().Children(func() { a.gitPanel(c, w) })
+			}, 360, 400)
+			for _, group := range []string{"更改", "已暂存的更改", "冲突"} {
+				_, visible := tt.Find("折叠 " + group)
+				if visible != (len(gitEntries(w, group)) > 0) || tt.HasText("没有"+group) {
+					t.Fatal("empty group or placeholder rendered", group, xy)
+				}
+			}
+			history, _ := tt.Find("切换最近提交")
+			if history.Y+history.H != 396 {
+				t.Fatal("empty groups moved history away from bottom", history)
+			}
+		})
+	}
+}
+
+func TestGitHistoryStaysAtBottomWithIndependentBoundedScroll(t *testing.T) {
+	for _, height := range []int{320, 500, 900} {
+		t.Run(fmt.Sprint(height), func(t *testing.T) {
+			a, _, root := p4App(t)
+			w := a.workspace(root)
+			w.gitTime, w.gitFingerprint = time.Now(), "fixture"
+			w.gitHistoryLoaded, w.gitHistoryMore = true, true
+			for i := range 40 {
+				w.git.Entries = append(w.git.Entries, gitview.Entry{Path: fmt.Sprintf("file-%02d.go", i), XY: ".M"})
+				w.gitHistory = append(w.gitHistory, gitview.CommitInfo{
+					Hash: fmt.Sprintf("%040d", i), Subject: fmt.Sprintf("commit %d", i),
+				})
+			}
+			w.git.Entries = append(w.git.Entries, gitview.Entry{Path: "conflict.go", XY: "UU", Conflict: true})
+			tt := native.NewTester(func(c *native.Context) {
+				native.Column(c).Fill().Children(func() { a.gitPanel(c, w) })
+			}, 360, height)
+			find := func(label string) native.Rect {
+				t.Helper()
+				r, ok := tt.Find(label)
+				if !ok {
+					t.Fatal("missing", label)
+				}
+				return r
+			}
+			header := find("切换最近提交")
+			conflict := find("折叠 冲突")
+			files := find("折叠 更改")
+			if conflict.Y >= files.Y {
+				t.Fatal("conflicts should remain first")
+			}
+			tt.Scroll(files.X+30, files.Y+15, 0, 160)
+			if w.gitScroll.Y == 0 || find("切换最近提交") != header {
+				t.Fatal("file scroll moved history heading", header, w.gitScroll.Y)
+			}
+			if err := tt.Click("切换最近提交"); err != nil {
+				t.Fatal(err)
+			}
+			list := find("最近提交列表")
+			header = find("切换最近提交")
+			contentTop := conflict.Y - 4
+			available := float32(height) - contentTop
+			if list.H <= 0 || list.H > 260 || list.Y+list.H > float32(height) ||
+				header.Y+header.H+list.H > float32(height) ||
+				header.Y < float32(height)-available*.45-1 {
+				t.Fatal("history exceeded its bounded bottom region", header, list, available)
+			}
+			if header.Y-contentTop < 28 {
+				t.Fatal("history squeezed file list away", header)
+			}
+			tt.Scroll(files.X+30, contentTop+(header.Y-contentTop)/2, 0, 100)
+			if find("切换最近提交") != header {
+				t.Fatal("expanded history moved with file scroll")
+			}
+			fileY := w.gitScroll.Y
+			tt.Scroll(list.X+30, list.Y+list.H/2, 0, 200)
+			if w.gitHistoryScroll.Y <= 0 || w.gitScroll.Y != fileY || find("切换最近提交") != header {
+				t.Fatal("history scroll was not independent", w.gitHistoryScroll.Y, w.gitScroll.Y, fileY)
+			}
+			tt.Scroll(list.X+30, list.Y+list.H/2, 0, 100000)
+			more := find("加载更多提交")
+			if more.Y < list.Y || more.Y+more.H > list.Y+list.H+1 {
+				t.Fatal("pagination unreachable in history viewport", more, list)
+			}
+			tt.Click("切换最近提交")
+			if collapsed := find("切换最近提交"); collapsed.Y+collapsed.H != float32(height-4) {
+				t.Fatal("collapsed history no longer at bottom", collapsed)
 			}
 		})
 	}
