@@ -446,7 +446,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			return
 		}
 		a.observeFile(d)
-		if !d.highlighting && d.highlightVersion != d.buffer.Version() && time.Since(d.changedAt) > 200*time.Millisecond {
+		if !d.highlighting && (d.contentWidth == 0 || d.highlightVersion != d.buffer.Version()) && time.Since(d.changedAt) > 200*time.Millisecond {
 			a.requestHighlight(d)
 		}
 		if d.findOpen {
@@ -522,16 +522,13 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			available -= a.effectiveRightPanelWidth(total) + 1
 		}
 		if d.kind == "diff" && d.gitSplit && d.gitReview != nil && len(d.gitReview.Hunks) > 0 && available >= 520 {
-			a.gitSplitView(c, d)
+			a.gitSplitView(c, d, available)
 			return
 		}
 		snap := d.buffer.Snapshot()
-		width := float32(600)
-		if d.contentWidth > width {
-			width = d.contentWidth
-		}
+		width := max(available, d.contentWidth)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
-			area := native.TextAreaBufferBase(c.Key("source"), d.buffer).Label("文件内容 "+d.path).Font("monospace").FontSize(13).FixedLineHeight(20).Width(width).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
+			area := native.TextAreaBufferBase(c.Key("source"), d.buffer).Label("文件内容 "+d.path).Font("monospace").FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
 			if d.pendingSelection != nil {
 				area.SetTextSelection(d.pendingSelection[0], d.pendingSelection[1])
 				d.pendingSelection = nil

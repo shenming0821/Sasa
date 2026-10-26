@@ -61,6 +61,10 @@ type gitDiffState struct {
 	gitLeft, gitRight *native.TextBuffer
 	gitLeftScroll     native.ScrollState
 	gitRightScroll    native.ScrollState
+	gitLeftHScroll    native.ScrollState
+	gitRightHScroll   native.ScrollState
+	gitLeftWidth      float32
+	gitRightWidth     float32
 	gitSplitY         float32
 	gitSplitCaret     [2]int
 	gitCommit         string
@@ -402,6 +406,12 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	if d.loaded && d.buffer != nil && d.buffer.String() == text {
 		return
 	}
+	if d.highlightCancel != nil {
+		d.highlightCancel()
+	}
+	d.contentWidth, d.highlightVersion = 0, 0
+	d.gitLeftWidth, d.gitRightWidth = 0, 0
+	d.highlights = nil
 	d.buffer = native.NewTextBuffer(text)
 	d.file.Path, d.file.Text, d.file.Reason = d.path, text, "只读差异"
 	d.observed = d.buffer.Snapshot()

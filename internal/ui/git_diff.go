@@ -203,7 +203,7 @@ func splitPatch(review gitview.Review) (string, string) {
 	return left.String(), right.String()
 }
 
-func (a *App) gitSplitView(c *native.Context, d *filePage) {
+func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 	t := c.Theme()
 	if d.gitLeft == nil || d.gitRight == nil {
 		left, right := splitPatch(*d.gitReview)
@@ -219,16 +219,18 @@ func (a *App) gitSplitView(c *native.Context, d *filePage) {
 	d.gitSplitY, d.gitLeftScroll.Y, d.gitRightScroll.Y = y, y, y
 	native.Row(c.Key("split")).FillWidth().Grow(1).MinHeight(0).Gap(1).Background(t.Border).Children(func() {
 		for sideIndex, side := range []struct {
-			name   string
-			buffer *native.TextBuffer
-			scroll *native.ScrollState
-			color  native.Color
-		}{{"原版本", d.gitLeft, &d.gitLeftScroll, t.Danger}, {"新版本", d.gitRight, &d.gitRightScroll, t.Success}} {
+			name    string
+			buffer  *native.TextBuffer
+			scroll  *native.ScrollState
+			hscroll *native.ScrollState
+			width   float32
+			color   native.Color
+		}{{"原版本", d.gitLeft, &d.gitLeftScroll, &d.gitLeftHScroll, d.gitLeftWidth, t.Danger}, {"新版本", d.gitRight, &d.gitRightScroll, &d.gitRightHScroll, d.gitRightWidth, t.Success}} {
 			native.Column(c.Key(side.name)).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 				native.Text(c, side.name).FontSize(10).TextColor(t.TextMuted).Padding(5, 10)
-				native.ScrollHorizontal(c.Key("horizontal")).FillWidth().Grow(1).MinHeight(0).Children(func() {
+				native.ScrollHorizontal(c.Key("horizontal")).TrackScroll(side.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
 					area := native.TextAreaBufferBase(c, side.buffer).Label("差异 "+side.name).ReadOnly(true).Font("monospace").FontSize(12).
-						FixedLineHeight(20).NoWrap().Width(max(600, d.contentWidth)).FillHeight().Padding(6, 10).TrackScroll(side.scroll)
+						FixedLineHeight(20).NoWrap().Width(max((available-1)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10).TrackScroll(side.scroll)
 					_, caret := area.TextAnchorCaret()
 					if caret != d.gitSplitCaret[sideIndex] {
 						d.gitSplitCaret[sideIndex] = caret

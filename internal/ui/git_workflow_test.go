@@ -592,7 +592,7 @@ func TestGitSplitScrollAndSelectionFollowEitherPane(t *testing.T) {
 	review := gitview.ParsePatch(patch.String())
 	d := &filePage{root: "/one", gitDiffState: gitDiffState{gitReview: &review, gitSplit: true}}
 	tt := native.NewTester(func(c *native.Context) {
-		native.Column(c).Fill().Children(func() { a.gitSplitView(c, d) })
+		native.Column(c).Fill().Children(func() { a.gitSplitView(c, d, 1000) })
 	}, 1000, 220)
 	r, ok := tt.Find("差异 原版本")
 	if !ok {

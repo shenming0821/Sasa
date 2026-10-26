@@ -21,6 +21,7 @@ func (a *App) requestHighlight(d *filePage) {
 	}
 	buffer := d.buffer
 	snapshot := buffer.Snapshot()
+	review := d.gitReview
 	decorate := d.kind == "file" && d.file.Reason == ""
 	first := max(0, int(d.scroll.Y/20)-50)
 	last := min(snapshot.LineCount()-1, first+200)
@@ -33,6 +34,7 @@ func (a *App) requestHighlight(d *filePage) {
 		var text string
 		var ranges []native.TextRange
 		var width float32
+		var leftWidth, rightWidth float32
 		defer func() {
 			valid := ctx.Err() == nil
 			cancel()
@@ -51,6 +53,7 @@ func (a *App) requestHighlight(d *filePage) {
 					d.highlights = ranges
 					d.highlightVersion = snapshot.Version()
 					d.contentWidth = width
+					d.gitLeftWidth, d.gitRightWidth = leftWidth, rightWidth
 					d.modified = d.kind == "file" && text != d.savedText
 				}
 			})
@@ -72,18 +75,30 @@ func (a *App) requestHighlight(d *filePage) {
 			})
 		}
 		text = snapshot.String()
-		maxLine := 0
-		for _, line := range strings.Split(text, "\n") {
-			if ctx.Err() != nil {
-				return
-			}
-			maxLine = max(maxLine, utf8.RuneCountInString(strings.ReplaceAll(line, "\t", "    ")))
+		width = editorTextWidth(ctx, text, 13, 90)
+		if review != nil {
+			left, right := splitPatch(*review)
+			leftWidth = editorTextWidth(ctx, left, 12, 28)
+			rightWidth = editorTextWidth(ctx, right, 12, 28)
 		}
-		width = float32(maxLine)*8 + 90
 		if decorate && len(text) <= editor.EditBytes && lexer != nil {
 			ranges = highlightText(ctx, lexer, text, 0)
 		}
 	})
+}
+
+func editorTextWidth(ctx context.Context, text string, size, padding float32) float32 {
+	var width float32
+	for line := range strings.SplitSeq(text, "\n") {
+		if ctx.Err() != nil {
+			return 0
+		}
+		// Use the editor's shaping engine, including fallback fonts, tabs
+		// and trailing whitespace; rune counts do not describe glyph width.
+		w, _ := native.ShapeText(line, native.Font{Family: "monospace", Size: size}, 0).Size()
+		width = max(width, w)
+	}
+	return width + padding
 }
 
 func highlightText(ctx context.Context, lexer chroma.Lexer, text string, offset int) []native.TextRange {
@@ -177,7 +192,7 @@ func (a *App) loadDiskComparison(source, d *filePage) {
 			d.loaded = true
 			d.resync = true
 			d.observed = d.buffer.Snapshot()
-			d.contentWidth = 800
+			d.contentWidth = 0
 			d.comparisonSource, d.comparisonVersion = source.id, local.Version()
 			d.comparisonDisk = disk
 			d.comparisonStale = source.buffer == nil || source.buffer.Version() != local.Version()
