@@ -297,7 +297,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 	}
 	// Background refreshes keep the last snapshot in place without adding rows.
 	initialLoading := w.gitLoading && w.gitFingerprint == ""
-	native.Row(c.Key("git-toolbar")).FillWidth().Height(42).Padding(0, 14).Gap(8).AlignItems(native.Center).Children(func() {
+	native.Row(c.Key("git-toolbar")).FillWidth().Height(36).Padding(0, 14).Gap(8).AlignItems(native.Center).Children(func() {
 		branch := w.git.Branch
 		if branch == "" {
 			branch = projectName(w.root)
@@ -311,7 +311,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		}
 	})
 	if w.git.Upstream != "" {
-		native.Text(c, "→ "+w.git.Upstream).FontSize(11).TextColor(t.TextMuted).Padding(0, 14, 10, 14)
+		native.Text(c, "→ "+w.git.Upstream).FontSize(11).TextColor(t.TextMuted).SingleLine().Padding(0, 14, 4, 14)
 	}
 	if initialLoading {
 		native.Text(c, "正在读取 Git…").FontSize(11).TextColor(t.TextMuted).Padding(8, 14)
@@ -329,7 +329,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		}
 	}
 	native.Scroll(c.Key("git-list")).TrackScroll(&w.gitScroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
-		native.Column(c).FillWidth().Padding(4, 8).Gap(14).Children(func() {
+		native.Column(c).FillWidth().Padding(4, 8).Gap(8).Children(func() {
 			for _, group := range []string{"冲突", "更改", "已暂存的更改"} {
 				var entries []gitview.Entry
 				for _, e := range w.git.Entries {
@@ -340,44 +340,47 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 				if group == "冲突" && len(entries) == 0 {
 					continue
 				}
-				header := treeButton(c.Key(group), "折叠 "+group).FillWidth().Height(30)
-				header.Children(func() {
-					native.Row(c).Fill().Gap(7).AlignItems(native.Center).Children(func() {
-						g := native.Icon(c, chevron).Size(13, 13)
-						if w.collapsed[group] {
-							g.Rotate(-90)
-						}
-						native.Text(c, fmt.Sprintf("%s %d", group, len(entries))).FontSize(12).Bold()
-					})
-				})
-				if header.Clicked() {
-					w.collapsed[group] = !w.collapsed[group]
-				}
-				if w.collapsed[group] {
-					continue
-				}
-				if len(entries) == 0 {
-					native.Text(c, "没有"+group).FontSize(11).TextColor(t.TextMuted).Padding(8, 18)
-				}
-				for _, e := range entries {
-					b := treeButton(c.Key(group+e.Path), "Git "+group+" "+e.Path).FillWidth().Height(36).Padding(0, 10)
-					b.Children(func() {
-						native.Row(c).Fill().Gap(7).AlignItems(native.Center).Children(func() {
-							native.Icon(c, fileIcon).Size(14, 14).TextColor(t.TextMuted)
-							native.Text(c, filepath.Base(e.Path)).FontSize(12).SingleLine().Shrink(1).MinWidth(0)
-							parent := filepath.Dir(e.Path)
-							if parent != "." {
-								native.Text(c, parent).FontSize(10).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
-							} else {
-								native.Spacer(c)
+				native.Column(c.Key(group)).FillWidth().Gap(0).Children(func() {
+					header := treeButton(c.Key("header"), "折叠 "+group).FillWidth().Height(26).Padding(0, 6)
+					header.Children(func() {
+						native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
+							g := native.Icon(c, chevron).Size(12, 12)
+							if w.collapsed[group] {
+								g.Rotate(-90)
 							}
-							native.Text(c, e.XY).FontSize(10).TextColor(t.TextMuted)
+							native.Text(c, group).FontSize(12).Bold().SingleLine()
+							native.Text(c, fmt.Sprint(len(entries))).FontSize(11).TextColor(t.TextMuted).SingleLine()
 						})
 					})
-					if b.Clicked() {
-						a.openGitDiff(w, e, group == "已暂存的更改")
+					if header.Clicked() {
+						w.collapsed[group] = !w.collapsed[group]
 					}
-				}
+					if w.collapsed[group] {
+						return
+					}
+					if len(entries) == 0 {
+						native.Text(c, "没有"+group).FontSize(11).TextColor(t.TextMuted).Padding(4, 24)
+					}
+					for _, e := range entries {
+						b := treeButton(c.Key(e.Path), "Git "+group+" "+e.Path).FillWidth().Height(28).Padding(0, 8)
+						b.Children(func() {
+							native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
+								native.Icon(c, fileIcon).Size(13, 13).TextColor(t.TextMuted)
+								native.Text(c, filepath.Base(e.Path)).FontSize(12).SingleLine().Shrink(1).MinWidth(0)
+								parent := filepath.Dir(e.Path)
+								if parent != "." {
+									native.Text(c, parent).FontSize(10).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+								} else {
+									native.Spacer(c)
+								}
+								native.Text(c, e.XY).Font("monospace").FontSize(10).TextColor(t.TextMuted).SingleLine().Width(18).Shrink(0)
+							})
+						})
+						if b.Clicked() {
+							a.openGitDiff(w, e, group == "已暂存的更改")
+						}
+					}
+				})
 			}
 		})
 	})
