@@ -41,6 +41,7 @@ type App struct {
 	nextSession       int
 	sidebarOpen       bool
 	sidebarWidth      float32
+	rightPanelWidth   float32
 	compactSidebar    bool
 	sessionQuery      string
 	tabsSelected      string

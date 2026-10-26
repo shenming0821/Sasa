@@ -253,8 +253,12 @@ func (a *App) sessionTabs(c *native.Context) {
 	a.tabsSelected = renderedActive
 }
 
-func historyPanelWidth(width float32) float32 {
-	return min(320, max(240, width-400))
+func (a *App) effectiveRightPanelWidth(width float32) float32 {
+	preferred := a.rightPanelWidth
+	if preferred == 0 {
+		preferred = 320
+	}
+	return min(max(preferred, 240), 520, max(240, width-401))
 }
 
 func (a *App) sidebarVisible(width float32) bool {
@@ -263,7 +267,7 @@ func (a *App) sidebarVisible(width float32) bool {
 
 func (a *App) sidebarFits(width float32) bool {
 	return width >= 900 &&
-		(!a.historyOpen || width >= a.sidebarWidth+1+historyPanelWidth(width)+400)
+		(!a.historyOpen || width >= a.sidebarWidth+2+a.effectiveRightPanelWidth(width)+400)
 }
 
 func (a *App) toggleHistory() {
@@ -306,7 +310,7 @@ func (a *App) sidebarToggle(c *native.Context, left bool) {
 func (a *App) historyPanel(c *native.Context) {
 	t := c.Theme()
 	width, _ := c.Size()
-	native.Column(c.Key("history-panel")).Width(historyPanelWidth(width)).Shrink(0).FillHeight().Background(t.Surface).
+	native.Column(c.Key("history-panel")).Width(a.effectiveRightPanelWidth(width)).Shrink(0).FillHeight().Background(t.Surface).
 		BorderWidth(0, 0, 0, 1).BorderColor(t.Border.Alpha(0.5)).Children(func() {
 		native.Row(c).FillWidth().Height(46).Padding(0, 16).AlignItems(native.Center).Children(func() {
 			native.Text(c, "会话历史").FontSize(13).Bold()

@@ -164,6 +164,10 @@ func TestNavigationSettingsRestoreAndOldDefaults(t *testing.T) {
 				t.Fatal(err)
 			}
 			a.sidebarWidth, a.historyOpen = savedWidth, true
+			a.rightPanelWidth = savedWidth
+			if savedWidth != 0 {
+				a.rightPanelWidth = 430
+			}
 			a.collapsedProjects = map[string]bool{"/one": true}
 			if err := a.persist(); err != nil {
 				t.Fatal(err)
@@ -179,7 +183,83 @@ func TestNavigationSettingsRestoreAndOldDefaults(t *testing.T) {
 			if b.sidebarWidth != want || !b.historyOpen || !b.collapsedProjects["/one"] {
 				t.Fatal("layout settings lost or old width default not applied")
 			}
+			wantRight := float32(320)
+			if savedWidth != 0 {
+				wantRight = 430
+			}
+			if b.rightPanelWidth != a.rightPanelWidth || b.effectiveRightPanelWidth(1400) != wantRight {
+				t.Fatal("right panel width lost or old default not applied")
+			}
 		})
+	}
+}
+
+func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
+	a := New(stubBackend{}, "test", "/one", nil)
+	a.historyOpen = true
+	a.nativeThreads = []codex.ThreadMeta{{ID: "one", Cwd: "/one"}}
+	tt := native.NewTester(a.view, 1400, 760)
+	toggle := func() native.Rect {
+		t.Helper()
+		r, ok := tt.Find("切换右侧边栏")
+		if !ok {
+			t.Fatal("missing right panel")
+		}
+		return r
+	}
+	drag := func(dx float32) {
+		t.Helper()
+		r := toggle()
+		width := a.effectiveRightPanelWidth(1159)
+		x, y := 1400-width-1, r.Y+r.H/2
+		tt.Move(x, y)
+		if tt.Cursor() != native.CursorResizeEW {
+			t.Fatal("divider has no horizontal resize cursor")
+		}
+		tt.Press(x, y)
+		tt.Move(x+dx, y)
+		tt.Release(x+dx, y)
+		tt.Frame()
+	}
+	before := toggle().X
+	drag(-80)
+	if a.rightPanelWidth != 400 || toggle().X != before {
+		t.Fatalf("right panel did not grow from its left edge: width=%v", a.rightPanelWidth)
+	}
+	// A drag focuses this divider; arrow keys must move the same boundary.
+	tt.Key(0, native.KeyLeft)
+	if a.rightPanelWidth != 410 {
+		t.Fatalf("keyboard did not grow right panel: %v", a.rightPanelWidth)
+	}
+	tt.Key(0, native.KeyRight)
+	if a.rightPanelWidth != 400 {
+		t.Fatalf("keyboard did not shrink right panel: %v", a.rightPanelWidth)
+	}
+	for _, tab := range []string{"文件", "Git", "会话历史"} {
+		if err := tt.Click(tab); err != nil {
+			t.Fatal(err)
+		}
+		if a.rightPanelWidth != 400 {
+			t.Fatal("switching right tabs reset width")
+		}
+	}
+	drag(-500)
+	if a.rightPanelWidth != 520 {
+		t.Fatalf("upper width bound: %v", a.rightPanelWidth)
+	}
+	drag(600)
+	if a.rightPanelWidth != 240 {
+		t.Fatalf("lower width bound: %v", a.rightPanelWidth)
+	}
+	a.rightPanelWidth = 500
+	tt.Frame()
+	tt.SetSize(640, 480)
+	if a.rightPanelWidth != 500 || a.effectiveRightPanelWidth(640) != 240 || tt.HasText("搜索会话") {
+		t.Fatal("narrow window lost preference or failed to fit right panel")
+	}
+	tt.SetSize(1400, 760)
+	if a.effectiveRightPanelWidth(1159) != 500 {
+		t.Fatal("wide window did not restore preferred width")
 	}
 }
 

@@ -41,6 +41,9 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	if snapshot.SidebarWidth >= 200 && snapshot.SidebarWidth <= 320 {
 		a.sidebarWidth = snapshot.SidebarWidth
 	}
+	if snapshot.RightPanelWidth >= 240 && snapshot.RightPanelWidth <= 520 {
+		a.rightPanelWidth = snapshot.RightPanelWidth
+	}
 	a.historyOpen, a.collapsedProjects = snapshot.HistoryOpen, snapshot.CollapsedProjects
 	for _, saved := range snapshot.Sessions {
 		s := &session{id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == ""}
@@ -108,6 +111,7 @@ func (a *App) snapshot() storage.Snapshot {
 		OpenTabs:     []int{},
 		Selected:     a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
+		RightPanelWidth: a.rightPanelWidth,
 	}
 	a.snapshotWorkspaceTabs(&result)
 	if !a.open {

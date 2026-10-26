@@ -117,3 +117,23 @@ FUYU_UI_EVIDENCE=/tmp/fuyu-git-workflow-ui-20261026 ./scripts/go test ./internal
 - `./scripts/go build -o bin/Fuyu.app/Contents/MacOS/Fuyu ./cmd/desktop` 和 `git diff --check` 通过。
 
 原 `bin/Fuyu.app` 已正常重开。原生窗口展开 `fa35179` 后列出八个变更文件，收起后文件行消失；点击 `docs/subsystems/editor.md` 后，主窗口正文实际加载该文件的历史差异。保留原数据目录、标签与草稿，未在 Fuyu 仓库执行 Git 写操作。代码和文档已提交。
+
+## 更改行尾共用区域
+
+“更改”文件行的增删数及状态字母与三个操作按钮合并到同一行尾区域。默认显示变更情况，悬停或键盘聚焦时替换为打开文件、撤销改动、暂存按钮；移出且无键盘焦点时恢复变更情况。共用区域至少 72 DIP，较大数字按文字测宽增加占位，切换显示时保持文件名位置和行高。已暂存、冲突组保留既有排列。
+
+更新 `TestGitFileRowHoverKeepsGeometryAndActiveComparison`，在 260/360 DIP 下验证互斥显示、行尾边界、连续跨按钮悬停、选中背景、文件名位置和移出恢复。新增 `TestGitWorkingTreeTrailingAreaSwapsLargeCountsAndKeyboardActions`，覆盖七位增删数、窄行、键盘聚焦替换与移出后焦点保留。
+
+`./scripts/go test ./...` 通过，UI 包耗时 15.113 秒；`./scripts/go vet ./...`、桌面入口构建和差异检查通过。本轮未执行 race。原 `bin/Fuyu.app` 已正常退出并重开，实际窗口确认默认行尾增删数和字母显示；精确鼠标悬停替换由组件输入回归覆盖，本轮不单列为原生验收通过。原有数据及空白主窗口保留，未对 Fuyu 执行 Git 写操作；代码和文档已提交。
+
+### 文件操作单一文字提示
+
+修复共享按钮和文件行分别调用 `Tooltip` 导致同时显示两个气泡的问题，改为创建按钮时传入最终动作文字。打开文件、撤销改动、暂存、取消暂存、标记已解决的气泡只显示动作，不显示路径。新增 `TestGitFileActionsShowOneActionOnlyTooltip`，对更改、已暂存与冲突组的每个操作悬停一秒，断言只新增一个动作文字提示。
+
+完整 `./scripts/go test ./...`、`./scripts/go vet ./...` 和桌面入口构建通过，UI 测试耗时 14.185 秒。原应用已正常退出并重开，气泡的数量与内容由组件回归验证；本轮未单列原生悬停验收，未执行 race。代码和文档已提交。
+
+### 文件名优先显示
+
+目录改用零 flex basis，只使用文件名自然宽度以外的剩余空间。文件名需要截断时目录宽度为零，避免同时显示文件名和路径的省略号；文字入口右内边距从 8 DIP 缩至 2 DIP，让文字更接近行尾打开文件图标。
+
+新增 `TestGitFileRowPrioritizesFilenameBeforeDirectory`，在 240/320/520 DIP 和更改/已暂存分组下核对文件名未完整时目录不占宽度、悬停前后位置稳定、截断文件名接近操作区。完整 `./scripts/go test ./...`（UI 包 14.059 秒）、`./scripts/go vet ./...`、桌面构建通过。原应用已正常重开，实际窗口中的 `2026-10-26-git-workflow.md` 完整显示后，路径在剩余空间中截断；短文件名旁正常显示目录。本轮未执行 race，代码和文档已提交。

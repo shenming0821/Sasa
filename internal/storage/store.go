@@ -44,6 +44,7 @@ type Snapshot struct {
 	OpenTabs          []int
 	SidebarOpen       bool
 	SidebarWidth      float32
+	RightPanelWidth   float32
 	HistoryOpen       bool
 	CollapsedProjects map[string]bool
 	Sessions          []Session

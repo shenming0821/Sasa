@@ -58,7 +58,7 @@ func (a *App) view(c *native.Context) {
 	leftShown, rightShown := sidebar || a.compactSidebar, a.historyOpen && width >= 640
 	native.Box(c).Fill().Children(func() {
 		center := func() {
-			native.Row(c).Fill().Children(func() {
+			main := func() {
 				if d := a.currentFile(); d != nil {
 					a.fileView(c.Key(d.id), d, leftShown, rightShown)
 				} else if a.open {
@@ -66,10 +66,20 @@ func (a *App) view(c *native.Context) {
 				} else {
 					a.emptyWorkspace(c.Key("empty-workspace"), leftShown, rightShown)
 				}
-				if rightShown {
-					a.rightPanel(c)
+			}
+			if rightShown {
+				available := width
+				if sidebar {
+					available -= a.sidebarWidth + 1
 				}
-			})
+				mainWidth := available - a.effectiveRightPanelWidth(available) - 1
+				split := native.Split(c.Key("right-panel-split"), &mainWidth, main, func() { a.rightPanel(c) }).Fill()
+				if split.Changed() {
+					a.rightPanelWidth = min(max(available-mainWidth-1, 240), 520, max(240, available-401))
+				}
+			} else {
+				native.Row(c).Fill().Children(main)
+			}
 		}
 		if sidebar {
 			native.Split(c, &a.sidebarWidth, func() { a.sidebar(c) }, center).Fill()

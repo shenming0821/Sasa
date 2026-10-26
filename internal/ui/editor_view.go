@@ -20,8 +20,7 @@ var historyTabIcon = icon(`<path d="M3 11a9 9 0 1 1 2.6 7.4M3 4v7h7M12 7v5l3 2"/
 
 func (a *App) rightPanel(c *native.Context) {
 	t := c.Theme()
-	width, _ := c.Size()
-	native.Column(c.Key("workspace-panel")).Width(historyPanelWidth(width)).Shrink(0).FillHeight().Background(t.Surface).BorderWidth(0, 0, 0, 1).BorderColor(t.Border.Alpha(.5)).Children(func() {
+	native.Column(c.Key("workspace-panel")).Fill().MinWidth(0).Background(t.Surface).Children(func() {
 		native.Row(c).Height(46).FillWidth().Padding(0, 12).Gap(4).AlignItems(native.Center).Children(func() {
 			for _, tab := range []struct {
 				id, label string
@@ -517,7 +516,10 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		}
 		if right {
 			total, _ := c.Size()
-			available -= historyPanelWidth(total)
+			if left {
+				total -= a.sidebarWidth + 1
+			}
+			available -= a.effectiveRightPanelWidth(total) + 1
 		}
 		if d.kind == "diff" && d.gitSplit && d.gitReview != nil && len(d.gitReview.Hunks) > 0 && available >= 520 {
 			a.gitSplitView(c, d)
