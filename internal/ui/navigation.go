@@ -192,6 +192,7 @@ func (a *App) sessionTabs(c *native.Context) {
 							closeLabel = fmt.Sprintf("关闭会话标签 %d", tab.SessionID)
 						}
 						b := quietButton(tc, label).Grow(1).MinWidth(0).FillHeight().Radius(0).Padding(0, 12).Tooltip(a.tabTitle(tab) + "\n" + tab.Workspace)
+						buttonFace(tc, b, native.Color{}, t.SurfaceHover, t.SurfacePressed, 0, 0)
 						if a.tabHandles == nil {
 							a.tabHandles = map[string]*native.Handle{}
 						}

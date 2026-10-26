@@ -325,7 +325,7 @@ func (a *App) historyBrowser(c *native.Context) {
 					continue
 				}
 				count++
-				b := quietButton(c.Key(thread.ID), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(thread.Cwd)
+				b := treeButton(c.Key(thread.ID), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(thread.Cwd)
 				b.Children(func() {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
 						native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)

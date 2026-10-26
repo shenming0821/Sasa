@@ -16,7 +16,7 @@ import (
 
 var fileIcon = icon(`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6"/>`)
 var gitIcon = icon(`<circle cx="6" cy="5" r="3"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M6 8v8m12-8c0 6-12 1-12 8"/>`)
-var historyTabIcon = icon(`<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>`)
+var historyTabIcon = icon(`<path d="M3 11a9 9 0 1 1 2.6 7.4M3 4v7h7M12 7v5l3 2"/>`)
 
 func (a *App) rightPanel(c *native.Context) {
 	t := c.Theme()
@@ -27,10 +27,7 @@ func (a *App) rightPanel(c *native.Context) {
 				id, label string
 				glyph     *native.SVG
 			}{{"files", "文件", fileIcon}, {"history", "会话历史", historyTabIcon}, {"git", "Git", gitIcon}} {
-				b := quietButton(c.Key(tab.id), tab.label).Size(36, 36)
-				if a.rightTab == tab.id {
-					b.TextColor(t.Text).BorderWidth(0, 0, 2, 0).BorderColor(t.Text)
-				}
+				b := panelTabButton(c.Key(tab.id), tab.label, a.rightTab == tab.id)
 				b.Children(func() { native.Icon(c, tab.glyph).Size(18, 18) })
 				if b.Clicked() {
 					a.rightTab = tab.id
@@ -551,10 +548,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					return false
 				})
 				native.Text(c, d.findResult).FontSize(11).TextColor(t.TextMuted)
-				caseButton := quietButton(c, "区分大小写").Size(28, 26).Tooltip("区分大小写")
-				if d.findCase {
-					caseButton.Background(t.SurfaceHover)
-				}
+				caseButton := native.ButtonBase(c).Label("区分大小写").Size(28, 26).
+					Tooltip("区分大小写").Radius(8).TextColor(t.TextMuted)
+				selectedButtonFace(c, caseButton, d.findCase, 8, 0)
 				caseButton.Children(func() { native.Text(c, "Aa").FontSize(11) })
 				if caseButton.Clicked() {
 					d.findCase = !d.findCase

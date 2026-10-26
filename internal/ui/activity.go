@@ -11,9 +11,7 @@ import (
 )
 
 func actionButton(c *native.Context, label string) native.Element {
-	t := c.Theme()
-	b := quietButton(c, label).AlignSelf(native.Start).Padding(7, 10).
-		Border(1, t.Border).Background(t.Background).TextColor(t.Text)
+	b := outlinedButton(c, label).AlignSelf(native.Start).Padding(7, 10)
 	b.Children(func() { native.Text(c, label).FontSize(12) })
 	return b
 }
@@ -170,7 +168,9 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 					native.Text(c, q.Header).FontSize(12).TextColor(t.TextMuted)
 					native.Text(c, q.Question).FontSize(14)
 					for index, option := range q.Options {
-						button := actionButton(c, option.Label).FillWidth().Disabled(disabled)
+						button := selectableActionButton(c, option.Label, r.Answers[i] == option.Label).
+							AlignSelf(native.Start).Padding(7, 10).FillWidth().Disabled(disabled)
+						button.Children(func() { native.Text(c, option.Label).FontSize(12) })
 						if r.FocusInvalid && r.InvalidQuestion == q.ID && !q.IsOther && index == 0 {
 							button.Focus()
 							r.FocusInvalid = false
@@ -178,9 +178,6 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 						if button.Clicked() {
 							r.Answers[i] = option.Label
 							r.Error, r.InvalidQuestion = "", ""
-						}
-						if r.Answers[i] == option.Label {
-							button.Background(t.SurfacePressed).TextColor(t.Text)
 						}
 						native.Text(c, option.Description).FontSize(11).TextColor(t.TextMuted)
 					}

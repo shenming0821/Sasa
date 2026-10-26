@@ -34,17 +34,6 @@ func icon(paths string) *native.SVG {
 	return native.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">` + paths + `</svg>`))
 }
 
-func quietButton(c *native.Context, label string) native.Element {
-	t := c.Theme()
-	b := native.ButtonBase(c).Label(label).Tooltip(label).Radius(8).Padding(6).TextColor(t.TextMuted)
-	if b.Pressed() {
-		b.Background(t.SurfacePressed)
-	} else if b.Hovered() {
-		b.Background(t.SurfaceHover)
-	}
-	return b
-}
-
 // Each message and the composer share this width independently of list scrolling.
 func readingColumn(c *native.Context, build func()) {
 	native.Row(c).FillWidth().Justify(native.Center).Children(func() {
@@ -257,9 +246,10 @@ func (a *App) conversation(c *native.Context) {
 				PassThrough().Gradient(t.Background.Alpha(0), t.Background, 180)
 			native.Row(c).Absolute().Left(0).Right(0).Bottom(returnButtonGap).
 				Height(returnButtonSize).Justify(native.Center).PassThrough().Children(func() {
-				b := quietButton(c, "返回最新消息").Size(returnButtonSize, returnButtonSize).
-					Radius(returnButtonSize/2).Background(t.Background).TextColor(t.Text).
+				b := outlinedButton(c, "返回最新消息").Size(returnButtonSize, returnButtonSize).
+					Radius(returnButtonSize/2).
 					Border(1, t.Border).Shadow(0, 1, 4, 0, native.RGBA(0, 0, 0, 0.06))
+				buttonFace(c, b, t.Background, t.SurfaceHover, t.SurfacePressed, returnButtonSize/2, 0)
 				b.Children(func() { native.Icon(c, downIcon).Size(18, 18) })
 				if b.Clicked() {
 					a.list.ScrollToEnd()
@@ -296,7 +286,7 @@ func (a *App) toolbar(c *native.Context, leftShown, rightShown bool) {
 					path = "选择工作目录后开始任务"
 				}
 				native.Text(c, path).FontSize(13).Selectable()
-				if native.Button(c, "选择目录").Disabled(a.State.Disconnected).Clicked() {
+				if actionButton(c, "选择目录").Disabled(a.State.Disconnected).Clicked() {
 					a.projectOpen = false
 					go a.chooseDirectory(a.session, a.State.Cwd)
 				}
@@ -407,10 +397,8 @@ func (a *App) composer(c *native.Context) {
 				disabled = a.State.TurnID == "" || a.State.Phase == "正在停止"
 			}
 			button := native.ButtonBase(c).Label(action).Tooltip(hint).
-				Size(34, 34).Radius(17).Background(t.Text).TextColor(t.Background).Disabled(disabled)
-			if button.Hovered() {
-				button.Opacity(0.8)
-			}
+				Size(34, 34).Radius(17).TextColor(t.Background).Disabled(disabled)
+			buttonFace(c, button, t.Text, t.Text.Mix(t.Background, .12), t.Text.Mix(t.Background, .22), 17, 0)
 			button.Children(func() { native.Icon(c, glyph).Size(20, 20) })
 			if button.Clicked() {
 				if a.State.Busy {
@@ -442,7 +430,7 @@ func (a *App) runtimeDetails(c *native.Context) {
 			})
 		}
 		native.Text(c, "Enter 发送 · ⌘ Enter 换行").FontSize(11).TextColor(t.TextMuted)
-		if native.Button(c, "刷新原生历史").Disabled(a.State.ThreadID == "" || a.State.Busy || a.State.Disconnected || a.recovering).Clicked() {
+		if actionButton(c, "刷新原生历史").Disabled(a.State.ThreadID == "" || a.State.Busy || a.State.Disconnected || a.recovering).Clicked() {
 			a.detailsOpen = false
 			a.recoverSession(a.session)
 		}
