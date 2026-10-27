@@ -86,6 +86,12 @@ def main():
             '\t\t\tsendSuper(self, "MyGoAccessibilityElement", cmd, uintptr(cached))',
         ),
     ]
+    # Keep bullets compact while ordered lists retain room for tabular digits.
+    edits["ui/markdown/view.go"] = [(
+        "width := th.em(th.ListIndent)\n\tif b.Ordered {",
+        "width := th.em(th.ListIndent)\n\tif !b.Ordered {\n"
+        "\t\twidth = min(width, th.em(1.4))\n\t}\n\tif b.Ordered {",
+    )]
     # Go forbids overlays inside GOMODCACHE, so patch an isolated project cache.
     revision = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()[:16]
     cache = root / ".cache" / "mygo-input-style"

@@ -140,3 +140,21 @@ func TestComposerAndSendGates(t *testing.T) {
 		}
 	}
 }
+
+func TestUnorderedListUsesCompactMarkerColumn(t *testing.T) {
+	for _, width := range []int{320, 700} {
+		for _, done := range []bool{false, true} {
+			a := New(stubBackend{}, "test", "/tmp", nil)
+			a.md.Reveal = &markdown.Reveal{Unit: markdown.AtOnce}
+			msg := &app.Message{ID: "bullets", Role: "assistant", Done: done,
+				Text: "- First item\n  - Nested item\n- Second item\n"}
+			tt := native.NewTester(func(c *native.Context) { a.message(c, msg) }, width, 480)
+			first, ok := tt.Find("First item")
+			nested, nestedOK := tt.Find("Nested item")
+			second, secondOK := tt.Find("Second item")
+			if !ok || !nestedOK || !secondOK || first.X > 22 || nested.X-first.X > 22 || second.X != first.X {
+				t.Fatalf("wide or misaligned bullet columns: first=%+v nested=%+v second=%+v", first, nested, second)
+			}
+		}
+	}
+}

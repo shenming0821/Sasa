@@ -52,3 +52,15 @@ MCP、动态工具与网页搜索以单行记录展示，优先使用动作标�
 新增 `TestScrollToTopLoadsOlderHistoryWithoutButton`，受控后端验证末尾不请求、滚动顶部触发分页、补入更早消息、保留输入草稿及原消息屏幕位置。针对性历史恢复/阅读/布局测试通过；`./scripts/go test -p 1 ./...`、`./scripts/go vet ./...`、`./scripts/build` 和 `git diff --check` 通过。
 
 正常退出旧进程并确认退出后重开应用，实际会话 2 的 AX 与截图均确认按钮及其占位已移除，向上滚动可继续浏览更早记录。分页协议行为以受控测试为证，未发送新模型任务。应用保持打开供用户验证，未暂存、未提交。
+
+## 正文与过程记录间距（同日后续）
+
+根据用户截图，正文/命令/工具/文件卡片之间的行边界由 28 DIP 收紧为 12 DIP；用户消息前后保留 24 DIP，相邻过程记录继续为 4 DIP。正文与复制按钮间距由 8 DIP 改为 4 DIP，复制按钮由 28 DIP 改为 24 DIP，图标保持 16 DIP。
+
+现有过程记录、工具、命令、聊天布局、返回最新消息、顶部分页及阅读偏移恢复测试通过；构建和差异检查通过。本轮为纯间距调整，未重复全量测试和 race。
+
+正常退出并重开应用后，首次历史恢复报 context deadline exceeded；点击“重新核验原生会话”后恢复成功。实际会话 2 已确认截图对应的正文、复制按钮、失败命令与后续正文排列更紧凑，应用保持打开供用户验证。未暂存、未提交。
+
+提交前复跑完整测试时，`TestOccupiedHistoryRemainsReadableAndRetryUnlocksComposer` 报 `ui: a ListState shown by two Lists`。该测试在同一 `*App` 上先后创建三个 `Tester`，每个 `Tester` 是独立 runtime 且帧号从 1 重新计数；间距收紧后第二段宽度只渲染一帧，残留的列表帧号（1/0）与第三个 runtime 的首帧相同，触发 MyGo 的重复绑定检查。基线提交在同样三段尺寸下恰好渲染两帧而未碰撞，因此该风险此前被掩盖。应用内只有一个 runtime、帧号单调递增，不受影响。
+
+按仓库既有的 `SetSize` 用法将该测试改为复用单个 `Tester` 切换 1000×480、640×480 和恢复后的 1000×760，断言保持不变。随后 `./scripts/go test -p 1 ./...`（UI 14.517s）、`./scripts/go vet ./...`、`./scripts/build` 与 `git diff --check` 全部通过。未新增或改动应用代码，仅调整测试的 runtime 组织方式。

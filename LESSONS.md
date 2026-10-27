@@ -70,7 +70,7 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 | 在键盘回调查询上一次渲染的 Element 引发过期 pass panic | 跨回调保留必要状态值；需持久定位时使用框架 Handle，避免直接持有 Element 调用方法 | `internal/ui/app.go`、[P1 验收](docs/verification/2026-10-22-p1.md) |
 | turn 已完成/中断，独立后台 sleep 仍运行 | 分别以 turn 与 item 的原生事件核对终态，停止后检查实际子进程；只对实际覆盖的退出路径声明清理通过 | [P1 原生窗口验收](docs/verification/2026-10-22-p1.md) |
 | main 在资源创建后 os.Exit 跳过 defer | 将有资源的工作放入返回 error 的 run()，退出码在 run 返回后设置 | `cmd/desktop/main.go` |
-| Markdown 编号按比例数字测宽，实际使用 tnum 数字渲染，10 起出现句点换行 | 为当前列表设置 3 em 缩进，逐项增长验证 1–120 的编号高度；依赖修复后重新核验再移除此兼容设置 | `internal/ui/app.go`、`TestStreamListMarkersStayOnOneLine` |
+| Markdown 编号按比例数字测宽，实际使用 tnum 数字渲染，10 起出现句点换行 | 为有序列表保留 3 em 缩进，逐项增长验证 1–120 的编号高度；无序列表通过本地补丁限制为最多 1.4 em，避免圆点两侧留白过大；依赖修复后重新核验再移除此兼容设置 | `internal/ui/app.go`、`TestStreamListMarkersStayOnOneLine` |
 | 服务端报告 willRetry 后恢复输出，旧重连提示仍停留在已完成界面 | 按 turn 跟踪临时重试提示，恢复输出或到达终态时移除对应提示，保留其他警告 | `internal/app/state.go`、`TestRetryNoticeClearsWhenOutputResumes` |
 
 ## 2026-10-22：P2 实测案例

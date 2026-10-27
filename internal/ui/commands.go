@@ -34,7 +34,11 @@ func conversationSpacing(rows []conversationRow, i int) float32 {
 	if i < len(rows) && rows[i-1].processRecord() && rows[i].processRecord() {
 		return 4
 	}
-	return 28
+	if rows[i-1].message != nil && rows[i-1].message.Role == "user" ||
+		i < len(rows) && rows[i].message != nil && rows[i].message.Role == "user" {
+		return 24
+	}
+	return 12
 }
 
 // Project groups once for both virtual-list indices and saved reading anchors.

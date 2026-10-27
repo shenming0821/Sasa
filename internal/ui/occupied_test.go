@@ -61,8 +61,9 @@ func TestOccupiedHistoryRemainsReadableAndRetryUnlocksComposer(t *testing.T) {
 		a.canSend() || a.State.Error != "" || len(a.State.Messages) != 3 {
 		t.Fatalf("occupied history not readable: %+v", a.session)
 	}
+	tt := native.NewTester(a.view, 1000, 480)
 	for _, width := range []int{1000, 640} {
-		tt := native.NewTester(a.view, width, 480)
+		tt.SetSize(width, 480)
 		_, input := tt.Find("任务输入")
 		retry, retryOK := tt.Find("重试")
 		fork, forkOK := tt.Find("创建聊天分叉")
@@ -83,7 +84,7 @@ func TestOccupiedHistoryRemainsReadableAndRetryUnlocksComposer(t *testing.T) {
 	b.err = nil
 	a.recoverSession(a.session)
 	pumpUpdate(t, queue)
-	tt := native.NewTester(a.view, 1000, 760)
+	tt.SetSize(1000, 760)
 	_, input := tt.Find("任务输入")
 	if a.writerOccupied || a.recoveryBlocked || !a.canSend() ||
 		a.State.Draft != "keep draft" || !input {

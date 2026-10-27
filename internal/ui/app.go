@@ -82,7 +82,8 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 	a.rightTab = "history"
 	a.newSession(cwd)
 	// MyGo measures proportional digits but renders tabular list markers.
-	// Reserve room for common multi-digit markers throughout streaming.
+	// Reserve room for common multi-digit markers throughout streaming;
+	// the local Markdown patch caps unordered marker columns at 1.4 em.
 	a.md.Theme = &markdown.Theme{ListIndent: 3, FontSize: 15, LineHeight: 1.5}
 	if startupErr != nil {
 		a.State.Error, a.State.Phase = "连接 Codex 失败，请核对可执行路径和配置后重新启动 Fuyu："+startupErr.Error(), "连接失败"

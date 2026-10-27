@@ -448,7 +448,7 @@ func (a *App) runtimeDetails(c *native.Context) {
 func (a *App) message(c *native.Context, m *app.Message) {
 	t := c.Theme()
 	readingColumn(c, func() {
-		native.Column(c.Key(m.ID)).FillWidth().Gap(8).Children(func() {
+		native.Column(c.Key(m.ID)).FillWidth().Gap(4).Children(func() {
 			if m.Role == "user" {
 				native.Row(c).FillWidth().Justify(native.End).Children(func() {
 					native.Text(c, m.Text).Selectable().FontSize(15).
@@ -466,7 +466,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 						if a.copiedID == m.ID {
 							glyph, label = checkIcon, "已复制"
 						}
-						b := quietButton(c, label).Size(28, 28)
+						b := quietButton(c, label).Size(24, 24)
 						b.Children(func() { native.Icon(c, glyph).Size(16, 16) })
 						if b.Clicked() {
 							c.WriteClipboard(m.Text)
