@@ -7,8 +7,8 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/codex"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
@@ -52,24 +52,34 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	}
 	a.historyOpen, a.collapsedProjects = snapshot.HistoryOpen, snapshot.CollapsedProjects
 	for _, saved := range snapshot.Sessions {
-		s := &session{id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == ""}
+		s := &session{
+			kind: saved.Agent.Normalized(), runtimeKey: saved.Runtime,
+			modelsCwd: saved.Cwd, modelsRuntime: saved.Runtime,
+			id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == "",
+			historyCacheKey: agent.CacheKey{Agent: saved.Agent.Normalized(), Runtime: saved.Runtime, Cwd: saved.Cwd},
+		}
+		s.State.Agent = s.kind
 		s.open = slices.Contains(snapshot.OpenTabs, saved.ID)
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
 		s.State.DraftImages = slices.Clone(saved.DraftImages)
-		s.selectedModel = saved.SelectedModel
+		if saved.ModelAgent == "" || saved.ModelAgent.Normalized() == s.kind {
+			s.selectedModel = saved.SelectedModel
+		}
 		s.completion.cwd = saved.Cwd
-		s.completion.chosen = make(map[string]codex.Skill)
+		s.completion.chosen = make(map[string]agent.Skill)
 		for name, path := range saved.DraftSkills {
-			s.completion.chosen[name] = codex.Skill{Name: name, Path: path, Enabled: true}
+			s.completion.chosen[name] = agent.Skill{Name: name, Path: path, Enabled: true}
 		}
 		if saved.ThreadID != "" {
 			s.State.Phase, s.recoveryBlocked = "等待恢复", true
 		} else if saved.Active {
 			s.reviewRequired, s.recoveryBlocked = true, true
 			s.State.Phase = "上次发送待核验"
-			s.State.Notice = "上次会话创建或发送尚未确认，且没有原生会话 ID。请浏览 Codex 历史核验后确认继续；不会自动重发。"
+			s.State.Notice = "上次会话创建或发送尚未确认，且没有原生会话 ID。请浏览原生历史核验后确认继续；不会自动重发。"
 		}
-		if disconnected {
+		if a.forSession(s).sessionBackend() == nil {
+			s.State.Error, s.State.Disconnected = "当前 Agent 尚未连接，请核验运行时配置。", true
+		} else if disconnected && s.kind.Normalized() == agent.Codex {
 			s.State.Error, s.State.Disconnected = startupError, true
 		}
 		a.sessions = append(a.sessions, s)
@@ -136,6 +146,7 @@ func (a *App) snapshot() storage.Snapshot {
 		item.Draft, item.Title = s.State.Draft, s.title()
 		item.DraftImages = slices.Clone(s.State.DraftImages)
 		item.SelectedModel = s.selectedModel
+		item.Agent, item.Runtime, item.ModelAgent = s.kind.Normalized(), s.runtimeKey, s.kind.Normalized()
 		item.DraftSkills = make(map[string]string)
 		for _, skill := range s.draftSkills(s.State.Draft) {
 			item.DraftSkills[skill.Name] = skill.Path

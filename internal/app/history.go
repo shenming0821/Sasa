@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
 // Project persisted native turns without reviving old transport requests.
 // The caller decides whether any in-progress turn belongs to a live connection.
-func History(cwd, threadID string, turns []codex.HistoryTurn) (State, bool, error) {
+func History(cwd, threadID string, turns []agent.HistoryTurn) (State, bool, error) {
 	s := New(cwd)
 	s.ThreadID = threadID
 	unfinished := false
@@ -22,8 +22,8 @@ func History(cwd, threadID string, turns []codex.HistoryTurn) (State, bool, erro
 		s.TurnID = turn.ID
 		for _, raw := range turn.Items {
 			var item struct {
-				ID      string `json:"id"`
-				Type    string `json:"type"`
+				ID   string `json:"id"`
+				Type string `json:"type"`
 				Content []struct {
 					Type string `json:"type"`
 					Text string `json:"text"`
@@ -50,7 +50,7 @@ func History(cwd, threadID string, turns []codex.HistoryTurn) (State, bool, erro
 				continue
 			}
 			params, _ := json.Marshal(map[string]any{"threadId": threadID, "turnId": turn.ID, "item": raw})
-			s.Apply((codex.Event{Method: "item/completed", Params: params}).ForDisplay())
+			s.Apply((agent.Event{Method: "item/completed", Params: params}).ForDisplay())
 			if turn.Status == "inProgress" {
 				for _, m := range s.Messages {
 					if m.ID == item.ID && m.Tool != nil && m.Tool.Status == "inProgress" {
@@ -71,7 +71,7 @@ func History(cwd, threadID string, turns []codex.HistoryTurn) (State, bool, erro
 		params, _ := json.Marshal(map[string]any{"threadId": threadID, "turn": map[string]any{
 			"id": turn.ID, "status": turn.Status, "error": turn.Error,
 		}})
-		s.Apply(codex.Event{Method: "turn/completed", Params: params})
+		s.Apply(agent.Event{Method: "turn/completed", Params: params})
 	}
 	s.Sequence = len(turns)
 	s.limitDisplay()

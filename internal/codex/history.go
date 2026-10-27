@@ -2,15 +2,11 @@ package codex
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
+
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
-func IsActiveWriter(err error, id string) bool {
-	var rpc *RPCError
-	return errors.As(err, &rpc) && rpc.Code == -32600 &&
-		rpc.Message == "thread "+id+" already has an active writer"
-}
+func IsActiveWriter(err error, id string) bool { return agent.IsActiveWriter(err, id) }
 
 func (c *Client) ReadThreadMeta(ctx context.Context, id string) (ThreadMeta, error) {
 	var result struct {
@@ -28,45 +24,17 @@ func (c *Client) ForkThread(ctx context.Context, id string) (ResumedThread, erro
 	return result, err
 }
 
-type HistoryTurn struct {
-	ID        string            `json:"id"`
-	Status    string            `json:"status"`
-	ItemsView string            `json:"itemsView"`
-	Items     []json.RawMessage `json:"items"`
-	Error     json.RawMessage   `json:"error"`
-}
+type HistoryTurn = agent.HistoryTurn
 
-type ThreadMeta struct {
-	ID      string        `json:"id"`
-	Cwd     string        `json:"cwd"`
-	Preview string        `json:"preview"`
-	Name    *string       `json:"name"`
-	Status  ThreadStatus  `json:"status"`
-	Turns   []HistoryTurn `json:"turns"`
-}
+type ThreadMeta = agent.ThreadMeta
 
-type ThreadStatus struct {
-	Type        string   `json:"type"`
-	ActiveFlags []string `json:"activeFlags"`
-}
+type ThreadStatus = agent.ThreadStatus
 
-type ResumedThread struct {
-	ThreadMeta ThreadMeta      `json:"thread"`
-	Model      string          `json:"model"`
-	Cwd        string          `json:"cwd"`
-	Policy     json.RawMessage `json:"approvalPolicy"`
-	Sandbox    json.RawMessage `json:"sandbox"`
-}
+type ResumedThread = agent.ResumedThread
 
-type TurnsPage struct {
-	Data       []HistoryTurn `json:"data"`
-	NextCursor *string       `json:"nextCursor"`
-}
+type TurnsPage = agent.TurnsPage
 
-type ThreadsPage struct {
-	Data       []ThreadMeta `json:"data"`
-	NextCursor *string      `json:"nextCursor"`
-}
+type ThreadsPage = agent.ThreadsPage
 
 func (c *Client) ResumeThread(ctx context.Context, id string) (ResumedThread, error) {
 	var result ResumedThread

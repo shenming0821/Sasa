@@ -3,15 +3,11 @@ package codex
 import (
 	"context"
 	"fmt"
+
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
-type Model struct {
-	ID          string `json:"id"`
-	Model       string `json:"model"`
-	DisplayName string `json:"displayName"`
-	Hidden      bool   `json:"hidden"`
-	IsDefault   bool   `json:"isDefault"`
-}
+type Model = agent.Model
 
 func (c *Client) ListModels(ctx context.Context) ([]Model, error) {
 	var models []Model

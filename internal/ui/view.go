@@ -144,13 +144,13 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 						row++
 					}
 				}
-				native.Text(c, "Codex 需要你的决定").FontSize(12).TextColor(t.TextMuted)
+				native.Text(c, a.kind.String()+" 需要你的决定").FontSize(12).TextColor(t.TextMuted)
 			})
 		}
 		if len(a.State.Messages) == 0 {
 			native.Column(c).Grow(1).FillWidth().Center().Gap(12).Padding(24).Children(func() {
 				native.Text(c, "从一个清晰的任务开始").FontSize(25)
-				native.Text(c, "与 Codex 一起，把想法变成现实。").FontSize(14).TextColor(t.TextMuted)
+				native.Text(c, "与 "+a.kind.String()+" 一起，把想法变成现实。").FontSize(14).TextColor(t.TextMuted)
 			})
 		} else {
 			a.conversation(c)
@@ -326,7 +326,7 @@ func (a *App) composer(c *native.Context) {
 		Shadow(0, 2, 12, 0, native.RGBA(0, 0, 0, 0.04)).Children(func() {
 		a.draftImageStrip(c)
 		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
-			Placeholder("与 Codex 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
+			Placeholder("与 "+a.kind.String()+" 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
 		if a.completion.focus {
 			composer.Focus().SetTextSelection(a.completion.caret, a.completion.caret)
 			a.completion.focus = false

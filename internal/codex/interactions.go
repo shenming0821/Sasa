@@ -3,10 +3,12 @@ package codex
 import (
 	"encoding/json"
 	"errors"
+
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
-const MaxRequestBytes = 256 * 1024
-const MaxPendingRequests = 16
+const MaxRequestBytes = agent.MaxRequestBytes
+const MaxPendingRequests = agent.MaxPendingRequests
 
 type serverRequest struct {
 	thread, turn string

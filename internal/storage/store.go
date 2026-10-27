@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/project"
 
@@ -18,6 +19,9 @@ import (
 // Only application-owned metadata belongs here. Messages and credentials stay
 // with Codex; pending protocol requests and secret form answers are never saved.
 type Session struct {
+	Agent         agent.AgentKind
+	Runtime       string
+	ModelAgent    agent.AgentKind
 	SelectedModel string
 	DraftImages   []attachment.Image
 	ID            int
@@ -119,8 +123,8 @@ func Open(dir string) (_ *Store, err error) {
 	if err = s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return nil, err
 	}
-	if version > 3 {
-		return nil, fmt.Errorf("数据库版本 %d 高于当前支持版本 3，保留原文件", version)
+	if version > 4 {
+		return nil, fmt.Errorf("数据库版本 %d 高于当前支持版本 4，保留原文件", version)
 	}
 	if version == 0 {
 		tx, e := s.db.Begin()
@@ -206,10 +210,19 @@ func Open(dir string) (_ *Store, err error) {
 			return nil, err
 		}
 	}
+	if version < 4 {
+		if err := s.migrateV4(version > 0); err != nil {
+			return nil, err
+		}
+	}
 	return s, nil
 }
 
 func validateMigrationBackup(path string) error {
+	return validateBackupVersion(path, 2)
+}
+
+func validateBackupVersion(path string, expected int) error {
 	uri := url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro"}
 	db, err := sql.Open("sqlite", uri.String())
 	if err != nil {
@@ -221,8 +234,8 @@ func validateMigrationBackup(path string) error {
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version != 2 {
-		return fmt.Errorf("备份版本为 %d，期望迁移前版本 2", version)
+	if version != expected {
+		return fmt.Errorf("备份版本为 %d，期望迁移前版本 %d", version, expected)
 	}
 	var integrity string
 	if err := db.QueryRow("PRAGMA quick_check").Scan(&integrity); err != nil {
@@ -235,17 +248,37 @@ func validateMigrationBackup(path string) error {
 }
 
 func (s *Store) BindRuntime(home string) error {
+	return s.BindAgentRuntime(agent.Codex, home)
+}
+
+func (s *Store) BindAgentRuntime(kind agent.AgentKind, home string) error {
+	kind = kind.Normalized()
+	if err := kind.Validate(); err != nil {
+		return err
+	}
+	if home == "" {
+		return fmt.Errorf("Runtime 历史目录不能为空")
+	}
+	canonical, err := filepath.Abs(home)
+	if err != nil {
+		return err
+	}
+	if resolved, err := filepath.EvalSymlinks(canonical); err == nil {
+		canonical = resolved
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("规范化 Runtime 历史目录：%w", err)
+	}
 	var saved string
-	err := s.db.QueryRow("SELECT codex_home FROM runtime_identity WHERE id=1").Scan(&saved)
+	err = s.db.QueryRow("SELECT home FROM runtime_identity WHERE agent=?", kind).Scan(&saved)
 	if err == sql.ErrNoRows {
-		_, err = s.db.Exec("INSERT INTO runtime_identity(id,codex_home) VALUES(1,?)", home)
+		_, err = s.db.Exec("INSERT INTO runtime_identity(agent,home) VALUES(?,?)", kind, canonical)
 		return err
 	}
 	if err != nil {
 		return err
 	}
-	if saved != home {
-		return fmt.Errorf("应用索引绑定 Codex 目录 %s，当前为 %s；请使用独立的 -data-dir", saved, home)
+	if saved != canonical {
+		return fmt.Errorf("应用索引绑定 %s 目录 %s，当前为 %s；请使用独立的 -data-dir", kind, saved, canonical)
 	}
 	return nil
 }
@@ -287,6 +320,9 @@ func (s *Store) Load() (Snapshot, error) {
 		if err := json.Unmarshal(raw, &item); err != nil || item.ID <= 0 {
 			return result, fmt.Errorf("会话索引损坏，保留原记录：%v", err)
 		}
+		if err := item.Agent.Validate(); err != nil {
+			return result, err
+		}
 		result.Sessions = append(result.Sessions, item)
 	}
 	return result, rows.Err()
@@ -299,6 +335,12 @@ func (s *Store) Save(snapshot Snapshot) error {
 	}
 	defer tx.Rollback()
 	for _, item := range snapshot.Sessions {
+		if err := item.Agent.Validate(); err != nil {
+			return err
+		}
+		if item.ModelAgent != "" && item.ModelAgent.Normalized() != item.Agent.Normalized() {
+			return fmt.Errorf("模型选择不属于当前 Agent")
+		}
 		raw, err := json.Marshal(item)
 		if err != nil {
 			return err
@@ -307,9 +349,9 @@ func (s *Store) Save(snapshot Snapshot) error {
 		if item.ThreadID != "" {
 			thread = item.ThreadID
 		}
-		if _, err := tx.Exec(`INSERT INTO sessions(id,thread_id,cwd,title,payload) VALUES(?,?,?,?,?)
-			ON CONFLICT(id) DO UPDATE SET thread_id=excluded.thread_id,cwd=excluded.cwd,title=excluded.title,payload=excluded.payload`,
-			item.ID, thread, item.Cwd, item.Title, raw); err != nil {
+		if _, err := tx.Exec(`INSERT INTO sessions(id,agent,thread_id,cwd,title,payload) VALUES(?,?,?,?,?,?)
+			ON CONFLICT(id) DO UPDATE SET agent=excluded.agent,thread_id=excluded.thread_id,cwd=excluded.cwd,title=excluded.title,payload=excluded.payload`,
+			item.ID, item.Agent.Normalized(), thread, item.Cwd, item.Title, raw); err != nil {
 			return err
 		}
 	}

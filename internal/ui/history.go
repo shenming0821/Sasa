@@ -8,15 +8,11 @@ import (
 	"slices"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
-type historyBackend interface {
-	ResumeThread(context.Context, string) (codex.ResumedThread, error)
-	ListTurns(context.Context, string, *string) (codex.TurnsPage, error)
-	ListThreads(context.Context, *string) (codex.ThreadsPage, error)
-}
+type historyBackend = agent.HistoryBackend
 
 func (a *App) recoverSession(s *session) {
 	a.loadSessionHistory(s, nil)
@@ -24,8 +20,8 @@ func (a *App) recoverSession(s *session) {
 
 // A fork already belongs to this transport. Read its returned state directly,
 // preserving the fork's deferred goal instead of resuming it a second time.
-func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
-	backend, ok := a.backend.(historyBackend)
+func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
+	backend, ok := a.forSession(s).sessionBackend().(historyBackend)
 	if !ok || s.State.Disconnected || s.recovering || s.forking || s.State.ThreadID == "" {
 		return
 	}
@@ -45,25 +41,25 @@ func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 	s.recoveryEpoch++
 	epoch, threadID := s.recoveryEpoch, s.State.ThreadID
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
-		var resumed codex.ResumedThread
+		var resumed agent.ResumedThread
 		var err error
 		if fork != nil {
 			resumed = *fork
 		} else {
 			resumed, err = backend.ResumeThread(ctx, threadID)
 		}
-		occupied := codex.IsActiveWriter(err, threadID)
+		occupied := agent.IsActiveWriter(err, threadID)
 		if occupied {
 			if reader, ok := backend.(interface {
-				ReadThreadMeta(context.Context, string) (codex.ThreadMeta, error)
+				ReadThreadMeta(context.Context, string) (agent.ThreadMeta, error)
 			}); ok {
 				resumed.ThreadMeta, err = reader.ReadThreadMeta(ctx, threadID)
 				resumed.Cwd = resumed.ThreadMeta.Cwd
 			}
 		}
-		var page codex.TurnsPage
+		var page agent.TurnsPage
 		if err == nil {
 			page, err = backend.ListTurns(ctx, threadID, nil)
 			if err == nil {
@@ -95,6 +91,7 @@ func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 				s.State.Error = "历史投影失败：" + projectErr.Error()
 				return
 			}
+			state.Agent = s.kind.Normalized()
 			state.Draft = s.State.Draft
 			state.DraftImages = slices.Clone(s.State.DraftImages)
 			if s.saved.Title == "" || s.saved.Title == "新会话" {
@@ -140,7 +137,7 @@ func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 				}
 				return
 			}
-			var controls []codex.Event
+			var controls []agent.Event
 			for _, e := range events {
 				switch e.Method {
 				case "item/agentMessage/delta", "item/commandExecution/outputDelta", "item/fileChange/outputDelta":
@@ -223,7 +220,7 @@ func (a *App) loadHistoryNearTop() {
 
 func (a *App) loadOlder() {
 	s := a.session
-	backend, ok := a.backend.(historyBackend)
+	backend, ok := a.sessionBackend().(historyBackend)
 	if !ok || s.historyCursor == nil || s.historyLoading || s.recovering {
 		return
 	}
@@ -231,7 +228,7 @@ func (a *App) loadOlder() {
 	cursor, epoch, threadID := s.historyCursor, s.recoveryEpoch, s.State.ThreadID
 	bound := a.forSession(s)
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		page, err := backend.ListTurns(ctx, threadID, cursor)
 		if err == nil {
@@ -302,25 +299,34 @@ func (a *App) loadOlder() {
 }
 
 func (a *App) loadThreadList() {
-	backend, ok := a.backend.(historyBackend)
+	a = a.forSession(a.session)
+	key := agent.CacheKey{Agent: a.kind.Normalized(), Runtime: a.runtimeKey, Cwd: a.State.Cwd}
+	if a.historyCacheKey != key && !a.threadsLoading {
+		a.nativeThreads, a.threadsCursor, a.threadsError = nil, nil, ""
+		a.historyCacheKey = key
+	}
+	backend, ok := a.sessionBackend().(historyBackend)
 	if !ok || a.threadsLoading || len(a.nativeThreads) > 0 && a.threadsCursor == nil {
 		return
 	}
 	a.threadsLoading, a.threadsError = true, ""
 	cursor := a.threadsCursor
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		page, err := backend.ListThreads(ctx, cursor)
 		a.update(func() {
 			a.threadsLoading = false
+			if key != (agent.CacheKey{Agent: a.kind.Normalized(), Runtime: a.runtimeKey, Cwd: a.State.Cwd}) {
+				return
+			}
 			if err != nil {
 				a.threadsError = "读取历史失败：" + err.Error()
 				return
 			}
-			threads := make([]codex.ThreadMeta, 0, len(a.nativeThreads)+len(page.Data))
+			threads := make([]agent.ThreadMeta, 0, len(a.nativeThreads)+len(page.Data))
 			positions := make(map[string]int)
-			for _, batch := range [][]codex.ThreadMeta{a.nativeThreads, page.Data} {
+			for _, batch := range [][]agent.ThreadMeta{a.nativeThreads, page.Data} {
 				for _, thread := range batch {
 					if i, exists := positions[thread.ID]; exists {
 						threads[i] = thread
@@ -366,13 +372,15 @@ func (a *App) historyBrowser(c *native.Context) {
 				})
 				if b.Clicked() {
 					for _, s := range a.sessions {
-						if s.State.ThreadID == thread.ID {
+						if s.kind.Normalized() == a.kind.Normalized() && s.runtimeKey == a.runtimeKey && s.State.ThreadID == thread.ID {
 							a.selectSession(s)
 							return
 						}
 					}
+					kind, runtime := a.kind, a.runtimeKey
 					a.newSession(thread.Cwd)
 					s := a.session
+					s.kind, s.runtimeKey = kind, runtime
 					s.State.ThreadID, s.loaded, s.recoveryBlocked = thread.ID, false, true
 					s.saved.Title = title
 					a.recoverSession(s)
@@ -404,7 +412,7 @@ func (a *App) historyBrowser(c *native.Context) {
 	}
 }
 
-func (s *session) bufferRecovery(e codex.Event) bool {
+func (s *session) bufferRecovery(e agent.Event) bool {
 	if !s.recovering || e.Method == "fuyu/disconnected" || e.Method == "fuyu/eventGap" {
 		return false
 	}

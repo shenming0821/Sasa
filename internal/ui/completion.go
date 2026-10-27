@@ -8,17 +8,17 @@ import (
 	"unicode"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
 type inputCompletion struct {
 	key, dismissed  string
 	selected        int
-	skills          []codex.Skill
+	skills          []agent.Skill
 	cwd             string
 	loading, loaded bool
 	error           string
-	chosen          map[string]codex.Skill
+	chosen          map[string]agent.Skill
 	focus           bool
 	caret           int
 	reveal          bool
@@ -31,7 +31,7 @@ type completionQuery struct {
 }
 type completionItem struct {
 	name, description string
-	skill             *codex.Skill
+	skill             *agent.Skill
 }
 
 var slashCommands = []completionItem{
@@ -108,8 +108,8 @@ func (a *App) loadCompletionSkills() {
 	if s.completion.cwd == s.State.Cwd && (s.completion.loaded || s.completion.loading) {
 		return
 	}
-	backend, ok := a.backend.(interface {
-		ListSkills(context.Context, string) ([]codex.SkillsEntry, error)
+	backend, ok := a.sessionBackend().(interface {
+		ListSkills(context.Context, string) ([]agent.SkillsEntry, error)
 	})
 	s.completion.cwd = s.State.Cwd
 	s.completion.skills, s.completion.error = nil, ""
@@ -123,7 +123,7 @@ func (a *App) loadCompletionSkills() {
 	cwd := s.State.Cwd
 	bound := a.forSession(s)
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		entries, err := backend.ListSkills(ctx, cwd)
 		bound.update(func() {
@@ -183,7 +183,7 @@ func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 		token := "$" + item.skill.Name + " "
 		a.State.Draft = string(r[:q.start]) + token + string(r[q.end:])
 		if a.completion.chosen == nil {
-			a.completion.chosen = make(map[string]codex.Skill)
+			a.completion.chosen = make(map[string]agent.Skill)
 		}
 		a.completion.chosen[item.skill.Name] = *item.skill
 		a.completion.caret = q.start + len([]rune(token))
@@ -191,11 +191,11 @@ func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 	}
 }
 
-func (a *session) draftSkills(text string) []codex.Skill {
+func (a *session) draftSkills(text string) []agent.Skill {
 	if a.completion.cwd != a.State.Cwd {
 		return nil
 	}
-	var skills []codex.Skill
+	var skills []agent.Skill
 	seen := make(map[string]bool)
 	r := []rune(text)
 	for end := 1; end <= len(r); end++ {

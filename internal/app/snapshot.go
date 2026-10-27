@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
 func (s *State) Reconcile(raw json.RawMessage) error {
 	var snapshot struct {
 		Thread struct {
-			ID    string `json:"id"`
+			ID string `json:"id"`
 			Turns []struct {
 				ID     string            `json:"id"`
 				Status string            `json:"status"`
@@ -38,7 +38,7 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		projected.ThreadID, projected.TurnID = s.ThreadID, s.TurnID
 		for _, item := range turn.Items {
 			params, _ := json.Marshal(map[string]any{"threadId": s.ThreadID, "turnId": s.TurnID, "item": item})
-			projected.Apply((codex.Event{Method: "item/completed", Params: params}).ForDisplay())
+			projected.Apply((agent.Event{Method: "item/completed", Params: params}).ForDisplay())
 		}
 		for _, m := range projected.Messages {
 			target := s.item(m.ID, m.Role)
@@ -50,7 +50,7 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		terminal, _ := json.Marshal(map[string]any{"threadId": s.ThreadID, "turn": map[string]any{
 			"id": turn.ID, "status": turn.Status, "error": turn.Error,
 		}})
-		projected.Apply(codex.Event{Method: "turn/completed", Params: terminal})
+		projected.Apply(agent.Event{Method: "turn/completed", Params: terminal})
 		s.Phase = projected.Phase
 		if projected.Error != "" {
 			s.Error = projected.Error

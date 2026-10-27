@@ -127,7 +127,7 @@ func (s *State) limitDisplay() {
 		s.Messages[len(s.Messages)-1] = nil
 		s.Messages = s.Messages[:len(s.Messages)-1]
 		s.DisplayTrimmed = true
-		s.Notice = "较早的显示内容已移除以控制内存；完整记录仍由 Codex 保留，可刷新原生历史核验。"
+		s.Notice = "较早的显示内容已移除以控制内存；完整记录仍由 " + s.Agent.String() + " 保留，可刷新原生历史核验。"
 	}
 }
 

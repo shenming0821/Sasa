@@ -1,0 +1,135 @@
+package ui
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Fuyu/internal/storage"
+)
+
+func TestSessionBackendRoutingAndMissingClaude(t *testing.T) {
+	codexBackend := &modelCaptureBackend{}
+	claudeBackend := &modelCaptureBackend{}
+	a := New(codexBackend, "test", "/one", nil)
+	codexSession := a.session
+	if err := a.RegisterBackend(agent.Claude, "/claude", claudeBackend); err != nil {
+		t.Fatal(err)
+	}
+	a.newSession("/two")
+	claudeSession := a.session
+	claudeSession.kind, claudeSession.runtimeKey = agent.Claude, "/claude"
+	if a.sessionBackend() != claudeBackend || a.forSession(codexSession).sessionBackend() != codexBackend {
+		t.Fatal("会话未选择所属后端")
+	}
+	claudeSession.runtimeKey = "/missing"
+	if a.sessionBackend() != nil {
+		t.Fatal("缺失 Claude 连接不能回落到 Codex")
+	}
+	if a.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}) == nil ||
+		a.RegisterBackend(agent.Claude, "/other", claudeBackend) == nil ||
+		a.RegisterBackend("unknown", "/unknown", &modelCaptureBackend{}) == nil {
+		t.Fatal("重复连接或未知 Agent 被注册")
+	}
+}
+
+func TestDisconnectScopeAndLateProcessGeneration(t *testing.T) {
+	a := New(&modelCaptureBackend{}, "test", "/one", nil)
+	codexSession := a.session
+	a.State.ThreadID = "same"
+	a.newSession("/two")
+	first := a.session
+	first.kind, first.runtimeKey, first.generation = agent.Claude, "/claude", 2
+	first.State.ThreadID = "same"
+	a.newSession("/three")
+	second := a.session
+	second.kind, second.runtimeKey, second.generation = agent.Claude, "/claude", 1
+	second.State.ThreadID = "other"
+	source := agent.SessionKey{Agent: agent.Claude, Runtime: "/claude", SessionID: "same"}
+	a.applyBatch([]agent.Event{{Session: source, Generation: 1, Method: "fuyu/disconnected"}})
+	if first.State.Disconnected || second.State.Disconnected || codexSession.State.Disconnected {
+		t.Fatal("旧进程事件污染新连接")
+	}
+	a.applyBatch([]agent.Event{{Session: source, Generation: 2, Method: "fuyu/disconnected"}})
+	if !first.State.Disconnected || second.State.Disconnected || codexSession.State.Disconnected {
+		t.Fatal("单会话断线传播到其他 Agent 或会话")
+	}
+	a.applyBatch([]agent.Event{{Method: "fuyu/disconnected"}})
+	if !codexSession.State.Disconnected || second.State.Disconnected {
+		t.Fatal("旧 Codex 广播失联语义不兼容或污染 Claude")
+	}
+}
+
+func TestModelCatalogCallbackKeepsAgentAndSessionOwner(t *testing.T) {
+	b := &modelCaptureBackend{}
+	a := New(b, "test", "/codex", nil)
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	codexSession := a.session
+	a.loadModels()
+	a.newSession("/claude")
+	claudeSession := a.session
+	claudeSession.kind = agent.Claude
+	pumpUpdate(t, queue)
+	if !codexSession.modelsLoaded || len(codexSession.models) == 0 ||
+		claudeSession.modelsLoaded || len(claudeSession.models) != 0 {
+		t.Fatal("模型目录跨会话或 Agent 写回")
+	}
+	a.selectSession(codexSession)
+	a.loadModels()
+	a.State.Cwd = "/moved"
+	pumpUpdate(t, queue)
+	if codexSession.modelsLoaded || len(codexSession.models) != 0 {
+		t.Fatal("旧 cwd 的模型响应进入新目录缓存")
+	}
+}
+
+func TestScopedEventDoesNotUseEqualNativeIDFromOtherAgent(t *testing.T) {
+	a := New(&modelCaptureBackend{}, "test", "/one", nil)
+	codexSession := a.session
+	codexSession.State.ThreadID = "same"
+	a.newSession("/two")
+	a.kind = agent.Claude
+	a.State.ThreadID = "same"
+	a.applyBatch([]agent.Event{{
+		Session: agent.SessionKey{Agent: agent.Claude},
+		Method:  "item/agentMessage/delta",
+		Params:  json.RawMessage(`{"threadId":"same","turnId":"turn","itemId":"reply","delta":"Claude"}`),
+	}})
+	if len(codexSession.State.Messages) != 0 {
+		t.Fatal("相同原生 ID 的 Claude 事件进入 Codex 会话")
+	}
+}
+
+func TestRestoredClaudeSessionKeepsAgentModelAndDraft(t *testing.T) {
+	store, err := storage.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.Save(storage.Snapshot{
+		Selected: 2, OpenTabs: []int{1, 2},
+		Sessions: []storage.Session{
+			{ID: 1, ThreadID: "same", Cwd: "/codex"},
+			{
+				ID: 2, Agent: agent.Claude, Runtime: "/claude", ModelAgent: agent.Claude,
+				ThreadID: "same", Cwd: "/project", SelectedModel: "claude-model", Draft: "保留草稿",
+			},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	a := New(&modelCaptureBackend{}, "test", "", nil)
+	if err := a.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if a.kind != agent.Claude || a.State.Agent != agent.Claude || a.selectedModel != "claude-model" ||
+		a.State.Draft != "保留草稿" || a.sessionBackend() != nil || !a.State.Disconnected || a.canSend() {
+		t.Fatal("重开改写 Claude 归属或允许使用 Codex 后端")
+	}
+	saved := a.snapshot().Sessions[1]
+	if saved.Agent != agent.Claude || saved.ModelAgent != agent.Claude || saved.Runtime != "/claude" ||
+		saved.SelectedModel != "claude-model" || saved.Draft != "保留草稿" {
+		t.Fatal("未接入 Agent 的索引未保留", saved)
+	}
+}

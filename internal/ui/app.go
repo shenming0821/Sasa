@@ -14,26 +14,17 @@ import (
 	"github.com/egoist/mygo/transfer"
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
 	"github.com/shenming0821/Fuyu/internal/project"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
-type Backend interface {
-	StartThread(context.Context, string) (codex.Thread, error)
-	Send(context.Context, string, string) (codex.Turn, error)
-	Interrupt(context.Context, string, string) error
-	Events() <-chan codex.Event
-}
+type Backend = agent.Backend
 
 type App struct {
 	settingsState
-	models             []codex.Model
-	modelsLoading      bool
-	modelsError        string
-	modelsLoaded       bool
 	imageCache         map[string]*imagePreview
 	imageLoading       bool
 	imageClock         uint64
@@ -44,46 +35,42 @@ type App struct {
 	readImageClipboard func() (transfer.Data, error)
 	*session
 	editorState
-	backend              Backend
-	version              string
-	win                  *mygo.Window
-	md                   markdown.Options
-	sessions             []*session
-	repositories         []project.Repository
-	projectOrder         []string
-	hiddenProjects       map[string]bool
-	projectsLoading      bool
-	projectsError        string
-	projectErrors        map[string]string
-	projectsRefreshed    time.Time
-	nextSession          int
-	sidebarOpen          bool
-	sidebarWidth         float32
-	rightPanelWidth      float32
-	compactSidebar       bool
-	sessionQuery         string
-	tabsSelected         string
-	collapsedProjects    map[string]bool
-	historyQuery         string
-	historyScope         int
-	root                 *App
-	store                *storage.Store
-	lastSaved            []byte
-	storageError         string
-	historyOpen          bool
-	nativeThreads        []codex.ThreadMeta
-	threadsCursor        *string
-	threadsLoading       bool
-	threadsLayoutPending bool
-	threadsError         string
-	quitting             bool
-	quitDialog           bool
-	quitStopping         bool
-	quitDeadline         time.Time
-	quitSent             map[string]bool
-	quitTargets          map[int]bool
-	quitApp              func()
-	quitPrompt           func(mygo.MessageOptions) (mygo.MessageResult, error)
+	backend           Backend
+	backends          map[backendKey]Backend
+	version           string
+	win               *mygo.Window
+	md                markdown.Options
+	sessions          []*session
+	repositories      []project.Repository
+	projectOrder      []string
+	hiddenProjects    map[string]bool
+	projectsLoading   bool
+	projectsError     string
+	projectErrors     map[string]string
+	projectsRefreshed time.Time
+	nextSession       int
+	sidebarOpen       bool
+	sidebarWidth      float32
+	rightPanelWidth   float32
+	compactSidebar    bool
+	sessionQuery      string
+	tabsSelected      string
+	collapsedProjects map[string]bool
+	historyQuery      string
+	historyScope      int
+	root              *App
+	store             *storage.Store
+	lastSaved         []byte
+	storageError      string
+	historyOpen       bool
+	quitting          bool
+	quitDialog        bool
+	quitStopping      bool
+	quitDeadline      time.Time
+	quitSent          map[string]bool
+	quitTargets       map[int]bool
+	quitApp           func()
+	quitPrompt        func(mygo.MessageOptions) (mygo.MessageResult, error)
 	// Replaced in component tests so no task or native dialog is started.
 	submit   func()
 	respond  func(*app.Interaction, any)
@@ -104,7 +91,7 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 	// the local Markdown patch caps unordered marker columns at 1.4 em.
 	a.md.Theme = &markdown.Theme{ListIndent: 3, FontSize: 15, LineHeight: 1.5, Font: textFont, CodeFont: codeFont}
 	if startupErr != nil {
-		a.State.Error, a.State.Phase = "连接 Codex 失败，请核对可执行路径和配置后重新启动 Fuyu："+startupErr.Error(), "连接失败"
+		a.State.Error, a.State.Phase = "连接 Agent 失败，请核对可执行路径和配置后重新启动 Fuyu："+startupErr.Error(), "连接失败"
 		a.State.Disconnected = true
 	}
 	a.submit = a.send
@@ -132,13 +119,16 @@ func (a *App) Run() error {
 			}
 			a.recoverSelectedSession()
 		}
+		for key, backend := range a.backends {
+			go a.receiveBackend(backend, key)
+		}
 		go a.autosave()
 	})
 	return mygo.App.Run()
 }
 
 func (a *App) canSend() bool {
-	return a.open && a.backend != nil && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
+	return a.open && a.sessionBackend() != nil && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		!a.imagesImporting && a.State.Cwd != "" && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
 }
 
@@ -174,7 +164,7 @@ func (a *App) send() {
 	}
 	images := slices.Clone(a.State.DraftImages)
 	if len(images) > 0 {
-		if _, ok := a.backend.(imageSender); !ok {
+		if _, ok := a.sessionBackend().(imageSender); !ok {
 			a.State.Error = "当前连接不支持图片输入"
 			return
 		}
@@ -185,7 +175,7 @@ func (a *App) send() {
 			}
 		}
 	}
-	modelBackend, supportsModels := a.backend.(modelSender)
+	modelBackend, supportsModels := a.sessionBackend().(modelSender)
 	if a.selectedModel != "" && !supportsModels {
 		a.modelError = "当前连接不支持切换模型"
 		return
@@ -199,7 +189,7 @@ func (a *App) send() {
 	}
 	sequence, cwd, threadID := a.State.Sequence, a.State.Cwd, a.State.ThreadID
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		model := selectedModel
 		if supportsModels && model == "" {
@@ -220,7 +210,7 @@ func (a *App) send() {
 			}
 		}
 		if threadID == "" {
-			thread, err := a.backend.StartThread(ctx, cwd)
+			thread, err := a.sessionBackend().StartThread(ctx, cwd)
 			if err != nil {
 				a.fail(sequence, text, err, false)
 				return
@@ -251,18 +241,18 @@ func (a *App) send() {
 				return
 			}
 		}
-		var turn codex.Turn
+		var turn agent.Turn
 		var err error
 		if supportsModels {
 			turn, err = modelBackend.SendWithModel(ctx, threadID, text, skills, images, model)
-		} else if sender, ok := a.backend.(imageSender); ok && len(images) > 0 {
+		} else if sender, ok := a.sessionBackend().(imageSender); ok && len(images) > 0 {
 			turn, err = sender.SendWithImages(ctx, threadID, text, skills, images)
-		} else if sender, ok := a.backend.(interface {
-			SendWithSkills(context.Context, string, string, []codex.Skill) (codex.Turn, error)
+		} else if sender, ok := a.sessionBackend().(interface {
+			SendWithSkills(context.Context, string, string, []agent.Skill) (agent.Turn, error)
 		}); ok && len(skills) > 0 {
 			turn, err = sender.SendWithSkills(ctx, threadID, text, skills)
 		} else {
-			turn, err = a.backend.Send(ctx, threadID, text)
+			turn, err = a.sessionBackend().Send(ctx, threadID, text)
 		}
 		if err != nil {
 			a.fail(sequence, text, err, true)
@@ -300,7 +290,7 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 	if a.State.Sequence != sequence {
 		return
 	}
-	var rpc *codex.RPCError
+	var rpc *agent.RPCError
 	rejectedStart := !turnSubmitted && errors.As(err, &rpc) && !a.State.Disconnected
 	a.State.Busy = false
 	if rejectedStart {
@@ -321,9 +311,9 @@ func (a *App) stop() {
 	a.State.BeginStop()
 	threadID, turnID := a.State.ThreadID, a.State.TurnID
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
-		err := a.backend.Interrupt(ctx, threadID, turnID)
+		err := a.sessionBackend().Interrupt(ctx, threadID, turnID)
 		if err != nil {
 			a.update(func() {
 				if a.State.ThreadID != threadID || a.State.TurnID != turnID || !a.State.Busy {
@@ -337,9 +327,13 @@ func (a *App) stop() {
 }
 
 func (a *App) receive() {
-	events := a.backend.Events()
+	a.receiveBackend(a.backend, backendKey{kind: agent.Codex})
+}
+
+func (a *App) receiveBackend(backend Backend, key backendKey) {
+	events := backend.Events()
 	for event := range events {
-		batch := []codex.Event{event}
+		batch := []agent.Event{event}
 		timer := time.NewTimer(40 * time.Millisecond)
 	collect:
 		for len(batch) < 256 {
@@ -359,6 +353,10 @@ func (a *App) receive() {
 			default:
 			}
 		}
+		for i := range batch {
+			batch[i].Session.Agent = key.kind
+			batch[i].Session.Runtime = key.runtime
+		}
 		applied := make(chan struct{})
 		a.update(func() {
 			defer close(applied)
@@ -374,15 +372,18 @@ func (a *App) receive() {
 	}
 }
 
-func (a *App) applyBatch(batch []codex.Event) {
+func (a *App) applyBatch(batch []agent.Event) {
 	for _, s := range a.sessions {
 		a.forSession(s).applySessionBatch(batch)
 	}
 }
 
-func (a *App) applySessionBatch(batch []codex.Event) {
+func (a *App) applySessionBatch(batch []agent.Event) {
 	follow := false
 	for _, e := range batch {
+		if !a.session.accepts(e) {
+			continue
+		}
 		if a.recovering && e.Method == "fuyu/eventGap" {
 			a.historyOverflow = true
 			continue
@@ -437,7 +438,7 @@ func (a *App) answer(r *app.Interaction, result any) {
 	if err != nil {
 		return
 	}
-	backend, ok := a.backend.(interface {
+	backend, ok := a.sessionBackend().(interface {
 		Respond(json.RawMessage, any) error
 	})
 	if !ok {
@@ -470,7 +471,7 @@ func (a *App) reconcileIfNeeded() {
 	if !a.State.NeedsSnapshot || a.State.Busy || a.State.Disconnected || a.snapshotPending || a.writerOccupied {
 		return
 	}
-	backend, ok := a.backend.(interface {
+	backend, ok := a.sessionBackend().(interface {
 		ReadThread(context.Context, string) (json.RawMessage, error)
 	})
 	if !ok {
@@ -481,7 +482,7 @@ func (a *App) reconcileIfNeeded() {
 	a.snapshotPending = true
 	a.State.NeedsSnapshot = false
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		raw, err := backend.ReadThread(ctx, threadID)
 		a.update(func() {

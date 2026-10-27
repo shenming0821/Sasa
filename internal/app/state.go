@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
 const MaxMessageBytes = 2 * 1024 * 1024
@@ -26,6 +26,7 @@ type Message struct {
 
 // State is owned by the UI thread, including all event application.
 type State struct {
+	Agent               agent.AgentKind
 	DraftImages         []attachment.Image
 	Cwd                 string
 	ThreadID            string
@@ -64,8 +65,11 @@ func (s *State) Begin(text string) {
 	s.Busy, s.Phase = true, "正在发送"
 }
 
-func (s *State) Apply(event codex.Event) {
+func (s *State) Apply(event agent.Event) {
 	defer s.limitDisplay()
+	if event.Session.Agent != "" {
+		s.Agent = event.Session.Agent.Normalized()
+	}
 	if event.Method == "fuyu/eventGap" {
 		s.Incomplete, s.NeedsSnapshot = true, true
 		s.Notice = "输出过快，部分增量未保留；任务结束后将核验原生记录。"
@@ -74,7 +78,7 @@ func (s *State) Apply(event codex.Event) {
 	if event.Method == "fuyu/disconnected" {
 		s.expireInteractions("已失效")
 		s.Disconnected, s.Busy, s.Phase = true, false, "连接已断开"
-		s.Error = "Codex 连接已断开，请重新启动 Fuyu。当前结果尚需核验。"
+		s.Error = s.Agent.String() + " 连接已断开，请重新启动 Fuyu。当前结果尚需核验。"
 		if event.Err != nil {
 			s.Error += " " + event.Err.Error()
 		}
@@ -111,7 +115,7 @@ func (s *State) Apply(event codex.Event) {
 		Error     *struct {
 			Message string `json:"message"`
 		} `json:"error"`
-		Turn codex.Turn `json:"turn"`
+		Turn agent.Turn `json:"turn"`
 		Item struct {
 			ID               string          `json:"id"`
 			Type             string          `json:"type"`
@@ -132,7 +136,7 @@ func (s *State) Apply(event codex.Event) {
 		} `json:"item"`
 	}
 	if err := json.Unmarshal(event.Params, &p); err != nil {
-		s.Error = "无法读取 Codex 事件：" + err.Error()
+		s.Error = "无法读取 " + s.Agent.String() + " 事件：" + err.Error()
 		return
 	}
 	if p.ThreadID != "" && p.ThreadID != s.ThreadID {
@@ -291,7 +295,7 @@ func (s *State) Apply(event codex.Event) {
 		}
 		if p.WillRetry {
 			if !s.Stopping() {
-				s.Phase = "Codex 正在重试"
+				s.Phase = s.Agent.String() + " 正在重试"
 			}
 			s.retryError = s.Error
 		}
@@ -321,7 +325,7 @@ func (s *State) clearRetry() {
 		s.Error = ""
 	}
 	s.retryError = ""
-	if s.Phase == "Codex 正在重试" {
+	if s.Phase == s.Agent.String() + " 正在重试" {
 		s.Phase = "正在执行"
 	}
 }

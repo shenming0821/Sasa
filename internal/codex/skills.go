@@ -3,29 +3,13 @@ package codex
 import (
 	"context"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
 )
 
-type Skill struct {
-	Name             string `json:"name"`
-	Path             string `json:"path"`
-	Description      string `json:"description"`
-	ShortDescription string `json:"shortDescription"`
-	Enabled          bool   `json:"enabled"`
-	Interface        *struct {
-		DisplayName      string `json:"displayName"`
-		ShortDescription string `json:"shortDescription"`
-	} `json:"interface"`
-}
+type Skill = agent.Skill
 
-type SkillsEntry struct {
-	Cwd    string  `json:"cwd"`
-	Skills []Skill `json:"skills"`
-	Errors []struct {
-		Path    string `json:"path"`
-		Message string `json:"message"`
-	} `json:"errors"`
-}
+type SkillsEntry = agent.SkillsEntry
 
 func (c *Client) ListSkills(ctx context.Context, cwd string) ([]SkillsEntry, error) {
 	var result struct {

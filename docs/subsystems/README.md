@@ -11,6 +11,7 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 | 原生 UI | 会话侧栏、消息、输入、状态和交互入口；会话绑定的异步派发 | `internal/ui/` | [会话管理](sessions.md)、[本轮文件变更](turn-changes.md)、[实施计划](../implementation-plan.md) |
 | 图片附件 | 图片导入、私有副本、草稿、发送、历史恢复及预览 | `internal/attachment/`、`internal/ui/images.go` | [图片附件](attachments.md) |
 | 应用状态 | thread/turn 投影、活动会话与用户动作协调 | `internal/app/` | [设计](../design.md) |
+| Agent 抽象 | 会话身份、能力、应用事件、审批意图和任务映射；当前 Codex 兼容接入 | `internal/agent/`、`internal/ui/agents.go` | [Agent 抽象层](agent.md) |
 | Codex 客户端 | 双向 RPC、消息分类、请求关联与协议事件 | `internal/codex/` | [协议核验](../reference-verification.md) |
 | 进程管理 | 自有 App Server 启停、cwd、退出检测与取消 | `internal/runtime/` | [生命周期设计](../design.md) |
 | 存储与恢复 | 应用索引、界面状态与原生历史核验，P3 引入 | `internal/storage/` | [存储与恢复](storage.md)、[P3 计划](../implementation-plan.md) |
@@ -35,3 +36,5 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 内部整理保持已有契约时，可只说明保持的行为和验证结果。文档中的“支持”应有实际实现和对应验证依据。
 
 应用级外观、字体与完成通知见[设置与完成通知](settings.md)。
+
+P6.0 基础协议证据与 P6.1 抽象已在 Linux 编写，Mac 待验证；Claude adapter、Agent 选择入口和完整真实验收见实施计划 P6 待办。

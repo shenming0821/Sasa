@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
-func (a *App) notifyCompletion(e codex.Event) {
+func (a *App) notifyCompletion(e agent.Event) {
 	root := a.application()
 	if !root.preferences.CompletionNotification || root.quitting || root.quitStopping {
 		return

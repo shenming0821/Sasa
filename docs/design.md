@@ -10,7 +10,7 @@
 
 Fuyu 使用 Go + MyGo Native UI，为 Codex 原生 Runtime 提供桌面交互。第一阶段围绕一个用户选择的本地工作目录，逐步完成创建会话、连续对话、流式输出、工具展示、审批、回答问题、中断及历史恢复。
 
-当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)实现中，已通过组件验收，原生交互验收未完成。多 Agent 仍为后续方向。当前只实现 Codex，不为了未来的 Adapter 提前建立完整插件框架。
+当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)实现中，已通过组件验收，原生交互验收未完成。当前生产入口仍只启动 Codex；本轮经用户授权建立 P6.1 应用 Agent 契约并录制 Claude 基础协议。Claude adapter 和会话选择入口仍待 P6.2/P6.3，Linux 编写，Mac 待验证。
 
 ### 1.1 当前需要实现
 
@@ -27,7 +27,7 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 原生 Runtime 提供桌面交互。
 
 | 能力 | 安排 |
 |---|---|
-| Claude Code、OpenCode 及统一 Adapter 框架 | Codex 交互稳定后单独规划 |
+| Claude Code 与 Agent 抽象 | P6.0 基础证据/P6.1 已编写待验证；P6.2～P6.4 按实施计划推进；OpenCode 另行规划 |
 | Repository / Worktree 自动发现和管理 | 已实现本地导入、发现与会话导航；创建和删除另行确认 |
 | 文件树、轻量文件编辑、Git 状态与只读 Diff | 按 [P4 设计](p4-editor-design.md)实现中；组件验收通过，原生交互待验收 |
 | 暂存、提交、远程、历史 Diff、分支与冲突 | 用户于 2026-10-26 授权扩展，约定及验收见 [Git 工作流](git-workflow-design.md) |
@@ -61,7 +61,10 @@ MyGo UI
 Application Controller
   会话选择 / 单次执行 / 请求状态 / 恢复核验
        |
-Codex Client
+Agent Backend / 可选能力
+  会话身份、应用事件、审批意图与恢复核验
+       |
+Codex Client（当前生产实现）
   双向 JSON-RPC / 请求关联 / 事件解码 / 连接生命周期
        |
 Fuyu 启动并持有的 Codex App Server 子进程
@@ -69,9 +72,11 @@ Fuyu 启动并持有的 Codex App Server 子进程
 Codex 原生 Runtime、配置与历史
 ```
 
-UI 不解析协议 JSON，也不直接写子进程 stdin。Controller 接收类型明确的事件并更新视图模型。
+UI 不处理原始 wire 帧或直接写子进程 stdin；Controller 消费 adapter 投影的应用事件。当前应用事件为兼容现有投影保留字符串 Method 与 json.RawMessage Params。
 
 第一步由应用持有一个 App Server 连接，先完成单个 thread 的真实任务闭环。第三步再加入多个 thread 的管理与切换；单个 thread 同时只允许一个活动 turn，跨会话切换不改变 cwd，也不取消活动 turn。
+
+P6 身份与能力契约见 [Agent 抽象层](subsystems/agent.md)：backend 按会话选择，事件影响域包括 Agent/runtime/session/generation；审批单次意图与规则授权/权限模式分开，应用 TurnID 在发送前分配并与原生标识分离。Codex 保持原生 ID 与 RPC 行为，Claude 在后续 adapter 接入这些契约。存储采用 v4，按 Agent 绑定原生历史根并建立原生 ID 联合唯一约束。
 
 ### 3.1 本地接入约定
 

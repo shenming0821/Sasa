@@ -4,55 +4,70 @@ import (
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
 // A session owns both its protocol projection and its reading/interaction state.
 // Switching the selected session never changes the owner of a pending callback.
 type session struct {
-	selectedModel    string
-	modelResolving   bool
-	modelResolvedCwd string
-	modelMenuOpen    bool
-	modelError       string
-	imagesImporting  bool
-	importingImages  int
-	queuedImages     []attachment.Image
-	imageError       string
-	id               int
-	open             bool
-	State            app.State
-	list             native.ListState
-	scroll           native.ScrollState
-	rows             map[string]*native.Handle
-	commandGroups    map[string]*bool
-	changeSummaries  map[string]cachedChangeSummary
-	completion       inputCompletion
-	readingContext   *native.Context
-	restoreOffset    bool
-	projectOpen      bool
-	detailsOpen      bool
-	copiedID         string
-	snapshotPending  bool
-	followResponses  map[string]bool
-	saved            storage.Session
-	loaded           bool
-	recovering       bool
-	recoveryBlocked  bool
-	historyLoading   bool
-	historyAtTop     bool
-	historyCursor    *string
-	recoveryEvents   []codex.Event
-	recoveryBytes    int
-	recoveryEpoch    int
-	historyOverflow  bool
-	reviewRequired   bool
-	writerOccupied   bool
-	forking          bool
-	forkUncertain    bool
+	nativeThreads        []agent.ThreadMeta
+	threadsCursor        *string
+	threadsLoading       bool
+	threadsLayoutPending bool
+	threadsError         string
+	historyCacheKey      agent.CacheKey
+	kind                 agent.AgentKind
+	runtimeKey           string
+	generation           agent.ProcessGeneration
+	models               []agent.Model
+	modelsLoading        bool
+	modelsError          string
+	modelsLoaded         bool
+	modelsCwd            string
+	modelsRuntime        string
+	selectedModel        string
+	modelResolving       bool
+	modelResolvedCwd     string
+	modelMenuOpen        bool
+	modelError           string
+	imagesImporting      bool
+	importingImages      int
+	queuedImages         []attachment.Image
+	imageError           string
+	id                   int
+	open                 bool
+	State                app.State
+	list                 native.ListState
+	scroll               native.ScrollState
+	rows                 map[string]*native.Handle
+	commandGroups        map[string]*bool
+	changeSummaries      map[string]cachedChangeSummary
+	completion           inputCompletion
+	readingContext       *native.Context
+	restoreOffset        bool
+	projectOpen          bool
+	detailsOpen          bool
+	copiedID             string
+	snapshotPending      bool
+	followResponses      map[string]bool
+	saved                storage.Session
+	loaded               bool
+	recovering           bool
+	recoveryBlocked      bool
+	historyLoading       bool
+	historyAtTop         bool
+	historyCursor        *string
+	recoveryEvents       []agent.Event
+	recoveryBytes        int
+	recoveryEpoch        int
+	historyOverflow      bool
+	reviewRequired       bool
+	writerOccupied       bool
+	forking              bool
+	forkUncertain        bool
 }
 
 func (s *session) rowHandle(id string) *native.Handle {
@@ -67,8 +82,11 @@ func (s *session) rowHandle(id string) *native.Handle {
 
 func (a *App) newSession(cwd string) {
 	a.nextSession++
-	s := &session{id: a.nextSession, State: app.New(cwd), loaded: true}
-	if a.session != nil && a.State.Disconnected {
+	s := &session{
+		modelsCwd: cwd, id: a.nextSession, State: app.New(cwd), loaded: true,
+		historyCacheKey: agent.CacheKey{Agent: agent.Codex, Cwd: cwd},
+	}
+	if a.session != nil && a.kind.Normalized() == agent.Codex && a.runtimeKey == "" && a.State.Disconnected {
 		s.State.Disconnected = true
 		s.State.Phase, s.State.Error = a.State.Phase, a.State.Error
 	}

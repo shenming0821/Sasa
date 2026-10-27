@@ -5,11 +5,11 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
 type Interaction struct {
-	Request         codex.Interaction
+	Request         agent.Interaction
 	Status          string
 	Error           string
 	Outcome         string
@@ -20,8 +20,8 @@ type Interaction struct {
 
 func (r *Interaction) Active() bool { return r.Status == "待处理" || r.Status == "提交中" }
 
-func (s *State) addInteraction(e codex.Event) {
-	r, err := codex.DecodeInteraction(e)
+func (s *State) addInteraction(e agent.Event) {
+	r, err := agent.DecodeInteraction(e)
 	if err != nil {
 		s.Error = "无法显示交互：" + err.Error() + "。请停止当前任务。"
 		return

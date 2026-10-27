@@ -12,23 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
 	process "github.com/shenming0821/Fuyu/internal/runtime"
 )
 
-type Event struct {
-	ID        json.RawMessage
-	Method    string
-	Params    json.RawMessage
-	Err       error
-	Truncated bool
-}
+type Event = agent.Event
 
-type RPCError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-func (e *RPCError) Error() string { return fmt.Sprintf("Codex RPC %d: %s", e.Code, e.Message) }
+type RPCError = agent.RPCError
 
 type envelope struct {
 	ID     json.RawMessage `json:"id,omitempty"`
@@ -42,7 +32,7 @@ type Client struct {
 	process *process.Process
 	writeMu sync.Mutex
 	mu      sync.Mutex
-	pending map[string]chan envelope
+	pending agent.RequestTable[envelope]
 	server  map[string]*serverRequest
 	nextID  atomic.Int64
 	done    chan struct{}
@@ -90,7 +80,7 @@ func startProcess(executable string, args []string, cwd string) (*Client, error)
 		return nil, fmt.Errorf("start Codex: %w", err)
 	}
 	c := &Client{
-		process: p, pending: make(map[string]chan envelope), server: make(map[string]*serverRequest), done: make(chan struct{}), abort: make(chan struct{}),
+		process: p, server: make(map[string]*serverRequest), done: make(chan struct{}), abort: make(chan struct{}),
 		wake: make(chan struct{}, 1), events: make(chan Event),
 	}
 	go c.dispatch()
@@ -105,7 +95,6 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 		return err
 	}
 	id := fmt.Sprint(c.nextID.Add(1))
-	response := make(chan envelope, 1)
 	c.mu.Lock()
 	select {
 	case <-c.done:
@@ -113,11 +102,11 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 		return errors.New("Codex connection closed")
 	default:
 	}
-	c.pending[id] = response
+	response, _ := c.pending.Register(id)
 	c.mu.Unlock()
 	defer func() {
 		c.mu.Lock()
-		delete(c.pending, id)
+		c.pending.Remove(id)
 		c.mu.Unlock()
 	}()
 	if err := c.write(map[string]any{"id": json.RawMessage(id), "method": method, "params": params}); err != nil {
@@ -170,7 +159,7 @@ func (c *Client) write(message any) error {
 
 func (c *Client) read() {
 	scanner := bufio.NewScanner(c.process.Stdout)
-	scanner.Buffer(make([]byte, 64*1024), 16*1024*1024)
+	scanner.Buffer(make([]byte, 64*1024), agent.MaxFrameBytes)
 	var readErr error
 	for scanner.Scan() {
 		var msg envelope
@@ -185,15 +174,7 @@ func (c *Client) read() {
 			c.expireRequests(msg)
 			c.enqueue(displayEvent(Event{Method: msg.Method, Params: msg.Params}))
 		case len(msg.ID) > 0:
-			c.mu.Lock()
-			ch := c.pending[string(msg.ID)]
-			c.mu.Unlock()
-			if ch != nil {
-				select {
-				case ch <- msg:
-				default:
-				}
-			}
+			c.pending.Route(string(msg.ID), msg)
 		}
 	}
 	if readErr == nil {
@@ -235,8 +216,8 @@ func (c *Client) unsupported(msg envelope, err error) {
 	c.enqueue(Event{Method: "fuyu/unsupported", Params: msg.Params, Err: detail})
 }
 
-const MaxQueueBytes = 4 * 1024 * 1024
-const MaxQueueEvents = 4096
+const MaxQueueBytes = agent.MaxQueueBytes
+const MaxQueueEvents = agent.MaxQueueEvents
 
 func eventBytes(e Event) int { return len(e.Params) + len(e.ID) + len(e.Method) + 128 }
 
@@ -345,23 +326,9 @@ func (c *Client) Close() {
 	})
 }
 
-type Thread struct {
-	Thread struct {
-		ID string `json:"id"`
-	} `json:"thread"`
-	Model          string          `json:"model"`
-	Cwd            string          `json:"cwd"`
-	ApprovalPolicy json.RawMessage `json:"approvalPolicy"`
-	Sandbox        json.RawMessage `json:"sandbox"`
-}
+type Thread = agent.Thread
 
-type Turn struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
-	Error  *struct {
-		Message string `json:"message"`
-	} `json:"error"`
-}
+type Turn = agent.Turn
 
 func (c *Client) StartThread(ctx context.Context, cwd string) (Thread, error) {
 	var thread Thread
@@ -384,5 +351,5 @@ func (c *Client) ReadThread(ctx context.Context, threadID string) (json.RawMessa
 }
 
 func RequestContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 30*time.Second)
+	return agent.RequestContext()
 }

@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-27",
+  "cli_version": "2.1.311",
+  "codex_version": "0.164.0",
+  "sdk_types_sha256": "64a59ddbcae4dc05da268dd3e009431c67e91a23616bce38f122b9247650271f",
+  "runs": [
+    {
+      "command": [
+        "/home/ming/.local/bin/claude",
+        "--print",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "stream-json",
+        "--verbose",
+        "--max-turns",
+        "1",
+        "--dangerously-skip-permissions"
+      ],
+      "cwd": "/tmp/fuyu-p6-stream-json-3ifbhkn5",
+      "exit_code": 0,
+      "stdout_bytes": 14635,
+      "stderr_bytes": 80,
+      "date": "2026-10-27"
+    },
+    {
+      "command": [
+        "/home/ming/.local/bin/claude",
+        "--print",
+        "--output-format",
+        "stream-json",
+        "--input-format",
+        "text",
+        "--verbose",
+        "--max-turns",
+        "1",
+        "--dangerously-skip-permissions"
+      ],
+      "cwd": "/tmp/fuyu-p6-text-r0ad5_p0",
+      "exit_code": 0,
+      "stdout_bytes": 13216,
+      "stderr_bytes": 80,
+      "date": "2026-10-27"
+    },
+    {
+      "command": [
+        "/home/ming/.local/bin/claude",
+        "--print",
+        "--input-format",
+        "text",
+        "--max-turns",
+        "1",
+        "--dangerously-skip-permissions"
+      ],
+      "cwd": "/tmp/fuyu-p6-plain-0t1a372u",
+      "exit_code": 0,
+      "stdout_bytes": 7,
+      "stderr_bytes": 327,
+      "date": "2026-10-28"
+    }
+  ],
+  "dates": [
+    "2026-10-27",
+    "2026-10-28"
+  ],
+  "sha256": {
+    "hello-text.jsonl": "c8a58e163c264d4636442f5423d8c96b830e898372b49028da3d8f8b1480f21a",
+    "hello-stream-json.jsonl": "ed528297985f0c1b78ce5cf6765334b76d3146f13d447a2bb6cba9dd57d3af46",
+    "hello-stream-json.stderr.txt": "b2c8b3dc0fe830ba94f4e5c9559d877796d48fa5c32bed88f707364da0d9bf98",
+    "hello-text.stderr.txt": "b2c8b3dc0fe830ba94f4e5c9559d877796d48fa5c32bed88f707364da0d9bf98",
+    "hello-plain.stderr.txt": "b4d4dcd1b5c02fbcf29602fa1f44142afd187ec10d0c120e6256b299a69a9410",
+    "hello-plain.txt": "4e0826721642ed8e3a27e7147538ac7b7013a08fe5ae343a8ef09749b7e5790f",
+    "hello-user.jsonl": "078b0e6f993ef27fabafe02f4ea2aa0d9df0613936cdc6851c30b813e07417dd"
+  }
+}

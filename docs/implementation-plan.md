@@ -1,6 +1,6 @@
 # Fuyu 实施计划与接续记录
 
-> 更新日期：2026-10-27
+> 更新日期：2026-10-28
 > 已确认方向：Codex 优先，先做真实桌面任务闭环，逐步形成日常可用版本。  
 > 设计约定：[设计文档](design.md)；源码依据：[参考项目核验](reference-verification.md)。
 
@@ -8,15 +8,18 @@
 
 | 项目 | 当前记录 |
 |---|---|
-| 所处阶段 | P1、P2、P3 当前环境验收完成；P4 文件与轻量编辑器实现和验收进行中 |
+| 所处阶段 | 本轮经用户授权实现 P6.0 基础协议证据与 P6.1 Agent 抽象；Linux 编写，Mac 待验证。P4 原验收边界保留 |
+| 下一动作 | Mac 先执行 gofmt、完整 test/vet、相关 race 和构建，核验 Codex 发送/审批/中断/恢复/分叉/多会话等价，再正常重开窗口；之后按 P6.2～P6.4 待办推进 |
 | 已完成 | Go/MyGo 工程、分层源码、原生窗口、Codex 双向协议、状态/协议/UI 组件测试 |
 | 已实现功能 | P1/P2 任务交互；P3 多会话、SQLite 索引与迁移、原生分页历史、草稿/阅读/折叠恢复、异常状态核验、窗口驻留和退出流程 |
-| 已有文件 | `cmd/desktop/`、`internal/{ui,app,codex,runtime,storage}/`、`go.mod`、`go.sum`、`scripts/` |
-| 下一动作 | P4 核心功能和完整 test/vet/相关 race/构建通过；真实 Codex 500 文件改写、20 个混合标签、保留 dirty 草稿与干净缓冲更新通过。原生拼音组合/提交、保存、撤销重做、滚轮、865×543 DIP 窄窗口、长路径横向滚动及新标签定位已补验。迁移备份完整性/新鲜度与旧 JSON 预检已修正。最后仍需原生 Git Diff 呈现、面板状态与切换复核；窗口读取连续超时，工具连接重置后仍失败，原应用已因本次修复重开，不能据此断定应用崩溃。测试夹具及三个测试标签已清理，索引清理前备份在 `/tmp/fuyu-p4-before-fixture-cleanup.db`。不再因观察超时重复重启；先恢复原生窗口可操作性，再继续最终交互验收。证据见 [P4 验证](verification/2026-10-24-p4.md)，当前未宣告 P4 通过；本轮实现与文档已提交，原生交互验收仍待补齐。 |
-| 工具链 | 本机 Go 1.27.3 位于 `~/.local/share/fuyu/toolchains/go1.27.3`；MyGo 锁定提交 `976f17c9391f` |
-| Git 关联 | `main`，`origin` 为 `git@github.com:shenming0821/Fuyu.git`；首个应用代码快照范围见本页末尾，提交与工作区状态以 `git log`、`git status` 核对 |
-| Codex 版本 | 2026-10-22 核验为 `codex-cli 0.163.0`；macOS arm64 |
-| 运行验收 | 完整 test、vet、race、构建及文档检查通过；P1 见[原生交互记录](verification/2026-10-22-p1.md)，P2 见[任务交互记录](verification/2026-10-22-p2.md)，P3 真实 GUI 重开续聊、多目录恢复及正常/超时退出见[恢复验收](verification/2026-10-22-p3.md) |
+| 已有文件 | 新增 `internal/agent/`、`internal/claude/testdata/` 与 v4 迁移；其余源码按实际工作区核对 |
+| P4 原接续（独立保留） | P4 核心功能和完整 test/vet/相关 race/构建通过；真实 Codex 500 文件改写、20 个混合标签、保留 dirty 草稿与干净缓冲更新通过。原生拼音组合/提交、保存、撤销重做、滚轮、865×543 DIP 窄窗口、长路径横向滚动及新标签定位已补验。迁移备份完整性/新鲜度与旧 JSON 预检已修正。最后仍需原生 Git Diff 呈现、面板状态与切换复核；窗口读取连续超时，工具连接重置后仍失败，原应用已因本次修复重开，不能据此断定应用崩溃。测试夹具及三个测试标签已清理，索引清理前备份在 `/tmp/fuyu-p4-before-fixture-cleanup.db`。不再因观察超时重复重启；先恢复原生窗口可操作性，再继续最终交互验收。证据见 [P4 验证](verification/2026-10-24-p4.md)，当前未宣告 P4 通过；本轮实现与文档已提交，原生交互验收仍待补齐。 |
+| 工具链 | 当前 Linux 无 `go` / `gofmt`；未安装 Go 工具链。Mac 原环境及命令见开发指南；MyGo 仍锁定 `976f17c9391f` |
+| Git 关联 | 本轮 `p6-claude-adapter`，基线 `4d9784b`，`origin` 为 `git@github.com:shenming0821/Fuyu.git`；首个应用代码快照范围见本页末尾，提交与工作区状态以 `git log`、`git status` 核对 |
+| Codex 版本 | Linux 实测 `codex-cli 0.164.0`；Claude CLI `2.1.311`，录制日期 2026-10-27 至 2026-10-28 |
+| 既有 Mac 验收（本轮之前） | 完整 test、vet、race、构建及文档检查通过；P1 见[原生交互记录](verification/2026-10-22-p1.md)，P2 见[任务交互记录](verification/2026-10-22-p2.md)，P3 真实 GUI 重开续聊、多目录恢复及正常/超时退出见[恢复验收](verification/2026-10-22-p3.md) |
+
+P6 下一动作：在 Mac 执行格式化、完整 test/vet、相关 race、构建和正常重启；Codex 等价回归及完整协议验收通过前不宣告 P6.1 验收完成。范围与测试入口见 [P6 验证](verification/2026-10-28-p6-agent.md)。
 
 下次先核对本文当前接续点及 [P3 验证记录](verification/2026-10-22-p3.md)。原生中断的终态仅表示 turn 中断，独立后台命令的退出仍需单独核验。P3 已具备持久化、历史恢复和窗口驻留；原 stdio 无法重新附着，未结束任务保留待核验。
 
@@ -692,3 +695,47 @@ P3 验收通过后，使用 Fuyu 完成真实的小型开发任务，记录使�
 - 新增 64 MiB dirty 总量、64 MiB 干净缓存和 32 MiB 撤销预算回归，验证整体拒绝及按访问顺序释放可丢弃缓存，不损失未保存正文。
 - 六类保存 IO 故障注入、真实扩展属性保留与恢复清理权限故障通过。全量 test、vet、相关包 race、构建及性能复测通过；性能和注入证据范围见统一验证记录。
 - 为加载最新 UI 构建核对无活动自有任务和恢复草稿后重开原应用；原生窗口读取仍间歇超时。继续补齐崩溃时点与最终原生验收，P4 维持进行中。
+
+## 8. P6：协议证据与 Agent 抽象（2026-10-28）
+
+本轮用户明确授权 P6.0 基础录制、P6.1 实现、v4 存储迁移并提交，不推送。设计依据以 [cdesktop 复核报告](verification/2026-10-27-p6-review-cdesktop.md) §2、§4 为准；初版的 TurnID、审批 scope、初始化字段和历史倒序算法已撤回。复核报告保留其只读评审时的历史状态，本节为后续实施范围。
+
+### P6.0：真实基础夹具
+
+- [x] 实测 CLI 路径、版本与 SDK 类型 SHA-256，隔离临时 cwd 运行真实任务。
+- [x] 保存真实 stream-json user 输入、41 帧 stdout、stderr；另存 text 输入的 34 帧 stdout 和普通文本 `你好` 对照，三次均退出码 0。
+- [x] 在 `internal/claude/testdata/README.md` 记录命令、日期、帧序列、权限模式、实际模型与证据限制；原始内容未改写。
+- [ ] initialize request/response、审批允许/拒绝/超时/停止、撤销/重复/pending 回放、AskUserQuestion：待 Mac 真实验收补录。
+- [ ] 每轮 spawn+resume 与同进程多轮、result 尾随帧、session 规则跨进程行为及真实 transcript：按复核 §4 P6.0 补录。
+- [ ] 有界分片、坏行、未知帧、子代理、异常终态、控制响应乱序和写入不确定：P6.2 配套补齐，标注合成来源。
+
+本轮基础录制已完成；复核要求的完整 P6.0 通过门槛尚未完成。stdout 不是 transcript；system/init 的当前模型与 initialize 响应的模型目录分开处理。
+
+### P6.1：Agent 抽象与 Codex 等价回归
+
+已实现范围（Linux 编写，Mac 待验证）：
+
+- `internal/agent/` 定义 AgentKind、SessionKey、ProcessGeneration、能力、应用事件、分页和恢复结果。Backend 保留最小四方法，其余按可选接口断言组织，允许明确不支持。
+- `ApprovalIntent` 仅表达单次 allow/deny、反馈、停止及已验证的 session 规则建议；保留原始规则，权限模式独立，永久授权暂缓。Codex 原生交互投影经类型别名兼容，不把枚举伪装成通用审批 scope。
+- `TurnMap.Begin` 在发送前生成应用 TurnID 与独立 user UUID，关联 Agent/session/generation，并分开保留 native ID、transcript UUID 与 message ID；重复/旧轮终态不提交。该表供 Claude adapter 接入；Codex 继续使用原生 turn ID 和原有事件行为。
+- Codex Client 实现 agent.Backend 和现有可选能力，导出类型及显示/交互函数保留兼容入口；抽取相同限额与非阻塞请求关联，复用既有 runtime 进程管理，保持常驻 App Server、RPC 方法/参数和事件名。
+- UI/app 改用 agent 类型；按会话选择 backend，事件按 Agent/runtime/session/generation 定界；缺失 Claude 后端不回落。模型与历史缓存归属会话并核对 cwd/runtime，模型选择保存 Agent 归属。
+- SQLite v4 按 Agent 绑定规范化 home、按 `(agent, thread_id)` 唯一；旧归属迁移 Codex，旧 payload 保留，迁移前一致性备份、事务失败回滚、高版本拒绝。Session 增加 Agent/Runtime/ModelAgent。
+- 新增身份/审批/请求关联/迁移/UI 路由/真实夹具断言测试；原 Codex 发送、审批、中断、恢复、分叉、多会话测试保留。
+
+- [ ] Mac `gofmt`、完整 test/vet 与相关 race。
+- [ ] Codex 等价回归、构建与正常退出重开后的窗口验收。
+
+### P6.2：Claude adapter 与失败状态机（待办）
+
+按复核 §4 P6.2 实现有界 framing、独立 reader、超时串行 writer 与控制请求关联，握手和权限确认后才发送；接入 TurnMap、每 session 单个在途任务、内容块覆盖去重和 result 的 subtype/is_error/terminal_reason 联合判断。审批等待不堵 reader，处理撤销、重复、过期和 AskUserQuestion；中断回执、任务终态、进程退出与后台工具退出分别记账。以每轮 spawn+resume 作为待验证的保守候选，完成两种进程模型对照后确定唯一生产基线。
+
+历史必须沿 parentUuid 重建有效分支，理解 compaction，按完整消息/turn 分页并配对工具；保留子代理父任务、result 后通知、损坏/半写/替换等不确定状态。模型目录来自 initialize 控制响应；slash command 保留命令及参数，不变成 Codex skill 输入。
+
+### P6.3：会话入口与归属接入（待办）
+
+在新建会话前选择 Agent，原生 session 不原地切换。接入已实现的 v4 数据结构与 backend 注册机制，补齐实际 Runtime 配置、模型/命令菜单与会话进程代次。历史、占用/分叉和缺口核验按实际能力路由；未实现入口不展示。CLI 缺失、认证、onboarding、网络错误分开呈现，不改用户配置；未知旧任务不自动重发。补验旧版本拒绝 v4、混合会话重开和错误 home；本轮 v4 已提前实现，不重复迁移。
+
+### P6.4：真实联合验收（待办）
+
+按复核 §4 P6.4 验证 Claude 文件读写/审批/拒绝反馈/问答、两轮上下文、模型选择、各阶段停止、正常和异常重开、工具与 compact 历史、双 Agent 并行及单进程故障隔离。分别记录 UI 终态、磁盘副作用、进程组与后台工具退出，补齐超量/损坏来源和实际能力矩阵。Mac 完成测试和构建后正常退出并重启 Fuyu，窗口可用后交给用户；session 规则、分叉、外部 writer 和后台任务全停未经实测不计完成。

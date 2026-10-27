@@ -6,8 +6,8 @@ import (
 	"slices"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
 var lockIcon = icon(`<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4"/>`)
@@ -47,8 +47,8 @@ func (a *App) occupiedCard(c *native.Context) {
 }
 
 func (a *App) forkSession() {
-	backend, ok := a.backend.(interface {
-		ForkThread(context.Context, string) (codex.ResumedThread, error)
+	backend, ok := a.sessionBackend().(interface {
+		ForkThread(context.Context, string) (agent.ResumedThread, error)
 	})
 	s, root := a.session, a.application()
 	if !ok || !s.writerOccupied || s.recovering || s.forking || s.forkUncertain ||
@@ -60,13 +60,13 @@ func (a *App) forkSession() {
 	threadID, draft, title := s.State.ThreadID, s.State.Draft, s.title()
 	s.forking, s.State.Error = true, ""
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		result, err := backend.ForkThread(ctx, threadID)
 		bound.update(func() {
 			s.forking = false
 			if err != nil {
-				var rpc *codex.RPCError
+				var rpc *agent.RPCError
 				s.forkUncertain = !errors.As(err, &rpc)
 				s.State.Error = "创建聊天分叉失败：" + err.Error()
 				if s.forkUncertain {
@@ -82,7 +82,8 @@ func (a *App) forkSession() {
 			// Register and persist the new native identity before fetching history.
 			// A late result may add a tab, but never replace the user's selection.
 			root.nextSession++
-			branch := &session{id: root.nextSession, State: app.New(result.Cwd), recoveryBlocked: true, open: true}
+			branch := &session{kind: s.kind, runtimeKey: s.runtimeKey, id: root.nextSession, State: app.New(result.Cwd), recoveryBlocked: true, open: true}
+			branch.State.Agent = s.kind.Normalized()
 			branch.State.ThreadID, branch.State.Draft = result.ThreadMeta.ID, draft
 			branch.State.DraftImages = images
 			branch.selectedModel = s.selectedModel

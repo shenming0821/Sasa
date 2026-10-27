@@ -14,13 +14,13 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/transfer"
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
 type imageSender interface {
-	SendWithImages(context.Context, string, string, []codex.Skill, []attachment.Image) (codex.Turn, error)
+	SendWithImages(context.Context, string, string, []agent.Skill, []attachment.Image) (agent.Turn, error)
 }
 
 type imagePreview struct {
@@ -405,7 +405,7 @@ func (a *App) imageViewer(c *native.Context) {
 
 // Compact data URLs before projection so native history does not retain large
 // base64 strings in the UI state. Remote URLs are never fetched automatically.
-func (a *App) materializeHistoryImages(page *codex.TurnsPage) {
+func (a *App) materializeHistoryImages(page *agent.TurnsPage) {
 	dir, err := a.imageDirectory()
 	if err != nil {
 		return

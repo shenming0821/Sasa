@@ -1,41 +1,43 @@
 package ui
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
-type modelSender interface {
-	SendWithModel(context.Context, string, string, []codex.Skill, []attachment.Image, string) (codex.Turn, error)
-	DefaultModel(context.Context, string) (string, error)
-}
+type modelSender = agent.ModelSender
 
-type modelCatalog interface {
-	ListModels(context.Context) ([]codex.Model, error)
-}
+type modelCatalog = agent.ModelCatalog
 
 func (a *App) loadModels() {
-	root := a.application()
+	root := a.session
+	if root.modelsCwd != a.State.Cwd || root.modelsRuntime != a.runtimeKey {
+		root.models, root.modelsLoaded = nil, false
+		root.modelsCwd, root.modelsRuntime = a.State.Cwd, a.runtimeKey
+	}
 	if root.modelsLoading {
 		return
 	}
-	backend, ok := root.backend.(modelCatalog)
+	backend, ok := a.sessionBackend().(modelCatalog)
 	if !ok {
 		root.modelsError = "当前连接不支持读取模型列表"
 		return
 	}
 	root.modelsLoading, root.modelsError = true, ""
+	cwd, runtime := root.State.Cwd, root.runtimeKey
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		models, err := backend.ListModels(ctx)
-		root.update(func() {
+		a.update(func() {
 			root.modelsLoading = false
+			if root.State.Cwd != cwd || root.runtimeKey != runtime {
+				root.models, root.modelsLoaded = nil, false
+				return
+			}
 			if err != nil {
 				root.modelsError = "读取模型失败：" + err.Error()
 				return
@@ -51,14 +53,14 @@ func (a *App) resolveInitialModel() {
 	if a.selectedModel != "" || a.modelResolving || a.modelResolvedCwd == a.State.Cwd {
 		return
 	}
-	backend, ok := a.backend.(modelSender)
+	backend, ok := a.sessionBackend().(modelSender)
 	if !ok {
 		return
 	}
 	s, cwd := a.session, a.State.Cwd
 	a.modelResolving = true
 	go func() {
-		ctx, cancel := codex.RequestContext()
+		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		model, err := backend.DefaultModel(ctx, cwd)
 		a.update(func() {
@@ -77,7 +79,11 @@ func (a *App) resolveInitialModel() {
 }
 
 func (a *App) modelPicker(c *native.Context) {
-	root := a.application()
+	root := a.session
+	if root.modelsCwd != root.State.Cwd || root.modelsRuntime != root.runtimeKey {
+		root.models, root.modelsLoaded, root.modelsError = nil, false, ""
+		root.modelsCwd, root.modelsRuntime = root.State.Cwd, root.runtimeKey
+	}
 	if a.win != nil || a.dispatch != nil {
 		a.resolveInitialModel()
 	}
@@ -101,9 +107,9 @@ func (a *App) modelPicker(c *native.Context) {
 }
 
 func (a *App) modelMenu(c *native.Context) {
-	root := a.application()
+	root := a.session
 	disabled := a.State.Busy || a.State.Disconnected || a.recovering || a.recoveryBlocked || a.forking
-	if _, ok := a.backend.(modelSender); !ok {
+	if _, ok := a.sessionBackend().(modelSender); !ok {
 		disabled = true
 	}
 	native.Column(c).Width(280).Gap(4).Children(func() {

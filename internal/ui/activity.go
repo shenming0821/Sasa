@@ -124,7 +124,7 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 	case "item/permissions/requestApproval":
 		title = "需要额外权限"
 	case "item/tool/requestUserInput":
-		title = "Codex 向你提问"
+		title = a.kind.String() + " 向你提问"
 	}
 	native.Column(c).FillWidth().Gap(10).Padding(14).Radius(12).
 		Border(1, t.Border).Background(t.Surface).Children(func() {
