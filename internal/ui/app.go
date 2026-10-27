@@ -34,6 +34,8 @@ type App struct {
 	md                markdown.Options
 	sessions          []*session
 	repositories      []project.Repository
+	projectOrder      []string
+	hiddenProjects    map[string]bool
 	projectsLoading   bool
 	projectsError     string
 	projectErrors     map[string]string

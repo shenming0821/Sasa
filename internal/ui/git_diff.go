@@ -13,6 +13,23 @@ import (
 func (a *App) gitDiffToolbar(c *native.Context, d *filePage) {
 	w := a.workspace(d.root)
 	native.Column(c).FillWidth().Children(func() {
+		if d.turnReview != nil {
+			names := make([]string, len(d.turnReview.files))
+			for i, f := range d.turnReview.files {
+				names[i] = f.Path
+			}
+			current := names[d.turnReview.selected]
+			native.Select(c, &current, names).Label("本轮修改的文件").FillWidth().FontSize(12)
+			if current != names[d.turnReview.selected] {
+				for i, name := range names {
+					if name == current {
+						d.turnReview.selected = i
+						a.setTurnReviewFile(d)
+						break
+					}
+				}
+			}
+		}
 		if d.gitCommit != "" && len(d.gitCommitFiles) > 0 {
 			native.Text(c, d.gitCommitInfo.Subject).FontSize(12).Bold().SingleLine().Padding(4, 14)
 			native.Row(c).FillWidth().Padding(0, 14, 4, 14).Gap(6).Children(func() {
@@ -65,6 +82,9 @@ func (a *App) gitDiffToolbar(c *native.Context, d *filePage) {
 					a.gitStepFile(d, 1)
 				}
 				m.Separator()
+				if d.turnReview != nil {
+					return
+				}
 				for _, intent := range []string{"解释这些改动", "检查问题", "继续修改"} {
 					if m.Item(intent).Disabled(total == 0).Chosen() {
 						hunk := d.gitReview.Hunks[d.gitHunk]
@@ -124,6 +144,11 @@ func (a *App) gitStepHunk(d *filePage, step int) {
 }
 
 func (a *App) gitStepFile(d *filePage, step int) {
+	if d.turnReview != nil {
+		d.turnReview.selected = (d.turnReview.selected + step + len(d.turnReview.files)) % len(d.turnReview.files)
+		a.setTurnReviewFile(d)
+		return
+	}
 	if d.loading {
 		return
 	}

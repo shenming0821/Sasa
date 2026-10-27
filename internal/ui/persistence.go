@@ -32,6 +32,8 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		}
 	}()
 	a.repositories = snapshot.Repositories
+	a.projectOrder = slices.Clone(snapshot.ProjectOrder)
+	a.hiddenProjects = maps.Clone(snapshot.HiddenProjects)
 	if len(snapshot.Sessions) == 0 {
 		return a.persist()
 	}
@@ -108,8 +110,9 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
 		Repositories: a.repositories,
-		OpenTabs:     []int{},
-		Selected:     a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
+		ProjectOrder: slices.Clone(a.projectOrder), HiddenProjects: maps.Clone(a.hiddenProjects),
+		OpenTabs: []int{},
+		Selected: a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
 		RightPanelWidth: a.rightPanelWidth,
 	}

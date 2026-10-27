@@ -116,6 +116,7 @@ type filePage struct {
 	lastVisited                                                         time.Time
 	pinFrame                                                            uint64
 	pinY                                                                float32
+	turnReview                                                          *turnReview
 	comparisonSource                                                    string
 	comparisonVersion                                                   uint64
 	comparisonDisk                                                      editor.File
@@ -258,6 +259,10 @@ func (a *App) selectFile(d *filePage) {
 	}
 }
 func (a *App) loadFile(d *filePage) {
+	if d.turnReview != nil {
+		a.setTurnReviewFile(d)
+		return
+	}
 	a.readFile(d, false)
 }
 func (a *App) reloadFile(d *filePage) {
@@ -880,7 +885,7 @@ func (a *App) refreshGit(w *workspacePage) {
 			w.gitTime = time.Now()
 			if err != nil {
 				w.gitError = err.Error()
-				if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root {
+				if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.turnReview == nil {
 					d.err = err.Error()
 				}
 				return
@@ -891,7 +896,7 @@ func (a *App) refreshGit(w *workspacePage) {
 			w.gitStatsFingerprint = ""
 			w.git = s
 			w.gitBranches, w.gitRemotes, w.gitOperation = branches, remotes, operation
-			if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" && !strings.HasPrefix(d.compare, "提交 ") {
+			if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" && d.turnReview == nil && !strings.HasPrefix(d.compare, "提交 ") {
 				rel, _ := filepath.Rel(w.root, d.path)
 				found := false
 				for _, entry := range s.Entries {

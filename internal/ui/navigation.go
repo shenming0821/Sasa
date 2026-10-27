@@ -19,14 +19,18 @@ func matchesQuery(query string, values ...string) bool {
 }
 
 func (a *App) projectGroups() []projectGroup {
+	return a.projectGroupsFor(a.sessionQuery)
+}
+
+func (a *App) projectGroupsFor(query string) []projectGroup {
 	var groups []projectGroup
 	indices := make(map[string]int)
 	for i := len(a.sessions) - 1; i >= 0; i-- {
 		s := a.sessions[i]
-		if a.worktreeFor(s.State.Cwd) != nil {
+		if s.State.Cwd == "" || a.worktreeFor(s.State.Cwd) != nil {
 			continue
 		}
-		if !matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
+		if !matchesQuery(query, s.title(), s.State.Cwd) {
 			continue
 		}
 		path := s.State.Cwd
@@ -105,44 +109,15 @@ func (a *App) sidebar(c *native.Context) {
 		}
 		native.Scroll(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
 			native.Column(c).FillWidth().Padding(4, 8).Gap(12).Children(func() {
-				a.repositoryRows(c)
-				groups := a.projectGroups()
-				for _, group := range groups {
-					gc := c.Key(group.path)
-					native.Column(gc).FillWidth().Gap(3).Children(func() {
-						a.projectDisclosure(gc, group.path, "展开项目 "+group.path, func() {
-							native.Icon(gc, folderIcon).Size(14, 14)
-							native.Text(gc, projectName(group.path)).FontSize(12).Bold().TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-							native.Spacer(gc)
-						}, func() {
-							for _, s := range group.sessions {
-								b := treeButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).Tooltip(fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
-								if a.session == s && s.open {
-									b.Background(t.SurfacePressed)
-								}
-								b.Children(func() {
-									native.Column(gc).FillWidth().Gap(4).Children(func() {
-										native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-										if status := s.navigationStatus(); status != "" {
-											color := t.TextMuted
-											if s.State.Error != "" {
-												color = t.Danger
-											}
-											native.Text(gc, status).FontSize(10).TextColor(color).SingleLine()
-										}
-									})
-								})
-								if b.Clicked() {
-									a.selectSession(s)
-								}
-							}
-						})
-					})
+				items := a.sidebarProjectItems()
+				for _, item := range items {
+					if item.repo != nil {
+						a.repositoryRow(c, *item.repo)
+					} else {
+						a.directoryProjectRow(c, item.group)
+					}
 				}
-				matched := len(groups) > 0
-				for _, repo := range a.repositories {
-					matched = matched || a.repositoryMatches(repo)
-				}
+				matched := len(items) > 0
 				if !matched {
 					native.Text(c, "没有匹配的会话").FontSize(12).TextColor(t.TextMuted).Padding(12)
 				}
@@ -338,4 +313,38 @@ func treeButton(c *native.Context, label string) native.Element {
 		b.Background(t.SurfaceHover)
 	}
 	return b
+}
+
+func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
+	t := c.Theme()
+	gc := c.Key(group.path)
+	native.Column(gc).FillWidth().Gap(3).Children(func() {
+		a.projectDisclosure(gc, group.path, "展开项目 "+group.path, func() {
+			native.Icon(gc, folderIcon).Size(14, 14)
+			native.Text(gc, projectName(group.path)).FontSize(12).Bold().TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+			native.Spacer(gc)
+		}, func() {
+			for _, s := range group.sessions {
+				b := treeButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).Tooltip(fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
+				if a.session == s && s.open {
+					b.Background(t.SurfacePressed)
+				}
+				b.Children(func() {
+					native.Column(gc).FillWidth().Gap(4).Children(func() {
+						native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+						if status := s.navigationStatus(); status != "" {
+							color := t.TextMuted
+							if s.State.Error != "" {
+								color = t.Danger
+							}
+							native.Text(gc, status).FontSize(10).TextColor(color).SingleLine()
+						}
+					})
+				})
+				if b.Clicked() {
+					a.selectSession(s)
+				}
+			}
+		}, directoryProjectID(group.path))
+	})
 }

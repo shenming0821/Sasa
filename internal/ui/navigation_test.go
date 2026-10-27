@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -335,5 +336,35 @@ func TestSidebarTogglesMoveBetweenPanelHeadersAndConversation(t *testing.T) {
 				check()
 			}
 		})
+	}
+}
+
+func TestProjectNavigationOmitsUnboundSessions(t *testing.T) {
+	a := New(stubBackend{}, "test", "", nil)
+	unbound := a.session
+	unbound.State.Draft = "keep unbound draft"
+	tt := native.NewTester(a.view, 1000, 760)
+	if tt.HasText("未选择项目") || slices.Contains(tt.Texts(), "展开项目 ") || len(a.projectItems()) != 0 {
+		t.Fatal("unbound session appeared as a project")
+	}
+	a.newSession("/real-project")
+	tt.Frame()
+	if !tt.HasText("展开项目 /real-project") || slices.Contains(tt.Texts(), "展开项目 ") {
+		t.Fatalf("project filtering hid a real directory or retained placeholder: %v; items=%v", tt.Texts(), a.orderedProjectIDs())
+	}
+	a.sessionQuery = "keep unbound"
+	tt.Frame()
+	if slices.Contains(tt.Texts(), "展开项目 ") || len(a.sidebarProjectItems()) != 0 {
+		t.Fatal("search restored unbound project group")
+	}
+	if len(a.sessions) != 2 || !unbound.open || unbound.State.Draft != "keep unbound draft" {
+		t.Fatal("hiding placeholder changed session or draft")
+	}
+	a.sessionQuery = ""
+	if err := tt.Click("会话标签 1"); err != nil {
+		t.Fatal(err)
+	}
+	if a.session != unbound || a.State.Draft != "keep unbound draft" {
+		t.Fatal("unbound session no longer accessible from its tab")
 	}
 }

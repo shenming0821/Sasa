@@ -144,6 +144,12 @@ func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
 				continue
 			}
 		} else if d := a.files[tab.ID]; d != nil {
+			if d.turnReview != nil {
+				if s.ActiveTabID == d.id {
+					s.ActiveTabID = sessionTabID(a.session.id)
+				}
+				continue
+			}
 			tab.Caret = d.caret
 			tab.ScrollY = d.scroll.Y
 		}

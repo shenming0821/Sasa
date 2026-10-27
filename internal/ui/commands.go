@@ -13,13 +13,33 @@ var terminalIcon = icon(`<path d="m4 6 5 6-5 6M12 18h8"/>`)
 type conversationRow struct {
 	message  *app.Message
 	commands []*app.Message
+	changes  []*app.Message
 }
 
 // Project groups once for both virtual-list indices and saved reading anchors.
 func (s *session) conversationRows() []conversationRow {
 	var rows []conversationRow
+	var changes []*app.Message
+	turn := ""
+	flush := func() {
+		if len(changes) > 0 {
+			rows = append(rows, conversationRow{message: changes[0], changes: changes})
+			changes = nil
+		}
+	}
 	for _, m := range s.State.Messages {
+		if m.Role == "user" || (m.TurnID != "" && turn != "" && m.TurnID != turn) {
+			flush()
+			turn = ""
+		}
+		if m.TurnID != "" {
+			turn = m.TurnID
+		}
 		if m.Role == "assistant" && m.Text == "" {
+			continue
+		}
+		if m.Role == "tool" && m.Interaction == nil && m.Tool != nil && m.Tool.Kind == "fileChange" && m.Tool.Status == "completed" && len(m.Tool.Changes) > 0 {
+			changes = append(changes, m)
 			continue
 		}
 		command := m.Role == "tool" && m.Interaction == nil && m.Tool != nil && m.Tool.Kind == "commandExecution"
@@ -36,6 +56,7 @@ func (s *session) conversationRows() []conversationRow {
 		}
 		rows = append(rows, row)
 	}
+	flush()
 	return rows
 }
 

@@ -296,7 +296,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 	}
 	viewY := d.scroll.Y
 	if !d.loaded && !d.loading && d.err == "" {
-		if d.kind == "file" {
+		if d.kind == "file" || d.turnReview != nil {
 			a.loadFile(d)
 		} else if strings.HasPrefix(d.compare, "提交 ") {
 			d.gitCommit = strings.TrimPrefix(d.compare, "提交 ")
@@ -502,7 +502,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 			})
 		}
-		if d.kind == "diff" && d.compare != "外部更改" {
+		if d.kind == "diff" && d.compare != "外部更改" && d.turnReview == nil {
 			for _, source := range a.files {
 				if source.root == d.root && source.path == d.path && source.dirty() {
 					native.Text(c, "包含未保存编辑，当前差异基于磁盘").FontSize(11).TextColor(t.TextMuted).Padding(4, 14)
@@ -865,7 +865,7 @@ func (a *App) selectWorkspaceTab(tab storage.Tab) {
 	} else if d := a.files[tab.ID]; d != nil {
 		a.selectFile(d)
 		if !d.loaded && !d.loading {
-			if d.kind == "file" {
+			if d.kind == "file" || d.turnReview != nil {
 				a.loadFile(d)
 			} else {
 				a.refreshGit(a.workspace(d.root))

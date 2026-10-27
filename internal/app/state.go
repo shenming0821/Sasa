@@ -33,6 +33,7 @@ type State struct {
 	Error               string
 	Notice              string
 	Incomplete          bool
+	DisplayTrimmed      bool
 	NeedsSnapshot       bool
 	Phase               string
 	Busy                bool
@@ -207,6 +208,7 @@ func (s *State) Apply(event codex.Event) {
 			t.Name = strings.Trim(p.Item.Server+"/"+p.Item.Tool, "/")
 			t.Changes = p.Item.Changes
 			for i := range t.Changes {
+				t.Changes[i].Truncated = len(t.Changes[i].Diff) > MaxToolBytes
 				t.Changes[i].Diff = clip(t.Changes[i].Diff, MaxToolBytes)
 			}
 			if p.Item.AggregatedOutput != nil {

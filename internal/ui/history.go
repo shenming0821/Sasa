@@ -162,7 +162,7 @@ func (s *session) restoreReading() {
 	}
 	for i, row := range s.conversationRows() {
 		matches := row.message.ID == s.saved.Anchor
-		for _, command := range row.commands {
+		for _, command := range append(append([]*app.Message(nil), row.commands...), row.changes...) {
 			matches = matches || command.ID == s.saved.Anchor
 		}
 		if matches {

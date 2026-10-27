@@ -242,7 +242,9 @@ func (a *App) conversation(c *native.Context) {
 				readingColumn(c, func() { thinkingIndicator(c) })
 			} else {
 				native.Column(c).FillWidth().Bind(a.rowHandle(messages[i].ID)).Children(func() {
-					if len(rows[i].commands) > 0 {
+					if len(rows[i].changes) > 0 {
+						readingColumn(c, func() { a.changeCard(c.Key(messages[i].ID), rows[i].changes) })
+					} else if len(rows[i].commands) > 0 {
 						readingColumn(c, func() { a.commandGroup(c.Key(messages[i].ID), rows[i].commands) })
 					} else {
 						a.message(c, messages[i])
@@ -303,7 +305,6 @@ func (a *App) toolbar(c *native.Context, leftShown, rightShown bool) {
 			})
 		})
 		native.Spacer(c)
-		native.Text(c, a.State.Phase).FontSize(12).TextColor(t.TextMuted).SingleLine()
 		if !rightShown {
 			a.sidebarToggle(c, false)
 		}

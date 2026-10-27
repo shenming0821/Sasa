@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,6 +71,7 @@ func (a *App) addProject(path string) {
 		a.update(func() {
 			a.projectsLoading = false
 			if errors.Is(err, project.ErrNotRepository) {
+				a.restoreProject(directoryProjectID(path))
 				delete(a.collapsedProjects, path)
 				for _, s := range a.sessions {
 					if filepath.Clean(s.State.Cwd) == path {
@@ -84,6 +86,12 @@ func (a *App) addProject(path string) {
 				a.projectsError = "添加项目失败：" + err.Error()
 				return
 			}
+			for _, w := range repo.Worktrees {
+				delete(a.hiddenProjects, directoryProjectID(w.Path))
+			}
+			delete(a.hiddenProjects, directoryProjectID(path))
+			delete(a.hiddenProjects, directoryProjectID(repo.Path))
+			a.restoreProject(repositoryProjectID(repo.CommonDir))
 			a.repositories = mergeRepository(a.repositories, repo)
 			delete(a.projectErrors, repo.CommonDir)
 			delete(a.collapsedProjects, repo.CommonDir)
@@ -98,11 +106,12 @@ func (a *App) refreshProjects() {
 	a.projectsLoading = true
 	a.projectsRefreshed = time.Now()
 	repos := append([]project.Repository(nil), a.repositories...)
+	hidden := maps.Clone(a.hiddenProjects)
 	// Upgrade existing directory sessions to repository groups without starting a thread.
 	var paths []string
 	seen := make(map[string]bool)
 	for _, s := range a.sessions {
-		if s.State.Cwd != "" && !seen[s.State.Cwd] && a.worktreeFor(s.State.Cwd) == nil {
+		if s.State.Cwd != "" && !seen[s.State.Cwd] && !hidden[directoryProjectID(s.State.Cwd)] && a.worktreeFor(s.State.Cwd) == nil {
 			seen[s.State.Cwd] = true
 			paths = append(paths, s.State.Cwd)
 		}
@@ -111,7 +120,11 @@ func (a *App) refreshProjects() {
 		ctx, cancel := a.projectContext(20 * time.Second)
 		defer cancel()
 		failures := make(map[string]string)
+		promotions := make(map[string]project.Repository)
 		for i, repo := range repos {
+			if hidden[repositoryProjectID(repo.CommonDir)] {
+				continue
+			}
 			updated, err := project.Discover(ctx, repo.Path)
 			if err != nil {
 				// A missing primary directory can still be scanned through a linked worktree.
@@ -141,9 +154,15 @@ func (a *App) refreshProjects() {
 			}
 			if repo, err := project.Discover(ctx, path); err == nil {
 				repos = mergeRepository(repos, repo)
+				promotions[path] = repo
 			}
 		}
-		a.update(func() { a.repositories = repos; a.projectErrors = failures; a.projectsLoading = false })
+		a.update(func() {
+			for path, repo := range promotions {
+				a.promoteDirectoryProject(path, repo)
+			}
+			a.repositories, a.projectErrors, a.projectsLoading = repos, failures, false
+		})
 	}()
 }
 
@@ -225,27 +244,46 @@ func (a *App) repositoryMatches(repo project.Repository) bool {
 }
 
 // projectDisclosure keeps descendants mounted until the height transition finishes.
-func (a *App) projectDisclosure(c *native.Context, key, label string, heading, content func()) {
-	header := treeButton(c, label).FillWidth().Padding(8).Gap(7).Justify(native.Start)
-	if header.Clicked() {
-		if a.collapsedProjects == nil {
-			a.collapsedProjects = make(map[string]bool)
-		}
-		a.collapsedProjects[key] = !a.collapsedProjects[key]
-	}
+func (a *App) projectDisclosure(c *native.Context, key, label string, heading, content func(), projectIDs ...string) {
+	var header, arrow, more native.Element
+	managed := len(projectIDs) > 0 && projectIDs[0] != directoryProjectID("")
+	var progress float32
 	target := float32(1)
 	if a.collapsedProjects[key] && a.sessionQuery == "" {
 		target = 0
 	}
-	progress := header.Animate("project-open", target, 200*time.Millisecond)
-	header.Children(func() {
-		heading()
-		opacity := float32(0)
-		if header.Hovered() || header.FocusVisible() {
-			opacity = 1
+	row := native.Row(c.Key("project-heading")).FillWidth().Radius(8).AlignItems(native.Center)
+	row.Children(func() {
+		header = native.ButtonBase(c).Label(label).TextColor(c.Theme().TextMuted).Radius(8).Grow(1).MinWidth(0).Padding(8).Gap(7).Justify(native.Start)
+		if header.Clicked() {
+			if a.collapsedProjects == nil {
+				a.collapsedProjects = make(map[string]bool)
+			}
+			a.collapsedProjects[key] = !a.collapsedProjects[key]
+			if a.collapsedProjects[key] && a.sessionQuery == "" {
+				target = 0
+			} else {
+				target = 1
+			}
 		}
-		native.Icon(c, chevron).Size(11, 11).Rotate(-90 * (1 - progress)).Opacity(opacity)
+		progress = header.Animate("project-open", target, 200*time.Millisecond)
+		header.Children(func() {
+			heading()
+			arrow = native.Icon(c, chevron).Size(11, 11).Rotate(-90 * (1 - progress))
+		})
+		if managed {
+			more = a.projectHeadingActions(c, row, header, projectIDs[0])
+		}
 	})
+	opacity := float32(0)
+	if row.Hovered() || header.FocusVisible() || (managed && more.FocusVisible()) {
+		row.Background(c.Theme().SurfaceHover)
+		opacity = 1
+	}
+	arrow.Opacity(opacity)
+	if managed {
+		more.Opacity(opacity)
+	}
 	if progress == 0 && target == 0 {
 		return
 	}
@@ -260,96 +298,91 @@ func (a *App) projectDisclosure(c *native.Context, key, label string, heading, c
 	}
 }
 
-func (a *App) repositoryRows(c *native.Context) {
+func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 	t := c.Theme()
-	for _, repo := range a.repositories {
-		if !a.repositoryMatches(repo) {
-			continue
-		}
-		rc := c.Key(repo.CommonDir)
-		native.Column(rc).FillWidth().Gap(3).Children(func() {
-			a.projectDisclosure(rc, repo.CommonDir, "展开仓库 "+repo.CommonDir, func() {
-				native.Icon(rc, folderIcon).Size(14, 14)
-				native.Text(rc, repo.Name).FontSize(14).Bold().TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-				native.Spacer(rc)
-			}, func() {
-				if err := a.projectErrors[repo.CommonDir]; err != "" {
-					native.Text(rc, "刷新失败，保留上次列表").FontSize(10).TextColor(t.Danger).Tooltip(err).Padding(4, 12)
+	rc := c.Key(repo.CommonDir)
+	native.Column(rc).FillWidth().Gap(3).Children(func() {
+		a.projectDisclosure(rc, repo.CommonDir, "展开仓库 "+repo.CommonDir, func() {
+			native.Icon(rc, folderIcon).Size(14, 14)
+			native.Text(rc, repo.Name).FontSize(14).Bold().TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+			native.Spacer(rc)
+		}, func() {
+			if err := a.projectErrors[repo.CommonDir]; err != "" {
+				native.Text(rc, "刷新失败，保留上次列表").FontSize(10).TextColor(t.Danger).Tooltip(err).Padding(4, 12)
+			}
+			whole := matchesQuery(a.sessionQuery, repo.Name, repo.Path)
+			for _, w := range repo.Worktrees {
+				if w.Missing || w.Prunable {
+					continue
 				}
-				whole := matchesQuery(a.sessionQuery, repo.Name, repo.Path)
-				for _, w := range repo.Worktrees {
-					if w.Missing || w.Prunable {
-						continue
-					}
-					sessions := a.worktreeSessions(w)
-					match := whole || matchesQuery(a.sessionQuery, w.Path, w.Branch)
-					if !match {
-						for _, s := range sessions {
-							if s.hasProjectConversation() && matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
-								match = true
-								break
-							}
-						}
-					}
-					if !match {
-						continue
-					}
-					var latest *session
+				sessions := a.worktreeSessions(w)
+				match := whole || matchesQuery(a.sessionQuery, w.Path, w.Branch)
+				if !match {
 					for _, s := range sessions {
-						if s.hasProjectConversation() && (whole || matchesQuery(a.sessionQuery, w.Path, w.Branch, s.title(), s.State.Cwd)) {
-							latest = s
+						if s.hasProjectConversation() && matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
+							match = true
 							break
 						}
 					}
-					wc := rc.Key(w.Path)
-					card := native.Column(wc).FillWidth().Gap(0).Radius(10)
-					if current := a.worktreeFor(a.State.Cwd); current != nil && current.Path == w.Path && a.open {
-						card.Background(t.SurfacePressed)
-					} else if card.Hovered() {
-						card.Background(t.SurfaceHover)
+				}
+				if !match {
+					continue
+				}
+				var latest *session
+				for _, s := range sessions {
+					if s.hasProjectConversation() && (whole || matchesQuery(a.sessionQuery, w.Path, w.Branch, s.title(), s.State.Cwd)) {
+						latest = s
+						break
 					}
-					card.Children(func() {
-						b := native.ButtonBase(wc).Label("打开工作区 "+w.Path).FillWidth().MinWidth(0).Radius(10).Padding(10, 16, 10, 29).Disabled(!w.Available())
-						if b.FocusVisible() {
-							card.Background(t.SurfacePressed)
-						}
-						b.Children(func() {
-							native.Column(wc).FillWidth().Gap(3).Children(func() {
-								native.Row(wc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-									native.Text(wc, filepath.Base(w.Path)).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-									if w.Main {
-										native.Text(wc, "主要").FontSize(9).TextColor(t.TextMuted).Padding(1, 4).BorderWidth(1).BorderColor(t.Border).Radius(3)
-									}
-								})
-								label := w.Label()
-								if !w.Available() {
-									label += " · 不可用"
-								} else if w.Locked {
-									label += " · 已锁定"
-								}
-								native.Text(wc, label).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
-								if latest != nil {
-									native.Text(wc, latest.title()).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0).Padding(5, 0, 0, 0)
-									if status := latest.navigationStatus(); status != "" && !latest.writerOccupied {
-										color := t.TextMuted
-										if latest.State.Error != "" {
-											color = t.Danger
-										}
-										native.Text(wc, status).FontSize(10).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
-									}
+				}
+				wc := rc.Key(w.Path)
+				card := native.Column(wc).FillWidth().Gap(0).Radius(10)
+				if current := a.worktreeFor(a.State.Cwd); current != nil && current.Path == w.Path && a.open {
+					card.Background(t.SurfacePressed)
+				} else if card.Hovered() {
+					card.Background(t.SurfaceHover)
+				}
+				card.Children(func() {
+					b := native.ButtonBase(wc).Label("打开工作区 "+w.Path).FillWidth().MinWidth(0).Radius(10).Padding(10, 16, 10, 29).Disabled(!w.Available())
+					if b.FocusVisible() {
+						card.Background(t.SurfacePressed)
+					}
+					b.Children(func() {
+						native.Column(wc).FillWidth().Gap(3).Children(func() {
+							native.Row(wc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
+								native.Text(wc, filepath.Base(w.Path)).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+								if w.Main {
+									native.Text(wc, "主要").FontSize(9).TextColor(t.TextMuted).Padding(1, 4).BorderWidth(1).BorderColor(t.Border).Radius(3)
 								}
 							})
-						})
-						if b.Clicked() {
-							if latest != nil {
-								a.selectSession(latest)
-							} else {
-								a.openWorktree(w)
+							label := w.Label()
+							if !w.Available() {
+								label += " · 不可用"
+							} else if w.Locked {
+								label += " · 已锁定"
 							}
-						}
+							native.Text(wc, label).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+							if latest != nil {
+								native.Text(wc, latest.title()).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0).Padding(5, 0, 0, 0)
+								if status := latest.navigationStatus(); status != "" && !latest.writerOccupied {
+									color := t.TextMuted
+									if latest.State.Error != "" {
+										color = t.Danger
+									}
+									native.Text(wc, status).FontSize(10).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
+								}
+							}
+						})
 					})
-				}
-			})
-		})
-	}
+					if b.Clicked() {
+						if latest != nil {
+							a.selectSession(latest)
+						} else {
+							a.openWorktree(w)
+						}
+					}
+				})
+			}
+		}, repositoryProjectID(repo.CommonDir))
+	})
 }

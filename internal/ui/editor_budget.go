@@ -103,6 +103,11 @@ func gitDocumentBytes(d *filePage) int {
 	if d.gitReview != nil {
 		total += len(d.gitReview.Patch)
 	}
+	if d.turnReview != nil {
+		for _, f := range d.turnReview.files {
+			total += len(f.Patch)
+		}
+	}
 	if state := d.gitConflict; state != nil {
 		total += len(state.sides.Base) + len(state.sides.Current) + len(state.sides.Incoming)
 		for _, buffer := range []*native.TextBuffer{state.base, state.current, state.incoming} {

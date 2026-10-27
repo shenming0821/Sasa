@@ -40,6 +40,8 @@ type Snapshot struct {
 	ExpandedFiles     map[string][]string
 	GitDrafts         map[string]string
 	Repositories      []project.Repository
+	ProjectOrder      []string
+	HiddenProjects    map[string]bool
 	Selected          int
 	OpenTabs          []int
 	SidebarOpen       bool
