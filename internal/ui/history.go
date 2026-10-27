@@ -39,6 +39,7 @@ func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 	}
 	bound := a.forSession(s)
 	s.recovering, s.recoveryBlocked = true, true
+	s.historyAtTop = false
 	s.historyOverflow = false
 	s.State.Phase, s.State.Error = "正在核验原生历史", ""
 	s.recoveryEpoch++
@@ -206,6 +207,16 @@ func (s *session) restoreRowOffset(c *native.Context) {
 	c.Invalidate()
 }
 
+func (a *App) loadHistoryNearTop() {
+	first, last := a.list.Visible()
+	nearTop := last >= 0 && first <= 1 && (!a.list.AtEnd() || a.scroll.MaxY == 0)
+	if nearTop && !a.historyAtTop && !a.restoreOffset {
+		a.loadOlder()
+	}
+	// A failed page retries only after the user leaves and returns to the top.
+	a.historyAtTop = nearTop
+}
+
 func (a *App) loadOlder() {
 	s := a.session
 	backend, ok := a.backend.(historyBackend)
@@ -262,6 +273,7 @@ func (a *App) loadOlder() {
 			}
 			s.State.Messages = append(prepend, s.State.Messages...)
 			s.historyCursor = page.NextCursor
+			s.historyAtTop = false
 			if s.saved.Anchor != "" {
 				for _, m := range prepend {
 					if m.ID == s.saved.Anchor {

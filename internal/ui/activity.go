@@ -34,6 +34,10 @@ func pretty(raw json.RawMessage) string {
 }
 
 func (a *App) toolCard(c *native.Context, t *app.Tool) {
+	if t.Kind == "mcpToolCall" || t.Kind == "dynamicToolCall" || t.Kind == "webSearch" {
+		a.toolDisclosure(c, t)
+		return
+	}
 	theme := c.Theme()
 	native.Column(c).FillWidth().Gap(8).Padding(12, 14).Radius(12).
 		Border(1, theme.Border.Alpha(.65)).Background(theme.Surface).Clip().Children(func() {

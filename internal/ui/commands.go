@@ -8,12 +8,33 @@ import (
 	"github.com/shenming0821/Fuyu/internal/app"
 )
 
-var terminalIcon = icon(`<path d="m4 6 5 6-5 6M12 18h8"/>`)
+var terminalIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18M7 12h6M7 16h10"/>`)
 
 type conversationRow struct {
 	message  *app.Message
 	commands []*app.Message
 	changes  []*app.Message
+}
+
+func (r conversationRow) processRecord() bool {
+	if len(r.commands) > 0 {
+		return true
+	}
+	if len(r.changes) > 0 || r.message == nil || r.message.Interaction != nil || r.message.Tool == nil {
+		return false
+	}
+	kind := r.message.Tool.Kind
+	return kind == "mcpToolCall" || kind == "dynamicToolCall" || kind == "webSearch"
+}
+
+func conversationSpacing(rows []conversationRow, i int) float32 {
+	if i == 0 {
+		return 0
+	}
+	if i < len(rows) && rows[i-1].processRecord() && rows[i].processRecord() {
+		return 4
+	}
+	return 28
 }
 
 // Project groups once for both virtual-list indices and saved reading anchors.
@@ -104,48 +125,46 @@ func commandSummary(commands []*app.Message) (string, bool) {
 	return "运行了命令", false
 }
 
-// The native disclosure owns keyboard semantics, clipping and reduced-motion behavior.
-func commandDisclosure(c *native.Context, label, text string, open *bool, failed, group bool, content func()) {
+// Process records share the same hierarchy, hover affordance and keyboard disclosure.
+func processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, suffix, content func()) {
 	theme := c.Theme()
-	native.Column(c).FillWidth().MinWidth(0).Children(func() {
+	native.Column(c).FillWidth().MinWidth(0).TextColor(theme.TextMuted).Children(func() {
 		parts := native.CollapsibleBase(c, open)
 		trigger := parts.Trigger.Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).TextColor(theme.TextMuted)
 		hover := trigger.Hovered() || trigger.FocusVisible()
-		if hover || (group && text == "运行了命令") {
-			trigger.TextColor(theme.Text)
-		}
-		if failed {
-			trigger.TextColor(theme.Danger)
-		}
 		trigger.Children(func() {
-			if group {
-				native.Icon(c, terminalIcon).Size(16, 16).Shrink(0)
+			if glyph != nil {
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
 			}
-			caption := native.Text(c, text).FontSize(13).SingleLine().MinWidth(0)
-			if group {
-				caption.Shrink(1)
-			} else {
-				caption.Grow(1)
-			}
-			if group && text == "运行了命令" {
-				caption.FontWeight(600)
-			}
+			native.Text(c, text).FontSize(13).SingleLine().MinWidth(0).Shrink(1).TextColor(theme.TextMuted)
 			opacity := float32(0)
 			if hover {
 				opacity = 1
 			}
-			native.Icon(c, chevron).Label(label+"箭头").Size(16, 16).Shrink(0).
+			native.Icon(c, chevron).Label(label+"箭头").Size(16, 16).Shrink(0).TextColor(theme.TextMuted).
 				Rotate(-90 * (1 - parts.Progress())).Opacity(opacity)
+			if suffix != nil {
+				native.Spacer(c)
+				suffix()
+			}
 		})
 		parts.Panel(func() {
-			native.Column(c).FillWidth().MinWidth(0).Opacity(parts.Progress()).Padding(4, 0, 4, 24).Children(content)
+			native.Column(c).FillWidth().MinWidth(0).TextColor(theme.TextMuted).Opacity(parts.Progress()).Padding(4, 0, 4, 24).Children(content)
 		})
 	})
 }
 
+func commandDisclosure(c *native.Context, label, text string, open *bool, group bool, content func()) {
+	var glyph *native.SVG
+	if group {
+		glyph = terminalIcon
+	}
+	processDisclosure(c, label, text, open, glyph, nil, content)
+}
+
 func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
-	text, failed := commandSummary(commands)
-	commandDisclosure(c, "命令组 "+commands[0].ID, text, a.commandGroupOpen(commands[0].ID), failed, true, func() {
+	text, _ := commandSummary(commands)
+	commandDisclosure(c, "命令组 "+commands[0].ID, text, a.commandGroupOpen(commands[0].ID), true, func() {
 		for _, m := range commands {
 			tool := m.Tool
 			ctx := c.Key(m.ID)
@@ -160,7 +179,7 @@ func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
 			case tool.Status == "declined":
 				label = "已拒绝 "
 			}
-			commandDisclosure(ctx, "命令详情 "+m.ID, label+strings.Join(strings.Fields(tool.Command), " "), &tool.Expanded, commandFailed(tool), false, func() {
+			commandDisclosure(ctx, "命令详情 "+m.ID, label+strings.Join(strings.Fields(tool.Command), " "), &tool.Expanded, false, func() {
 				native.Scroll(ctx).Label("命令输出 " + m.ID).FillWidth().MaxHeight(180).Children(func() {
 					native.Column(ctx).FillWidth().Gap(6).Padding(8).Background(ctx.Theme().Surface).Radius(8).Clip().Children(func() {
 						detailText(ctx, "工作目录", tool.Cwd)

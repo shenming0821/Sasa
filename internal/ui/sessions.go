@@ -33,6 +33,7 @@ type session struct {
 	recovering      bool
 	recoveryBlocked bool
 	historyLoading  bool
+	historyAtTop    bool
 	historyCursor   *string
 	recoveryEvents  []codex.Event
 	recoveryBytes   int

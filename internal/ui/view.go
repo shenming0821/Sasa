@@ -121,13 +121,6 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 		a.toolbar(c, leftShown, rightShown)
 		a.sessionTabs(c)
 		a.fileExitNotice(c)
-		if a.historyCursor != nil {
-			native.Row(c).FillWidth().Padding(4, 24).Justify(native.Center).Children(func() {
-				if actionButton(c, "加载更早消息").Disabled(a.historyLoading || a.recovering).Clicked() {
-					a.loadOlder()
-				}
-			})
-		}
 		if pending := a.State.PendingInteractions(); len(pending) > 0 {
 			native.Row(c).FillWidth().Padding(6, 24).Children(func() {
 				b := actionButton(c, fmt.Sprintf("处理待办（%d）", len(pending))).TextColor(t.Text)
@@ -238,10 +231,13 @@ func (a *App) conversation(c *native.Context) {
 	native.Box(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		// Keep the latest content clear of the floating control, even while it is hidden.
 		native.List(c, &a.list, count, func(i int) {
+			gap := conversationSpacing(rows, i)
 			if i == len(messages) {
-				readingColumn(c, func() { thinkingIndicator(c) })
+				native.Column(c).FillWidth().Padding(gap, 0, 0, 0).Children(func() {
+					readingColumn(c, func() { thinkingIndicator(c) })
+				})
 			} else {
-				native.Column(c).FillWidth().Bind(a.rowHandle(messages[i].ID)).Children(func() {
+				native.Column(c).FillWidth().Padding(gap, 0, 0, 0).Bind(a.rowHandle(messages[i].ID)).Children(func() {
 					if len(rows[i].changes) > 0 {
 						readingColumn(c, func() { a.changeCard(c.Key(messages[i].ID), rows[i].changes) })
 					} else if len(rows[i].commands) > 0 {
@@ -251,7 +247,8 @@ func (a *App) conversation(c *native.Context) {
 					}
 				})
 			}
-		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(28).TrackScroll(&a.scroll)
+		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(0).TrackScroll(&a.scroll)
+		a.loadHistoryNearTop()
 		if !a.list.AtEnd() {
 			// The tint fades into the composer surface without intercepting scrolling.
 			native.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(scrollFadeHeight).

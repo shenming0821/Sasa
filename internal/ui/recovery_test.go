@@ -385,3 +385,41 @@ func TestBufferedHistoryControlsReconcileWithoutDuplicatingDeltas(t *testing.T) 
 		t.Fatal("overlap with no native snapshot support lost its incomplete boundary")
 	}
 }
+
+func TestScrollToTopLoadsOlderHistoryWithoutButton(t *testing.T) {
+	b := recoveredBackend("completed")
+	b.pages = append(b.pages, codex.TurnsPage{Data: []codex.HistoryTurn{{
+		ID: "earlier", Status: "completed",
+		Items: []json.RawMessage{json.RawMessage(`{"id":"older-reply","type":"agentMessage","text":"earlier result"}`)},
+	}}})
+	a := New(b, "test", "/first", nil)
+	a.State.ThreadID, a.State.Draft = "native", "keep draft"
+	cursor := "older"
+	a.historyCursor = &cursor
+	for i := 0; i < 60; i++ {
+		a.State.Messages = append(a.State.Messages, &app.Message{
+			ID: fmt.Sprint(i), Role: "user", Text: fmt.Sprintf("Message %d", i), Done: true,
+		})
+	}
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	tt := native.NewTester(a.view, 1000, 760)
+	if tt.HasText("加载更早消息") || a.historyLoading {
+		t.Fatal("history button remains or paging started at the latest message")
+	}
+	a.list.ScrollTo(0, native.Start)
+	tt.Frame()
+	if !a.historyLoading {
+		t.Fatal("scrolling to top did not load older history")
+	}
+	before := a.rows["0"].Bounds(a.readingContext)
+	pumpUpdate(t, queue)
+	tt.Frame()
+	after := a.rows["0"].Bounds(a.readingContext)
+	if a.State.Messages[0].ID != "older-reply" || a.State.Draft != "keep draft" || a.historyCursor != nil {
+		t.Fatal("pagination lost history or draft")
+	}
+	if math.Abs(float64(before.Y-after.Y)) > 2 {
+		t.Fatalf("pagination moved reading position: before=%+v after=%+v", before, after)
+	}
+}
