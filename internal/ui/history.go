@@ -296,7 +296,7 @@ func (a *App) loadOlder() {
 
 func (a *App) loadThreadList() {
 	backend, ok := a.backend.(historyBackend)
-	if !ok || a.threadsLoading {
+	if !ok || a.threadsLoading || len(a.nativeThreads) > 0 && a.threadsCursor == nil {
 		return
 	}
 	a.threadsLoading, a.threadsError = true, ""
@@ -311,8 +311,21 @@ func (a *App) loadThreadList() {
 				a.threadsError = "读取历史失败：" + err.Error()
 				return
 			}
-			a.nativeThreads = append(a.nativeThreads, page.Data...)
+			threads := make([]codex.ThreadMeta, 0, len(a.nativeThreads)+len(page.Data))
+			positions := make(map[string]int)
+			for _, batch := range [][]codex.ThreadMeta{a.nativeThreads, page.Data} {
+				for _, thread := range batch {
+					if i, exists := positions[thread.ID]; exists {
+						threads[i] = thread
+					} else {
+						positions[thread.ID] = len(threads)
+						threads = append(threads, thread)
+					}
+				}
+			}
+			a.nativeThreads = threads
 			a.threadsCursor = page.NextCursor
+			a.threadsLayoutPending = true
 		})
 	}()
 }
@@ -358,23 +371,32 @@ func (a *App) historyBrowser(c *native.Context) {
 					a.recoverSession(s)
 				}
 			}
-			if count == 0 && !a.threadsLoading && a.threadsError == "" {
+			if count == 0 && !a.threadsLoading && a.threadsError == "" && a.threadsCursor == nil {
 				native.Text(c, "已加载的历史中没有匹配会话").FontSize(12).TextColor(c.Theme().TextMuted).Padding(12)
 			}
 			if a.threadsError != "" {
 				native.Text(c, a.threadsError).FontSize(11).TextColor(c.Theme().Danger)
-			}
-			if a.threadsCursor != nil || a.threadsError != "" || len(a.nativeThreads) == 0 {
-				label := "加载更多会话"
-				if a.threadsLoading {
-					label = "正在加载…"
-				}
-				if actionButton(c, label).Disabled(a.threadsLoading).Clicked() {
+				if actionButton(c, "重试").Disabled(a.threadsLoading).Clicked() {
 					a.loadThreadList()
 				}
+			} else if a.threadsLoading {
+				native.Text(c, "正在加载…").FontSize(11).TextColor(c.Theme().TextMuted).Padding(8)
 			}
 		})
 	})
+	// Measure the appended rows before deciding whether another page is needed.
+	if a.threadsLayoutPending {
+		a.threadsLayoutPending = false
+		c.Invalidate()
+		return
+	}
+	if a.threadsCursor != nil && !a.threadsLoading && a.threadsError == "" {
+		if w.historyScroll.Bounds(c).H == 0 {
+			c.Invalidate()
+		} else if w.historyScroll.MaxY-w.historyScroll.Y <= 80 {
+			a.loadThreadList()
+		}
+	}
 }
 
 func (s *session) bufferRecovery(e codex.Event) bool {

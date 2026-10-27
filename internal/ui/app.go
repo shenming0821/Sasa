@@ -28,45 +28,46 @@ type Backend interface {
 type App struct {
 	*session
 	editorState
-	backend           Backend
-	version           string
-	win               *mygo.Window
-	md                markdown.Options
-	sessions          []*session
-	repositories      []project.Repository
-	projectOrder      []string
-	hiddenProjects    map[string]bool
-	projectsLoading   bool
-	projectsError     string
-	projectErrors     map[string]string
-	projectsRefreshed time.Time
-	nextSession       int
-	sidebarOpen       bool
-	sidebarWidth      float32
-	rightPanelWidth   float32
-	compactSidebar    bool
-	sessionQuery      string
-	tabsSelected      string
-	collapsedProjects map[string]bool
-	historyQuery      string
-	historyScope      int
-	root              *App
-	store             *storage.Store
-	lastSaved         []byte
-	storageError      string
-	historyOpen       bool
-	nativeThreads     []codex.ThreadMeta
-	threadsCursor     *string
-	threadsLoading    bool
-	threadsError      string
-	quitting          bool
-	quitDialog        bool
-	quitStopping      bool
-	quitDeadline      time.Time
-	quitSent          map[string]bool
-	quitTargets       map[int]bool
-	quitApp           func()
-	quitPrompt        func(mygo.MessageOptions) (mygo.MessageResult, error)
+	backend              Backend
+	version              string
+	win                  *mygo.Window
+	md                   markdown.Options
+	sessions             []*session
+	repositories         []project.Repository
+	projectOrder         []string
+	hiddenProjects       map[string]bool
+	projectsLoading      bool
+	projectsError        string
+	projectErrors        map[string]string
+	projectsRefreshed    time.Time
+	nextSession          int
+	sidebarOpen          bool
+	sidebarWidth         float32
+	rightPanelWidth      float32
+	compactSidebar       bool
+	sessionQuery         string
+	tabsSelected         string
+	collapsedProjects    map[string]bool
+	historyQuery         string
+	historyScope         int
+	root                 *App
+	store                *storage.Store
+	lastSaved            []byte
+	storageError         string
+	historyOpen          bool
+	nativeThreads        []codex.ThreadMeta
+	threadsCursor        *string
+	threadsLoading       bool
+	threadsLayoutPending bool
+	threadsError         string
+	quitting             bool
+	quitDialog           bool
+	quitStopping         bool
+	quitDeadline         time.Time
+	quitSent             map[string]bool
+	quitTargets          map[int]bool
+	quitApp              func()
+	quitPrompt           func(mygo.MessageOptions) (mygo.MessageResult, error)
 	// Replaced in component tests so no task or native dialog is started.
 	submit   func()
 	respond  func(*app.Interaction, any)

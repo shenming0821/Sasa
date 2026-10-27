@@ -75,6 +75,30 @@ func TestUserBubbleAlignment(t *testing.T) {
 	}
 }
 
+func TestUserBubbleLongPlainTextLayout(t *testing.T) {
+	text := "请检查 Fuyu 的显示效果。\n\n1. 保留原始换行与编号。\n2. 路径 /Users/example/Documents/Fuyu/internal/ui/view.go 和 English 混排。\n" + strings.Repeat("LongIdentifierWithoutSpaces", 12)
+	for _, width := range []int{320, 640, 1000} {
+		for _, dark := range []bool{false, true} {
+			t.Run(fmt.Sprintf("width=%d/dark=%v", width, dark), func(t *testing.T) {
+				a := New(stubBackend{}, "test", "/tmp", nil)
+				m := &app.Message{ID: "question", Role: "user", Text: text, Done: true}
+				tt := native.NewTester(func(c *native.Context) { a.message(c, m) }, width, 1600)
+				tt.SetDark(dark)
+				bubble, ok := tt.Find(text)
+				if !ok || bubble.X < 0 || bubble.X+bubble.W > float32(width)+0.5 || bubble.H > 1600 {
+					t.Fatalf("long question missing or outside viewport: %+v", bubble)
+				}
+				if bubble.H < 6*24+32 {
+					t.Fatalf("question lines are too dense: %+v", bubble)
+				}
+				if m.Text != text {
+					t.Fatal("question formatting changed the original text")
+				}
+			})
+		}
+	}
+}
+
 func TestFloatingReturnControlDoesNotMoveComposerOrBlockScroll(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		a := New(stubBackend{}, "test", "/tmp", nil)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"testing"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/app"
@@ -186,6 +187,55 @@ func TestTabCloseButtonLayout(t *testing.T) {
 		if !ok || !found || close.W < 24 || close.H < 24 || title.X+title.W > close.X+1 {
 			t.Fatalf("tab title and close overlap at width %d: title=%+v close=%+v", width, title, close)
 		}
+	}
+}
+
+func TestTabTooltipsShowOnlyTitleAndSkipClose(t *testing.T) {
+	for _, kind := range []string{"session", "file", "diff"} {
+		t.Run(kind, func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/project", nil)
+			a.saved.Title = "A long conversation title that should truncate"
+			tab := a.tabs[0]
+			label, closeLabel := "会话标签 1", "关闭会话标签 1"
+			if kind != "session" {
+				tab = storage.Tab{ID: "test-file", Kind: kind, Path: "/project/src/example.go", Workspace: "/project"}
+				a.tabs = []storage.Tab{tab}
+				label, closeLabel = "文件标签 "+tab.Path, "关闭文件标签 "+tab.Path
+			}
+			tt := native.NewTester(func(c *native.Context) { a.sessionTabs(c) }, 640, 200)
+			before := tt.Texts()
+			r, ok := tt.Find(label)
+			if !ok {
+				t.Fatal("missing title")
+			}
+			face := copyRegion(tt.Image(), r)
+			tt.Move(r.X+r.W/2, r.Y+r.H/2)
+			tt.Advance(150 * time.Millisecond)
+			if !equalPixels(face, copyRegion(tt.Image(), r)) {
+				t.Fatal("title hover changed tab background")
+			}
+			tt.Advance(time.Second)
+			after := tt.Texts()
+			if len(after) != len(before)+1 || after[len(after)-1] != a.tabTitle(tab) {
+				t.Fatalf("expected one title-only tooltip: before=%v after=%v", before, after)
+			}
+			tt.Move(639, 199)
+			before = tt.Texts()
+			r, ok = tt.Find(closeLabel)
+			if !ok {
+				t.Fatal("missing accessible close button")
+			}
+			face = copyRegion(tt.Image(), r)
+			tt.Move(r.X+r.W/2, r.Y+r.H/2)
+			tt.Advance(150 * time.Millisecond)
+			if !equalPixels(face, copyRegion(tt.Image(), r)) {
+				t.Fatal("close hover changed tab background")
+			}
+			tt.Advance(time.Second)
+			if !slices.Equal(before, tt.Texts()) {
+				t.Fatal("close hover added tooltip text", tt.Texts())
+			}
+		})
 	}
 }
 

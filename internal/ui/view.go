@@ -451,8 +451,8 @@ func (a *App) message(c *native.Context, m *app.Message) {
 		native.Column(c.Key(m.ID)).FillWidth().Gap(4).Children(func() {
 			if m.Role == "user" {
 				native.Row(c).FillWidth().Justify(native.End).Children(func() {
-					native.Text(c, m.Text).Selectable().FontSize(15).
-						MaxWidthPercent(85).Padding(12, 16).Radius(20).Background(t.Surface)
+					native.Text(c, m.Text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
+						MaxWidthPercent(85).Padding(16, 20).Radius(20).Background(t.Surface)
 				})
 			} else if m.Role == "assistant" {
 				if m.Done {

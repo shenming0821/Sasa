@@ -166,8 +166,7 @@ func (a *App) sessionTabs(c *native.Context) {
 							label = fmt.Sprintf("会话标签 %d", tab.SessionID)
 							closeLabel = fmt.Sprintf("关闭会话标签 %d", tab.SessionID)
 						}
-						b := quietButton(tc, label).Grow(1).MinWidth(0).FillHeight().Radius(0).Padding(0, 12).Tooltip(a.tabTitle(tab) + "\n" + tab.Workspace)
-						buttonFace(tc, b, native.Color{}, t.SurfaceHover, t.SurfacePressed, 0, 0)
+						b := native.ButtonBase(tc).Label(label).Tooltip(a.tabTitle(tab)).Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
 						if a.tabHandles == nil {
 							a.tabHandles = map[string]*native.Handle{}
 						}
@@ -193,7 +192,7 @@ func (a *App) sessionTabs(c *native.Context) {
 								d.focusOwner = a.tabHandles[tab.ID]
 							}
 						}
-						close := quietButton(tc, closeLabel).Size(24, 24).Tooltip("关闭标签")
+						close := native.ButtonBase(tc).Label(closeLabel).Size(24, 24).Radius(8).Padding(6)
 						close.Children(func() {
 							if d := a.files[tab.ID]; d != nil && d.dirty() && !close.Hovered() && !close.FocusVisible() {
 								native.Text(tc, "●").FontSize(9).TextColor(t.TextMuted)
