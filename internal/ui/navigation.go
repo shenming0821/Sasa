@@ -123,8 +123,6 @@ func (a *App) sidebar(c *native.Context) {
 				}
 			})
 		})
-		native.Text(c, "Codex 工作空间").FontSize(11).TextColor(t.TextMuted).Padding(14, 18).
-			BorderWidth(1, 0, 0, 0).BorderColor(t.Border.Alpha(0.5))
 	})
 }
 
