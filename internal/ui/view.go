@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
@@ -391,19 +390,7 @@ func (a *App) composer(c *native.Context) {
 		})
 		native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
 			a.imagePickerButton(c)
-			model := "Codex"
-			if a.State.Model != "" {
-				model = a.State.Model[strings.LastIndex(a.State.Model, "/")+1:]
-			}
-			details := quietButton(c, "运行详情").Gap(5).MinWidth(0).Shrink(1)
-			details.Children(func() {
-				native.Text(c, model).FontSize(12).SingleLine().Shrink(1).MinWidth(0)
-				native.Icon(c, chevron).Size(12, 12)
-			})
-			if details.Clicked() {
-				a.detailsOpen = !a.detailsOpen
-			}
-			native.Popover(c, details, &a.detailsOpen, func() { a.runtimeDetails(c) })
+			a.modelPicker(c)
 			native.Spacer(c)
 			action, glyph := "发送", upIcon
 			hint := "Enter 发送 · ⌘ Enter 换行"
@@ -431,27 +418,43 @@ func (a *App) composer(c *native.Context) {
 
 func (a *App) runtimeDetails(c *native.Context) {
 	t := c.Theme()
-	native.Column(c).Width(420).Gap(10).Children(func() {
-		native.Text(c, "运行详情").FontSize(14).Bold()
-		values := [][2]string{
-			{"版本", a.version}, {"模型", a.State.Model},
-			{"审批", a.State.Policy}, {"沙箱", a.State.Sandbox},
+	native.Column(c).Width(300).Padding(12).Gap(12).Children(func() {
+		native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
+			native.Text(c, "运行详情").FontSize(12).FontWeight(600).Grow(1)
+			native.Text(c, a.version).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+		})
+		model := a.State.Model
+		if model == "" {
+			model = "会话建立后确认"
 		}
-		for _, value := range values {
-			text := value[1]
-			if text == "" {
-				text = "会话建立后确认"
+		native.Column(c).FillWidth().Padding(10, 12).Gap(5).Radius(8).Background(t.Surface).Children(func() {
+			native.Text(c, "当前模型").FontSize(11).TextColor(t.TextMuted)
+			native.Text(c, model).FontSize(12).FontWeight(500).Selectable().FillWidth().MinWidth(0)
+		})
+		values := [][2]string{{"审批", readablePolicy(a.State.Policy)}, {"文件访问", readableSandbox(a.State.Sandbox)}}
+		native.Column(c).FillWidth().Gap(8).Children(func() {
+			for _, value := range values {
+				text := value[1]
+				if text == "" {
+					text = "会话建立后确认"
+				}
+				native.Row(c).FillWidth().Gap(12).AlignItems(native.Center).Children(func() {
+					native.Text(c, value[0]).Width(60).Shrink(0).FontSize(11).TextColor(t.TextMuted)
+					native.Text(c, text).FontSize(12).Selectable().Grow(1).MinWidth(0)
+				})
 			}
-			native.Column(c).Gap(3).Children(func() {
-				native.Text(c, value[0]).FontSize(11).TextColor(t.TextMuted)
-				native.Text(c, text).FontSize(12).Selectable()
-			})
-		}
-		native.Text(c, "Enter 发送 · ⌘ Enter 换行").FontSize(11).TextColor(t.TextMuted)
-		if actionButton(c, "刷新原生历史").Disabled(a.State.ThreadID == "" || a.State.Busy || a.State.Disconnected || a.recovering).Clicked() {
-			a.detailsOpen = false
-			a.recoverSession(a.session)
-		}
+		})
+		native.Box(c).FillWidth().Height(1).Background(t.Border.Alpha(0.6))
+		native.Row(c).FillWidth().Children(func() {
+			native.Spacer(c)
+			reload := treeButton(c, "重新加载会话").Height(24).Padding(0, 6).
+				Disabled(a.State.ThreadID == "" || a.State.Busy || a.State.Disconnected || a.recovering)
+			reload.Children(func() { native.Text(c, "重新加载会话").FontSize(11).TextColor(t.TextMuted) })
+			if reload.Clicked() {
+				a.detailsOpen = false
+				a.recoverSession(a.session)
+			}
+		})
 	})
 }
 

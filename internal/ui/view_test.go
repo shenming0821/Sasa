@@ -39,10 +39,13 @@ func TestConversationLayoutAndDetails(t *testing.T) {
 				if tt.HasText(a.version) || tt.HasText(a.State.Policy) {
 					t.Fatal("runtime details visible before opening")
 				}
-				if err := tt.Click("运行详情"); err != nil {
+				if err := tt.Click("选择模型"); err != nil {
 					t.Fatal(err)
 				}
-				for _, value := range []string{a.version, a.State.Model, a.State.Policy, a.State.Sandbox} {
+				if err := tt.Click("运行详情…"); err != nil {
+					t.Fatal(err)
+				}
+				for _, value := range []string{a.version, a.State.Model, "无需审批", "完全访问"} {
 					r, ok := tt.Find(value)
 					if !ok || r.X < 0 || r.Y < 0 || r.X+r.W > float32(size[0]) || r.Y+r.H > float32(size[1]) {
 						t.Fatalf("detail missing or clipped: %q %+v", value, r)

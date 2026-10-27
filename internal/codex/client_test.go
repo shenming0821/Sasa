@@ -23,6 +23,7 @@ func TestProtocolHelper(t *testing.T) {
 	scenario := os.Args[len(os.Args)-1]
 	dec, enc := json.NewDecoder(os.Stdin), json.NewEncoder(os.Stdout)
 	var held envelope
+	var modelPage int
 	for {
 		var m envelope
 		if dec.Decode(&m) != nil {
@@ -32,6 +33,62 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "models", "models-default", "models-cycle":
+			var result any
+			switch m.Method {
+			case "config/read":
+				var params struct {
+					Cwd           string `json:"cwd"`
+					IncludeLayers bool   `json:"includeLayers"`
+				}
+				if json.Unmarshal(m.Params, &params) != nil || params.Cwd != "/workspace" || params.IncludeLayers {
+					os.Exit(5)
+				}
+				model := "provider/config-model"
+				if scenario == "models-default" {
+					model = ""
+				}
+				result = map[string]any{"config": map[string]any{"model": model}}
+			case "model/list":
+				var params struct {
+					Cursor        *string `json:"cursor"`
+					IncludeHidden bool    `json:"includeHidden"`
+					Limit         int     `json:"limit"`
+				}
+				if json.Unmarshal(m.Params, &params) != nil || params.IncludeHidden || params.Limit != 100 {
+					os.Exit(6)
+				}
+				if modelPage == 0 {
+					if params.Cursor != nil {
+						os.Exit(7)
+					}
+					result = map[string]any{"data": []any{map[string]any{"id": "catalog-id", "model": "wire-model", "displayName": "Visible model", "isDefault": true}, map[string]any{"model": "hidden", "hidden": true}}, "nextCursor": "page-2"}
+				} else {
+					if params.Cursor == nil || *params.Cursor != "page-2" {
+						os.Exit(8)
+					}
+					next := any(nil)
+					if scenario == "models-cycle" {
+						next = "page-2"
+					}
+					result = map[string]any{"data": []any{map[string]any{"id": "second", "model": "wire-second", "displayName": "Second model"}}, "nextCursor": next}
+				}
+				modelPage++
+			case "turn/start":
+				var params struct {
+					Model  string                                    `json:"model"`
+					Thread string                                    `json:"threadId"`
+					Input  []struct{ Type, Text, Name, Path string } `json:"input"`
+				}
+				if json.Unmarshal(m.Params, &params) != nil || params.Model != "wire-model" || params.Thread != "thread" || len(params.Input) != 3 || params.Input[0].Text != "task" || params.Input[1].Type != "skill" || params.Input[2].Type != "localImage" {
+					os.Exit(9)
+				}
+				result = map[string]any{"turn": map[string]any{"id": "model-turn", "status": "inProgress"}}
+			default:
+				os.Exit(10)
+			}
+			enc.Encode(map[string]any{"id": m.ID, "result": result})
+			continue
 		case "images":
 			var params struct {
 				Thread string                                         `json:"threadId"`

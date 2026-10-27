@@ -29,6 +29,10 @@ type Backend interface {
 }
 
 type App struct {
+	models             []codex.Model
+	modelsLoading      bool
+	modelsError        string
+	modelsLoaded       bool
 	imageCache         map[string]*imagePreview
 	imageLoading       bool
 	imageClock         uint64
@@ -176,6 +180,12 @@ func (a *App) send() {
 			}
 		}
 	}
+	modelBackend, supportsModels := a.backend.(modelSender)
+	if a.selectedModel != "" && !supportsModels {
+		a.modelError = "当前连接不支持切换模型"
+		return
+	}
+	selectedModel := a.selectedModel
 	skills := a.draftSkills(text)
 	a.State.Begin(text)
 	if err := a.persist(); err != nil {
@@ -186,6 +196,24 @@ func (a *App) send() {
 	go func() {
 		ctx, cancel := codex.RequestContext()
 		defer cancel()
+		model := selectedModel
+		if supportsModels && model == "" {
+			var err error
+			model, err = modelBackend.DefaultModel(ctx, cwd)
+			if err != nil {
+				a.update(func() {
+					if a.State.Sequence == sequence {
+						a.State.Busy = false
+						a.State.Error, a.State.Phase = "读取默认模型失败，本次未发送："+err.Error(), "未发送"
+						if a.State.Draft == "" {
+							a.State.Draft = text
+						}
+						a.restoreSubmittedImages(text)
+					}
+				})
+				return
+			}
+		}
 		if threadID == "" {
 			thread, err := a.backend.StartThread(ctx, cwd)
 			if err != nil {
@@ -220,7 +248,9 @@ func (a *App) send() {
 		}
 		var turn codex.Turn
 		var err error
-		if sender, ok := a.backend.(imageSender); ok && len(images) > 0 {
+		if supportsModels {
+			turn, err = modelBackend.SendWithModel(ctx, threadID, text, skills, images, model)
+		} else if sender, ok := a.backend.(imageSender); ok && len(images) > 0 {
 			turn, err = sender.SendWithImages(ctx, threadID, text, skills, images)
 		} else if sender, ok := a.backend.(interface {
 			SendWithSkills(context.Context, string, string, []codex.Skill) (codex.Turn, error)
@@ -234,8 +264,13 @@ func (a *App) send() {
 			return
 		}
 		a.update(func() {
-			if a.State.Sequence == sequence && a.State.Busy {
-				a.State.TurnID, a.State.Phase = turn.ID, "正在执行"
+			if a.State.Sequence == sequence {
+				if model != "" {
+					a.State.Model = model
+				}
+				if a.State.Busy {
+					a.State.TurnID, a.State.Phase = turn.ID, "正在执行"
+				}
 			}
 		})
 	}()

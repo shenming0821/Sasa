@@ -1,0 +1,207 @@
+package ui
+
+import (
+	"context"
+	"errors"
+	"image/png"
+	"os"
+	"testing"
+
+	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Fuyu/internal/codex"
+)
+
+type modelCaptureBackend struct {
+	imageCaptureBackend
+	catalogErr error
+	defaultErr error
+	request    chan modelRequest
+}
+type modelRequest struct {
+	model  string
+	skills []codex.Skill
+	images []attachment.Image
+}
+
+func (b *modelCaptureBackend) ListModels(context.Context) ([]codex.Model, error) {
+	return []codex.Model{{ID: "catalog-one", Model: "provider/one", DisplayName: "Model One"}, {Model: "provider/two", DisplayName: "Model Two"}, {Model: "hidden", Hidden: true}}, b.catalogErr
+}
+func (b *modelCaptureBackend) DefaultModel(context.Context, string) (string, error) {
+	return "provider/default", b.defaultErr
+}
+func (b *modelCaptureBackend) SendWithModel(_ context.Context, _, _ string, skills []codex.Skill, images []attachment.Image, model string) (codex.Turn, error) {
+	b.request <- modelRequest{model, skills, images}
+	return codex.Turn{ID: "model-turn"}, nil
+}
+
+func TestModelMenuSelectionIsolationPersistenceAndDetails(t *testing.T) {
+	b := &modelCaptureBackend{}
+	a := New(b, "test-version", "/workspace", nil)
+	store := imageStore(t, a)
+	a.models = []codex.Model{{Model: "provider/one", DisplayName: "Model One"}, {Model: "provider/two", DisplayName: "Model Two"}}
+	a.modelsLoaded = true
+	owner := a.session
+	tt := native.NewTester(a.view, 1000, 760)
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if tt.HasText("跟随默认配置") || !tt.HasText("Model One") {
+		t.Fatal("model choices missing")
+	}
+	if err := tt.Click("选择模型 Model One"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selectedModel != "provider/one" || a.modelMenuOpen || !tt.HasText("one") {
+		t.Fatal("model selection did not close/update")
+	}
+	a.newSession("/second")
+	tt.Frame()
+	if a.selectedModel != "" {
+		t.Fatal("selection leaked to new session")
+	}
+	a.selectSession(owner)
+	tt.Frame()
+	if a.selectedModel != "provider/one" {
+		t.Fatal("session lost selection")
+	}
+	a.State.Busy = true
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Click("选择模型 Model Two")
+	if a.selectedModel != "provider/one" {
+		t.Fatal("model changed during active turn")
+	}
+	a.State.Busy = false
+	tt.Frame()
+	if err := tt.Click("选择模型 Model Two"); err != nil {
+		t.Fatal(err)
+	}
+	restored := New(b, "test", "/workspace", nil)
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if restored.selectedModel != "provider/two" {
+		t.Fatal("selection not restored", restored.selectedModel)
+	}
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if output := os.Getenv("FUYU_MODELS_SCREENSHOT"); output != "" {
+		f, err := os.Create(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := png.Encode(f, tt.Image()); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+	}
+	tt.Key(0, native.KeyEscape)
+	a.State.Policy, a.State.Sandbox = `"never"`, `{"type":"dangerFullAccess"}`
+	tt.Click("选择模型")
+	tt.Click("运行详情…")
+	if !tt.HasText("无需审批") || !tt.HasText("完全访问") || tt.HasText(a.State.Sandbox) {
+		t.Fatal("runtime details not readable")
+	}
+}
+
+func TestModelSelectionUsesExplicitDefaultAndPreservesMixedInput(t *testing.T) {
+	ref, _ := imageFixture(t)
+	for _, selection := range []string{"provider/one", ""} {
+		b := &modelCaptureBackend{request: make(chan modelRequest, 1)}
+		a := New(b, "test", "/workspace", nil)
+		a.selectedModel = selection
+		a.State.ThreadID, a.State.Model = "native", "provider/previous"
+		a.State.Draft = "$design task"
+		a.State.DraftImages = []attachment.Image{ref}
+		a.completion.cwd = a.State.Cwd
+		a.completion.chosen = map[string]codex.Skill{"design": {Name: "design", Path: "/design/SKILL.md", Enabled: true}}
+		queue := make(chan func(), 4)
+		a.dispatch = func(fn func()) { queue <- fn }
+		owner := a.session
+		a.send()
+		a.newSession("/other")
+		pumpUpdate(t, queue)
+		request := <-b.request
+		want := selection
+		if want == "" {
+			want = "provider/default"
+		}
+		if request.model != want || len(request.images) != 1 || len(request.skills) != 1 || owner.State.Model != want || a.State.Model != "" {
+			t.Fatal("wrong model/input/owner", request, owner.State.Model)
+		}
+	}
+}
+
+func TestModelLoadAndDefaultFailure(t *testing.T) {
+	b := &modelCaptureBackend{catalogErr: errors.New("offline"), defaultErr: errors.New("config missing")}
+	a := New(b, "test", "/workspace", nil)
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.loadModels()
+	a.loadModels()
+	pumpUpdate(t, queue)
+	if a.modelsLoading || a.modelsError == "" {
+		t.Fatal("catalog failure hidden")
+	}
+	b.catalogErr = nil
+	a.loadModels()
+	pumpUpdate(t, queue)
+	if !a.modelsLoaded || a.modelsError != "" {
+		t.Fatal("catalog retry failed")
+	}
+	a.State.ThreadID = "native"
+	a.State.Draft = "keep this"
+	a.send()
+	pumpUpdate(t, queue)
+	if a.State.Busy || a.State.Disconnected || a.State.Draft != "keep this" || a.State.Phase != "未发送" {
+		t.Fatal("config read failure lost draft or blocked recovery")
+	}
+}
+
+func TestModelMenuNarrowLayoutAndEscape(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		a := New(&modelCaptureBackend{}, "test", "/workspace", nil)
+		a.modelsLoaded = true
+		for _, name := range []string{"GPT-6.1-Sol · Codex", "GPT-6-Astra · Codex", "GLM-5.3-Flash · GLM Coding", "GLM-5.3 · GLM Coding", "deepseek-v4-1-flash-261017 · winning", "DeepSeek V4.1 Flash Free · OpenCode"} {
+			a.models = append(a.models, codex.Model{Model: name, DisplayName: name})
+		}
+		tt := native.NewTester(a.view, 640, 480)
+		tt.SetDark(dark)
+		if err := tt.Click("选择模型"); err != nil {
+			t.Fatal(err)
+		}
+		for _, label := range []string{"选择模型 GPT-6.1-Sol · Codex", "运行详情…"} {
+			r, ok := tt.Find(label)
+			if !ok || r.X < 0 || r.Y < 0 || r.X+r.W > 640 || r.Y+r.H > 480 {
+				t.Fatal("model menu clipped", label, r)
+			}
+		}
+		tt.Key(0, native.KeyEscape)
+		if a.modelMenuOpen || a.selectedModel != "" {
+			t.Fatal("Escape changed selection or left menu open")
+		}
+	}
+}
+
+func TestInitialModelResolvesToConcreteSessionSelection(t *testing.T) {
+	b := &modelCaptureBackend{}
+	a := New(b, "test", "/workspace", nil)
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	owner := a.session
+	a.resolveInitialModel()
+	a.newSession("/other")
+	pumpUpdate(t, queue)
+	if owner.selectedModel != "provider/default" || a.selectedModel != "" {
+		t.Fatal("default resolution changed wrong session", owner.selectedModel, a.selectedModel)
+	}
+	a.resolveInitialModel()
+	a.selectedModel = "provider/one"
+	pumpUpdate(t, queue)
+	if a.selectedModel != "provider/one" {
+		t.Fatal("late default replaced explicit selection")
+	}
+}

@@ -85,6 +85,7 @@ func (a *App) forkSession() {
 			branch := &session{id: root.nextSession, State: app.New(result.Cwd), recoveryBlocked: true, open: true}
 			branch.State.ThreadID, branch.State.Draft = result.ThreadMeta.ID, draft
 			branch.State.DraftImages = images
+			branch.selectedModel = s.selectedModel
 			branch.saved.Title = title + "（分叉）"
 			branch.saved.AtEnd = true
 			branch.State.Disconnected = s.State.Disconnected

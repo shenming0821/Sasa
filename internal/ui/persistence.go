@@ -52,6 +52,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		s.open = slices.Contains(snapshot.OpenTabs, saved.ID)
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
 		s.State.DraftImages = slices.Clone(saved.DraftImages)
+		s.selectedModel = saved.SelectedModel
 		s.completion.cwd = saved.Cwd
 		s.completion.chosen = make(map[string]codex.Skill)
 		for name, path := range saved.DraftSkills {
@@ -129,6 +130,7 @@ func (a *App) snapshot() storage.Snapshot {
 		item.ID, item.ThreadID, item.Cwd = s.id, s.State.ThreadID, s.State.Cwd
 		item.Draft, item.Title = s.State.Draft, s.title()
 		item.DraftImages = slices.Clone(s.State.DraftImages)
+		item.SelectedModel = s.selectedModel
 		item.DraftSkills = make(map[string]string)
 		for _, skill := range s.draftSkills(s.State.Draft) {
 			item.DraftSkills[skill.Name] = skill.Path

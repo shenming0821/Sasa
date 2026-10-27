@@ -18,20 +18,21 @@ import (
 // Only application-owned metadata belongs here. Messages and credentials stay
 // with Codex; pending protocol requests and secret form answers are never saved.
 type Session struct {
-	DraftImages  []attachment.Image
-	ID           int
-	ThreadID     string
-	Cwd          string
-	Title        string
-	Draft        string
-	DraftSkills  map[string]string
-	TurnID       string
-	Active       bool
-	Anchor       string
-	AtEnd        bool
-	ScrollY      float32
-	AnchorOffset float32
-	Expanded     map[string]bool
+	SelectedModel string
+	DraftImages   []attachment.Image
+	ID            int
+	ThreadID      string
+	Cwd           string
+	Title         string
+	Draft         string
+	DraftSkills   map[string]string
+	TurnID        string
+	Active        bool
+	Anchor        string
+	AtEnd         bool
+	ScrollY       float32
+	AnchorOffset  float32
+	Expanded      map[string]bool
 }
 
 type Snapshot struct {

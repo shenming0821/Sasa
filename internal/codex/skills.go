@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+
 	"github.com/shenming0821/Fuyu/internal/attachment"
 )
 
@@ -39,6 +40,10 @@ func (c *Client) SendWithSkills(ctx context.Context, threadID, text string, skil
 }
 
 func (c *Client) SendWithImages(ctx context.Context, threadID, text string, skills []Skill, images []attachment.Image) (Turn, error) {
+	return c.SendWithModel(ctx, threadID, text, skills, images, "")
+}
+
+func (c *Client) SendWithModel(ctx context.Context, threadID, text string, skills []Skill, images []attachment.Image, model string) (Turn, error) {
 	input := []any{map[string]any{"type": "text", "text": text, "textElements": []any{}}}
 	for _, skill := range skills {
 		input = append(input, map[string]any{"type": "skill", "name": skill.Name, "path": skill.Path})
@@ -53,6 +58,10 @@ func (c *Client) SendWithImages(ctx context.Context, threadID, text string, skil
 	var result struct {
 		Turn Turn `json:"turn"`
 	}
-	err := c.Call(ctx, "turn/start", map[string]any{"threadId": threadID, "input": input}, &result)
+	params := map[string]any{"threadId": threadID, "input": input}
+	if model != "" {
+		params["model"] = model
+	}
+	err := c.Call(ctx, "turn/start", params, &result)
 	return result.Turn, err
 }
