@@ -25,6 +25,10 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		return err
 	}
 	a.store = store
+	if snapshot.Preferences != nil {
+		a.preferences = *snapshot.Preferences
+	}
+	a.normalizePreferences()
 	cwd := a.State.Cwd
 	defer func() {
 		if resultErr == nil {
@@ -111,6 +115,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
+		Preferences:  &a.preferences,
 		Repositories: a.repositories,
 		ProjectOrder: slices.Clone(a.projectOrder), HiddenProjects: maps.Clone(a.hiddenProjects),
 		OpenTabs: []int{},

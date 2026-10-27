@@ -78,7 +78,7 @@ func (a *App) gitConflictToolbar(c *native.Context, d *filePage) {
 				}{{"共同祖先", state.base}, {"当前版本", state.current}, {"传入版本", state.incoming}} {
 					native.Column(c.Key(side.name)).Grow(1).MinWidth(0).FillHeight().Background(c.Theme().Background).Children(func() {
 						native.Text(c, side.name).FontSize(10).TextColor(c.Theme().TextMuted).Padding(4, 6)
-						native.TextAreaBufferBase(c, side.text).Label("冲突 "+side.name).ReadOnly(true).Font(codeFont).
+						native.TextAreaBufferBase(c, side.text).Label("冲突 "+side.name).ReadOnly(true).Font(a.codeFontFamily()).
 							FontSize(10).FixedLineHeight(16).Padding(4, 6).FillWidth().Grow(1).MinHeight(0).TrackScroll(&state.scroll[i])
 					})
 				}

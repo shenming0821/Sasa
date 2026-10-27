@@ -19,6 +19,7 @@ func (a *App) requestHighlight(d *filePage) {
 	if d.buffer == nil || d.highlighting || !a.canAsync() {
 		return
 	}
+	family := a.codeFontFamily()
 	buffer := d.buffer
 	snapshot := buffer.Snapshot()
 	review := d.gitReview
@@ -46,7 +47,7 @@ func (a *App) requestHighlight(d *filePage) {
 			a.update(func() {
 				d.highlighting = false
 				d.highlightCancel = nil
-				if !valid || a.files[d.id] != d || d.buffer != buffer {
+				if !valid || a.files[d.id] != d || d.buffer != buffer || family != a.codeFontFamily() {
 					return
 				}
 				if d.buffer.Version() == snapshot.Version() {
@@ -75,11 +76,11 @@ func (a *App) requestHighlight(d *filePage) {
 			})
 		}
 		text = snapshot.String()
-		width = editorTextWidth(ctx, text, 13, 90)
+		width = editorTextWidthForFont(ctx, text, family, 13, 90)
 		if review != nil {
 			left, right := splitPatch(*review)
-			leftWidth = editorTextWidth(ctx, left, 12, 28)
-			rightWidth = editorTextWidth(ctx, right, 12, 28)
+			leftWidth = editorTextWidthForFont(ctx, left, family, 12, 28)
+			rightWidth = editorTextWidthForFont(ctx, right, family, 12, 28)
 		}
 		if decorate && len(text) <= editor.EditBytes && lexer != nil {
 			ranges = highlightText(ctx, lexer, text, 0)
@@ -88,6 +89,10 @@ func (a *App) requestHighlight(d *filePage) {
 }
 
 func editorTextWidth(ctx context.Context, text string, size, padding float32) float32 {
+	return editorTextWidthForFont(ctx, text, codeFont, size, padding)
+}
+
+func editorTextWidthForFont(ctx context.Context, text, family string, size, padding float32) float32 {
 	var width float32
 	for line := range strings.SplitSeq(text, "\n") {
 		if ctx.Err() != nil {
@@ -95,7 +100,7 @@ func editorTextWidth(ctx context.Context, text string, size, padding float32) fl
 		}
 		// Use the editor's shaping engine, including fallback fonts, tabs
 		// and trailing whitespace; rune counts do not describe glyph width.
-		w, _ := native.ShapeText(line, native.Font{Family: codeFont, Size: size}, 0).Size()
+		w, _ := native.ShapeText(line, native.Font{Family: family, Size: size}, 0).Size()
 		width = max(width, w)
 	}
 	return width + padding

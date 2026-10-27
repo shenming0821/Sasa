@@ -36,6 +36,7 @@ type Session struct {
 }
 
 type Snapshot struct {
+	Preferences       *Preferences
 	WorkspaceTabs     []Tab
 	ActiveTabID       string
 	ActiveWorkspace   string
@@ -53,6 +54,15 @@ type Snapshot struct {
 	HistoryOpen       bool
 	CollapsedProjects map[string]bool
 	Sessions          []Session
+}
+
+type Preferences struct {
+	Theme                  string
+	EnglishFont            string
+	ChineseFont            string
+	CodeFont               string
+	CompletionNotification bool
+	NotificationSound      bool
 }
 
 type Tab struct {

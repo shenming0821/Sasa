@@ -254,7 +254,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 			native.Column(c.Key(side.name)).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 				native.Text(c, side.name).FontSize(10).TextColor(t.TextMuted).Padding(5, 10)
 				native.ScrollHorizontal(c.Key("horizontal")).TrackScroll(side.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
-					area := native.TextAreaBufferBase(c, side.buffer).Label("差异 "+side.name).ReadOnly(true).Font(codeFont).FontSize(12).
+					area := native.TextAreaBufferBase(c, side.buffer).Label("差异 "+side.name).ReadOnly(true).Font(a.codeFontFamily()).FontSize(12).
 						FixedLineHeight(20).NoWrap().Width(max((available-1)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10).TrackScroll(side.scroll)
 					_, caret := area.TextAnchorCaret()
 					if caret != d.gitSplitCaret[sideIndex] {

@@ -42,9 +42,14 @@ func readingColumn(c *native.Context, build func()) {
 }
 
 func (a *App) view(c *native.Context) {
-	applyFontTheme(c)
+	a.applyAppearance(c)
+	if c.Shortcut(native.Cmd, native.KeyComma) {
+		a.openSettings()
+	}
 	if !a.quitDialog && c.Shortcut(native.Cmd, native.KeyW) {
-		if a.application().viewerOpen {
+		if a.settingsOpen {
+			a.settingsOpen = false
+		} else if a.application().viewerOpen {
 			a.application().viewerOpen = false
 		} else if d := a.currentFile(); d != nil {
 			a.closeFile(d)
@@ -95,6 +100,7 @@ func (a *App) view(c *native.Context) {
 		}
 	})
 	a.imageViewer(c)
+	a.settingsView(c)
 }
 
 func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
@@ -499,7 +505,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 			} else {
 				native.Column(c).FillWidth().Gap(6).Padding(12, 14).Radius(10).Background(t.Surface).Children(func() {
 					native.Text(c, "工具").FontSize(11).TextColor(t.TextMuted)
-					native.Text(c, m.Text).Selectable().Font(codeFont).FontSize(12)
+					native.Text(c, m.Text).Selectable().Font(a.codeFontFamily()).FontSize(12)
 				})
 			}
 		})

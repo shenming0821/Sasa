@@ -117,14 +117,14 @@ func (a *App) toolDisclosure(c *native.Context, tool *app.Tool) {
 				if tool.Input != "" {
 					code, parameters := toolInput(tool.Input)
 					if code != "" {
-						toolDetailSection(c.Key("code"), "输入", code, true)
+						toolDetailSection(c.Key("code"), "输入", code, true, a.codeFontFamily())
 					}
 					if parameters != "" {
 						title := "输入"
 						if code != "" {
 							title = "参数"
 						}
-						toolDetailSection(c.Key("input"), title, parameters, true)
+						toolDetailSection(c.Key("input"), title, parameters, true, a.codeFontFamily())
 					}
 				}
 				if tool.Output != "" {
@@ -148,7 +148,11 @@ func (a *App) toolDisclosure(c *native.Context, tool *app.Tool) {
 	})
 }
 
-func toolDetailSection(c *native.Context, title, text string, code bool) {
+func toolDetailSection(c *native.Context, title, text string, code bool, fonts ...string) {
+	family := codeFont
+	if len(fonts) > 0 {
+		family = fonts[0]
+	}
 	native.Column(c).FillWidth().MinWidth(0).Gap(4).TextColor(c.Theme().TextMuted).Children(func() {
 		native.Row(c).FillWidth().AlignItems(native.Center).Children(func() {
 			native.Text(c, title).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
@@ -161,7 +165,7 @@ func toolDetailSection(c *native.Context, title, text string, code bool) {
 		native.Scroll(c.Key("vertical")).Label("工具" + title).FillWidth().MaxHeight(280).Children(func() {
 			if code {
 				native.ScrollHorizontal(c.Key("horizontal")).FillWidth().Children(func() {
-					native.Text(c, text).Selectable().Font(codeFont).FontSize(12).TextColor(c.Theme().TextMuted).NoWrap()
+					native.Text(c, text).Selectable().Font(family).FontSize(12).TextColor(c.Theme().TextMuted).NoWrap()
 				})
 			} else {
 				native.Text(c, text).Selectable().FontSize(12).TextColor(c.Theme().TextMuted).FillWidth()

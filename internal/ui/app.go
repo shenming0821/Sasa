@@ -29,6 +29,7 @@ type Backend interface {
 }
 
 type App struct {
+	settingsState
 	models             []codex.Model
 	modelsLoading      bool
 	modelsError        string
@@ -95,6 +96,7 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 		backend: backend, version: strings.TrimSpace(version), shutdown: make(chan struct{}), sidebarOpen: true,
 		quitApp: mygo.App.Quit, quitPrompt: mygo.Dialog.Message, sidebarWidth: 240,
 	}
+	a.preferences = defaultPreferences()
 	a.rightTab = "history"
 	a.newSession(cwd)
 	// MyGo measures proportional digits but renders tabular list markers.
@@ -114,11 +116,14 @@ func (a *App) Run() error {
 	defer close(a.shutdown)
 	defer a.closeWorkspaceResources()
 	mygo.App.WhenReady(func() {
+		a.applySystemTheme()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Fuyu", Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
 			Content: native.View(a.view),
 		})
 		a.installLifecycle()
+		a.installSettingsMenu()
+		a.installNotificationActions()
 		a.refreshProjects()
 		if a.backend != nil {
 			go a.receive()
@@ -400,6 +405,7 @@ func (a *App) applySessionBatch(batch []codex.Event) {
 		a.State.Apply(e)
 		if e.Method == "turn/completed" && wasBusy && !a.State.Busy && !a.State.Disconnected {
 			delete(a.application().quitTargets, a.session.id)
+			a.notifyCompletion(e)
 		}
 		if e.Method == "serverRequest/resolved" {
 			var p struct {

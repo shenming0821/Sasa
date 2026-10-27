@@ -77,6 +77,11 @@ func (a *App) installLifecycle() {
 	a.win.OnClose(func(e *mygo.CloseEvent) {
 		if !a.quitting {
 			e.PreventDefault()
+			if a.settingsOpen {
+				a.settingsOpen = false
+				a.win.Invalidate()
+				return
+			}
 			if a.viewerOpen {
 				a.viewerOpen = false
 				a.win.Invalidate()

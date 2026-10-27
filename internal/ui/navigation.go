@@ -77,6 +77,11 @@ func (a *App) sidebar(c *native.Context) {
 		native.Row(c).FillWidth().Height(46).Padding(0, 12).Gap(4).AlignItems(native.Center).Children(func() {
 			native.Text(c, "Fuyu").FontSize(15).Bold()
 			native.Spacer(c)
+			settings := quietButton(c, "设置").Size(28, 28)
+			settings.Children(func() { native.Icon(c, settingsIcon).Size(16, 16) })
+			if settings.Clicked() {
+				a.openSettings()
+			}
 			b := quietButton(c, "新建会话").Size(28, 28)
 			b.Children(func() { native.Icon(c, newIcon).Size(16, 16) })
 			if b.Clicked() {
