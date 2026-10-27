@@ -378,9 +378,16 @@ func (a *App) historyBrowser(c *native.Context) {
 						}
 					}
 					kind, runtime := a.kind, a.runtimeKey
+					source := a.session
 					a.newSession(thread.Cwd)
 					s := a.session
 					s.kind, s.runtimeKey = kind, runtime
+					s.historyCacheKey = agent.CacheKey{Agent: kind.Normalized(), Runtime: runtime, Cwd: thread.Cwd}
+					if source.historyCacheKey == s.historyCacheKey {
+						s.nativeThreads = slices.Clone(source.nativeThreads)
+						s.threadsCursor, s.threadsError = source.threadsCursor, source.threadsError
+						s.threadsLayoutPending = true
+					}
 					s.State.ThreadID, s.loaded, s.recoveryBlocked = thread.ID, false, true
 					s.saved.Title = title
 					a.recoverSession(s)

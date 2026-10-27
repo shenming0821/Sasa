@@ -4,9 +4,52 @@ import (
 	"encoding/json"
 	"testing"
 
+	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
+
+func TestOpenHistoryCarriesOnlyMatchingCache(t *testing.T) {
+	for _, mismatch := range []string{"none", "agent", "runtime", "cwd"} {
+		t.Run(mismatch, func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/project", nil)
+			source := a.session
+			source.kind, source.runtimeKey = agent.Claude, "/claude"
+			source.historyCacheKey = agent.CacheKey{Agent: agent.Claude, Runtime: "/claude", Cwd: "/project"}
+			switch mismatch {
+			case "agent":
+				source.historyCacheKey.Agent = agent.Codex
+			case "runtime":
+				source.historyCacheKey.Runtime = "/other"
+			case "cwd":
+				source.historyCacheKey.Cwd = "/other"
+			}
+			cursor := "next"
+			source.nativeThreads = []agent.ThreadMeta{{ID: "one", Cwd: "/project", Preview: "history"}}
+			source.threadsCursor, source.threadsError = &cursor, "retry"
+			a.historyOpen = true
+			tt := native.NewTester(a.view, 1400, 800)
+			if err := tt.Click("打开历史 one"); err != nil {
+				t.Fatal(err)
+			}
+			if a.session == source || a.kind != agent.Claude || a.runtimeKey != "/claude" ||
+				a.historyCacheKey != (agent.CacheKey{Agent: agent.Claude, Runtime: "/claude", Cwd: "/project"}) {
+				t.Fatal("opening history lost session or cache ownership")
+			}
+			if mismatch == "none" {
+				if len(a.nativeThreads) != 1 || a.threadsCursor == nil || *a.threadsCursor != cursor || a.threadsError != "retry" {
+					t.Fatal("matching history cache was lost")
+				}
+				a.nativeThreads[0].Preview = "changed"
+				if source.nativeThreads[0].Preview != "history" {
+					t.Fatal("history sessions share mutable list storage")
+				}
+			} else if len(a.nativeThreads) != 0 || a.threadsCursor != nil || a.threadsError != "" {
+				t.Fatal("history cache crossed Agent/runtime/cwd boundary")
+			}
+		})
+	}
+}
 
 func TestSessionBackendRoutingAndMissingClaude(t *testing.T) {
 	codexBackend := &modelCaptureBackend{}

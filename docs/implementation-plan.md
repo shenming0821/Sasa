@@ -9,12 +9,12 @@
 | 项目 | 当前记录 |
 |---|---|
 | 所处阶段 | 本轮经用户授权实现 P6.0 基础协议证据与 P6.1 Agent 抽象；Linux 编写，Mac 待验证。P4 原验收边界保留 |
-| 下一动作 | Mac 先执行 gofmt、完整 test/vet、相关 race 和构建，核验 Codex 发送/审批/中断/恢复/分叉/多会话等价，再正常重开窗口；之后按 P6.2～P6.4 待办推进 |
+| 下一动作 | 本轮先修复 P6 历史列表响应式回归，Linux 定向/UI 全包/完整 test、vet 与构建已通过，见 P6 验证补充；Mac 继续执行 gofmt、完整 test/vet、相关 race 和构建，核验 Codex 发送/审批/中断/恢复/分叉/多会话等价，再正常重开窗口；之后按 P6.2～P6.4 待办推进 |
 | 已完成 | Go/MyGo 工程、分层源码、原生窗口、Codex 双向协议、状态/协议/UI 组件测试 |
 | 已实现功能 | P1/P2 任务交互；P3 多会话、SQLite 索引与迁移、原生分页历史、草稿/阅读/折叠恢复、异常状态核验、窗口驻留和退出流程 |
 | 已有文件 | 新增 `internal/agent/`、`internal/claude/testdata/` 与 v4 迁移；其余源码按实际工作区核对 |
 | P4 原接续（独立保留） | P4 核心功能和完整 test/vet/相关 race/构建通过；真实 Codex 500 文件改写、20 个混合标签、保留 dirty 草稿与干净缓冲更新通过。原生拼音组合/提交、保存、撤销重做、滚轮、865×543 DIP 窄窗口、长路径横向滚动及新标签定位已补验。迁移备份完整性/新鲜度与旧 JSON 预检已修正。最后仍需原生 Git Diff 呈现、面板状态与切换复核；窗口读取连续超时，工具连接重置后仍失败，原应用已因本次修复重开，不能据此断定应用崩溃。测试夹具及三个测试标签已清理，索引清理前备份在 `/tmp/fuyu-p4-before-fixture-cleanup.db`。不再因观察超时重复重启；先恢复原生窗口可操作性，再继续最终交互验收。证据见 [P4 验证](verification/2026-10-24-p4.md)，当前未宣告 P4 通过；本轮实现与文档已提交，原生交互验收仍待补齐。 |
-| 工具链 | 当前 Linux 无 `go` / `gofmt`；未安装 Go 工具链。Mac 原环境及命令见开发指南；MyGo 仍锁定 `976f17c9391f` |
+| 工具链 | 当前 Linux 已核验 `~/.local/share/fuyu/toolchains/go1.27.3/bin`，`go version` 为 `go1.27.3 linux/amd64`，构建/test/vet 使用 `./scripts/go`。Mac 原环境及命令见开发指南；MyGo 仍锁定 `976f17c9391f` |
 | Git 关联 | 本轮 `p6-claude-adapter`，基线 `4d9784b`，`origin` 为 `git@github.com:shenming0821/Fuyu.git`；首个应用代码快照范围见本页末尾，提交与工作区状态以 `git log`、`git status` 核对 |
 | Codex 版本 | Linux 实测 `codex-cli 0.164.0`；Claude CLI `2.1.311`，录制日期 2026-10-27 至 2026-10-28 |
 | 既有 Mac 验收（本轮之前） | 完整 test、vet、race、构建及文档检查通过；P1 见[原生交互记录](verification/2026-10-22-p1.md)，P2 见[任务交互记录](verification/2026-10-22-p2.md)，P3 真实 GUI 重开续聊、多目录恢复及正常/超时退出见[恢复验收](verification/2026-10-22-p3.md) |

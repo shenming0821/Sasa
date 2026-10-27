@@ -74,7 +74,7 @@ func TestResponsivePanelsPreserveComposerAndNavigation(t *testing.T) {
 			t.Fatal("narrow window did not collapse project navigation")
 		}
 		if err := tt.Click("打开历史 one"); err != nil {
-			t.Fatal(err)
+			t.Fatalf("at width %d: %v", width, err)
 		}
 		if !tt.HasText("搜索历史") {
 			t.Fatal("opening history closed the docked sidebar")

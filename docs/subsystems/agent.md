@@ -16,6 +16,8 @@
 
 模型目录、加载状态和原生历史目录缓存存放在 session，目录与 Runtime 改变后失效，异步回调写回原 session；模型选择的持久化包含 `ModelAgent`。技能候选也由各 session 按 cwd 保存。`agent.CacheKey` 明确 Agent/Runtime/cwd 的缓存边界，Runtime 标识必须来自实际生效配置，P6.3 接线时补验。
 
+从历史列表创建会话时，仅在来源缓存键与目标 Agent/Runtime/cwd 完全一致时复制已有列表、分页游标和错误状态；列表使用独立切片，进行中的请求仍归原会话。不同缓存键不复用。受控回归见 `TestOpenHistoryCarriesOnlyMatchingCache` 和 `TestResponsivePanelsPreserveComposerAndNavigation`。
+
 ## 能力与历史核验
 
 `backend.go` 的最小 Backend 只有 StartThread、Send、Interrupt、Events。模型/技能/命令目录、图片模型发送、原生历史、占用元数据、分叉、缺口核验、原生响应与通用审批意图分别使用可选接口；实现可以返回 `ErrUnsupported`，调用者通过能力断言限制入口。`Capabilities` 为能力描述，不替代实际接口与真实验收。
