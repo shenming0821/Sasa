@@ -531,3 +531,35 @@ func TestThreadHistoryLoadsOnScrollAndFillsFilteredViewport(t *testing.T) {
 		})
 	}
 }
+
+func TestThreadHistoryLoadsFilteredPagesWithoutLoadingText(t *testing.T) {
+	first, second := "first", "second"
+	b := &threadPagesBackend{threadPages: []codex.ThreadsPage{
+		{Data: []codex.ThreadMeta{{ID: "other", Cwd: "/other", Preview: "filtered out"}}, NextCursor: &second},
+		{Data: []codex.ThreadMeta{{ID: "match", Cwd: "/first", Preview: "matching thread"}}},
+	}}
+	a := New(b, "test", "/first", nil)
+	a.threadsCursor = &first
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.loadThreadList()
+	tt := native.NewTester(func(c *native.Context) {
+		native.Column(c).Fill().Children(func() { a.historyBrowser(c) })
+	}, 360, 300)
+	if tt.HasText("正在加载…") {
+		t.Fatal("initial loading text should stay hidden")
+	}
+	pumpUpdate(t, queue)
+	tt.Frame()
+	if !a.threadsLoading || tt.HasText("正在加载…") {
+		t.Fatal("filtered pagination stopped or displayed loading text")
+	}
+	pumpUpdate(t, queue)
+	tt.Frame()
+	if a.threadsLoading || tt.HasText("正在加载…") || !tt.HasText("matching thread") {
+		t.Fatal("final page did not replace loading status with results")
+	}
+	if len(b.cursors) != 2 || b.cursors[0] != first || b.cursors[1] != second {
+		t.Fatal("unexpected repeated page requests", b.cursors)
+	}
+}

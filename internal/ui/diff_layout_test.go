@@ -48,7 +48,7 @@ func TestDiffHorizontalEndRevealsWholeLine(t *testing.T) {
 					side.scroll.X = math.MaxFloat32
 					tt.Frame()
 					viewport, _ := tt.Find(side.label)
-					actual, _ := native.ShapeText(side.line, native.Font{Family: "monospace", Size: side.size}, 0).Size()
+					actual, _ := native.ShapeText(side.line, native.Font{Family: codeFont, Size: side.size}, 0).Size()
 					end := side.left + actual - side.scroll.X
 					if side.scroll.X != side.scroll.MaxX || end > viewport.W-side.right+.5 {
 						t.Fatalf("line end still clipped at maximum scroll: end=%v viewport=%v scroll=%v", end, viewport, *side.scroll)

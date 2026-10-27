@@ -105,3 +105,11 @@ MCP、动态工具与网页搜索以单行记录展示，优先使用动作标�
 - 新增 `TestUserBubbleLongPlainTextLayout`：320/640/1000 DIP、浅色/深色，覆盖中文、英文、路径、编号、空行和长连续标识符的边界与行高；既有短提问右对齐、会话布局与长消息阅读恢复测试通过。
 - `./scripts/go test -p 1 ./internal/ui` 通过（19.341s）；`./scripts/go vet ./internal/ui`、`./scripts/build`、`git diff --check` 通过。本次为用户消息样式改动，未重复执行全仓测试。
 - 正常退出并确认旧 bundle 进程结束后，重开 `bin/Fuyu.app`。打开原有会话并上滚，实际截图确认已有多行中文/英文用户提问的行距、内边距及完整换行。保留窗口供用户验证；未发送新任务，未暂存、未提交。
+
+### 默认英文字体（2026-10-27）
+
+- 英文、数字和拉丁标点默认使用随应用嵌入的 `M PLUS Code Latin`，窗口主题、Markdown 正文/代码、输入、命令、工具代码、编辑器、冲突与 Diff 统一配置。中文显式回退到当前 macOS 使用的 `.PingFang UI SC` 字体家族，其他缺字沿用系统回退。保留既有字号、行距和主题颜色。
+- 直接使用拉丁字体的系统默认回退会从 UI 苹方变为普通苹方。通过当前系统 Core Text 排版对照确认两种字体家族，增加 UI 苹方优先回退；验证中文字符采用既有 UI 字形。不同主字体下的光学尺寸和混排度量不保证逐像素相同。
+- `TestBundledLatinFontAndChineseFallback` 覆盖字体已注册、英文/数字等宽以及 macOS 中文 UI 字形；`TestDefaultFontThemePreservesColors` 覆盖深浅主题颜色和指标保持。编辑器/Diff 的长行测宽同步使用实际绘制字体，相关宽窄窗口布局与横向滚动测试通过。
+- `./scripts/go test -p 1 ./...`（UI 14.503s）、`./scripts/go vet ./...` 通过；测宽同步后再次通过 UI 相关测试（2.848s）、UI vet 和最终 `./scripts/build`。`git diff --check` 通过。字体来自 Google Fonts 的未修改可变字体，OFL 许可同时保留在源码及 bundle Resources/licenses 中。
+- 已正常退出并确认旧进程结束，重开最终 `bin/Fuyu.app`；实际截图检查聊天提问、回复、文件列表和输入提示的中英文混排，新英文字体可见，中文仍为苹方 UI。应用保持打开供用户验证。未发送模型任务，未暂存、未提交。

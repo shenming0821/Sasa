@@ -528,7 +528,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		snap := d.buffer.Snapshot()
 		width := max(available, d.contentWidth)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
-			area := native.TextAreaBufferBase(c.Key("source"), d.buffer).Label("文件内容 "+d.path).Font("monospace").FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
+			area := native.TextAreaBufferBase(c.Key("source"), d.buffer).Label("文件内容 "+d.path).Font(codeFont).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
 			if d.pendingSelection != nil {
 				area.SetTextSelection(d.pendingSelection[0], d.pendingSelection[1])
 				d.pendingSelection = nil

@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/transfer"
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/codex"
 	"github.com/shenming0821/Fuyu/internal/project"
 	"github.com/shenming0821/Fuyu/internal/storage"
@@ -26,6 +29,14 @@ type Backend interface {
 }
 
 type App struct {
+	imageCache         map[string]*imagePreview
+	imageLoading       bool
+	imageClock         uint64
+	viewerOpen         bool
+	viewerImage        attachment.Image
+	viewerZoom         float32
+	viewerScroll       native.ScrollState
+	readImageClipboard func() (transfer.Data, error)
 	*session
 	editorState
 	backend              Backend
@@ -85,7 +96,7 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 	// MyGo measures proportional digits but renders tabular list markers.
 	// Reserve room for common multi-digit markers throughout streaming;
 	// the local Markdown patch caps unordered marker columns at 1.4 em.
-	a.md.Theme = &markdown.Theme{ListIndent: 3, FontSize: 15, LineHeight: 1.5}
+	a.md.Theme = &markdown.Theme{ListIndent: 3, FontSize: 15, LineHeight: 1.5, Font: textFont, CodeFont: codeFont}
 	if startupErr != nil {
 		a.State.Error, a.State.Phase = "连接 Codex 失败，请核对可执行路径和配置后重新启动 Fuyu："+startupErr.Error(), "连接失败"
 		a.State.Disconnected = true
@@ -119,7 +130,7 @@ func (a *App) Run() error {
 
 func (a *App) canSend() bool {
 	return a.open && a.backend != nil && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
-		a.State.Cwd != "" && strings.TrimSpace(a.State.Draft) != ""
+		!a.imagesImporting && a.State.Cwd != "" && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
 }
 
 func (a *App) chooseDirectory(owner *session, defaultPath string) {
@@ -149,8 +160,21 @@ func (a *App) send() {
 		return
 	}
 	text := strings.TrimSpace(a.State.Draft)
-	if a.runSlashCommand(text) {
+	if len(a.State.DraftImages) == 0 && a.runSlashCommand(text) {
 		return
+	}
+	images := slices.Clone(a.State.DraftImages)
+	if len(images) > 0 {
+		if _, ok := a.backend.(imageSender); !ok {
+			a.State.Error = "当前连接不支持图片输入"
+			return
+		}
+		for _, image := range images {
+			if _, err := attachment.Read(image); err != nil {
+				a.State.Error = err.Error()
+				return
+			}
+		}
 	}
 	skills := a.draftSkills(text)
 	a.State.Begin(text)
@@ -196,7 +220,9 @@ func (a *App) send() {
 		}
 		var turn codex.Turn
 		var err error
-		if sender, ok := a.backend.(interface {
+		if sender, ok := a.backend.(imageSender); ok && len(images) > 0 {
+			turn, err = sender.SendWithImages(ctx, threadID, text, skills, images)
+		} else if sender, ok := a.backend.(interface {
 			SendWithSkills(context.Context, string, string, []codex.Skill) (codex.Turn, error)
 		}); ok && len(skills) > 0 {
 			turn, err = sender.SendWithSkills(ctx, threadID, text, skills)
@@ -221,6 +247,7 @@ func (a *App) abortBeforeTurn(text string, err error) {
 	if a.State.Draft == "" {
 		a.State.Draft = text
 	}
+	a.restoreSubmittedImages(text)
 }
 
 func (a *App) fail(sequence int, text string, err error, turnSubmitted bool) {
@@ -246,6 +273,7 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 	if a.State.Draft == "" {
 		a.State.Draft = text
 	}
+	a.restoreSubmittedImages(text)
 }
 
 func (a *App) stop() {

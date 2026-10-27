@@ -5,6 +5,7 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/codex"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
@@ -12,6 +13,10 @@ import (
 // A session owns both its protocol projection and its reading/interaction state.
 // Switching the selected session never changes the owner of a pending callback.
 type session struct {
+	imagesImporting bool
+	importingImages int
+	queuedImages    []attachment.Image
+	imageError      string
 	id              int
 	open            bool
 	State           app.State
@@ -136,6 +141,9 @@ func (s *session) title() string {
 	for _, m := range s.State.Messages {
 		if m.Role == "user" {
 			title := strings.Join(strings.Fields(m.Text), " ")
+			if title == "" && len(m.Images) > 0 {
+				title = "图片提问"
+			}
 			runes := []rune(title)
 			if len(runes) > 28 {
 				title = string(runes[:28]) + "…"

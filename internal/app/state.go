@@ -3,15 +3,18 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
 const MaxMessageBytes = 2 * 1024 * 1024
 
 type Message struct {
+	Images      []attachment.Image
 	ID          string
 	Role        string
 	Text        string
@@ -23,6 +26,7 @@ type Message struct {
 
 // State is owned by the UI thread, including all event application.
 type State struct {
+	DraftImages         []attachment.Image
 	Cwd                 string
 	ThreadID            string
 	TurnID              string
@@ -51,8 +55,9 @@ func New(cwd string) State { return State{Cwd: cwd, Phase: "就绪"} }
 func (s *State) Begin(text string) {
 	s.Sequence++
 	s.Messages = append(s.Messages, &Message{
-		ID: fmt.Sprintf("user-%d", s.Sequence), Role: "user", Text: text, Done: true,
+		ID: fmt.Sprintf("user-%d", s.Sequence), Role: "user", Text: text, Done: true, Images: slices.Clone(s.DraftImages),
 	})
+	s.DraftImages = nil
 	s.Draft, s.Error, s.TurnID, s.retryError = "", "", "", ""
 	s.unfinishedToolError = ""
 	s.stopRequested = false

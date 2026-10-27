@@ -77,6 +77,11 @@ func (a *App) installLifecycle() {
 	a.win.OnClose(func(e *mygo.CloseEvent) {
 		if !a.quitting {
 			e.PreventDefault()
+			if a.viewerOpen {
+				a.viewerOpen = false
+				a.win.Invalidate()
+				return
+			}
 			a.persist()
 			for _, d := range a.files {
 				d.changedAt = time.Time{}

@@ -95,7 +95,7 @@ func editorTextWidth(ctx context.Context, text string, size, padding float32) fl
 		}
 		// Use the editor's shaping engine, including fallback fonts, tabs
 		// and trailing whitespace; rune counts do not describe glyph width.
-		w, _ := native.ShapeText(line, native.Font{Family: "monospace", Size: size}, 0).Size()
+		w, _ := native.ShapeText(line, native.Font{Family: codeFont, Size: size}, 0).Size()
 		width = max(width, w)
 	}
 	return width + padding

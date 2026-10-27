@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/project"
 
 	_ "modernc.org/sqlite"
@@ -17,6 +18,7 @@ import (
 // Only application-owned metadata belongs here. Messages and credentials stay
 // with Codex; pending protocol requests and secret form answers are never saved.
 type Session struct {
+	DraftImages  []attachment.Image
 	ID           int
 	ThreadID     string
 	Cwd          string

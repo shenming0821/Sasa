@@ -161,7 +161,7 @@ func toolDetailSection(c *native.Context, title, text string, code bool) {
 		native.Scroll(c.Key("vertical")).Label("工具" + title).FillWidth().MaxHeight(280).Children(func() {
 			if code {
 				native.ScrollHorizontal(c.Key("horizontal")).FillWidth().Children(func() {
-					native.Text(c, text).Selectable().Font("monospace").FontSize(12).TextColor(c.Theme().TextMuted).NoWrap()
+					native.Text(c, text).Selectable().Font(codeFont).FontSize(12).TextColor(c.Theme().TextMuted).NoWrap()
 				})
 			} else {
 				native.Text(c, text).Selectable().FontSize(12).TextColor(c.Theme().TextMuted).FillWidth()

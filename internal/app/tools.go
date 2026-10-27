@@ -85,6 +85,9 @@ func appendOutput(old, delta string, truncated bool) (string, bool) {
 
 func messageBytes(m *Message) int {
 	n := len(m.Text) + len(m.ID) + 128
+	for _, image := range m.Images {
+		n += len(image.Path) + len(image.URL) + len(image.Name)
+	}
 	if t := m.Tool; t != nil {
 		n += len(t.Input) + len(t.Output) + len(t.Command) + len(t.Cwd) + len(t.Name) + len(t.ProcessID)
 		for _, f := range t.Changes {

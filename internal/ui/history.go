@@ -66,6 +66,9 @@ func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 		var page codex.TurnsPage
 		if err == nil {
 			page, err = backend.ListTurns(ctx, threadID, nil)
+			if err == nil {
+				bound.materializeHistoryImages(&page)
+			}
 		}
 		bound.update(func() {
 			if s.recoveryEpoch != epoch {
@@ -93,6 +96,7 @@ func (a *App) loadSessionHistory(s *session, fork *codex.ResumedThread) {
 				return
 			}
 			state.Draft = s.State.Draft
+			state.DraftImages = slices.Clone(s.State.DraftImages)
 			if s.saved.Title == "" || s.saved.Title == "新会话" {
 				s.saved.Title = resumed.ThreadMeta.Preview
 			}
@@ -230,6 +234,9 @@ func (a *App) loadOlder() {
 		ctx, cancel := codex.RequestContext()
 		defer cancel()
 		page, err := backend.ListTurns(ctx, threadID, cursor)
+		if err == nil {
+			bound.materializeHistoryImages(&page)
+		}
 		bound.update(func() {
 			s.historyLoading = false
 			if epoch != s.recoveryEpoch {
@@ -379,8 +386,6 @@ func (a *App) historyBrowser(c *native.Context) {
 				if actionButton(c, "重试").Disabled(a.threadsLoading).Clicked() {
 					a.loadThreadList()
 				}
-			} else if a.threadsLoading {
-				native.Text(c, "正在加载…").FontSize(11).TextColor(c.Theme().TextMuted).Padding(8)
 			}
 		})
 	})

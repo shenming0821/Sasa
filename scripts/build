@@ -2,7 +2,8 @@
 set -eu
 cd "$(dirname "$0")/.."
 bundle="bin/Fuyu.app/Contents"
-mkdir -p "$bundle/MacOS" "$bundle/Resources"
+mkdir -p "$bundle/MacOS" "$bundle/Resources/licenses"
+cp internal/ui/fonts/OFL.txt "$bundle/Resources/licenses/MPLUSCodeLatin-OFL.txt"
 ./scripts/go build -o "$bundle/MacOS/Fuyu" ./cmd/desktop
 # Keep the original command pointing to the same application executable.
 ln -sfn Fuyu.app/Contents/MacOS/Fuyu bin/fuyu

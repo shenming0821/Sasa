@@ -33,25 +33,28 @@ func thinkingIndicator(c *native.Context) {
 	t := c.Theme()
 	base := t.Background.Mix(t.TextMuted, 0.65)
 	highlight := t.Background.Mix(t.TextMuted, 0.82)
-	text := native.Text(c, label).FontSize(15).TextColor(base).AlignSelf(native.Start)
 	if c.Preferences().ReduceMotion {
+		native.Text(c, label).FontSize(15).TextColor(base).AlignSelf(native.Start)
 		return
 	}
-	phase := text.Loop("thinking-shimmer", 1800*time.Millisecond, native.Linear)
-	text.DrawOver(func(p *native.Painter, r native.Rect) {
-		// Paint a narrow moving band through the glyphs, leaving the background clear.
-		const halfWidth float32 = 18
-		center := phase*(r.W+4*halfWidth) - 2*halfWidth
-		for x := float32(0); x < r.W; x++ {
-			distance := float64((x + 0.5 - center) / halfWidth)
-			if math.Abs(distance) >= 1 {
-				continue
-			}
-			strength := float32((1 + math.Cos(math.Pi*distance)) / 2)
-			color := base.Mix(highlight, strength)
-			p.Clip(native.Rect{X: r.X + x, Y: r.Y, W: 1, H: r.H}, 0, func() {
-				p.Text(r.X, r.Y, label, 15, color)
-			})
+	indicator := native.Box(c).AlignSelf(native.Start)
+	phase := indicator.Loop("thinking-shimmer", 1800*time.Millisecond, native.Linear)
+	const halfWidth float32 = 18
+	width, _ := c.MeasureText(0, native.Span{Text: label, Size: 15})
+	center := phase*(width+4*halfWidth) - 2*halfWidth
+	var spans []native.Span
+	var x float32
+	for _, character := range label {
+		glyph := string(character)
+		advance, _ := c.MeasureText(0, native.Span{Text: glyph, Size: 15})
+		distance := float64((x + advance/2 - center) / halfWidth)
+		strength := float32(0)
+		if math.Abs(distance) < 1 {
+			strength = float32((1 + math.Cos(math.Pi*distance)) / 2)
 		}
-	})
+		spans = append(spans, native.Span{Text: glyph, Color: base.Mix(highlight, strength)})
+		x += advance
+	}
+	// One shaped text run keeps the animation on the theme's glyphs and baseline.
+	indicator.Children(func() { native.RichText(c, spans...).FontSize(15).TextColor(base) })
 }

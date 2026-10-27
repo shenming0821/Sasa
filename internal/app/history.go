@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
@@ -26,6 +27,8 @@ func History(cwd, threadID string, turns []codex.HistoryTurn) (State, bool, erro
 				Content []struct {
 					Type string `json:"type"`
 					Text string `json:"text"`
+					Path string `json:"path"`
+					URL  string `json:"url"`
 				} `json:"content"`
 			}
 			if err := json.Unmarshal(raw, &item); err != nil || item.ID == "" {
@@ -33,14 +36,17 @@ func History(cwd, threadID string, turns []codex.HistoryTurn) (State, bool, erro
 			}
 			if item.Type == "userMessage" {
 				var texts []string
+				var images []attachment.Image
 				for _, input := range item.Content {
 					if input.Type == "text" {
 						texts = append(texts, input.Text)
+					} else if input.Type == "localImage" || input.Type == "image" {
+						images = append(images, attachment.Image{Path: input.Path, URL: input.URL})
 					} else {
 						texts = append(texts, "[非文本输入："+input.Type+"]")
 					}
 				}
-				s.Messages = append(s.Messages, &Message{ID: item.ID, Role: "user", Text: bounded(strings.Join(texts, "\n")), TurnID: turn.ID, Done: true})
+				s.Messages = append(s.Messages, &Message{ID: item.ID, Role: "user", Images: images, Text: bounded(strings.Join(texts, "\n")), TurnID: turn.ID, Done: true})
 				continue
 			}
 			params, _ := json.Marshal(map[string]any{"threadId": threadID, "turnId": turn.ID, "item": raw})

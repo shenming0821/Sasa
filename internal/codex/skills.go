@@ -1,6 +1,9 @@
 package codex
 
-import "context"
+import (
+	"context"
+	"github.com/shenming0821/Fuyu/internal/attachment"
+)
 
 type Skill struct {
 	Name             string `json:"name"`
@@ -32,9 +35,20 @@ func (c *Client) ListSkills(ctx context.Context, cwd string) ([]SkillsEntry, err
 }
 
 func (c *Client) SendWithSkills(ctx context.Context, threadID, text string, skills []Skill) (Turn, error) {
+	return c.SendWithImages(ctx, threadID, text, skills, nil)
+}
+
+func (c *Client) SendWithImages(ctx context.Context, threadID, text string, skills []Skill, images []attachment.Image) (Turn, error) {
 	input := []any{map[string]any{"type": "text", "text": text, "textElements": []any{}}}
 	for _, skill := range skills {
 		input = append(input, map[string]any{"type": "skill", "name": skill.Name, "path": skill.Path})
+	}
+	for _, image := range images {
+		if image.Path != "" {
+			input = append(input, map[string]any{"type": "localImage", "path": image.Path})
+		} else {
+			input = append(input, map[string]any{"type": "image", "url": image.URL})
+		}
 	}
 	var result struct {
 		Turn Turn `json:"turn"`

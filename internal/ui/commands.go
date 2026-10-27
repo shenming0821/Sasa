@@ -189,7 +189,7 @@ func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
 						detailText(ctx, "工作目录", tool.Cwd)
 						detailText(ctx, "进程", tool.ProcessID)
 						native.Text(ctx, "完整命令").FontSize(11).TextColor(ctx.Theme().TextMuted)
-						native.Text(ctx, tool.Command).Label("完整命令内容").Selectable().Font("monospace").FontSize(12).FillWidth()
+						native.Text(ctx, tool.Command).Label("完整命令内容").Selectable().Font(codeFont).FontSize(12).FillWidth()
 						copy := quietButton(ctx, "复制命令").AlignSelf(native.Start)
 						copy.Children(func() { native.Icon(ctx, copyIcon).Size(14, 14) })
 						if copy.Clicked() {
@@ -199,7 +199,7 @@ func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
 							detailText(ctx, "输入", tool.Input)
 						}
 						if tool.Output != "" {
-							native.Text(ctx, tool.Output).Selectable().Font("monospace").FontSize(12).FillWidth()
+							native.Text(ctx, tool.Output).Selectable().Font(codeFont).FontSize(12).FillWidth()
 						}
 						if tool.ExitCode != nil {
 							native.Text(ctx, fmt.Sprintf("退出码 %d", *tool.ExitCode)).FontSize(11)

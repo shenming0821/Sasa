@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"github.com/shenming0821/Fuyu/internal/attachment"
 	"os"
 	"testing"
 	"time"
@@ -63,5 +64,15 @@ func TestLiveSkillsReadOnly(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("missing current-directory result")
+	}
+}
+
+func TestImagesAndSkillsShareTurnInput(t *testing.T) {
+	c := fixture(t, "images")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	turn, err := c.SendWithImages(ctx, "thread", "请看图", []Skill{{Name: "design", Path: "/skills/SKILL.md"}}, []attachment.Image{{Path: "/owned/截图.png"}, {URL: "data:image/png;base64,fixture"}})
+	if err != nil || turn.ID != "image-turn" {
+		t.Fatal("mixed image input rejected", turn, err)
 	}
 }

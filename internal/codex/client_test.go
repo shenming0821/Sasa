@@ -32,6 +32,20 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "images":
+			var params struct {
+				Thread string                                         `json:"threadId"`
+				Input  []struct{ Type, Name, Path, Text, URL string } `json:"input"`
+			}
+			if m.Method != "turn/start" || json.Unmarshal(m.Params, &params) != nil || params.Thread != "thread" || len(params.Input) != 4 ||
+				params.Input[0].Type != "text" || params.Input[0].Text != "请看图" ||
+				params.Input[1].Type != "skill" || params.Input[1].Name != "design" ||
+				params.Input[2].Type != "localImage" || params.Input[2].Path != "/owned/截图.png" ||
+				params.Input[3].Type != "image" || params.Input[3].URL != "data:image/png;base64,fixture" {
+				os.Exit(4)
+			}
+			enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]any{"id": "image-turn", "status": "inProgress"}}})
+			continue
 		case "skills":
 			if m.Method == "skills/list" {
 				var params struct {

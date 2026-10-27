@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"slices"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/app"
@@ -55,6 +56,7 @@ func (a *App) forkSession() {
 		return
 	}
 	bound := a.forSession(s)
+	images := slices.Clone(s.State.DraftImages)
 	threadID, draft, title := s.State.ThreadID, s.State.Draft, s.title()
 	s.forking, s.State.Error = true, ""
 	go func() {
@@ -82,6 +84,7 @@ func (a *App) forkSession() {
 			root.nextSession++
 			branch := &session{id: root.nextSession, State: app.New(result.Cwd), recoveryBlocked: true, open: true}
 			branch.State.ThreadID, branch.State.Draft = result.ThreadMeta.ID, draft
+			branch.State.DraftImages = images
 			branch.saved.Title = title + "（分叉）"
 			branch.saved.AtEnd = true
 			branch.State.Disconnected = s.State.Disconnected

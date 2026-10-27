@@ -49,7 +49,7 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 			}
 		})
 		if t.Command != "" {
-			native.Text(c, t.Command).Label("命令预览").Selectable().Font("monospace").FontSize(12).FillWidth().MaxLines(4)
+			native.Text(c, t.Command).Label("命令预览").Selectable().Font(codeFont).FontSize(12).FillWidth().MaxLines(4)
 		}
 		if t.Cwd != "" {
 			detailText(c, "工作目录", t.Cwd)
@@ -91,13 +91,13 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
 						if t.Command != "" {
 							native.Text(c, "完整命令").FontSize(11).TextColor(theme.TextMuted)
-							native.Text(c, t.Command).Label("完整命令内容").Selectable().Font("monospace").FontSize(12).FillWidth()
+							native.Text(c, t.Command).Label("完整命令内容").Selectable().Font(codeFont).FontSize(12).FillWidth()
 						}
 						if t.Input != "" {
 							detailText(c, "输入", t.Input)
 						}
 						if t.Output != "" {
-							native.Text(c, t.Output).Selectable().Font("monospace").FontSize(12).FillWidth()
+							native.Text(c, t.Output).Selectable().Font(codeFont).FontSize(12).FillWidth()
 						}
 						for _, change := range t.Changes {
 							if change.Diff != "" {

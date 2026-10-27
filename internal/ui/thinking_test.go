@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
+	"math"
+	"os"
 	"testing"
 	"time"
 
@@ -68,5 +72,54 @@ func TestThinkingShimmerAndReducedMotion(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestThinkingAnimationStaysInsideSingleTextGlyphs(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%v", dark), func(t *testing.T) {
+			reference := native.NewTester(func(c *native.Context) {
+				applyFontTheme(c)
+				native.Column(c).Fill().Background(c.Theme().Background).Children(func() {
+					native.Text(c, "正在思考").FontSize(15).TextColor(c.Theme().Text).AlignSelf(native.Start)
+				})
+			}, 200, 60)
+			reference.SetDark(dark)
+			animated := native.NewTester(func(c *native.Context) {
+				applyFontTheme(c)
+				native.Column(c).Fill().Background(c.Theme().Background).Children(func() {
+					thinkingIndicator(c)
+				})
+			}, 200, 60)
+			animated.SetDark(dark)
+			mask := reference.Image()
+			background := mask.RGBAAt(199, 59)
+			for frame := 0; frame < 10; frame++ {
+				animated.Advance(180 * time.Millisecond)
+				got := animated.Image()
+				if output := os.Getenv("FUYU_THINKING_SCREENSHOT"); output != "" && frame == 0 && !dark {
+					for suffix, img := range map[string]*image.RGBA{"-reference.png": mask, "-animated.png": got} {
+						f, err := os.Create(output + suffix)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if err := png.Encode(f, img); err != nil {
+							t.Fatal(err)
+						}
+						f.Close()
+					}
+				}
+				for y := 0; y < got.Bounds().Dy(); y++ {
+					for x := 0; x < got.Bounds().Dx(); x++ {
+						pixel := got.RGBAAt(x, y)
+						// Ignore faint raster rounding at glyph edges when colors differ.
+						contrast := max(math.Abs(float64(pixel.R)-float64(background.R)), math.Abs(float64(pixel.G)-float64(background.G)), math.Abs(float64(pixel.B)-float64(background.B)))
+						if mask.RGBAAt(x, y) == background && contrast > 8 {
+							t.Fatalf("animation paints outside the single text glyphs at frame %d, pixel %d,%d: got %v, background %v", frame, x, y, got.RGBAAt(x, y), background)
+						}
+					}
+				}
+			}
+		})
 	}
 }

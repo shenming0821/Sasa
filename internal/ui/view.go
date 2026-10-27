@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
@@ -42,8 +43,11 @@ func readingColumn(c *native.Context, build func()) {
 }
 
 func (a *App) view(c *native.Context) {
+	applyFontTheme(c)
 	if !a.quitDialog && c.Shortcut(native.Cmd, native.KeyW) {
-		if d := a.currentFile(); d != nil {
+		if a.application().viewerOpen {
+			a.application().viewerOpen = false
+		} else if d := a.currentFile(); d != nil {
 			a.closeFile(d)
 		} else if a.open {
 			a.closeSession(a.session)
@@ -91,6 +95,7 @@ func (a *App) view(c *native.Context) {
 				Shadow(4, 0, 16, 0, native.RGBA(0, 0, 0, 0.12)).Children(func() { a.sidebar(c) })
 		}
 	})
+	a.imageViewer(c)
 }
 
 func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
@@ -189,6 +194,7 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 						for i := len(a.State.Messages) - 1; i >= 0; i-- {
 							if a.State.Messages[i].Role == "user" {
 								a.State.Draft = a.State.Messages[i].Text
+								a.State.DraftImages = slices.Clone(a.State.Messages[i].Images)
 								a.submit()
 								break
 							}
@@ -310,15 +316,17 @@ func (a *App) toolbar(c *native.Context, leftShown, rightShown bool) {
 
 func (a *App) composer(c *native.Context) {
 	t := c.Theme()
-	native.Column(c).FillWidth().Padding(14, 14, 10, 14).Gap(8).Radius(22).
+	box := native.Column(c).FillWidth().Padding(14, 14, 10, 14).Gap(8).Radius(22).
 		Border(1, t.Border.Alpha(0.7)).Background(t.Background).
 		Shadow(0, 2, 12, 0, native.RGBA(0, 0, 0, 0.04)).Children(func() {
+		a.draftImageStrip(c)
 		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
 			Placeholder("与 Codex 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
 		if a.completion.focus {
 			composer.Focus().SetTextSelection(a.completion.caret, a.completion.caret)
 			a.completion.focus = false
 		}
+		composer.OnPaste(func(_ string) bool { return a.pasteImages() })
 		composing := composer.Composing()
 		// Element handles are valid during build; key callbacks use the captured caret.
 		anchor, caret := composer.TextAnchorCaret()
@@ -382,6 +390,7 @@ func (a *App) composer(c *native.Context) {
 			return false
 		})
 		native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
+			a.imagePickerButton(c)
 			model := "Codex"
 			if a.State.Model != "" {
 				model = a.State.Model[strings.LastIndex(a.State.Model, "/")+1:]
@@ -417,6 +426,7 @@ func (a *App) composer(c *native.Context) {
 			}
 		})
 	})
+	a.receiveImageDrop(box)
 }
 
 func (a *App) runtimeDetails(c *native.Context) {
@@ -450,10 +460,15 @@ func (a *App) message(c *native.Context, m *app.Message) {
 	readingColumn(c, func() {
 		native.Column(c.Key(m.ID)).FillWidth().Gap(4).Children(func() {
 			if m.Role == "user" {
-				native.Row(c).FillWidth().Justify(native.End).Children(func() {
-					native.Text(c, m.Text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
-						MaxWidthPercent(85).Padding(16, 20).Radius(20).Background(t.Surface)
-				})
+				if len(m.Images) > 0 {
+					a.messageImages(c, m)
+				}
+				if m.Text != "" {
+					native.Row(c).FillWidth().Justify(native.End).Children(func() {
+						native.Text(c, m.Text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
+							MaxWidthPercent(85).Padding(16, 20).Radius(20).Background(t.Surface)
+					})
+				}
 			} else if m.Role == "assistant" {
 				if m.Done {
 					markdown.View(c, m.Text, &a.md)
@@ -481,7 +496,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 			} else {
 				native.Column(c).FillWidth().Gap(6).Padding(12, 14).Radius(10).Background(t.Surface).Children(func() {
 					native.Text(c, "工具").FontSize(11).TextColor(t.TextMuted)
-					native.Text(c, m.Text).Selectable().Font("monospace").FontSize(12)
+					native.Text(c, m.Text).Selectable().Font(codeFont).FontSize(12)
 				})
 			}
 		})
