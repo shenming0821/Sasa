@@ -102,6 +102,14 @@ func (a *App) view(c *native.Context) {
 	})
 	a.imageViewer(c)
 	a.settingsView(c)
+	if a.sessionDeleteError != "" {
+		native.Column(c.Key("session-delete-error")).Absolute().Bottom(20).Left(20).Right(20).Padding(12).Gap(8).Background(c.Theme().Surface).BorderWidth(1).BorderColor(c.Theme().Danger).Radius(8).Children(func() {
+			native.Text(c, a.sessionDeleteError).FontSize(12).TextColor(c.Theme().Danger)
+			if actionButton(c, "关闭删除提示").Clicked() {
+				a.sessionDeleteError = ""
+			}
+		})
+	}
 }
 
 func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {

@@ -170,6 +170,13 @@ func (a *App) sessionTabs(c *native.Context) {
 							closeLabel = fmt.Sprintf("关闭会话标签 %d", tab.SessionID)
 						}
 						b := native.ButtonBase(tc).Label(label).Tooltip(a.tabTitle(tab)).Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
+						if tab.Kind == "session" {
+							for _, target := range a.sessions {
+								if target.id == tab.SessionID {
+									b.ContextMenu(a.sessionMenu(target))
+								}
+							}
+						}
 						if a.tabHandles == nil {
 							a.tabHandles = map[string]*native.Handle{}
 						}
@@ -328,6 +335,7 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 		}, func() {
 			for _, s := range group.sessions {
 				b := treeButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).Tooltip(fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
+				b.ContextMenu(a.sessionMenu(s))
 				if a.session == s && s.open {
 					b.Background(t.SurfacePressed)
 				}

@@ -40,6 +40,7 @@ type Session struct {
 }
 
 type Snapshot struct {
+	DeletedThreads    []DeletedThread
 	LastClaudeModels  map[string]string
 	DefaultAgent      agent.AgentKind
 	Preferences       *Preferences
@@ -60,6 +61,12 @@ type Snapshot struct {
 	HistoryOpen       bool
 	CollapsedProjects map[string]bool
 	Sessions          []Session
+}
+
+type DeletedThread struct {
+	Agent    agent.AgentKind
+	Runtime  string
+	ThreadID string
 }
 
 type Preferences struct {
@@ -331,11 +338,29 @@ func (s *Store) Load() (Snapshot, error) {
 }
 
 func (s *Store) Save(snapshot Snapshot) error {
+	return s.save(snapshot, 0)
+}
+
+func (s *Store) DeleteSession(snapshot Snapshot, id int) error {
+	for _, item := range snapshot.Sessions {
+		if item.ID == id {
+			return fmt.Errorf("删除后的快照仍包含会话 %d", id)
+		}
+	}
+	return s.save(snapshot, id)
+}
+
+func (s *Store) save(snapshot Snapshot, deletedID int) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	if deletedID != 0 {
+		if _, err := tx.Exec("DELETE FROM sessions WHERE id = ?", deletedID); err != nil {
+			return err
+		}
+	}
 	for _, item := range snapshot.Sessions {
 		if err := item.Agent.Validate(); err != nil {
 			return err

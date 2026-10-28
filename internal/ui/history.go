@@ -371,6 +371,9 @@ func (a *App) historyBrowser(c *native.Context) {
 		native.Column(c).FillWidth().Padding(8).Gap(6).Children(func() {
 			count := 0
 			for _, thread := range a.nativeThreads {
+				if a.threadDeleted(a.kind, a.runtimeKey, thread.ID) {
+					continue
+				}
 				if a.historyScope == 0 && filepath.Clean(thread.Cwd) != filepath.Clean(a.workspaceCwd()) {
 					continue
 				}
@@ -386,6 +389,7 @@ func (a *App) historyBrowser(c *native.Context) {
 				}
 				count++
 				b := treeButton(c.Key(thread.ID), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(thread.Cwd)
+				b.ContextMenu(a.sessionMenu(a.historySession(thread)))
 				b.Children(func() {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
 						native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)

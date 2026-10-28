@@ -35,45 +35,47 @@ type App struct {
 	readImageClipboard func() (transfer.Data, error)
 	*session
 	editorState
-	backend           Backend
-	backends          map[backendKey]Backend
-	agentErrors       map[agent.AgentKind]string
-	defaultAgent      agent.AgentKind
-	lastClaudeModels  map[string]string
-	version           string
-	win               *mygo.Window
-	md                markdown.Options
-	sessions          []*session
-	repositories      []project.Repository
-	projectOrder      []string
-	hiddenProjects    map[string]bool
-	projectsLoading   bool
-	projectsError     string
-	projectErrors     map[string]string
-	projectsRefreshed time.Time
-	nextSession       int
-	sidebarOpen       bool
-	sidebarWidth      float32
-	rightPanelWidth   float32
-	compactSidebar    bool
-	sessionQuery      string
-	tabsSelected      string
-	collapsedProjects map[string]bool
-	historyQuery      string
-	historyScope      int
-	root              *App
-	store             *storage.Store
-	lastSaved         []byte
-	storageError      string
-	historyOpen       bool
-	quitting          bool
-	quitDialog        bool
-	quitStopping      bool
-	quitDeadline      time.Time
-	quitSent          map[string]bool
-	quitTargets       map[int]bool
-	quitApp           func()
-	quitPrompt        func(mygo.MessageOptions) (mygo.MessageResult, error)
+	backend            Backend
+	backends           map[backendKey]Backend
+	agentErrors        map[agent.AgentKind]string
+	defaultAgent       agent.AgentKind
+	lastClaudeModels   map[string]string
+	version            string
+	win                *mygo.Window
+	md                 markdown.Options
+	sessions           []*session
+	deletedThreads     []storage.DeletedThread
+	sessionDeleteError string
+	repositories       []project.Repository
+	projectOrder       []string
+	hiddenProjects     map[string]bool
+	projectsLoading    bool
+	projectsError      string
+	projectErrors      map[string]string
+	projectsRefreshed  time.Time
+	nextSession        int
+	sidebarOpen        bool
+	sidebarWidth       float32
+	rightPanelWidth    float32
+	compactSidebar     bool
+	sessionQuery       string
+	tabsSelected       string
+	collapsedProjects  map[string]bool
+	historyQuery       string
+	historyScope       int
+	root               *App
+	store              *storage.Store
+	lastSaved          []byte
+	storageError       string
+	historyOpen        bool
+	quitting           bool
+	quitDialog         bool
+	quitStopping       bool
+	quitDeadline       time.Time
+	quitSent           map[string]bool
+	quitTargets        map[int]bool
+	quitApp            func()
+	quitPrompt         func(mygo.MessageOptions) (mygo.MessageResult, error)
 	// Replaced in component tests so no task or native dialog is started.
 	submit   func()
 	respond  func(*app.Interaction, any)

@@ -10,6 +10,8 @@
 
 ## Schema 与事务
 
+删除会话使用 `Store.DeleteSession(snapshot, id)` 在同一 SQLite 事务内删除指定 `sessions` 行并保存剩余会话及设置；验证或写入失败时整个事务回滚。设置 payload 的 `DeletedThreads` 保存 `Agent`、`Runtime`、`ThreadID`，由 UI 在原生历史呈现时过滤。旧设置缺少此字段等同于空列表，无需变更 schema 版本。原生历史和共享图片不在此事务中删除。行为见[会话管理](sessions.md#删除会话)。
+
 通过 `PRAGMA user_version` 管理版本：
 
 | 版本 | 内容 |

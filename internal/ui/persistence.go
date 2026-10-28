@@ -25,6 +25,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		return err
 	}
 	a.store = store
+	a.deletedThreads = slices.Clone(snapshot.DeletedThreads)
 	a.defaultAgent = snapshot.DefaultAgent.Normalized()
 	a.lastClaudeModels = maps.Clone(snapshot.LastClaudeModels)
 	if a.lastClaudeModels == nil {
@@ -140,6 +141,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
+		DeletedThreads:   slices.Clone(a.deletedThreads),
 		LastClaudeModels: maps.Clone(a.lastClaudeModels),
 		DefaultAgent:     a.defaultAgent.Normalized(),
 		Preferences:      &a.preferences,
