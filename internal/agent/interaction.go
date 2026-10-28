@@ -12,12 +12,13 @@ type Option struct {
 }
 
 type Question struct {
-	ID       string   `json:"id"`
-	Header   string   `json:"header"`
-	Question string   `json:"question"`
-	IsOther  bool     `json:"isOther"`
-	IsSecret bool     `json:"isSecret"`
-	Options  []Option `json:"options"`
+	ID          string   `json:"id"`
+	Header      string   `json:"header"`
+	Question    string   `json:"question"`
+	IsOther     bool     `json:"isOther"`
+	IsSecret    bool     `json:"isSecret"`
+	MultiSelect bool     `json:"multiSelect,omitempty"`
+	Options     []Option `json:"options"`
 }
 
 type Interaction struct {

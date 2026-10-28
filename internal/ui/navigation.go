@@ -334,6 +334,9 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 				b.Children(func() {
 					native.Column(gc).FillWidth().Gap(4).Children(func() {
 						native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+						if len(a.backends) > 0 {
+							native.Text(gc, s.kind.String()).FontSize(10).TextColor(t.TextMuted)
+						}
 						if status := s.navigationStatus(); status != "" {
 							color := t.TextMuted
 							if s.State.Error != "" {

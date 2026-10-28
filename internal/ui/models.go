@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
@@ -27,12 +28,23 @@ func (a *App) loadModels() {
 		return
 	}
 	root.modelsLoading, root.modelsError = true, ""
-	cwd, runtime := root.State.Cwd, root.runtimeKey
+	cwd, runtime, kind := root.State.Cwd, root.runtimeKey, root.kind.Normalized()
 	go func() {
 		ctx, cancel := agent.RequestContext()
 		defer cancel()
-		models, err := backend.ListModels(ctx)
+		var models []agent.Model
+		var err error
+		if scoped, ok := backend.(interface {
+			ListModelsForDirectory(context.Context, string) ([]agent.Model, error)
+		}); ok {
+			models, err = scoped.ListModelsForDirectory(ctx, cwd)
+		} else {
+			models, err = backend.ListModels(ctx)
+		}
 		a.update(func() {
+			if root.kind.Normalized() != kind || root.runtimeKey != runtime {
+				return
+			}
 			root.modelsLoading = false
 			if root.State.Cwd != cwd || root.runtimeKey != runtime {
 				root.models, root.modelsLoaded = nil, false
@@ -43,11 +55,34 @@ func (a *App) loadModels() {
 				return
 			}
 			root.models, root.modelsLoaded = models, true
+			if kind == agent.Claude && len(models) > 0 && (root.selectedModel == "" || root.selectedModel == "default" || strings.HasSuffix(root.selectedModel, "[1m]")) {
+				root.selectedModel = models[0].Model
+				for _, model := range models {
+					if !model.Hidden && (root.State.Model != "" && model.DisplayName == root.State.Model || model.Model == a.application().lastClaudeModels[runtime]) {
+						root.selectedModel = model.Model
+						break
+					}
+				}
+				if err := a.persist(); err != nil {
+					root.modelError = "保存模型选择失败：" + err.Error()
+				}
+			}
 		})
 	}()
 }
 
 func shortModel(model string) string { return model[strings.LastIndex(model, "/")+1:] }
+
+func (a *App) rememberClaudeModel(model string) {
+	if a.kind.Normalized() != agent.Claude || model == "" || model == "default" {
+		return
+	}
+	root := a.application()
+	if root.lastClaudeModels == nil {
+		root.lastClaudeModels = map[string]string{}
+	}
+	root.lastClaudeModels[a.runtimeKey] = model
+}
 
 func (a *App) resolveInitialModel() {
 	if a.selectedModel != "" || a.modelResolving || a.modelResolvedCwd == a.State.Cwd {
@@ -57,13 +92,16 @@ func (a *App) resolveInitialModel() {
 	if !ok {
 		return
 	}
-	s, cwd := a.session, a.State.Cwd
+	s, cwd, kind, runtime := a.session, a.State.Cwd, a.kind.Normalized(), a.runtimeKey
 	a.modelResolving = true
 	go func() {
 		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		model, err := backend.DefaultModel(ctx, cwd)
 		a.update(func() {
+			if s.kind.Normalized() != kind || s.runtimeKey != runtime {
+				return
+			}
 			s.modelResolving = false
 			if s.State.Cwd != cwd || s.selectedModel != "" {
 				return
@@ -85,11 +123,26 @@ func (a *App) modelPicker(c *native.Context) {
 		root.modelsCwd, root.modelsRuntime = root.State.Cwd, root.runtimeKey
 	}
 	if a.win != nil || a.dispatch != nil {
-		a.resolveInitialModel()
+		if a.kind.Normalized() == agent.Claude {
+			if !root.modelsLoaded && !root.modelsLoading && root.modelsError == "" {
+				a.loadModels()
+			}
+		} else {
+			a.resolveInitialModel()
+		}
 	}
 	model := "选择模型"
 	if a.selectedModel != "" {
 		model = a.selectedModel
+	}
+	if a.kind.Normalized() == agent.Claude {
+		model = "选择模型"
+		for _, entry := range root.models {
+			if entry.Model == a.selectedModel {
+				model = entry.DisplayName
+				break
+			}
+		}
 	}
 	trigger := quietButton(c, "选择模型").Gap(5).MinWidth(0).Shrink(1)
 	trigger.Children(func() {
@@ -126,9 +179,14 @@ func (a *App) modelMenu(c *native.Context) {
 			})
 			if b.Clicked() {
 				previous := a.selectedModel
+				previousLast := a.application().lastClaudeModels[a.runtimeKey]
 				a.selectedModel, a.modelError = value, ""
+				a.rememberClaudeModel(value)
 				if err := a.persist(); err != nil {
 					a.selectedModel = previous
+					if a.kind.Normalized() == agent.Claude {
+						a.application().lastClaudeModels[a.runtimeKey] = previousLast
+					}
 					a.modelError = "保存模型选择失败：" + err.Error()
 					return
 				}
@@ -149,7 +207,7 @@ func (a *App) modelMenu(c *native.Context) {
 					}
 					row(name, m.Model)
 				}
-				if a.selectedModel != "" && !seen[a.selectedModel] {
+				if a.selectedModel != "" && !seen[a.selectedModel] && a.kind.Normalized() != agent.Claude {
 					row(shortModel(a.selectedModel)+"（当前选择）", a.selectedModel)
 				}
 			})
@@ -190,6 +248,8 @@ func readablePolicy(raw string) string {
 		return raw
 	}
 	switch value {
+	case "default":
+		return "Claude 标准审批"
 	case "never":
 		return "无需审批"
 	case "on-request":
@@ -211,6 +271,8 @@ func readableSandbox(raw string) string {
 		return raw
 	}
 	switch value.Type {
+	case "claudePermissions":
+		return "由 Claude Code 工具权限控制"
 	case "dangerFullAccess":
 		return "完全访问"
 	case "workspaceWrite":

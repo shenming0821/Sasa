@@ -25,6 +25,21 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		return err
 	}
 	a.store = store
+	a.defaultAgent = snapshot.DefaultAgent.Normalized()
+	a.lastClaudeModels = maps.Clone(snapshot.LastClaudeModels)
+	if a.lastClaudeModels == nil {
+		a.lastClaudeModels = map[string]string{}
+		for _, saved := range snapshot.Sessions {
+			if saved.Agent.Normalized() == agent.Claude && (saved.ModelAgent == "" || saved.ModelAgent.Normalized() == agent.Claude) && saved.SelectedModel != "" && saved.SelectedModel != "default" {
+				a.lastClaudeModels[saved.Runtime] = saved.SelectedModel
+			}
+		}
+		for _, saved := range snapshot.Sessions {
+			if saved.ID == snapshot.Selected && saved.Agent.Normalized() == agent.Claude && (saved.ModelAgent == "" || saved.ModelAgent.Normalized() == agent.Claude) && saved.SelectedModel != "" && saved.SelectedModel != "default" {
+				a.lastClaudeModels[saved.Runtime] = saved.SelectedModel
+			}
+		}
+	}
 	if snapshot.Preferences != nil {
 		a.preferences = *snapshot.Preferences
 	}
@@ -125,9 +140,11 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
-		Preferences:  &a.preferences,
-		Repositories: a.repositories,
-		ProjectOrder: slices.Clone(a.projectOrder), HiddenProjects: maps.Clone(a.hiddenProjects),
+		LastClaudeModels: maps.Clone(a.lastClaudeModels),
+		DefaultAgent:     a.defaultAgent.Normalized(),
+		Preferences:      &a.preferences,
+		Repositories:     a.repositories,
+		ProjectOrder:     slices.Clone(a.projectOrder), HiddenProjects: maps.Clone(a.hiddenProjects),
 		OpenTabs: []int{},
 		Selected: a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),

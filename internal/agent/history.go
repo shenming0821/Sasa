@@ -25,11 +25,12 @@ type ThreadStatus struct {
 }
 
 type ResumedThread struct {
-	ThreadMeta ThreadMeta      `json:"thread"`
-	Model      string          `json:"model"`
-	Cwd        string          `json:"cwd"`
-	Policy     json.RawMessage `json:"approvalPolicy"`
-	Sandbox    json.RawMessage `json:"sandbox"`
+	ThreadMeta     ThreadMeta      `json:"thread"`
+	Model          string          `json:"model"`
+	Cwd            string          `json:"cwd"`
+	Policy         json.RawMessage `json:"approvalPolicy"`
+	Sandbox        json.RawMessage `json:"sandbox"`
+	RuntimeVersion string          `json:"runtimeVersion,omitempty"`
 }
 
 type TurnsPage struct {

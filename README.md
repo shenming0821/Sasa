@@ -2,7 +2,7 @@
 
 Fuyu 是面向编程 Agent 的原生桌面工作台，采用 Go + MyGo Native UI，优先支持 macOS。
 
-当前聚焦 Codex：在桌面窗口中选择工作目录、连续对话、查看执行过程、处理交互并审查代码修改，同时保留 Codex 原生 Runtime 的执行机制。
+在桌面窗口中选择工作目录与 Agent、连续对话、查看执行过程、处理交互并审查代码修改，复用各 Agent 的原生 Runtime。当前工作区正在完成 Claude Code 接入，已实现 Codex / Claude Code 会话入口，验收状态见实施计划。
 
 ## 项目状态
 
@@ -10,7 +10,7 @@ Fuyu 是面向编程 Agent 的原生桌面工作台，采用 Go + MyGo Native UI
 
 ## 启动开发版本
 
-需要 macOS、Command Line Tools、Go 1.27.3、Python 3（构建样式补丁使用标准库）和已配置可用的 Codex CLI。
+需要 macOS、Command Line Tools、Go 1.27.3、Python 3（构建样式补丁使用标准库），以及要使用的 Codex CLI 或 Claude Code CLI 的可用配置。
 
 ```sh
 ./scripts/build
@@ -23,7 +23,7 @@ open bin/Fuyu.app
 bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 ```
 
-先选择目录，再输入任务。`Enter` 发送，`⌘ Enter` 换行。停止以 Codex 返回的 turn 终态为准；已转入后台的命令可能继续运行。草稿、阅读位置与工具折叠保存在应用索引，消息历史从 Codex 原生记录恢复。关闭窗口后应用继续驻留，可从 Dock 重新打开；退出时有活动任务会列出受影响会话。异常退出后先核验原生状态，旧审批不会恢复，也不会自动重发。
+先选择目录，通过输入框下方的 Agent 和模型菜单选择运行方式，再输入任务。空白会话切换 Agent 保留草稿；已有任务选择其他 Agent 时在同目录新建会话，原任务继续运行。`Enter` 发送，`⌘ Enter` 换行。停止以原生任务终态为准；已转入后台的命令可能继续运行。草稿、阅读位置与工具折叠保存在应用索引，消息历史从各 Agent 原生记录恢复。关闭窗口后应用继续驻留，可从 Dock 重新打开；退出时有活动任务会列出受影响会话。异常退出后先核验原生状态，旧审批不会恢复，也不会自动重发。Claude 首版仅恢复 Fuyu 创建的会话，能力边界见 [Claude 运行时](docs/subsystems/claude-runtime.md)。
 
 ## 文档
 

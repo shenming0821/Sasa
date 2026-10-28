@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
@@ -32,6 +33,7 @@ type session struct {
 	modelResolving       bool
 	modelResolvedCwd     string
 	modelMenuOpen        bool
+	agentMenuOpen        bool
 	modelError           string
 	imagesImporting      bool
 	importingImages      int
@@ -68,6 +70,8 @@ type session struct {
 	writerOccupied       bool
 	forking              bool
 	forkUncertain        bool
+	submitCancel         context.CancelFunc
+	submitStop           bool
 }
 
 func (s *session) rowHandle(id string) *native.Handle {
@@ -86,7 +90,18 @@ func (a *App) newSession(cwd string) {
 		modelsCwd: cwd, id: a.nextSession, State: app.New(cwd), loaded: true,
 		historyCacheKey: agent.CacheKey{Agent: agent.Codex, Cwd: cwd},
 	}
-	if a.session != nil && a.kind.Normalized() == agent.Codex && a.runtimeKey == "" && a.State.Disconnected {
+	if a.defaultAgent.Normalized() == agent.Claude {
+		s.kind = agent.Claude
+		s.runtimeKey = a.agentRuntime(agent.Claude)
+		s.selectedModel = a.lastClaudeModels[s.runtimeKey]
+		s.State.Agent = agent.Claude
+		s.historyCacheKey = agent.CacheKey{Agent: agent.Claude, Runtime: s.runtimeKey, Cwd: cwd}
+		if a.forSession(s).sessionBackend() == nil {
+			s.State.Disconnected = true
+			s.State.Error = a.agentErrors[agent.Claude]
+		}
+	}
+	if s.kind.Normalized() == agent.Codex && a.session != nil && a.kind.Normalized() == agent.Codex && a.runtimeKey == "" && a.State.Disconnected {
 		s.State.Disconnected = true
 		s.State.Phase, s.State.Error = a.State.Phase, a.State.Error
 	}

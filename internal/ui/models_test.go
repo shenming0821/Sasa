@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
 type modelCaptureBackend struct {
@@ -33,6 +35,152 @@ func (b *modelCaptureBackend) DefaultModel(context.Context, string) (string, err
 func (b *modelCaptureBackend) SendWithModel(_ context.Context, _, _ string, skills []codex.Skill, images []attachment.Image, model string) (codex.Turn, error) {
 	b.request <- modelRequest{model, skills, images}
 	return codex.Turn{ID: "model-turn"}, nil
+}
+
+func TestModelMenuDisplayNameKeepsNativeAlias(t *testing.T) {
+	backend := &modelCaptureBackend{}
+	application := New(backend, "test", "/workspace", nil)
+	store := imageStore(t, application)
+	application.models = []codex.Model{
+		{Model: "default", DisplayName: "Default (recommended)"},
+		{Model: "opus", DisplayName: "winning/deepseek-v4-1-flash-261017"},
+		{Model: "fable", DisplayName: "opencode/deepseek-v4.1-flash-free"},
+		{Model: "sonnet", DisplayName: "zhipu/glm-5.3"},
+		{Model: "haiku", DisplayName: "zhipu/glm-5.3-flash"},
+		{Model: "opus[1m]", DisplayName: "Opus (1M context)"},
+	}
+	application.modelsLoaded = true
+	application.selectedModel = "default"
+	tester := native.NewTester(application.view, 1000, 760)
+	if err := tester.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.Click("选择模型 winning/deepseek-v4-1-flash-261017"); err != nil {
+		t.Fatal(err)
+	}
+	for range 4 {
+		tester.Frame()
+	}
+	if application.selectedModel != "opus" {
+		t.Fatal("wrong selected model", application.selectedModel)
+	}
+	restored := New(backend, "test", "/workspace", nil)
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if restored.selectedModel != application.selectedModel {
+		t.Fatal("persisted model differs", restored.selectedModel)
+	}
+}
+
+func TestClaudeModelChoiceBecomesDefaultAcrossSessionsAndRestart(t *testing.T) {
+	backend := &modelCaptureBackend{}
+	application := New(backend, "test", "/workspace", nil)
+	if err := application.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
+		t.Fatal(err)
+	}
+	store := imageStore(t, application)
+	if err := application.chooseAgent(agent.Claude); err != nil {
+		t.Fatal(err)
+	}
+	application.models = []agent.Model{
+		{Model: "opus", DisplayName: "winning/deepseek-v4-1-flash-261017"},
+		{Model: "sonnet", DisplayName: "zhipu/glm-5.3"},
+	}
+	application.modelsCwd, application.modelsRuntime = application.State.Cwd, application.runtimeKey
+	application.modelsLoaded = true
+	tester := native.NewTester(application.view, 1000, 760)
+	if err := tester.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.Click("选择模型 zhipu/glm-5.3"); err != nil {
+		t.Fatal(err)
+	}
+	if !tester.HasText("glm-5.3") || tester.HasText("sonnet") {
+		t.Fatal("selected alias was displayed instead of concrete model")
+	}
+	application.newSession("/another")
+	if application.selectedModel != "sonnet" {
+		t.Fatal("new Claude session lost last selected model", application.selectedModel)
+	}
+	if err := application.chooseAgent(agent.Codex); err != nil {
+		t.Fatal(err)
+	}
+	if application.selectedModel != "" {
+		t.Fatal("Claude model leaked to Codex")
+	}
+	if err := application.chooseAgent(agent.Claude); err != nil {
+		t.Fatal(err)
+	}
+	if application.selectedModel != "sonnet" {
+		t.Fatal("Agent switch lost last Claude model")
+	}
+	restored := New(backend, "test", "/workspace", nil)
+	if err := restored.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	restored.newSession("/after-restart")
+	if restored.selectedModel != "sonnet" {
+		t.Fatal("restart lost last selected model", restored.selectedModel)
+	}
+	restored.lastClaudeModels = map[string]string{"/other-runtime": "opus"}
+	restored.newSession("/isolated")
+	if restored.selectedModel != "" {
+		t.Fatal("model preference crossed Claude runtime boundaries")
+	}
+}
+
+func TestClaudeCatalogReplacesLegacyDefaultWithConcreteModel(t *testing.T) {
+	application := New(stubBackend{}, "test", "/workspace", nil)
+	if err := application.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := application.chooseAgent(agent.Claude); err != nil {
+		t.Fatal(err)
+	}
+	application.selectedModel = "default"
+	queue := make(chan func(), 4)
+	application.dispatch = func(fn func()) { queue <- fn }
+	application.loadModels()
+	pumpUpdate(t, queue)
+	if application.selectedModel != "provider/one" {
+		t.Fatal("legacy default alias remained selected", application.selectedModel)
+	}
+	tester := native.NewTester(application.view, 1000, 760)
+	if err := tester.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if tester.HasText("default（当前选择）") || !tester.HasText("Model One") {
+		t.Fatal("legacy alias leaked into model menu")
+	}
+}
+
+func TestClaudeModelPreferenceMigratesExistingSelection(t *testing.T) {
+	application := New(stubBackend{}, "test", "/workspace", nil)
+	store := imageStore(t, application)
+	if err := store.Save(storage.Snapshot{
+		DefaultAgent: agent.Claude, Selected: 1, OpenTabs: []int{1, 2},
+		Sessions: []storage.Session{
+			{ID: 1, Agent: agent.Claude, Runtime: "/claude", Cwd: "/workspace", SelectedModel: "sonnet"},
+			{ID: 2, Agent: agent.Claude, Runtime: "/claude", Cwd: "/other", SelectedModel: "opus"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	restored := New(stubBackend{}, "test", "/workspace", nil)
+	if err := restored.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	restored.newSession("/new")
+	if restored.selectedModel != "sonnet" {
+		t.Fatal("existing active session model was not adopted", restored.selectedModel)
+	}
 }
 
 func TestModelMenuSelectionIsolationPersistenceAndDetails(t *testing.T) {

@@ -32,6 +32,7 @@ type State struct {
 	ThreadID            string
 	TurnID              string
 	Model               string
+	RuntimeVersion      string
 	Policy              string
 	Sandbox             string
 	Draft               string
@@ -69,6 +70,17 @@ func (s *State) Apply(event agent.Event) {
 	defer s.limitDisplay()
 	if event.Session.Agent != "" {
 		s.Agent = event.Session.Agent.Normalized()
+	}
+	if event.Method == "fuyu/runtime" {
+		var runtime struct {
+			ThreadID string `json:"threadId"`
+			Model    string `json:"model"`
+			Version  string `json:"version"`
+		}
+		if json.Unmarshal(event.Params, &runtime) == nil && runtime.ThreadID == s.ThreadID {
+			s.Model, s.RuntimeVersion = runtime.Model, runtime.Version
+		}
+		return
 	}
 	if event.Method == "fuyu/eventGap" {
 		s.Incomplete, s.NeedsSnapshot = true, true
@@ -127,6 +139,7 @@ func (s *State) Apply(event agent.Event) {
 			ExitCode         *int            `json:"exitCode"`
 			DurationMs       *int64          `json:"durationMs"`
 			ProcessID        string          `json:"processId"`
+			ParentToolID     string          `json:"parentToolUseId"`
 			Changes          []FileChange    `json:"changes"`
 			Tool             string          `json:"tool"`
 			Server           string          `json:"server"`
@@ -214,6 +227,7 @@ func (s *State) Apply(event agent.Event) {
 			t := m.Tool
 			t.Kind, t.Command, t.Cwd, t.Status = p.Item.Type, bounded(p.Item.Command), bounded(p.Item.Cwd), p.Item.Status
 			t.ExitCode, t.DurationMs, t.ProcessID = p.Item.ExitCode, p.Item.DurationMs, p.Item.ProcessID
+			t.ParentToolID = bounded(p.Item.ParentToolID)
 			t.Name = strings.Trim(p.Item.Server+"/"+p.Item.Tool, "/")
 			t.Changes = p.Item.Changes
 			for i := range t.Changes {
@@ -325,7 +339,7 @@ func (s *State) clearRetry() {
 		s.Error = ""
 	}
 	s.retryError = ""
-	if s.Phase == s.Agent.String() + " 正在重试" {
+	if s.Phase == s.Agent.String()+" 正在重试" {
 		s.Phase = "正在执行"
 	}
 }

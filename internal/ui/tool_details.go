@@ -10,16 +10,21 @@ import (
 )
 
 func toolCaption(t *app.Tool) string {
+	caption := ""
 	var args struct {
 		Title string `json:"title"`
 	}
 	if json.Unmarshal([]byte(t.Input), &args) == nil && strings.TrimSpace(args.Title) != "" {
-		return strings.Join(strings.Fields(args.Title), " ")
+		caption = strings.Join(strings.Fields(args.Title), " ")
+	} else if t.Name != "" {
+		caption = t.Name
+	} else {
+		caption = t.Title()
 	}
-	if t.Name != "" {
-		return t.Name
+	if t.ParentToolID != "" {
+		return "子任务 · " + caption
 	}
-	return t.Title()
+	return caption
 }
 
 // Only unwrap recognized text envelopes. Unknown fields and non-text blocks

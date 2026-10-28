@@ -7,6 +7,7 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 )
 
@@ -396,6 +397,7 @@ func (a *App) composer(c *native.Context) {
 		})
 		native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
 			a.imagePickerButton(c)
+			a.agentPicker(c)
 			a.modelPicker(c)
 			native.Spacer(c)
 			action, glyph := "发送", upIcon
@@ -404,7 +406,7 @@ func (a *App) composer(c *native.Context) {
 			if a.State.Busy {
 				action, glyph = "停止", stopIcon
 				hint = "停止当前任务"
-				disabled = a.State.TurnID == "" || a.State.Phase == "正在停止"
+				disabled = a.State.TurnID == "" && a.submitCancel == nil || a.State.Phase == "正在停止"
 			}
 			button := native.ButtonBase(c).Label(action).Tooltip(hint).
 				Size(34, 34).Radius(17).TextColor(t.Background).Disabled(disabled)
@@ -427,7 +429,14 @@ func (a *App) runtimeDetails(c *native.Context) {
 	native.Column(c).Width(300).Padding(12).Gap(12).Children(func() {
 		native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
 			native.Text(c, "运行详情").FontSize(12).FontWeight(600).Grow(1)
-			native.Text(c, a.version).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+			version := a.version
+			if a.kind.Normalized() == agent.Claude {
+				version = "Claude Code"
+				if a.State.RuntimeVersion != "" {
+					version += " " + a.State.RuntimeVersion
+				}
+			}
+			native.Text(c, version).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 		})
 		model := a.State.Model
 		if model == "" {

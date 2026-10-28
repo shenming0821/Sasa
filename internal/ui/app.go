@@ -37,6 +37,9 @@ type App struct {
 	editorState
 	backend           Backend
 	backends          map[backendKey]Backend
+	agentErrors       map[agent.AgentKind]string
+	defaultAgent      agent.AgentKind
+	lastClaudeModels  map[string]string
 	version           string
 	win               *mygo.Window
 	md                markdown.Options
@@ -117,11 +120,11 @@ func (a *App) Run() error {
 			if a.historyOpen {
 				a.loadThreadList()
 			}
-			a.recoverSelectedSession()
 		}
 		for key, backend := range a.backends {
 			go a.receiveBackend(backend, key)
 		}
+		a.recoverSelectedSession()
 		go a.autosave()
 	})
 	return mygo.App.Run()
@@ -188,8 +191,10 @@ func (a *App) send() {
 		return
 	}
 	sequence, cwd, threadID := a.State.Sequence, a.State.Cwd, a.State.ThreadID
+	ctx, cancel := agent.RequestContext()
+	a.submitCancel = cancel
+	a.submitStop = false
 	go func() {
-		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		model := selectedModel
 		if supportsModels && model == "" {
@@ -198,8 +203,13 @@ func (a *App) send() {
 			if err != nil {
 				a.update(func() {
 					if a.State.Sequence == sequence {
+						a.submitCancel = nil
+						a.submitStop = false
 						a.State.Busy = false
 						a.State.Error, a.State.Phase = "读取默认模型失败，本次未发送："+err.Error(), "未发送"
+						if errors.Is(err, context.Canceled) {
+							a.State.Error, a.State.Phase = "", "已取消"
+						}
 						if a.State.Draft == "" {
 							a.State.Draft = text
 						}
@@ -208,6 +218,10 @@ func (a *App) send() {
 				})
 				return
 			}
+		}
+		if err := ctx.Err(); err != nil {
+			a.fail(sequence, text, &agent.NotSubmittedError{Err: err}, false)
+			return
 		}
 		if threadID == "" {
 			thread, err := a.sessionBackend().StartThread(ctx, cwd)
@@ -241,6 +255,10 @@ func (a *App) send() {
 				return
 			}
 		}
+		if err := ctx.Err(); err != nil {
+			a.fail(sequence, text, &agent.NotSubmittedError{Err: err}, false)
+			return
+		}
 		var turn agent.Turn
 		var err error
 		if supportsModels {
@@ -260,11 +278,21 @@ func (a *App) send() {
 		}
 		a.update(func() {
 			if a.State.Sequence == sequence {
-				if model != "" {
+				a.submitCancel = nil
+				if a.kind.Normalized() == agent.Claude {
+					a.rememberClaudeModel(model)
+				}
+				if model != "" && a.kind.Normalized() != agent.Claude {
 					a.State.Model = model
 				}
 				if a.State.Busy {
-					a.State.TurnID, a.State.Phase = turn.ID, "正在执行"
+					stopping := a.State.Stopping()
+					a.State.TurnID = turn.ID
+					if stopping && a.submitStop {
+						a.stop()
+					} else if !stopping {
+						a.State.Phase = "正在执行"
+					}
 				}
 			}
 		})
@@ -291,9 +319,17 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 		return
 	}
 	var rpc *agent.RPCError
+	var notSubmitted *agent.NotSubmittedError
+	a.submitCancel = nil
+	a.submitStop = false
 	rejectedStart := !turnSubmitted && errors.As(err, &rpc) && !a.State.Disconnected
 	a.State.Busy = false
-	if rejectedStart {
+	if errors.As(err, &notSubmitted) {
+		a.State.Error, a.State.Phase = "本次未发送："+err.Error(), "未发送"
+		if errors.Is(err, context.Canceled) {
+			a.State.Error, a.State.Phase = "", "已取消"
+		}
+	} else if rejectedStart {
 		// No turn/start was attempted, so retrying cannot duplicate execution.
 		a.State.Error, a.State.Phase = "创建会话失败，可稍后重新发送："+err.Error(), "会话创建失败"
 	} else {
@@ -310,6 +346,12 @@ func (a *App) stop() {
 	a = a.forSession(a.session)
 	a.State.BeginStop()
 	threadID, turnID := a.State.ThreadID, a.State.TurnID
+	if turnID == "" && a.submitCancel != nil {
+		a.submitStop = true
+		a.submitCancel()
+		return
+	}
+	a.submitStop = false
 	go func() {
 		ctx, cancel := agent.RequestContext()
 		defer cancel()
@@ -381,6 +423,9 @@ func (a *App) applyBatch(batch []agent.Event) {
 func (a *App) applySessionBatch(batch []agent.Event) {
 	follow := false
 	for _, e := range batch {
+		if a.kind.Normalized() == agent.Claude && e.Session.Agent == agent.Claude && e.Session.Runtime == a.runtimeKey && e.Session.SessionID == a.State.ThreadID && e.Generation > a.generation {
+			a.generation = e.Generation
+		}
 		if !a.session.accepts(e) {
 			continue
 		}
@@ -407,6 +452,9 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		if e.Method == "turn/completed" && wasBusy && !a.State.Busy && !a.State.Disconnected {
 			delete(a.application().quitTargets, a.session.id)
 			a.notifyCompletion(e)
+			if a.kind.Normalized() == agent.Claude {
+				a.recordClaudeHistory()
+			}
 		}
 		if e.Method == "serverRequest/resolved" {
 			var p struct {

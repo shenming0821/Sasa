@@ -98,6 +98,7 @@ func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 				s.saved.Title = resumed.ThreadMeta.Preview
 			}
 			state.Model, state.Policy, state.Sandbox = resumed.Model, string(resumed.Policy), string(resumed.Sandbox)
+			state.RuntimeVersion = resumed.RuntimeVersion
 			s.State, s.loaded, s.historyCursor = state, true, page.NextCursor
 			// On a new transport an active/unfinished snapshot is evidence to
 			// investigate, not authority to replay a turn or revive an approval.
@@ -343,6 +344,27 @@ func (a *App) loadThreadList() {
 	}()
 }
 
+func (a *App) recordClaudeHistory() {
+	if a.State.ThreadID == "" {
+		return
+	}
+	key := agent.CacheKey{Agent: agent.Claude, Runtime: a.runtimeKey, Cwd: a.State.Cwd}
+	thread := agent.ThreadMeta{ID: a.State.ThreadID, Cwd: a.State.Cwd, Preview: a.session.title(), Status: agent.ThreadStatus{Type: "notLoaded"}}
+	for _, target := range a.application().sessions {
+		if target.historyCacheKey != key {
+			continue
+		}
+		threads := []agent.ThreadMeta{thread}
+		for _, existing := range target.nativeThreads {
+			if existing.ID != thread.ID {
+				threads = append(threads, existing)
+			}
+		}
+		target.nativeThreads = threads
+		target.threadsLayoutPending = true
+	}
+}
+
 func (a *App) historyBrowser(c *native.Context) {
 	w := a.workspace(a.workspaceRoot(a.workspaceCwd()))
 	native.Scroll(c).TrackScroll(&w.historyScroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
@@ -374,6 +396,7 @@ func (a *App) historyBrowser(c *native.Context) {
 					for _, s := range a.sessions {
 						if s.kind.Normalized() == a.kind.Normalized() && s.runtimeKey == a.runtimeKey && s.State.ThreadID == thread.ID {
 							a.selectSession(s)
+							a.loadThreadList()
 							return
 						}
 					}
@@ -387,6 +410,8 @@ func (a *App) historyBrowser(c *native.Context) {
 						s.nativeThreads = slices.Clone(source.nativeThreads)
 						s.threadsCursor, s.threadsError = source.threadsCursor, source.threadsError
 						s.threadsLayoutPending = true
+					} else {
+						a.loadThreadList()
 					}
 					s.State.ThreadID, s.loaded, s.recoveryBlocked = thread.ID, false, true
 					s.saved.Title = title

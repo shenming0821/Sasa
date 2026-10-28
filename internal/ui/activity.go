@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 )
 
@@ -172,7 +173,7 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 					native.Text(c, q.Header).FontSize(12).TextColor(t.TextMuted)
 					native.Text(c, q.Question).FontSize(14)
 					for index, option := range q.Options {
-						button := selectableActionButton(c, option.Label, r.Answers[i] == option.Label).
+						button := selectableActionButton(c, option.Label, r.AnswerSelected(q, option.Label)).
 							AlignSelf(native.Start).Padding(7, 10).FillWidth().Disabled(disabled)
 						button.Children(func() { native.Text(c, option.Label).FontSize(12) })
 						if r.FocusInvalid && r.InvalidQuestion == q.ID && !q.IsOther && index == 0 {
@@ -180,8 +181,7 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 							r.FocusInvalid = false
 						}
 						if button.Clicked() {
-							r.Answers[i] = option.Label
-							r.Error, r.InvalidQuestion = "", ""
+							r.ToggleAnswer(i, option.Label)
 						}
 						native.Text(c, option.Description).FontSize(11).TextColor(t.TextMuted)
 					}
@@ -223,10 +223,17 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 				a.respond(r, map[string]any{"permissions": map[string]any{}, "scope": "turn"})
 			}
 		} else {
+			if a.kind.Normalized() == agent.Claude {
+				native.TextInputBase(c, &r.Feedback).Label("拒绝反馈").Placeholder("拒绝原因（可选）").FillWidth().FontSize(12).Padding(8).Radius(6).Border(1, t.Border).Disabled(disabled)
+			}
 			for _, decision := range request.Decisions() {
 				native.Column(c).FillWidth().Gap(2).Children(func() {
 					if actionButton(c, decision.Label).Disabled(disabled).Clicked() {
-						a.respond(r, map[string]any{"decision": decision.Value})
+						response := map[string]any{"decision": decision.Value}
+						if a.kind.Normalized() == agent.Claude && r.Feedback != "" {
+							response["feedback"] = r.Feedback
+						}
+						a.respond(r, response)
 					}
 					native.Text(c, decision.Detail).FontSize(11).TextColor(t.TextMuted)
 				})

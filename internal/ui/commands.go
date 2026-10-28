@@ -70,7 +70,7 @@ func (s *session) conversationRows() []conversationRow {
 		command := m.Role == "tool" && m.Interaction == nil && m.Tool != nil && m.Tool.Kind == "commandExecution"
 		if command && len(rows) > 0 {
 			last := &rows[len(rows)-1]
-			if len(last.commands) > 0 && last.message.TurnID == m.TurnID {
+			if len(last.commands) > 0 && last.message.TurnID == m.TurnID && last.message.Tool.ParentToolID == m.Tool.ParentToolID {
 				last.commands = append(last.commands, m)
 				continue
 			}
@@ -168,6 +168,9 @@ func commandDisclosure(c *native.Context, label, text string, open *bool, group 
 
 func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
 	text, _ := commandSummary(commands)
+	if commands[0].Tool.ParentToolID != "" {
+		text = "子任务 · " + text
+	}
 	commandDisclosure(c, "命令组 "+commands[0].ID, text, a.commandGroupOpen(commands[0].ID), true, func() {
 		for _, m := range commands {
 			tool := m.Tool

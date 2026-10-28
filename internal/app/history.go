@@ -22,8 +22,8 @@ func History(cwd, threadID string, turns []agent.HistoryTurn) (State, bool, erro
 		s.TurnID = turn.ID
 		for _, raw := range turn.Items {
 			var item struct {
-				ID   string `json:"id"`
-				Type string `json:"type"`
+				ID      string `json:"id"`
+				Type    string `json:"type"`
 				Content []struct {
 					Type string `json:"type"`
 					Text string `json:"text"`

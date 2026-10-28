@@ -37,7 +37,7 @@ func TestRecordedHelloFrames(t *testing.T) {
 					TerminalReason string `json:"terminal_reason"`
 					Result         string `json:"result"`
 					Message        struct {
-						ID string `json:"id"`
+						ID      string `json:"id"`
 						Content []struct {
 							Type string `json:"type"`
 							Text string `json:"text"`

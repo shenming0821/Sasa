@@ -34,7 +34,7 @@ func (k AgentKind) String() string {
 	case Codex:
 		return "Codex"
 	case Claude:
-		return "Claude"
+		return "Claude Code"
 	default:
 		return string(k)
 	}

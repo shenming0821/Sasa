@@ -92,7 +92,7 @@ func TestConcurrentCompletionOnlyOnce(t *testing.T) {
 func TestApprovalIntentRequiresVerifiedSessionRule(t *testing.T) {
 	base := ApprovalIntent{
 		Request: RequestKey{
-			Session: SessionKey{Agent: Claude, SessionID: "session"},
+			Session:    SessionKey{Agent: Claude, SessionID: "session"},
 			Generation: 1, RequestID: "request",
 		},
 		Decision: Allow,

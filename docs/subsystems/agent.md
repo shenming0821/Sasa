@@ -4,7 +4,7 @@
 
 `internal/agent/` 保存应用需要的身份、任务、事件、审批意图和可选能力契约。`internal/ui/app.go` 的 `Backend` 是 `agent.Backend` 的兼容别名；UI 与 `internal/app/` 使用 agent 类型。`internal/codex/` 保留协议编解码、原生 RPC 参数、审批响应与子进程读取行为；既有导出类型通过别名兼容原测试和调用者。
 
-当前生产入口仍只启动 Codex。`internal/claude/` 当前只有真实协议证据及样本断言，Claude adapter 和新建会话 Agent 选择入口属于 P6.2/P6.3 待办。Linux 编写，Mac 待验证，不能将类型迁移视为 Codex 等价回归已通过。
+当前入口启动 Codex 并注册可用的 Claude Code，连接失败保留对应错误。输入框下方提供 Agent 入口，空白会话切换保留草稿并清空模型/命令缓存；已有任务选择其他 Agent 时在同目录新建会话，原任务继续独立运行。新建会话记住最近选择，历史按原 Agent 恢复。Claude 的原生协议与验证边界见 [Claude 运行时](claude-runtime.md)。
 
 ## 身份、路由和缓存
 
@@ -12,15 +12,17 @@
 
 `internal/ui/agents.go` 的 `RegisterBackend` 在恢复索引和 `Run` 前注册额外连接；连接由创建者管理生命周期，不能重复注册或在窗口运行后替换。`sessionBackend` 按会话 Agent/Runtime 选择已注册连接；默认 Codex 使用已有共享 backend，缺失 Claude 连接返回不可用。后台动作先通过 `forSession` 固定所属会话，注册表在运行期间保持不变。
 
-每条事件的 `Method` 保持字符串，`Params` 保持 `json.RawMessage`；原始 wire 帧仍由 adapter 处理。Codex 现有方法名、参数与原生 turn ID 直接透传，默认事件由接收循环补充 Codex/Runtime 影响域。UI 按 Agent/Runtime/session/generation 筛选；旧测试的无来源事件仅用于默认 Codex。会话进程异常须携带 session 和 generation，不能让 Claude 单进程 EOF 变成其他会话的全局失联。预期退出不投影为 `fuyu/disconnected`；Claude 的退出分类尚待 adapter 实现。
+每条事件的 `Method` 保持字符串，`Params` 保持 `json.RawMessage`；原始 wire 帧仍由 adapter 处理。Codex 现有方法名、参数与原生 turn ID 直接透传，默认事件由接收循环补充 Codex/Runtime 影响域。UI 按 Agent/Runtime/session/generation 筛选；旧测试的无来源事件仅用于默认 Codex。Claude 单进程异常携带 session 和 generation，预期退出不投影为 `fuyu/disconnected`，未知退出阻止所属会话续发；显示控制队列耗尽才升级为 Claude 后端范围故障。
 
-模型目录、加载状态和原生历史目录缓存存放在 session，目录与 Runtime 改变后失效，异步回调写回原 session；模型选择的持久化包含 `ModelAgent`。技能候选也由各 session 按 cwd 保存。`agent.CacheKey` 明确 Agent/Runtime/cwd 的缓存边界，Runtime 标识必须来自实际生效配置，P6.3 接线时补验。
+模型目录、加载状态和原生历史目录缓存存放在 session，目录与 Runtime 改变后失效，异步回调核对 Agent/Runtime/cwd 后写回原 session；模型选择的持久化包含 `ModelAgent`。技能候选也由各 session 按 cwd 保存，Claude 原生命令保留名称和参数。`agent.CacheKey` 明确 Agent/Runtime/cwd 的缓存边界，Claude Runtime 为实际生效的规范化配置根。
 
-从历史列表创建会话时，仅在来源缓存键与目标 Agent/Runtime/cwd 完全一致时复制已有列表、分页游标和错误状态；列表使用独立切片，进行中的请求仍归原会话。不同缓存键不复用。受控回归见 `TestOpenHistoryCarriesOnlyMatchingCache` 和 `TestResponsivePanelsPreserveComposerAndNavigation`。
+从历史列表创建会话时，仅在来源缓存键与目标 Agent/Runtime/cwd 完全一致时复制已有列表、分页游标和错误状态；列表使用独立切片，进行中的请求仍归原会话。缓存键不同时，按目标会话的后端重新加载列表；选择已存在的会话时也核对并加载目标列表，已有完整缓存由加载入口直接复用。受控回归见 `TestOpenHistoryCarriesOnlyMatchingCache`、`TestOpenHistoryLoadsTargetWhenCacheDirectoryChanges` 和 `TestResponsivePanelsPreserveComposerAndNavigation`。
 
 ## 能力与历史核验
 
 `backend.go` 的最小 Backend 只有 StartThread、Send、Interrupt、Events。模型/技能/命令目录、图片模型发送、原生历史、占用元数据、分叉、缺口核验、原生响应与通用审批意图分别使用可选接口；实现可以返回 `ErrUnsupported`，调用者通过能力断言限制入口。`Capabilities` 为能力描述，不替代实际接口与真实验收。
+
+`NotSubmittedError` 只用于后端能够证明用户输入尚未尝试写入时的失败。UI 在初始化或读取默认模型期间可取消准备，恢复草稿并保留会话可用性；已经尝试写入的失败继续按结果不确定处理。取消与成功返回竞争时，UI 取得原生 turn ID 后继续请求原生中断，等待实际终态，不把取消上下文等同于任务停止。退出流程同样覆盖尚无 turn ID 的准备请求。
 
 历史展示、可续发、旧任务终态、写入权和 pending 认知分别建模。`RecoveryResult` 明确保留这些证据及不确定性；Codex `RespondHistory` 复用 resume + 分页读取，并检查页内终态，不因能展示文字就允许续发。它不是跨所有历史页的审计，UI 现有恢复仍保留分页、占用和旧提交门控。
 
@@ -28,9 +30,9 @@
 
 ## Turn 与审批
 
-`TurnMap.Begin` 在发送前生成应用 TurnID 及独立 user UUID，每 session 仅允许一个在途发送；即使进程重建，未核验旧任务仍阻止重复发送。`Bind` 分开关联 native turn、transcript UUID 和模型 message.id；`Lookup` 供停止/归属核验使用，`Complete` 以 generation + 应用 ID 保护重复和迟到终态。完成后下一次 Begin 替换当前映射，不将内存表当作持久历史。Codex 保持原生 ID 路径；此工具在 P6.2 接入 Claude。
+`TurnMap.Begin` 在发送前生成应用 TurnID 及独立 user UUID，每 session 仅允许一个在途发送；即使进程重建，未核验旧任务仍阻止重复发送。`Bind` 分开关联 native turn、transcript UUID 和模型 message.id；`Lookup` 供归属核验使用，`Complete` 以 generation + 应用 ID 保护重复和迟到终态。完成后下一次 Begin 替换当前映射，不将内存表当作持久历史。Codex 保持原生 ID 路径；Claude 已接入 Begin/Bind/Complete，并独立持久化发送和终态检查点。
 
-`ApprovalIntent` 只表达本次 allow/deny、可选反馈和停止。`RuleSuggestion` 保留原始对象，只有精确建议已经验证且 destination=session 时才允许附带，拒绝不能扩大权限；`setMode` 不作为审批规则。`PermissionModeChange` 是独立设置类型，永久规则首版不开放。请求身份含 session/generation/request ID；缺工具 ID 不构成自动允许的理由。pending 去重/撤销与写入不确定保护由各 adapter 实现，Claude 该部分尚未实现。
+`ApprovalIntent` 只表达本次 allow/deny、可选反馈和停止。`RuleSuggestion` 保留原始对象，只有精确建议已经验证且 destination=session 时才允许附带，拒绝不能扩大权限；`setMode` 不作为审批规则。`PermissionModeChange` 是独立设置类型，永久规则首版不开放。Claude 使用可选 Respond 接口映射单次审批/反馈/问答，应用请求身份编码 session/generation/native request ID；缺工具 ID 仍需审批。pending 去重/撤销、迟到响应及写入不确定保护均由 Claude adapter 实现；未开放 session 规则。
 
 ## 资源与兼容
 

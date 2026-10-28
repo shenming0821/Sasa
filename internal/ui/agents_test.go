@@ -51,6 +51,44 @@ func TestOpenHistoryCarriesOnlyMatchingCache(t *testing.T) {
 	}
 }
 
+func TestOpenHistoryLoadsTargetWhenCacheDirectoryChanges(t *testing.T) {
+	for _, existing := range []bool{false, true} {
+		t.Run(map[bool]string{false: "new", true: "existing"}[existing], func(t *testing.T) {
+			backend := &threadPagesBackend{
+				recoveryBackend: *recoveredBackend("completed"),
+				threadPages: []agent.ThreadsPage{{Data: []agent.ThreadMeta{
+					{ID: "native", Cwd: "/first", Preview: "history"},
+				}}},
+			}
+			a := New(backend, "test", "/source", nil)
+			source := a.session
+			if existing {
+				a.newSession("/first")
+				a.State.ThreadID = "native"
+				a.selectSession(source)
+			}
+			source.nativeThreads = []agent.ThreadMeta{{ID: "native", Cwd: "/first", Preview: "history"}}
+			a.historyScope, a.historyOpen = 1, true
+			queue := make(chan func(), 4)
+			a.dispatch = func(fn func()) { queue <- fn }
+			tester := native.NewTester(a.view, 1400, 800)
+			if err := tester.Click("打开历史 native"); err != nil {
+				t.Fatal(err)
+			}
+			pumpUpdate(t, queue)
+			if !existing {
+				pumpUpdate(t, queue)
+			}
+			if a.session == source || a.State.Cwd != "/first" || len(a.nativeThreads) != 1 || len(backend.cursors) != 1 {
+				t.Fatal("target session did not load its own history list")
+			}
+			if source.State.Cwd != "/source" || len(source.nativeThreads) != 1 {
+				t.Fatal("target history loading changed the source session")
+			}
+		})
+	}
+}
+
 func TestSessionBackendRoutingAndMissingClaude(t *testing.T) {
 	codexBackend := &modelCaptureBackend{}
 	claudeBackend := &modelCaptureBackend{}

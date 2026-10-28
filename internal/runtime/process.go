@@ -19,8 +19,13 @@ type Process struct {
 }
 
 func Start(executable string, args []string, cwd string, stderr io.Writer) (*Process, error) {
+	return StartWithEnvironment(executable, args, cwd, stderr, nil)
+}
+
+func StartWithEnvironment(executable string, args []string, cwd string, stderr io.Writer, environment []string) (*Process, error) {
 	cmd := exec.Command(executable, args...)
 	cmd.Dir, cmd.Stderr = cwd, stderr
+	cmd.Env = environment
 	configureGroup(cmd)
 	in, err := cmd.StdinPipe()
 	if err != nil {

@@ -40,6 +40,8 @@ type Session struct {
 }
 
 type Snapshot struct {
+	LastClaudeModels  map[string]string
+	DefaultAgent      agent.AgentKind
 	Preferences       *Preferences
 	WorkspaceTabs     []Tab
 	ActiveTabID       string

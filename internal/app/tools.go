@@ -20,6 +20,7 @@ type FileChange struct {
 
 type Tool struct {
 	Kind, Command, Cwd, Status, ProcessID, Name, Input, Output string
+	ParentToolID                                               string
 	ExitCode                                                   *int
 	DurationMs                                                 *int64
 	Changes                                                    []FileChange
@@ -89,7 +90,7 @@ func messageBytes(m *Message) int {
 		n += len(image.Path) + len(image.URL) + len(image.Name)
 	}
 	if t := m.Tool; t != nil {
-		n += len(t.Input) + len(t.Output) + len(t.Command) + len(t.Cwd) + len(t.Name) + len(t.ProcessID)
+		n += len(t.Input) + len(t.Output) + len(t.Command) + len(t.Cwd) + len(t.Name) + len(t.ProcessID) + len(t.ParentToolID)
 		for _, f := range t.Changes {
 			n += len(f.Path) + len(f.Kind) + len(f.Diff) + 64
 		}

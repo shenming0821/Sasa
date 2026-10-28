@@ -38,6 +38,8 @@ bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 
 默认数据目录为 `~/Library/Application Support/Fuyu`，可用 `-data-dir /absolute/path` 隔离测试实例。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的 `CODEX_HOME`（默认 `~/.codex`），切换原生历史目录时使用独立数据目录。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
 
+Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。配置根来自 `CLAUDE_CONFIG_DIR`，默认 `~/.claude`；应用按 Agent 独立绑定根目录，子进程显式使用这一根，切换配置根时使用独立应用数据目录。Claude 检查点保存于应用数据目录的 `claude/`。缺失 CLI 时菜单显示具体原因，可继续使用另一可用 Agent。
+
 ## 2. 目录与代码定位
 
 入口为 `cmd/desktop/main.go`。现有包与状态/进程边界见[子系统索引](subsystems/README.md)和[运行时说明](subsystems/codex-runtime.md)。
@@ -85,6 +87,16 @@ FUYU_LIVE_BATCH=1 ./scripts/go test ./internal/ui -run '^TestLiveP4BatchWritesWh
 ```
 
 ## 4. 自动化与真实验收
+
+Claude 真实文件/审批/恢复/拒绝/问答/故障隔离与双 Agent 联合验收分别显式启用：
+
+```sh
+FUYU_LIVE_CLAUDE=1 ./scripts/go test ./internal/claude -run '^TestLiveClaude' -v -count=1
+FUYU_LIVE_CLAUDE=1 FUYU_LIVE_CLAUDE_COMPACT=1 ./scripts/go test ./internal/claude -run '^TestLiveClaudeFileApprovalResume$' -v -count=1
+FUYU_LIVE_AGENTS=1 ./scripts/go test ./internal/ui -run '^TestLiveAgentsRunIndependently$' -v -count=1
+```
+
+`internal/claude/testdata/server.py` 是合成协议服务；`live_process_compare.py /absolute/path/to/claude` 会真实比较每轮进程与常驻进程的双轮上下文，在临时目录保存双向 wire。以上真实入口使用现有原生登录与模型服务；普通 Go 测试跳过真实调用。不要把合成夹具或内存渲染器结果当作原生窗口验收。
 
 自动化测试使用临时目录、受控子进程和协议夹具。使用 `t.Setenv` 等测试内机制隔离需要的配置路径；如测试框架需要独立 HOME，由测试启动器设置，保持开发者现有 shell 环境。隔离时保留可用的构建缓存路径。
 

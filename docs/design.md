@@ -1,16 +1,18 @@
 # Fuyu 设计文档 v2.2
 
-> 更新日期：2026-10-24
-> 当前交付目标：Codex 原生 UI 交互  
+> 更新日期：2026-10-28
+> 当前交付目标：Codex / Claude Code 原生 UI 交互
 > 原始方案：`/Users/shenming/Downloads/Fuyu 设计文档v2.0.md`  
 > 参考源码与核验边界：[参考项目核验](reference-verification.md)  
 > 实施顺序、验收与接续状态：[实施计划](implementation-plan.md)
 
 ## 1. 当前产品范围
 
-Fuyu 使用 Go + MyGo Native UI，为 Codex 原生 Runtime 提供桌面交互。第一阶段围绕一个用户选择的本地工作目录，逐步完成创建会话、连续对话、流式输出、工具展示、审批、回答问题、中断及历史恢复。
+Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提供桌面交互。围绕用户选择的本地工作目录，完成创建会话、连续对话、流式输出、工具展示、审批、回答问题、中断及历史恢复。
 
-当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)实现中，已通过组件验收，原生交互验收未完成。当前生产入口仍只启动 Codex；本轮经用户授权建立 P6.1 应用 Agent 契约并录制 Claude 基础协议。Claude adapter 和会话选择入口仍待 P6.2/P6.3，Linux 编写，Mac 待验证。
+当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)推进，原有验收边界保留。当前入口注册独立的 Codex/Claude 后端，使用 P6.1 应用 Agent 契约路由。Claude adapter 和 Agent 入口已实现，完整验收状态见实施计划；协议差异及恢复边界见 [Claude 运行时](subsystems/claude-runtime.md)。
+
+Agent 选择位于输入区模型入口旁。首次发送前切换保留草稿并更新模型/命令来源；已有任务选择另一 Agent 时，在相同目录创建新会话，原任务与上下文保留在原会话。新会话使用最近选择，历史使用自身保存的 Agent，后台完成不改变当前焦点。运行详情展示原生确认的实际模型、版本和权限。
 
 ### 1.1 当前需要实现
 
@@ -27,7 +29,7 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 原生 Runtime 提供桌面交互。
 
 | 能力 | 安排 |
 |---|---|
-| Claude Code 与 Agent 抽象 | P6.0 基础证据/P6.1 已编写待验证；P6.2～P6.4 按实施计划推进；OpenCode 另行规划 |
+| Claude Code 与 Agent 抽象 | P6.1～P6.3 已实现，P6.0/P6.4 完整验收按实施计划推进；OpenCode 另行规划 |
 | Repository / Worktree 自动发现和管理 | 已实现本地导入、发现与会话导航；创建和删除另行确认 |
 | 文件树、轻量文件编辑、Git 状态与只读 Diff | 按 [P4 设计](p4-editor-design.md)实现中；组件验收通过，原生交互待验收 |
 | 暂存、提交、远程、历史 Diff、分支与冲突 | 用户于 2026-10-26 授权扩展，约定及验收见 [Git 工作流](git-workflow-design.md) |
@@ -76,7 +78,7 @@ UI 不处理原始 wire 帧或直接写子进程 stdin；Controller 消费 adapt
 
 第一步由应用持有一个 App Server 连接，先完成单个 thread 的真实任务闭环。第三步再加入多个 thread 的管理与切换；单个 thread 同时只允许一个活动 turn，跨会话切换不改变 cwd，也不取消活动 turn。
 
-P6 身份与能力契约见 [Agent 抽象层](subsystems/agent.md)：backend 按会话选择，事件影响域包括 Agent/runtime/session/generation；审批单次意图与规则授权/权限模式分开，应用 TurnID 在发送前分配并与原生标识分离。Codex 保持原生 ID 与 RPC 行为，Claude 在后续 adapter 接入这些契约。存储采用 v4，按 Agent 绑定原生历史根并建立原生 ID 联合唯一约束。
+P6 身份与能力契约见 [Agent 抽象层](subsystems/agent.md)：backend 按会话选择，事件影响域包括 Agent/runtime/session/generation；审批单次意图与规则授权/权限模式分开，应用 TurnID 在发送前分配并与原生标识分离。Codex 保持原生 ID 与 RPC 行为，Claude adapter 已接入这些契约，运行方式与能力边界见 [Claude 运行时](subsystems/claude-runtime.md)。存储采用 v4，按 Agent 绑定原生历史根并建立原生 ID 联合唯一约束。
 
 ### 3.1 本地接入约定
 

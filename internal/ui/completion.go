@@ -12,6 +12,7 @@ import (
 )
 
 type inputCompletion struct {
+	commands        []agent.Command
 	key, dismissed  string
 	selected        int
 	skills          []agent.Skill
@@ -71,6 +72,15 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 	var items []completionItem
 	query := strings.ToLower(q.query)
 	if q.kind == '/' {
+		if a.kind.Normalized() == agent.Claude {
+			for _, command := range a.completion.commands {
+				name := "/" + command.Name
+				if strings.Contains(strings.ToLower(name), query) {
+					items = append(items, completionItem{name: name, description: command.Description})
+				}
+			}
+			return items
+		}
 		for _, item := range slashCommands {
 			if strings.Contains(item.name, query) {
 				items = append(items, item)
@@ -108,6 +118,35 @@ func (a *App) loadCompletionSkills() {
 	if s.completion.cwd == s.State.Cwd && (s.completion.loaded || s.completion.loading) {
 		return
 	}
+	if a.kind.Normalized() == agent.Claude {
+		backend, ok := a.sessionBackend().(agent.CommandCatalog)
+		s.completion.cwd = s.State.Cwd
+		s.completion.loaded = true
+		if !ok {
+			return
+		}
+		s.completion.loading = true
+		cwd := s.State.Cwd
+		runtime := s.runtimeKey
+		bound := a.forSession(s)
+		go func() {
+			ctx, cancel := agent.RequestContext()
+			defer cancel()
+			commands, err := backend.ListCommands(ctx, cwd)
+			bound.update(func() {
+				if s.State.Cwd != cwd || s.runtimeKey != runtime || s.kind != agent.Claude {
+					return
+				}
+				s.completion.loading = false
+				if err != nil {
+					s.completion.error = err.Error()
+					return
+				}
+				s.completion.commands = commands
+			})
+		}()
+		return
+	}
 	backend, ok := a.sessionBackend().(interface {
 		ListSkills(context.Context, string) ([]agent.SkillsEntry, error)
 	})
@@ -120,14 +159,14 @@ func (a *App) loadCompletionSkills() {
 		return
 	}
 	s.completion.loading = true
-	cwd := s.State.Cwd
+	cwd, kind, runtime := s.State.Cwd, s.kind.Normalized(), s.runtimeKey
 	bound := a.forSession(s)
 	go func() {
 		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		entries, err := backend.ListSkills(ctx, cwd)
 		bound.update(func() {
-			if s.State.Cwd != cwd || s.completion.cwd != cwd {
+			if s.State.Cwd != cwd || s.completion.cwd != cwd || s.kind.Normalized() != kind || s.runtimeKey != runtime {
 				return
 			}
 			s.completion.loading = false
@@ -150,6 +189,9 @@ func (a *App) loadCompletionSkills() {
 }
 
 func (a *App) runSlashCommand(text string) bool {
+	if a.kind.Normalized() == agent.Claude {
+		return false
+	}
 	switch text {
 	case "/new":
 		cwd := a.State.Cwd
@@ -177,7 +219,13 @@ func (a *App) runSlashCommand(text string) bool {
 func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 	a.completion.dismissed = ""
 	if q.kind == '/' {
-		a.runSlashCommand(item.name)
+		if a.kind.Normalized() == agent.Claude {
+			a.State.Draft = item.name + " "
+			a.completion.caret = len([]rune(a.State.Draft))
+			a.completion.focus = true
+		} else {
+			a.runSlashCommand(item.name)
+		}
 	} else {
 		r := []rune(a.State.Draft)
 		token := "$" + item.skill.Name + " "

@@ -10,7 +10,7 @@ import (
 func (s *State) Reconcile(raw json.RawMessage) error {
 	var snapshot struct {
 		Thread struct {
-			ID string `json:"id"`
+			ID    string `json:"id"`
 			Turns []struct {
 				ID     string            `json:"id"`
 				Status string            `json:"status"`

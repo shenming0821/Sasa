@@ -8,18 +8,18 @@
 
 | 项目 | 当前记录 |
 |---|---|
-| 所处阶段 | 本轮经用户授权实现 P6.0 基础协议证据与 P6.1 Agent 抽象；Linux 编写，Mac 待验证。P4 原验收边界保留 |
-| 下一动作 | 本轮先修复 P6 历史列表响应式回归，Linux 定向/UI 全包/完整 test、vet 与构建已通过，见 P6 验证补充；Mac 继续执行 gofmt、完整 test/vet、相关 race 和构建，核验 Codex 发送/审批/中断/恢复/分叉/多会话等价，再正常重开窗口；之后按 P6.2～P6.4 待办推进 |
+| 所处阶段 | Claude Code 基础接入完成，P6.2/P6.3 当前支持范围实现与验证通过；P6.4 基础闭环取得真实 Runtime/原生 GUI 证据，扩展真实协议样本仍按下方待办保留。P4 原验收边界保留 |
+| 下一动作 | 按用户最新要求，Claude 模型菜单只显示具体名称，移除 default/Opus 上下文预设，并按 Runtime 保存上次模型。已原生验证四项列表、新会话与重启继承，实际 sonnet → zhipu/glm-5.3 任务完成。用户授权验证后将全部工作区代码提交并推送当前 p6-claude-adapter；交付结果以 Git 实际读回为准。P6.0 扩展样本、极窄窗口和整应用强杀实验继续保留 |
 | 已完成 | Go/MyGo 工程、分层源码、原生窗口、Codex 双向协议、状态/协议/UI 组件测试 |
 | 已实现功能 | P1/P2 任务交互；P3 多会话、SQLite 索引与迁移、原生分页历史、草稿/阅读/折叠恢复、异常状态核验、窗口驻留和退出流程 |
 | 已有文件 | 新增 `internal/agent/`、`internal/claude/testdata/` 与 v4 迁移；其余源码按实际工作区核对 |
 | P4 原接续（独立保留） | P4 核心功能和完整 test/vet/相关 race/构建通过；真实 Codex 500 文件改写、20 个混合标签、保留 dirty 草稿与干净缓冲更新通过。原生拼音组合/提交、保存、撤销重做、滚轮、865×543 DIP 窄窗口、长路径横向滚动及新标签定位已补验。迁移备份完整性/新鲜度与旧 JSON 预检已修正。最后仍需原生 Git Diff 呈现、面板状态与切换复核；窗口读取连续超时，工具连接重置后仍失败，原应用已因本次修复重开，不能据此断定应用崩溃。测试夹具及三个测试标签已清理，索引清理前备份在 `/tmp/fuyu-p4-before-fixture-cleanup.db`。不再因观察超时重复重启；先恢复原生窗口可操作性，再继续最终交互验收。证据见 [P4 验证](verification/2026-10-24-p4.md)，当前未宣告 P4 通过；本轮实现与文档已提交，原生交互验收仍待补齐。 |
-| 工具链 | 当前 Linux 已核验 `~/.local/share/fuyu/toolchains/go1.27.3/bin`，`go version` 为 `go1.27.3 linux/amd64`，构建/test/vet 使用 `./scripts/go`。Mac 原环境及命令见开发指南；MyGo 仍锁定 `976f17c9391f` |
+| 工具链 | 本轮 Mac 实际为 `go1.27.3 darwin/arm64`，构建/test/vet 使用 `./scripts/go`，bundle 使用 `./scripts/build`；此前 Linux 为 `go1.27.3 linux/amd64`。MyGo 仍锁定 `976f17c9391f` |
 | Git 关联 | 本轮 `p6-claude-adapter`，基线 `4d9784b`，`origin` 为 `git@github.com:shenming0821/Fuyu.git`；首个应用代码快照范围见本页末尾，提交与工作区状态以 `git log`、`git status` 核对 |
 | Codex 版本 | Linux 实测 `codex-cli 0.164.0`；Claude CLI `2.1.311`，录制日期 2026-10-27 至 2026-10-28 |
 | 既有 Mac 验收（本轮之前） | 完整 test、vet、race、构建及文档检查通过；P1 见[原生交互记录](verification/2026-10-22-p1.md)，P2 见[任务交互记录](verification/2026-10-22-p2.md)，P3 真实 GUI 重开续聊、多目录恢复及正常/超时退出见[恢复验收](verification/2026-10-22-p3.md) |
 
-P6 下一动作：在 Mac 执行格式化、完整 test/vet、相关 race、构建和正常重启；Codex 等价回归及完整协议验收通过前不宣告 P6.1 验收完成。范围与测试入口见 [P6 验证](verification/2026-10-28-p6-agent.md)。
+P6 本轮 Mac 验证、历史修复及历史 UI 全包 race 失败与后续通过结果见 [P6 验证](verification/2026-10-28-p6-agent.md)文末。保留最终原生验收与协议证据限制，当前不宣告整个 P6 验收完成。
 
 下次先核对本文当前接续点及 [P3 验证记录](verification/2026-10-22-p3.md)。原生中断的终态仅表示 turn 中断，独立后台命令的退出仍需单独核验。P3 已具备持久化、历史恢复和窗口驻留；原 stdio 无法重新附着，未结束任务保留待核验。
 
@@ -705,15 +705,17 @@ P3 验收通过后，使用 Fuyu 完成真实的小型开发任务，记录使�
 - [x] 实测 CLI 路径、版本与 SDK 类型 SHA-256，隔离临时 cwd 运行真实任务。
 - [x] 保存真实 stream-json user 输入、41 帧 stdout、stderr；另存 text 输入的 34 帧 stdout 和普通文本 `你好` 对照，三次均退出码 0。
 - [x] 在 `internal/claude/testdata/README.md` 记录命令、日期、帧序列、权限模式、实际模型与证据限制；原始内容未改写。
-- [ ] initialize request/response、审批允许/拒绝/超时/停止、撤销/重复/pending 回放、AskUserQuestion：待 Mac 真实验收补录。
-- [ ] 每轮 spawn+resume 与同进程多轮、result 尾随帧、session 规则跨进程行为及真实 transcript：按复核 §4 P6.0 补录。
-- [ ] 有界分片、坏行、未知帧、子代理、异常终态、控制响应乱序和写入不确定：P6.2 配套补齐，标注合成来源。
+- [x] Mac 实测 initialize、允许、拒绝含反馈、AskUserQuestion、审批中停止及撤销；安全投影与逐字段回放断言见 testdata README。完整解析 wire 留在受限临时文件，仓库片段不冒充完整响应。
+- [x] 撤销/重复/pending 回放、审批过期、有界分片、超长帧、半行/坏行、未知 result、重复/迟到终态及写入不确定由受控协议测试覆盖；真实子代理父关联和后台通知另有录制。来源分别标注。
+- [x] 真实比较每轮 spawn+resume 与同进程多轮，生产采用每轮 spawn+resume；两轮上下文、重开、手动 compact 与中断 transcript 已补录，续聊后停止另经真实 adapter 验证。
+- [ ] 原生自然触发的审批超时/重复/pending、result 后任务通知、自动/复杂嵌套 compact 尚无真实录制；目前对应覆盖为受控输入或较窄的手动 compact。
+- [ ] session 规则跨进程存续未经实测；首版仅提供本次允许/拒绝，不提供会话或永久规则授权。
 
 本轮基础录制已完成；复核要求的完整 P6.0 通过门槛尚未完成。stdout 不是 transcript；system/init 的当前模型与 initialize 响应的模型目录分开处理。
 
 ### P6.1：Agent 抽象与 Codex 等价回归
 
-已实现范围（Linux 编写，Mac 待验证）：
+已实现范围（Linux 编写，Mac 验证与剩余问题见 P6 验证记录）：
 
 - `internal/agent/` 定义 AgentKind、SessionKey、ProcessGeneration、能力、应用事件、分页和恢复结果。Backend 保留最小四方法，其余按可选接口断言组织，允许明确不支持。
 - `ApprovalIntent` 仅表达单次 allow/deny、反馈、停止及已验证的 session 规则建议；保留原始规则，权限模式独立，永久授权暂缓。Codex 原生交互投影经类型别名兼容，不把枚举伪装成通用审批 scope。
@@ -723,19 +725,26 @@ P3 验收通过后，使用 Fuyu 完成真实的小型开发任务，记录使�
 - SQLite v4 按 Agent 绑定规范化 home、按 `(agent, thread_id)` 唯一；旧归属迁移 Codex，旧 payload 保留，迁移前一致性备份、事务失败回滚、高版本拒绝。Session 增加 Agent/Runtime/ModelAgent。
 - 新增身份/审批/请求关联/迁移/UI 路由/真实夹具断言测试；原 Codex 发送、审批、中断、恢复、分叉、多会话测试保留。
 
-- [ ] Mac `gofmt`、完整 test/vet 与相关 race。
-- [ ] Codex 等价回归、构建与正常退出重开后的窗口验收。
+- [x] Mac `gofmt`、完整普通 test/vet 与 P6 定向 race；agent/app/storage 首次整包 race、最终 Codex 包 race 通过。
+- [x] 真实 Codex 发送、单次审批、中断、恢复、分叉及多会话链路；Mac 构建、正常退出重开与跨目录历史原生复验，具体边界见 P6 验证记录。
+- [x] 本轮完整 `./scripts/go test -race ./... -count=1` 通过，UI 包耗时 78.351 秒；历史 Git 等待失败仍保留为既有不稳定记录。本轮停止映射修正后 Claude 整包 race、完整 vet 与构建再次通过；完整原生交互矩阵继续补验。
 
-### P6.2：Claude adapter 与失败状态机（待办）
+### P6.2：Claude adapter 与失败状态机（基础接入完成）
 
-按复核 §4 P6.2 实现有界 framing、独立 reader、超时串行 writer 与控制请求关联，握手和权限确认后才发送；接入 TurnMap、每 session 单个在途任务、内容块覆盖去重和 result 的 subtype/is_error/terminal_reason 联合判断。审批等待不堵 reader，处理撤销、重复、过期和 AskUserQuestion；中断回执、任务终态、进程退出与后台工具退出分别记账。以每轮 spawn+resume 作为待验证的保守候选，完成两种进程模型对照后确定唯一生产基线。
+按复核 §4 P6.2 实现有界 framing、独立 reader、超时串行 writer 与控制请求关联，握手和权限确认后才发送；接入 TurnMap、每 session 单个在途任务、内容块覆盖去重和 result 的 subtype/is_error/terminal_reason 联合判断。审批等待不堵 reader，处理撤销、重复、过期和 AskUserQuestion；中断回执、任务终态、进程退出与后台工具退出分别记账。两种进程模型真实对照后，确定每轮 spawn+resume 为生产基线；初始化阶段可取消，未尝试用户帧时恢复草稿并回滚检查点，已尝试写入的不确定性仍保留核验门控。
 
 历史必须沿 parentUuid 重建有效分支，理解 compaction，按完整消息/turn 分页并配对工具；保留子代理父任务、result 后通知、损坏/半写/替换等不确定状态。模型目录来自 initialize 控制响应；slash command 保留命令及参数，不变成 Codex skill 输入。
 
-### P6.3：会话入口与归属接入（待办）
+### P6.3：会话入口与归属接入（当前支持范围完成）
 
 在新建会话前选择 Agent，原生 session 不原地切换。接入已实现的 v4 数据结构与 backend 注册机制，补齐实际 Runtime 配置、模型/命令菜单与会话进程代次。历史、占用/分叉和缺口核验按实际能力路由；未实现入口不展示。CLI 缺失、认证、onboarding、网络错误分开呈现，不改用户配置；未知旧任务不自动重发。补验旧版本拒绝 v4、混合会话重开和错误 home；本轮 v4 已提前实现，不重复迁移。
 
-### P6.4：真实联合验收（待办）
+### P6.4：真实联合验收（基础闭环通过，扩展边界保留）
 
 按复核 §4 P6.4 验证 Claude 文件读写/审批/拒绝反馈/问答、两轮上下文、模型选择、各阶段停止、正常和异常重开、工具与 compact 历史、双 Agent 并行及单进程故障隔离。分别记录 UI 终态、磁盘副作用、进程组与后台工具退出，补齐超量/损坏来源和实际能力矩阵。Mac 完成测试和构建后正常退出并重启 Fuyu，窗口可用后交给用户；session 规则、分叉、外部 writer 和后台任务全停未经实测不计完成。
+
+当前结果按 [P6 验证记录末节](verification/2026-10-28-p6-agent.md#当前接入结论与覆盖边界) 分层登记；本机基础闭环通过。流式停止后的原生中断标记误判已修复并真实重开续聊通过。自然异常协议、复杂 compact、极窄原生窗口与整应用强杀实验继续作为扩展未验证项，不从待办中删除或标为已通过。
+
+### Claude 接入工作区进展（2026-10-28）
+
+用户确认输入区并列 Agent/模型入口，并授权继续实现直至接入完成。已实现和待验收行为见 [Claude 运行时](subsystems/claude-runtime.md)，本轮证据追加至 [P6 验证记录](verification/2026-10-28-p6-agent.md)。当前使用每轮 spawn+resume，不开放 session 授权规则、外部会话接管或 Claude 分叉。工作区保留原有修改，未暂存、未提交、未推送。

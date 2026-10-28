@@ -10,6 +10,14 @@ import (
 
 var ErrUnsupported = errors.New("当前 Agent 不支持此能力")
 
+type NotSubmittedError struct {
+	Err error
+}
+
+func (err *NotSubmittedError) Error() string { return err.Err.Error() }
+
+func (err *NotSubmittedError) Unwrap() error { return err.Err }
+
 // Backend is the minimum task loop. Optional capabilities use interface assertions.
 type Backend interface {
 	StartThread(context.Context, string) (Thread, error)

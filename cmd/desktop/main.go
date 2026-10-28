@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Fuyu/internal/claude"
 	"github.com/shenming0821/Fuyu/internal/codex"
 	process "github.com/shenming0821/Fuyu/internal/runtime"
 	"github.com/shenming0821/Fuyu/internal/storage"
@@ -97,6 +99,19 @@ func run() error {
 		backend = client
 	}
 	desktop := ui.New(backend, strings.TrimSpace(version), *cwd, launchErr)
+	claudeExecutable, claudeErr := claude.ResolveExecutable()
+	if claudeErr == nil {
+		claudeClient, err := claude.New(claudeExecutable, "", filepath.Join(*dataDir, "claude"))
+		if err == nil {
+			defer claudeClient.Close()
+			err = store.BindAgentRuntime(agent.Claude, claudeClient.Home())
+			if err == nil {
+				err = desktop.RegisterBackend(agent.Claude, claudeClient.Home(), claudeClient)
+			}
+		}
+		claudeErr = err
+	}
+	desktop.SetAgentError(agent.Claude, claudeErr)
 	if err := desktop.AttachStore(store); err != nil {
 		return fmt.Errorf("restore application index (original data preserved): %w", err)
 	}

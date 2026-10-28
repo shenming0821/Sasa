@@ -179,7 +179,7 @@ func (a *App) advanceQuit() {
 	}
 	for _, s := range a.sessions {
 		key := fmt.Sprintf("%d/%s", s.id, s.State.TurnID)
-		if s.State.Busy && s.State.TurnID != "" && !a.quitSent[key] {
+		if s.State.Busy && (s.State.TurnID != "" || s.submitCancel != nil) && !a.quitSent[key] {
 			a.quitSent[key] = true
 			a.forSession(s).stop()
 		}

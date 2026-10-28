@@ -16,6 +16,46 @@ type Interaction struct {
 	InvalidQuestion string
 	FocusInvalid    bool
 	Answers         []string
+	Selections      map[string][]string
+	Feedback        string
+}
+
+func (r *Interaction) AnswerSelected(question agent.Question, label string) bool {
+	if !question.MultiSelect {
+		for index, item := range r.Request.Questions {
+			if item.ID == question.ID {
+				return r.Answers[index] == label
+			}
+		}
+		return false
+	}
+	for _, selected := range r.Selections[question.ID] {
+		if selected == label {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Interaction) ToggleAnswer(index int, label string) {
+	question := r.Request.Questions[index]
+	if !question.MultiSelect {
+		r.Answers[index] = label
+	} else {
+		if r.Selections == nil {
+			r.Selections = make(map[string][]string)
+		}
+		selected := r.Selections[question.ID]
+		for position, value := range selected {
+			if value == label {
+				r.Selections[question.ID] = append(selected[:position], selected[position+1:]...)
+				r.Error, r.InvalidQuestion = "", ""
+				return
+			}
+		}
+		r.Selections[question.ID] = append(selected, label)
+	}
+	r.Error, r.InvalidQuestion = "", ""
 }
 
 func (r *Interaction) Active() bool { return r.Status == "待处理" || r.Status == "提交中" }
@@ -87,21 +127,30 @@ func (r *Interaction) Submit(result any) (any, error) {
 	if r.Request.Method == "item/tool/requestUserInput" && result == nil {
 		answers := map[string]any{}
 		for i, q := range r.Request.Questions {
-			if strings.TrimSpace(r.Answers[i]) == "" {
+			values := []string{}
+			if q.MultiSelect {
+				values = append(values, r.Selections[q.ID]...)
+			}
+			if strings.TrimSpace(r.Answers[i]) != "" {
+				values = append(values, r.Answers[i])
+			}
+			if len(values) == 0 {
 				r.Error = "请回答：" + q.Header
 				r.InvalidQuestion, r.FocusInvalid = q.ID, true
 				return nil, errors.New(r.Error)
 			}
-			allowed := len(q.Options) == 0 || q.IsOther
-			for _, option := range q.Options {
-				allowed = allowed || r.Answers[i] == option.Label
+			for _, value := range values {
+				allowed := len(q.Options) == 0 || q.IsOther
+				for _, option := range q.Options {
+					allowed = allowed || value == option.Label
+				}
+				if !allowed {
+					r.Error = "请从选项中选择：" + q.Header
+					r.InvalidQuestion, r.FocusInvalid = q.ID, true
+					return nil, errors.New(r.Error)
+				}
 			}
-			if !allowed {
-				r.Error = "请从选项中选择：" + q.Header
-				r.InvalidQuestion, r.FocusInvalid = q.ID, true
-				return nil, errors.New(r.Error)
-			}
-			answers[q.ID] = map[string]any{"answers": []string{r.Answers[i]}}
+			answers[q.ID] = map[string]any{"answers": values}
 		}
 		result = map[string]any{"answers": answers}
 	}
@@ -147,5 +196,7 @@ func (r *Interaction) Submit(result any) (any, error) {
 	r.InvalidQuestion, r.FocusInvalid = "", false
 	// Answers are sent only in the response, never copied into transcript text.
 	clear(r.Answers)
+	clear(r.Selections)
+	r.Feedback = ""
 	return result, nil
 }
