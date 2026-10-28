@@ -75,13 +75,6 @@ func TestProjectHeadingDragAndCancel(t *testing.T) {
 func TestProjectMenuAndFilteredOrder(t *testing.T) {
 	a := projectOrderFixture()
 	tt := native.NewTester(a.view, 1000, 760)
-	if err := tt.Click("项目操作 dir:/alpha"); err != nil {
-		t.Fatal(err)
-	}
-	if got := tt.Menu(); !slices.Equal(got, []string{"移除项目"}) {
-		t.Fatalf("project menu = %v", got)
-	}
-	tt.Key(0, native.KeyEscape)
 	if err := tt.RightClick("展开项目 /alpha"); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +91,7 @@ func TestProjectMenuAndFilteredOrder(t *testing.T) {
 	a.sessionQuery = ""
 	tt.Frame()
 	assertProjectOrder(t, a, "dir:/beta", "repo:/repo/.git", "dir:/alpha")
-	if err := tt.Click("项目操作 repo:/repo/.git"); err != nil {
+	if err := tt.RightClick("展开仓库 /repo/.git"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.ChooseMenuItem("移除项目"); err != nil {
@@ -222,30 +215,31 @@ func TestProjectHeadingUsesOneHoverBackground(t *testing.T) {
 			if !ok {
 				t.Fatal("missing heading")
 			}
-			menu, ok := tt.Find(pair[1])
-			if !ok {
-				t.Fatal("missing menu")
+			if _, ok := tt.Find(pair[1]); ok {
+				t.Fatal("project options button still rendered")
 			}
-			if menu.X < title.X+title.W || menu.Y < title.Y || menu.Y+menu.H > title.Y+title.H {
-				t.Fatal("menu is not contained at the right of heading")
-			}
-			sampleTitleX, sampleMenuX := title.X+3, menu.X+2
+			sampleTitleX, sampleMenuX := title.X+3, title.X+title.W-3
 			y := title.Y + title.H/2
 			before := tt.Image().RGBAAt(int(sampleMenuX), int(y))
-			for _, x := range []float32{title.X + 40, menu.X + menu.W/2} {
+			for _, x := range []float32{title.X + 40, title.X + title.W - 8} {
 				tt.Move(x, y)
 				image := tt.Image()
 				left, right := image.RGBAAt(int(sampleTitleX), int(y)), image.RGBAAt(int(sampleMenuX), int(y))
 				if left != right || right == before {
-					t.Fatalf("heading and menu do not share hover: %v / %v, idle %v", left, right, before)
+					t.Fatalf("heading does not share hover across its width: %v / %v, idle %v", left, right, before)
 				}
 				tt.Press(x, y)
 				if got := tt.Image().RGBAAt(int(sampleMenuX), int(y)); got != right {
 					t.Fatal("press split the shared background")
 				}
-				// Cancel before release so this visual check does not open the menu or fold.
 				tt.Key(0, native.KeyEscape)
 				tt.Release(x, y)
+			}
+			if err := tt.RightClick(pair[0]); err != nil {
+				t.Fatal(err)
+			}
+			if got := tt.Menu(); !slices.Equal(got, []string{"移除项目"}) {
+				t.Fatalf("project context menu = %v", got)
 			}
 		})
 	}

@@ -139,7 +139,7 @@ func (a *App) promoteDirectoryProject(path string, repo project.Repository) {
 	}
 }
 
-func (a *App) projectHeadingActions(c *native.Context, row, header native.Element, id string) native.Element {
+func (a *App) projectHeadingActions(c *native.Context, row, header native.Element, id string) {
 	header.Drag(projectDrag{ID: id})
 	_, y, _ := row.PointerPosition()
 	after := y >= row.Bounds().H/2
@@ -161,8 +161,4 @@ func (a *App) projectHeadingActions(c *native.Context, row, header native.Elemen
 		}
 	}
 	header.ContextMenu(menu)
-	more := native.ButtonBase(c.Key("project-menu")).Label("项目操作 "+id).TextColor(c.Theme().TextMuted).Size(24, 24).Radius(8)
-	more.Children(func() { native.Icon(c, gitMoreIcon).Size(14, 14) })
-	more.Menu(menu)
-	return more
 }

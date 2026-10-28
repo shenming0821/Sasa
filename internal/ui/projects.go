@@ -245,7 +245,7 @@ func (a *App) repositoryMatches(repo project.Repository) bool {
 
 // projectDisclosure keeps descendants mounted until the height transition finishes.
 func (a *App) projectDisclosure(c *native.Context, key, label string, heading, content func(), projectIDs ...string) {
-	var header, arrow, more native.Element
+	var header, arrow native.Element
 	managed := len(projectIDs) > 0 && projectIDs[0] != directoryProjectID("")
 	var progress float32
 	target := float32(1)
@@ -272,18 +272,15 @@ func (a *App) projectDisclosure(c *native.Context, key, label string, heading, c
 			arrow = native.Icon(c, chevron).Size(11, 11).Rotate(-90 * (1 - progress))
 		})
 		if managed {
-			more = a.projectHeadingActions(c, row, header, projectIDs[0])
+			a.projectHeadingActions(c, row, header, projectIDs[0])
 		}
 	})
 	opacity := float32(0)
-	if row.Hovered() || header.FocusVisible() || (managed && more.FocusVisible()) {
+	if row.Hovered() || header.FocusVisible() {
 		row.Background(c.Theme().SurfaceHover)
 		opacity = 1
 	}
 	arrow.Opacity(opacity)
-	if managed {
-		more.Opacity(opacity)
-	}
 	if progress == 0 && target == 0 {
 		return
 	}
