@@ -97,13 +97,17 @@ func gitPaths(entries []gitview.Entry, staged bool) []string {
 	return slices.Compact(paths)
 }
 
+func isGitIndexAction(label string) bool {
+	return label == "暂存" || label == "取消暂存"
+}
+
 func (a *App) gitAction(w *workspacePage, label string, fn func(context.Context) error, done func()) {
 	if w.gitBusy != "" || w.gitPreparing || a.gitQuitPending && !w.gitAfterSave || a.quitStopping || a.fileQuitPending || !a.canAsync() {
 		return
 	}
 	a.cancelGitRefresh(w)
 	w.gitBusy, w.gitActionError, w.gitNotice = label, "", ""
-	indexOnly := label == "暂存" || label == "取消暂存"
+	indexOnly := isGitIndexAction(label)
 	ctx, cancel := a.projectContext(2 * time.Minute)
 	a.runGitTaskContext(ctx, func() {
 		defer cancel()

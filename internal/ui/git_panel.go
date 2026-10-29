@@ -35,7 +35,9 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		a.refreshGit(w)
 	}
 	initialLoading := w.gitLoading && w.gitFingerprint == ""
-	busy := w.gitBusy != "" || w.gitPreparing || initialLoading || a.gitQuitPending || a.quitStopping
+	disabled := w.gitPreparing || initialLoading || a.gitQuitPending || a.quitStopping ||
+		w.gitBusy != "" && !isGitIndexAction(w.gitBusy)
+	busy := disabled || w.gitBusy != ""
 	native.Row(c.Key("git-toolbar")).FillWidth().Height(36).Padding(0, 12).Gap(2).AlignItems(native.Center).Children(func() {
 		branch := w.git.Branch
 		if branch == "" {
@@ -44,7 +46,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		if branch == "(detached)" && len(w.git.Head) >= 8 {
 			branch = w.git.Head[:8]
 		}
-		button := treeButton(c, "选择 Git 分支").Height(28).Padding(0, 4).Grow(1).MinWidth(0).Disabled(busy)
+		button := treeButton(c, "选择 Git 分支").Height(28).Padding(0, 4).Grow(1).MinWidth(0).Disabled(disabled)
 		button.Children(func() {
 			native.Row(c).Fill().Gap(5).AlignItems(native.Center).Children(func() {
 				native.Icon(c, gitIcon).Size(13, 13)
@@ -52,27 +54,27 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 				native.Icon(c, chevron).Size(10, 10).Rotate(90)
 			})
 		})
-		if button.Clicked() {
+		if button.Clicked() && !busy {
 			w.gitBranchPicker = !w.gitBranchPicker
 		}
 		if len(w.gitRemotes) > 0 {
-			if gitIconButton(c.Key("fetch"), "获取远程更新", gitFetchIcon, busy).Clicked() {
+			if gitIconButton(c.Key("fetch"), "获取远程更新", gitFetchIcon, disabled).Clicked() && !busy {
 				a.gitRemoteAction(w, "fetch")
 			}
 			if w.git.Upstream != "" {
-				if gitIconButton(c.Key("pull"), fmt.Sprintf("拉取 %d 个提交", w.git.Behind), gitFetchIcon, busy).Clicked() {
+				if gitIconButton(c.Key("pull"), fmt.Sprintf("拉取 %d 个提交", w.git.Behind), gitFetchIcon, disabled).Clicked() && !busy {
 					a.gitRemoteAction(w, "pull")
 				}
-				if gitIconButton(c.Key("push"), fmt.Sprintf("推送 %d 个提交", w.git.Ahead), gitPushIcon, busy).Clicked() {
+				if gitIconButton(c.Key("push"), fmt.Sprintf("推送 %d 个提交", w.git.Ahead), gitPushIcon, disabled).Clicked() && !busy {
 					a.gitRemoteAction(w, "push")
 				}
 			} else if w.git.Head != "(initial)" && w.git.Head != "" {
-				if gitIconButton(c.Key("publish"), "发布分支", gitPushIcon, busy).Clicked() {
+				if gitIconButton(c.Key("publish"), "发布分支", gitPushIcon, disabled).Clicked() && !busy {
 					a.gitRemoteAction(w, "publish")
 				}
 			}
 		}
-		if gitIconButton(c.Key("refresh"), "刷新 Git", refreshProjectIcon, busy).Clicked() {
+		if gitIconButton(c.Key("refresh"), "刷新 Git", refreshProjectIcon, disabled).Clicked() && !busy {
 			a.refreshGit(w)
 		}
 	})
@@ -97,7 +99,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		native.Text(c, "正在读取 Git…").FontSize(11).TextColor(t.TextMuted).Padding(8, 14)
 	}
 	if w.gitFingerprint != "" {
-		a.gitCommitBox(c.Key("commit"), w, busy)
+		a.gitCommitBox(c.Key("commit"), w, disabled)
 		a.gitRefreshStats(w)
 	}
 	if w.gitDecision != nil {
@@ -120,7 +122,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		})
 	}
 	message, col := w.gitNotice, t.TextMuted
-	if w.gitBusy != "" && w.gitBusy != "暂存" && w.gitBusy != "取消暂存" {
+	if w.gitBusy != "" && !isGitIndexAction(w.gitBusy) {
 		message = "正在" + w.gitBusy + "…"
 	}
 	if w.gitActionError != "" {
@@ -137,7 +139,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 				for _, group := range []string{"冲突", "更改", "已暂存的更改"} {
 					entries := gitEntries(w, group)
 					if len(entries) > 0 {
-						a.gitGroup(c.Key(group), w, group, entries, busy)
+						a.gitGroup(c.Key(group), w, group, entries, disabled)
 					}
 				}
 			})
@@ -166,13 +168,6 @@ func (a *App) gitCommitBox(c *native.Context, w *workspacePage, busy bool) {
 			b.Children(func() { native.Text(c, label).FontSize(11).TextColor(t.Background).SingleLine() })
 			if b.Clicked() || area.Shortcut(native.Cmd, native.KeyEnter) && ready {
 				a.gitCommitChanges(w, all)
-			}
-			generateLabel := "生成"
-			if w.gitGenerating {
-				generateLabel = "停止生成"
-			}
-			if actionButton(c.Key("generate"), generateLabel).Height(30).Disabled(busy).Clicked() {
-				a.gitGenerateMessage(w)
 			}
 			if staged > 0 {
 				gitIconButton(c.Key("commit-more"), "更多提交操作", gitMoreIcon, busy).Menu(func(m *native.Menu) {

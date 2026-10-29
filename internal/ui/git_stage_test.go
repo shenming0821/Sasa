@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"bytes"
 	"fmt"
+	"image"
+	"image/draw"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +14,60 @@ import (
 	native "github.com/egoist/mygo/ui"
 	gitview "github.com/shenming0821/Fuyu/internal/git"
 )
+
+func TestGitIndexActionsKeepHeaderPixelsSteady(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, message := range []string{"", "fix: draft"} {
+			t.Run(fmt.Sprintf("dark=%t/message=%q", dark, message), func(t *testing.T) {
+				a := New(nil, "test", "/repo", nil)
+				w := a.workspace("/repo")
+				w.git = gitview.Status{Branch: "main", Upstream: "origin/main", Ahead: 1, Entries: []gitview.Entry{{Path: "file.go", XY: ".M"}}}
+				w.gitRemotes = []string{"origin"}
+				w.gitMessage = message
+				w.gitTime = time.Now()
+				w.gitFingerprint = fmt.Sprintf("%+v", w.git)
+				tester := native.NewTester(func(c *native.Context) {
+					native.Column(c).Fill().Background(c.Theme().Surface).Children(func() { a.gitPanel(c, w) })
+				}, 600, 650)
+				tester.SetDark(dark)
+				tester.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
+				button, found := tester.Find("全部暂存并提交")
+				if !found {
+					t.Fatal("missing commit button")
+				}
+				header := image.Rect(0, 0, 600, int(button.Y+button.H))
+				pixels := func() []byte {
+					region := image.NewRGBA(header)
+					draw.Draw(region, header, tester.Image(), header.Min, draw.Src)
+					return region.Pix
+				}
+				before := pixels()
+				for _, action := range []string{"暂存", "", "取消暂存", ""} {
+					w.gitBusy = action
+					tester.Frame()
+					if !bytes.Equal(before, pixels()) {
+						t.Fatalf("Git header flashed during %q", action)
+					}
+				}
+				w.gitBusy = "暂存"
+				tester.Frame()
+				if err := tester.Click("选择 Git 分支"); err != nil {
+					t.Fatal(err)
+				}
+				if w.gitBranchPicker {
+					t.Fatal("branch picker opened during index write")
+				}
+				if err := tester.Click("Git 提交信息"); err != nil {
+					t.Fatal(err)
+				}
+				tester.Type("edited")
+				if !strings.Contains(w.gitMessage, "edited") {
+					t.Fatal("index action prevented editing commit message")
+				}
+			})
+		}
+	}
+}
 
 func TestGitIndexActionsKeepListSteady(t *testing.T) {
 	a := New(nil, "test", "/repo", nil)
