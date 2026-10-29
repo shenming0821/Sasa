@@ -377,9 +377,13 @@ func (a *App) historyBrowser(c *native.Context) {
 				if a.historyScope == 0 && filepath.Clean(thread.Cwd) != filepath.Clean(a.workspaceCwd()) {
 					continue
 				}
+				target := a.historySession(thread)
 				title := thread.Preview
 				if thread.Name != nil && *thread.Name != "" {
 					title = *thread.Name
+				}
+				if target.saved.CustomTitle != "" {
+					title = target.saved.CustomTitle
 				}
 				if title == "" {
 					title = thread.Cwd
@@ -389,7 +393,7 @@ func (a *App) historyBrowser(c *native.Context) {
 				}
 				count++
 				b := treeButton(c.Key(thread.ID), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(thread.Cwd)
-				b.ContextMenu(a.sessionMenu(a.historySession(thread)))
+				b.ContextMenu(a.sessionMenu(target))
 				b.Children(func() {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
 						native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)

@@ -201,6 +201,9 @@ func (a *App) anyBusy() bool {
 }
 
 func (s *session) title() string {
+	if s.saved.CustomTitle != "" {
+		return s.saved.CustomTitle
+	}
 	if s.saved.Title != "" && s.saved.Title != "新会话" {
 		return s.saved.Title
 	}

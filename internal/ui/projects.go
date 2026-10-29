@@ -218,7 +218,7 @@ func (a *App) openWorktree(w project.Worktree) {
 }
 
 func (s *session) hasProjectConversation() bool {
-	return len(s.State.Messages) > 0 || s.State.Busy || s.reviewRequired || s.saved.Active ||
+	return s.saved.CustomTitle != "" || len(s.State.Messages) > 0 || s.State.Busy || s.reviewRequired || s.saved.Active ||
 		(!s.loaded && s.State.ThreadID != "") ||
 		(s.saved.Title != "" && s.saved.Title != "新会话")
 }

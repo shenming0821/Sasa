@@ -28,6 +28,7 @@ type Session struct {
 	ThreadID      string
 	Cwd           string
 	Title         string
+	CustomTitle   string `json:",omitempty"`
 	Draft         string
 	DraftSkills   map[string]string
 	TurnID        string

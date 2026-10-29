@@ -23,6 +23,9 @@ func (a *App) canDeleteSession(target *session) bool {
 
 func (a *App) sessionMenu(target *session) func(*native.Menu) {
 	return func(menu *native.Menu) {
+		if menu.Item("重命名").Disabled(target == nil || a.quitting || a.quitDialog).Chosen() {
+			a.beginSessionRename(target)
+		}
 		if menu.Item("删除会话").Disabled(!a.canDeleteSession(target)).Chosen() {
 			a.confirmDeleteSession(target)
 		}
