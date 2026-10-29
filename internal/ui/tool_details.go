@@ -112,37 +112,7 @@ func (a *App) toolDisclosure(c *native.Context, tool *app.Tool) {
 			if tool.DurationMs != nil {
 				native.Text(c, fmt.Sprintf("%.2f 秒", float64(*tool.DurationMs)/1000)).FontSize(11).SingleLine().Shrink(0).TextColor(theme.TextMuted)
 			}
-		}, func() {
-
-			native.Column(c).FillWidth().MinWidth(0).Gap(10).Padding(10, 12).Radius(8).
-				Border(1, theme.Border.Alpha(.5)).Background(theme.Surface).Children(func() {
-				if tool.Name != "" {
-					native.Text(c, tool.Name).FontSize(11).TextColor(theme.TextMuted).SingleLine()
-				}
-				if tool.Input != "" {
-					code, parameters := toolInput(tool.Input)
-					if code != "" {
-						toolDetailSection(c.Key("code"), "输入", code, true, a.codeFontFamily())
-					}
-					if parameters != "" {
-						title := "输入"
-						if code != "" {
-							title = "参数"
-						}
-						toolDetailSection(c.Key("input"), title, parameters, true, a.codeFontFamily())
-					}
-				}
-				if tool.Output != "" {
-					toolDetailSection(c.Key("output"), "结果", toolResult(tool.Output, 0), false)
-				}
-				if tool.Input == "" && tool.Output == "" {
-					native.Text(c, "暂无详情").FontSize(12).TextColor(theme.TextMuted)
-				}
-				if tool.Truncated {
-					native.Text(c, "内容显示已截断（上限 256 KiB），请核验完整运行记录。").FontSize(11).TextColor(theme.TextMuted).FillWidth()
-				}
-			})
-		})
+		}, a.toolDetailsContent(c, tool))
 		if failed && tool.Output != "" && !tool.Expanded {
 			summary := strings.Join(strings.Fields(toolResult(tool.Output, 0)), " ")
 			native.Text(c, summary).Label("工具错误摘要").FontSize(12).TextColor(theme.TextMuted).FillWidth().MaxLines(2).Padding(0, 0, 4, 24)
@@ -153,6 +123,40 @@ func (a *App) toolDisclosure(c *native.Context, tool *app.Tool) {
 	})
 }
 
+func (a *App) toolDetailsContent(c *native.Context, tool *app.Tool) func() {
+	if strings.TrimSpace(tool.Input) == "" && strings.TrimSpace(tool.Output) == "" && !tool.Truncated {
+		return nil
+	}
+	theme := c.Theme()
+	return func() {
+		native.Column(c).FillWidth().MinWidth(0).Gap(10).Padding(10, 12).Radius(8).
+			Border(1, theme.Border.Alpha(.5)).Background(theme.Surface).Children(func() {
+			if tool.Name != "" {
+				native.Text(c, tool.Name).FontSize(11).TextColor(theme.TextMuted).SingleLine()
+			}
+			if tool.Input != "" {
+				code, parameters := toolInput(tool.Input)
+				if code != "" {
+					toolDetailSection(c.Key("code"), "输入", code, true, a.codeFontFamily())
+				}
+				if parameters != "" {
+					title := "输入"
+					if code != "" {
+						title = "参数"
+					}
+					toolDetailSection(c.Key("input"), title, parameters, true, a.codeFontFamily())
+				}
+			}
+			if tool.Output != "" {
+				toolDetailSection(c.Key("output"), "结果", toolResult(tool.Output, 0), false)
+			}
+			if tool.Truncated {
+				native.Text(c, "内容显示已截断（上限 256 KiB），请核验完整运行记录。").FontSize(11).TextColor(theme.TextMuted).FillWidth()
+			}
+		})
+	}
+}
+
 func toolDetailSection(c *native.Context, title, text string, code bool, fonts ...string) {
 	family := codeFont
 	if len(fonts) > 0 {
@@ -161,7 +165,7 @@ func toolDetailSection(c *native.Context, title, text string, code bool, fonts .
 	native.Column(c).FillWidth().MinWidth(0).Gap(4).TextColor(c.Theme().TextMuted).Children(func() {
 		native.Row(c).FillWidth().AlignItems(native.Center).Children(func() {
 			native.Text(c, title).FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
-			b := quietButton(c, "复制"+title).Size(24, 24)
+			b := quietIconButton(c, "复制"+title).Size(24, 24)
 			b.Children(func() { native.Icon(c, copyIcon).Size(13, 13) })
 			if b.Clicked() {
 				c.WriteClipboard(text)

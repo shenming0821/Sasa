@@ -54,7 +54,7 @@ func (a *App) newAgentSession(kind agent.AgentKind) error {
 func (a *App) agentSessionButtons(c *native.Context) {
 	native.Row(c).Gap(4).AlignItems(native.Center).Children(func() {
 		for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
-			button := quietButton(c.Key(string(kind)), "使用 "+kind.String()+" 新建会话").Size(30, 30).Padding(7)
+			button := quietIconButton(c.Key(string(kind)), "使用 "+kind.String()+" 新建会话").Size(30, 30)
 			button.Children(func() {
 				agentIcon(c, kind, 16)
 			})

@@ -36,6 +36,10 @@ func quietButton(c *native.Context, label string) native.Element {
 	return buttonFace(c, b, native.Color{}, t.SurfaceHover, t.SurfacePressed, 8, 0)
 }
 
+func quietIconButton(c *native.Context, label string) native.Element {
+	return quietButton(c, label).Padding(0).AlignItems(native.Center).Justify(native.Center)
+}
+
 func outlinedButton(c *native.Context, label string) native.Element {
 	return selectableActionButton(c, label, false)
 }

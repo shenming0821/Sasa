@@ -77,12 +77,12 @@ func (a *App) sidebar(c *native.Context) {
 		native.Row(c).FillWidth().Height(46).Padding(0, 12).Gap(4).AlignItems(native.Center).Children(func() {
 			native.Text(c, "Fuyu").FontSize(15).Bold()
 			native.Spacer(c)
-			settings := quietButton(c, "设置").Size(28, 28)
+			settings := quietIconButton(c, "设置").Size(28, 28)
 			settings.Children(func() { native.Icon(c, settingsIcon).Size(16, 16) })
 			if settings.Clicked() {
 				a.openSettings()
 			}
-			b := quietButton(c, "新建会话").Size(28, 28)
+			b := quietIconButton(c, "新建会话").Size(28, 28)
 			b.Children(func() { native.Icon(c, newIcon).Size(16, 16) })
 			if b.Clicked() {
 				a.newSession(a.workspaceCwd())
@@ -95,12 +95,12 @@ func (a *App) sidebar(c *native.Context) {
 		native.Row(c).FillWidth().Padding(4, 12, 4, 18).Gap(2).AlignItems(native.Center).Children(func() {
 			native.Text(c, "项目").FontSize(11).TextColor(t.TextMuted)
 			native.Spacer(c)
-			add := quietButton(c, "添加项目").Size(26, 26).Tooltip("添加项目文件夹（自动识别 Git 工作区）").Disabled(a.projectsLoading)
+			add := quietIconButton(c, "添加项目").Size(26, 26).Tooltip("添加项目文件夹（自动识别 Git 工作区）").Disabled(a.projectsLoading)
 			add.Children(func() { native.Icon(c, addProjectIcon).Size(14, 14) })
 			if add.Clicked() {
 				go a.chooseProject(a.State.Cwd)
 			}
-			refresh := quietButton(c, "刷新项目").Size(26, 26).Disabled(a.projectsLoading)
+			refresh := quietIconButton(c, "刷新项目").Size(26, 26).Disabled(a.projectsLoading)
 			if a.projectsLoading {
 				refresh.Tooltip("正在刷新项目…")
 			}
@@ -282,7 +282,7 @@ func (a *App) sidebarToggle(c *native.Context, left bool) {
 	if left {
 		label, glyph = "切换左侧边栏", sidebarIcon
 	}
-	b := quietButton(c, label).Size(28, 28)
+	b := quietIconButton(c, label).Size(28, 28)
 	b.Children(func() { native.Icon(c, glyph).Size(17, 17) })
 	if b.Clicked() {
 		if !left {

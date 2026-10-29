@@ -447,16 +447,16 @@ func (a *App) message(c *native.Context, m *app.Message) {
 				}
 			} else if m.Role == "assistant" {
 				a.messageMarkdown(c, m)
-				if m.Done && m.Text != "" {
+				if text := a.replyCopyText(m); text != "" {
 					native.Row(c).Children(func() {
 						glyph, label := copyIcon, "复制回复"
 						if a.copiedID == m.ID {
 							glyph, label = checkIcon, "已复制"
 						}
-						b := quietButton(c, label).Size(24, 24)
+						b := quietIconButton(c, label).Size(24, 24)
 						b.Children(func() { native.Icon(c, glyph).Size(16, 16) })
 						if b.Clicked() {
-							c.WriteClipboard(m.Text)
+							c.WriteClipboard(text)
 							a.copiedID = m.ID
 						}
 					})

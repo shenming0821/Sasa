@@ -55,6 +55,11 @@ func TestConversationLayoutAndDetails(t *testing.T) {
 				if tt.HasText(a.version) {
 					t.Fatal("Escape did not dismiss details")
 				}
+				if _, found := tt.Find("复制回复"); found {
+					t.Fatal("copy visible while turn is running")
+				}
+				a.State.Busy = false
+				tt.Frame()
 				if err := tt.Click("复制回复"); err != nil {
 					t.Fatal(err)
 				}

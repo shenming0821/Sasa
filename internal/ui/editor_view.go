@@ -92,7 +92,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			native.Text(c, branch).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 		}
 		native.Spacer(c)
-		b := quietButton(c, "全部折叠").Size(26, 26)
+		b := quietIconButton(c, "全部折叠").Size(26, 26)
 		b.Children(func() { native.Icon(c, chevron).Size(14, 14).Rotate(-90) })
 		if b.Clicked() {
 			w.expanded = map[string]bool{w.root: true}
@@ -100,7 +100,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 				w.selected = ""
 			}
 		}
-		b = quietButton(c, "刷新文件").Size(26, 26).Disabled(w.loading[w.root])
+		b = quietIconButton(c, "刷新文件").Size(26, 26).Disabled(w.loading[w.root])
 		b.Children(func() { native.Icon(c, refreshProjectIcon).Size(14, 14) })
 		if b.Clicked() {
 			w.error = ""
@@ -372,7 +372,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					native.Text(c, rel).FontSize(11).TextColor(t.TextMuted).SingleLine()
 				})
 			})
-			copyPath := quietButton(c, "复制完整路径").Size(24, 24)
+			copyPath := quietIconButton(c, "复制完整路径").Size(24, 24)
 			copyPath.Children(func() { native.Icon(c, copyIcon).Size(12, 12) })
 			if copyPath.Clicked() && a.win != nil {
 				mygo.Clipboard.WriteText(path)
@@ -485,7 +485,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				if actionButton(c, "下一个").Clicked() {
 					a.findInFile(d, false)
 				}
-				if quietButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
+				if quietIconButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
 					d.findOpen = false
 					d.cancelFind()
 					d.focus = true

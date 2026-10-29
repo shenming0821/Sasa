@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"testing"
 	"time"
 
@@ -121,5 +122,35 @@ func TestActionButtonFeedbackAndLateDisabled(t *testing.T) {
 				t.Fatal("button states changed its geometry")
 			}
 		})
+	}
+}
+
+func TestQuietIconButtonCentersGlyph(t *testing.T) {
+	for _, sizes := range [][2]float32{{24, 16}, {28, 18}, {26, 16}, {30, 16}, {24, 13}} {
+		for _, dark := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%v/dark=%v", sizes, dark), func(t *testing.T) {
+				tester := native.NewTester(func(c *native.Context) {
+					quietIconButton(c, "按钮").Size(sizes[0], sizes[0]).Children(func() {
+						native.Icon(c, photoIcon).Label("图标").Size(sizes[1], sizes[1])
+					})
+				}, 120, 100)
+				tester.SetDark(dark)
+				button, found := tester.Find("按钮")
+				if !found {
+					t.Fatal("button missing")
+				}
+				for _, hover := range []bool{false, true} {
+					if hover {
+						tester.Move(button.X+button.W/2, button.Y+button.H/2)
+					}
+					glyph, found := tester.Find("图标")
+					if !found || glyph.W != sizes[1] || glyph.H != sizes[1] ||
+						math.Abs(float64(glyph.X+glyph.W/2-button.X-button.W/2)) > .5 ||
+						math.Abs(float64(glyph.Y+glyph.H/2-button.Y-button.H/2)) > .5 {
+						t.Fatalf("icon not centered, hover=%v: button=%+v glyph=%+v", hover, button, glyph)
+					}
+				}
+			})
+		}
 	}
 }

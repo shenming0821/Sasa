@@ -132,6 +132,19 @@ func commandSummary(commands []*app.Message) (string, bool) {
 // Process records share the same hierarchy, hover affordance and keyboard disclosure.
 func processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, suffix, content func()) {
 	theme := c.Theme()
+	if content == nil {
+		native.Row(c).Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).Children(func() {
+			if glyph != nil {
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
+			}
+			native.Text(c, text).FontSize(13).SingleLine().MinWidth(0).Shrink(1).TextColor(theme.TextMuted)
+			if suffix != nil {
+				native.Spacer(c)
+				suffix()
+			}
+		})
+		return
+	}
 	native.Column(c).FillWidth().MinWidth(0).TextColor(theme.TextMuted).Children(func() {
 		parts := native.CollapsibleBase(c, open)
 		trigger := parts.Trigger.Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).TextColor(theme.TextMuted)

@@ -23,7 +23,7 @@ func gitIconButton(c *native.Context, label string, glyph *native.SVG, disabled 
 	if len(tooltip) > 0 {
 		tip = tooltip[0]
 	}
-	b := quietButton(c, tip).Label(label).Size(24, 24).Padding(4).Disabled(disabled)
+	b := quietIconButton(c, tip).Label(label).Size(24, 24).Disabled(disabled)
 	b.Children(func() { native.Icon(c, glyph).Size(13, 13) })
 	return b
 }

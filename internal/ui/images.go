@@ -104,7 +104,7 @@ func imageName(ref attachment.Image) string {
 }
 
 func (a *App) imagePickerButton(c *native.Context) {
-	button := quietButton(c, "添加图片").Size(28, 28).Disabled(a.imagesImporting)
+	button := quietIconButton(c, "添加图片").Size(28, 28).Disabled(a.imagesImporting)
 	button.Children(func() { native.Icon(c, photoIcon).Size(18, 18) })
 	if button.Clicked() {
 		bound := a.forSession(a.session)
