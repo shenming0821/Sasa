@@ -341,17 +341,17 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 			native.Spacer(gc)
 		}, func() {
 			for _, s := range group.sessions {
-				b := treeButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).Tooltip(fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
+				b := treeButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
 				b.ContextMenu(a.sessionMenu(s))
 				if a.session == s && s.open {
 					b.Background(t.SurfacePressed)
 				}
 				b.Children(func() {
 					native.Column(gc).FillWidth().Gap(4).Children(func() {
-						native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-						if len(a.backends) > 0 {
-							native.Text(gc, s.kind.String()).FontSize(10).TextColor(t.TextMuted)
-						}
+						native.Row(gc.Key("session-title")).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
+							agentIcon(gc, s.kind, 12).Label("会话 Agent " + s.kind.String()).Shrink(0)
+							native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+						})
 						if status := s.navigationStatus(); status != "" {
 							color := t.TextMuted
 							if s.State.Error != "" {

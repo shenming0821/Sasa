@@ -18,8 +18,11 @@ func TestInterruptedTranscriptMarkerKeepsConfirmedTurn(t *testing.T) {
 		unfinished                 bool
 	}{
 		{"confirmed", "interrupted", "native-prompt", false},
+		{"failed", "failed", "native-prompt", false},
+		{"completed", "completed", "native-prompt", false},
 		{"unknown", "unknown", "native-prompt", true},
 		{"different-prompt", "interrupted", "other-prompt", true},
+		{"failed-different-prompt", "failed", "other-prompt", true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			client := fixtureClient(t)
@@ -53,7 +56,7 @@ func TestInterruptedTranscriptMarkerKeepsConfirmedTurn(t *testing.T) {
 			if err != nil || unfinished != scenario.unfinished {
 				t.Fatalf("turns=%+v unfinished=%t err=%v", turns, unfinished, err)
 			}
-			if !scenario.unfinished && (len(turns) != 1 || turns[0].Status != "interrupted" || len(state.Messages) != 2) {
+			if !scenario.unfinished && (len(turns) != 1 || turns[0].Status != scenario.status || len(state.Messages) != 2) {
 				t.Fatalf("native marker became a new user turn: %+v", turns)
 			}
 			client.sessions[saved.ID] = &saved

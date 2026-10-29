@@ -352,7 +352,7 @@ func (c *Client) history(s session) ([]agent.HistoryTurn, string, error) {
 				human = false
 			}
 		}
-		if human && current != nil && current.Status == "interrupted" && currentPrompt != "" && entry.PromptID == currentPrompt && len(blocks) == 1 && blocks[0].Type == "text" && (blocks[0].Text == "[Request interrupted by user]" || blocks[0].Text == "[Request interrupted by user for tool use]") {
+		if human && current != nil && (current.Status == "interrupted" || current.Status == "failed" || current.Status == "completed") && currentPrompt != "" && entry.PromptID == currentPrompt && len(blocks) == 1 && blocks[0].Type == "text" && (blocks[0].Text == "[Request interrupted by user]" || blocks[0].Text == "[Request interrupted by user for tool use]") {
 			if _, owned := checkpoints[entry.UUID]; !owned {
 				continue
 			}

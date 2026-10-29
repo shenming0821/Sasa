@@ -34,7 +34,7 @@ Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clea
 
 `history.go` 只读取 Fuyu 创建并持有检查点的会话，原生记录位于配置根的 `projects/*/<session>.jsonl`。读取上限 64 MiB，核验文件身份、大小、修改时间和完整尾行；坏行、缺父链、替换或正在写入均返回不确定错误。沿 parentUuid 选择有效主链，补回同一模型消息的并行工具调用与结果，排除 sidechain/team/meta。分页以完整 turn 为单位，每页 20 轮，游标绑定内容摘要。
 
-检查点终态与 transcript 内容摘要共同决定可续发状态；旧任务 unknown/inProgress 或外部改变记录时保留历史展示并阻止续发。不自动重发旧用户输入或恢复旧审批。已确认 interrupted 的任务中，同一原生 promptId 的标准中断标记归属原任务，不新建待完成的用户轮次；未知终态、不同 promptId 或实际发送的同文输入继续按普通输入核验。compact 支持字符串 summary、preservedSegment/preservedMessages 重连与完整 turn 分页；原生 local command 的 promptId 关联发送检查点，重复摘要与 hook 命令不作为新用户问题显示。真实 compact 后历史及上下文续发已通过，更多复杂嵌套压缩仍保留回归范围。摘要核验不能替代外部 writer 锁；当前不提供外部会话接管、Claude 分叉或强制解除未知任务入口。
+检查点终态与 transcript 内容摘要共同决定可续发状态；旧任务 unknown/inProgress 或外部改变记录时保留历史展示并阻止续发。不自动重发旧用户输入或恢复旧审批。已确认 completed、failed 或 interrupted 的任务中，同一原生 promptId 的标准中断标记归属原任务，保留检查点终态，不新建待完成的用户轮次；未知终态、不同 promptId 或实际发送的同文输入继续按普通输入核验。compact 支持字符串 summary、preservedSegment/preservedMessages 重连与完整 turn 分页；原生 local command 的 promptId 关联发送检查点，重复摘要与 hook 命令不作为新用户问题显示。真实 compact 后历史及上下文续发已通过，更多复杂嵌套压缩仍保留回归范围。摘要核验不能替代外部 writer 锁；当前不提供外部会话接管、Claude 分叉或强制解除未知任务入口。
 
 旧版本误判的本地命令可在恢复时按上述完成证据修复：`ResumeThread` 仅在没有自有活动进程、历史摘要与检查点相同，且末条 unknown 命令具有匹配的本地完成记录时，原子保存 completed 后恢复输入；保存前再次核对代次、任务身份、摘要和运行状态。inProgress、其他未知任务、归属不符、错误输出或摘要变化继续保持待核验。主链保留末尾的 system 本地输出，并将其投影到对应任务；这不授予外部会话接管或任意解除未知状态的能力。实测见[本地命令恢复验证](../verification/2026-10-29-claude-local-command-recovery.md)。
 
