@@ -1,5 +1,9 @@
 # 经验记录
 
+## 2026-10-29：Claude 本地命令的完成与历史末尾
+
+当原生本地命令返回 success、正常退出但没有 terminal_reason 时，结合本次发送 UUID、命令参数及原生 `system/local_command` 的 info 输出核验完成。选取历史主链末尾时纳入本地命令的 system 输出，避免只保留 user/assistant 而丢失完成证据。恢复旧 unknown 检查点时，同时核对历史摘要、运行状态和任务归属，并持久化核验结果；一般未知任务继续等待核验。实际 `/model` 误判、隔离测试与原会话恢复证据见[本地命令恢复验证](docs/verification/2026-10-29-claude-local-command-recovery.md)。
+
 ## 使用方式
 
 修改代码前阅读本文。遇到已复现的问题或交付遗漏时，记录触发场景、原因、可执行规则和证据。反复适用的规则整理进[代码标准](docs/code-standards.md)，本文保留案例与链接。

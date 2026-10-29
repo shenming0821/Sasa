@@ -122,6 +122,36 @@ func (a *App) selectSession(s *session) {
 	}
 }
 
+func (a *App) clearConversation() {
+	if !a.canSend() {
+		return
+	}
+	if len(a.State.DraftImages) > 0 {
+		a.State.Error = "清空上下文前请移除图片附件"
+		return
+	}
+	root, previous := a.application(), a.session
+	draft := previous.State.Draft
+	previous.State.Draft = ""
+	if err := root.persist(); err != nil {
+		previous.State.Draft = draft
+		previous.State.Error = err.Error()
+		return
+	}
+	root.nextSession++
+	fresh := &session{
+		id: root.nextSession, kind: previous.kind, runtimeKey: previous.runtimeKey,
+		State: app.New(previous.State.Cwd), loaded: true, selectedModel: previous.selectedModel,
+		modelsCwd: previous.State.Cwd, historyCacheKey: previous.historyCacheKey,
+	}
+	fresh.State.Agent = previous.kind
+	fresh.completion.focus = true
+	root.sessions = append(root.sessions, fresh)
+	root.selectSession(fresh)
+	root.closeSession(previous)
+	_ = root.persist()
+}
+
 // Closing a tab leaves its draft and live protocol owner available in history.
 func (a *App) closeSession(s *session) {
 	if !s.open {

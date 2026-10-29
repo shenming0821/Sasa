@@ -165,7 +165,7 @@ func (a *App) send() {
 		return
 	}
 	text := strings.TrimSpace(a.State.Draft)
-	if len(a.State.DraftImages) == 0 && a.runSlashCommand(text) {
+	if (len(a.State.DraftImages) == 0 || a.isClearCommand(text)) && a.runSlashCommand(text) {
 		return
 	}
 	images := slices.Clone(a.State.DraftImages)

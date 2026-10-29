@@ -170,7 +170,7 @@ func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdent
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
-	args := []string{"-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages", "--permission-prompt-tool", "stdio", "--permission-mode", "default"}
+	args := []string{"-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages", "--permission-prompt-tool", "stdio"}
 	if identity.ID != "" {
 		if len(s.Turns) > 1 {
 			args = append(args, "--resume", s.ID)
@@ -218,9 +218,9 @@ func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdent
 	var settings struct {
 		Mode string `json:"current_permission_mode"`
 	}
-	if json.Unmarshal(raw, &settings) != nil || settings.Mode != "default" {
+	if json.Unmarshal(raw, &settings) != nil || strings.TrimSpace(settings.Mode) == "" {
 		run.stopProcess()
-		return nil, nil, fmt.Errorf("Claude 未确认 default 权限模式，未发送任务")
+		return nil, nil, fmt.Errorf("Claude 未确认实际权限模式，未发送任务")
 	}
 	return run, raw, nil
 }
@@ -519,6 +519,13 @@ func (r *execution) finish(exitErr error) {
 		return
 	}
 	status := "unknown"
+	localCommandCompleted := false
+	if result != nil && problem == nil && result.Subtype == "success" && !result.IsError && result.TerminalReason == "" && exitErr == nil {
+		if saved, err := r.client.sessionCopy(r.session.ID); err == nil && len(saved.Turns) > 0 {
+			saved.Turns[len(saved.Turns)-1].LastUUID = r.lastUUID
+			_, localCommandCompleted = r.client.localCommandCompletion(saved, "")
+		}
+	}
 	if result != nil && problem == nil {
 		switch {
 		case result.TerminalReason == "interrupted" || result.Subtype == "error_interrupted" || acknowledged && (result.TerminalReason == "aborted_tools" || result.TerminalReason == "aborted_streaming"):
@@ -526,6 +533,8 @@ func (r *execution) finish(exitErr error) {
 		case result.Subtype == "success" && !result.IsError && result.TerminalReason == "completed" && exitErr == nil:
 			status = "completed"
 		case result.Subtype == "success" && !result.IsError && result.TerminalReason == "" && compactRequested && r.compactBoundary && exitErr == nil:
+			status = "completed"
+		case localCommandCompleted:
 			status = "completed"
 		case result.IsError || strings.HasPrefix(result.Subtype, "error_"):
 			status = "failed"

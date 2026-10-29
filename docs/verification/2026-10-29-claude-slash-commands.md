@@ -1,6 +1,6 @@
 # Claude Code 技能候选验证
 
-日期：2026-10-29。范围：Claude Code 会话中输入 `/` 仅显示 skill，及加载失败后的重试。
+日期：2026-10-29。范围：Claude Code 会话中输入 `/` 显示 skill，及加载失败后的重试。后续按用户要求增加本地 `/clear`；原生目录继续只筛选技能，新增命令的实现与验证见 [/clear 验证](2026-10-29-claude-clear.md)。
 
 ## 问题与根因
 
@@ -10,7 +10,7 @@
 
 最新要求：Claude 的 `/` 只展示技能，其他命令暂不展示。
 
-修改后：首次输入 `/` 时按当前会话 cwd 通过 `ListCommands` 在同一个探测进程中读取 initialize 命令目录及只读 `get_skills_dialog`。用技能 `name`、`display_name` 与命令名关联，排除 `state=off` 的技能，通过 `agent.Command.IsSkill` 标记，UI 只展示该标记为真的候选。`/model`、`/compact` 及 Codex 本地动作不进入 Claude 候选。缓存按会话隔离，确认后把原生 `/名称 ` 作为普通文本插入草稿，不自动发送；标题和加载提示分别为“技能”“正在读取技能…”。
+修改后：首次输入 `/` 时按当前会话 cwd 通过 `ListCommands` 在同一个探测进程中读取 initialize 命令目录及只读 `get_skills_dialog`。用技能 `name`、`display_name` 与命令名关联，排除 `state=off` 的技能，通过 `agent.Command.IsSkill` 标记，UI 只展示该标记为真的候选。`/model`、`/compact` 及 Codex 本地动作不进入 Claude 候选。缓存按会话隔离，确认后把原生 `/名称 ` 作为普通文本插入草稿，不自动发送；标题为“技能”。按最新要求，Claude 与 Codex 的技能候选在后台读取时保持安静，保留内部加载状态用于防止重复读取和避免提前显示空结果，失败仍可重试。
 
 审核发现首次读取失败后，点击重试即使成功仍保留 `completion.error`。现开始重新读取时清除旧错误；回归测试在修复前失败于 `retry did not clear previous failure`，修复后通过。
 
@@ -40,8 +40,21 @@ FUYU_LIVE_CLAUDE=1 ./scripts/go test ./internal/claude -run '^TestLiveClaudeSkil
 
 上述命令全部通过；全量普通测试中各包通过，UI 包 14.563 秒。真实 CLI 隔离技能测试通过，普通自动化使用受控协议夹具和内存渲染器。Go 文件通过 gofmt 检查，`git diff --check` 通过。
 
-## 未验证
+## 移除加载提示补验
+
+按最新要求仅移除候选浮层中的加载文案，保留内部 `loading` 状态。以下命令通过：
+
+```sh
+./scripts/go test ./internal/ui -run 'TestClaudeSlashCompletion|TestCompletion|TestComposerSlash' -count=1
+./scripts/go vet ./internal/ui
+./scripts/build
+git diff --check
+```
+
+正常退出旧实例，启动构建后的 Fuyu（PID 34112），确认窗口可用。在原 Claude 会话输入 `/`，原生浮层显示“技能”和键盘提示，后台读取期间没有 loading 文案，也未提前显示“没有匹配项”。观察时尚未出现列表，未据此声明列表或键盘确认验收通过。已恢复空草稿，未发送任务。
+
+## 前序验收限制与剩余项
 
 第一轮错误重试修复构建后，曾通过原生窗口工具正常退出旧实例 PID 4087，并确认新实例 PID 74216 的窗口可用；这一轮在用户提出“只显示 skill”之前。之后的窗口输入调用被用户中断，不作为验收通过。
 
-技能筛选版本已构建。继续原生验收时，工具返回 `The Mac is locked and automatic unlock could not unlock it`，因此最终版本尚未完成正常退出重启及窗口验收。解锁后重启 `bin/Fuyu.app`，在 Claude 会话输入 `/`，核对标题“技能”、技能列表、筛选、滚动及 Tab/Enter 插入，并恢复测试草稿。真实 CLI 与组件测试不替代这一步。
+技能筛选版本最初构建后，继续原生验收时，工具返回 `The Mac is locked and automatic unlock could not unlock it`。本次已补验正常退出重启、窗口可用及读取期间的浮层；技能列表、筛选、滚动及 Tab/Enter 插入的完整原生验收仍保留。真实 CLI 与组件测试不替代这一步。

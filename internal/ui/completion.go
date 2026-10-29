@@ -82,6 +82,9 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 					items = append(items, completionItem{name: name, description: command.Description})
 				}
 			}
+			if strings.Contains("/clear", query) {
+				items = append(items, completionItem{name: "/clear", description: "清空上下文，开始新对话；保留旧历史"})
+			}
 			return items
 		}
 		for _, item := range slashCommands {
@@ -192,7 +195,20 @@ func (a *App) loadCompletionSkills() {
 	}()
 }
 
+func (a *App) isClearCommand(text string) bool {
+	parts := strings.Fields(text)
+	return a.kind.Normalized() == agent.Claude && len(parts) > 0 && parts[0] == "/clear"
+}
+
 func (a *App) runSlashCommand(text string) bool {
+	if a.isClearCommand(text) {
+		if strings.TrimSpace(text) != "/clear" {
+			a.State.Error = "/clear 不接受参数，请单独发送该命令"
+			return true
+		}
+		a.clearConversation()
+		return true
+	}
 	if a.kind.Normalized() == agent.Claude {
 		return false
 	}
@@ -283,14 +299,14 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 		if q.kind == '$' || runtimeSkills {
 			title = "技能"
 		}
+		if runtimeSkills {
+			title = "技能与命令"
+		}
 		native.Row(c).FillWidth().Children(func() {
 			native.Text(c, title).FontSize(11).TextColor(t.TextMuted)
 			native.Spacer(c)
 			native.Text(c, "↑↓ 选择 · Enter / Tab 确认 · Esc 关闭").FontSize(10).TextColor(t.TextMuted)
 		})
-		if (q.kind == '$' || runtimeSkills) && a.completion.loading {
-			native.Text(c, "正在读取技能…").FontSize(12)
-		}
 		if (q.kind == '$' || runtimeSkills) && a.completion.error != "" {
 			native.Row(c).FillWidth().Gap(8).Children(func() {
 				native.Text(c, a.completion.error).FontSize(12).Grow(1).TextColor(t.TextMuted)

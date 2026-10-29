@@ -8,9 +8,11 @@
 
 ## 协议与进程
 
-`client.go` 管理会话检查点，`protocol.go` 管理每轮子进程与 stream-json。使用 `--permission-prompt-tool stdio --permission-mode default`，发送 initialize 并核验返回的 `current_permission_mode=default` 后再发送用户帧。模型和命令目录来自 initialize；模型选择通过 `--model` 传递，命令保留原生 `/名称 参数` 文本。
+`client.go` 管理会话检查点，`protocol.go` 管理每轮子进程与 stream-json。使用 `--permission-prompt-tool stdio`，权限模式由 CLI 按原生配置与当前 cwd 决定；新任务、恢复后的后续任务和模型/技能目录探测共用此启动入口。发送 initialize 并核验返回的 `current_permission_mode` 为非空字符串后再发送用户帧，缺失或格式错误时终止初始化并保持未发送状态。模型和命令目录来自 initialize；模型选择通过 `--model` 传递，命令保留原生 `/名称 参数` 文本。2026-10-29 本机 `permissions.defaultMode=bypassPermissions`，真实 CLI 初始化确认 `current_permission_mode=bypassPermissions`，验证见[权限配置继承](../verification/2026-10-29-claude-permission-mode.md)。
 
-Claude 的 `/` 候选仅显示技能。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 仅展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他命令。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。
+Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clear`。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他原生命令，本地 `/clear` 保持可见。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。
+
+本机 CLI 的 `/clear` 会发出 `conversation_reset` 并更换 session UUID。Fuyu 发送入口在本地处理这一命令：保存并保留旧会话历史，切换到相同 cwd、后端和模型的空白会话，后续任务再分配新原生 UUID，避免继续持有已被重置的旧身份。见 [/clear 验证](../verification/2026-10-29-claude-clear.md)。
 
 当前实现每轮 spawn，后续使用原 session UUID resume；该策略已通过真实上下文与重开续发验证。两种策略的真实双轮对照均通过，本次记录中第二轮分别约 1.943 秒与 2.034 秒；这只是单次测量，不作为性能统计。首版保留每轮进程基线，并暂不开放会话授权规则；常驻进程的第二轮中断/空闲/授权矩阵未用于生产验收。result 后关闭 stdin 并有界排空 stdout，自有进程组由 `internal/runtime` 回收，模型/命令探测进程也纳入 Client 关闭范围。
 
@@ -19,6 +21,8 @@ Claude 的 `/` 候选仅显示技能。`catalog.go` 在同一探测进程中继�
 初始化阶段取消时，关闭并等待该次自有进程，回滚尚未写入用户帧的检查点，返回 `agent.NotSubmittedError`；这种退出不投影成任务失败或断线。输入帧开始写入后，读取失败继续保留 unknown，不能用请求上下文取消推断未执行。输入区在尚无原生 turn ID 的准备阶段也提供停止操作；若发送已完成，则改发原生 interrupt 并等待终态。
 
 普通成功需 result 的 subtype、is_error、terminal_reason 与正常退出共同确认。`/compact` 的本机原生结果为 success、is_error=false、无 terminal_reason；仅在明确发送该命令且收到 compact_boundary、进程正常退出时认定完成。实测停止返回 `error_during_execution + is_error=true`，terminal_reason 可能为 `aborted_tools` 或 `aborted_streaming`；这两种终态仅在收到对应 interrupt 成功回执时映射 interrupted，无回执仍判失败。无 result、坏帧与不确定写入保留 unknown 检查点并阻止重发。
+
+`/model` 等本地命令也可能成功但没有 terminal_reason。此时要求成功 result、正常进程退出，并在原生历史主链末尾找到同一发送 UUID 的 `system/local_command`、`level=info`、匹配的命令与参数，以及完整的 `local-command-stdout` 输出，才认定完成；一般成功判定及失败保护保持上述规则。
 
 ## 审批与投影
 
@@ -31,6 +35,8 @@ Claude 的 `/` 候选仅显示技能。`catalog.go` 在同一探测进程中继�
 `history.go` 只读取 Fuyu 创建并持有检查点的会话，原生记录位于配置根的 `projects/*/<session>.jsonl`。读取上限 64 MiB，核验文件身份、大小、修改时间和完整尾行；坏行、缺父链、替换或正在写入均返回不确定错误。沿 parentUuid 选择有效主链，补回同一模型消息的并行工具调用与结果，排除 sidechain/team/meta。分页以完整 turn 为单位，每页 20 轮，游标绑定内容摘要。
 
 检查点终态与 transcript 内容摘要共同决定可续发状态；旧任务 unknown/inProgress 或外部改变记录时保留历史展示并阻止续发。不自动重发旧用户输入或恢复旧审批。已确认 interrupted 的任务中，同一原生 promptId 的标准中断标记归属原任务，不新建待完成的用户轮次；未知终态、不同 promptId 或实际发送的同文输入继续按普通输入核验。compact 支持字符串 summary、preservedSegment/preservedMessages 重连与完整 turn 分页；原生 local command 的 promptId 关联发送检查点，重复摘要与 hook 命令不作为新用户问题显示。真实 compact 后历史及上下文续发已通过，更多复杂嵌套压缩仍保留回归范围。摘要核验不能替代外部 writer 锁；当前不提供外部会话接管、Claude 分叉或强制解除未知任务入口。
+
+旧版本误判的本地命令可在恢复时按上述完成证据修复：`ResumeThread` 仅在没有自有活动进程、历史摘要与检查点相同，且末条 unknown 命令具有匹配的本地完成记录时，原子保存 completed 后恢复输入；保存前再次核对代次、任务身份、摘要和运行状态。inProgress、其他未知任务、归属不符、错误输出或摘要变化继续保持待核验。主链保留末尾的 system 本地输出，并将其投影到对应任务；这不授予外部会话接管或任意解除未知状态的能力。实测见[本地命令恢复验证](../verification/2026-10-29-claude-local-command-recovery.md)。
 
 运行详情展示 system/init 的实际模型与 CLI 版本，模型选择在内部保留原生别名；恢复时从检查点读取对应实际值。审批的应用 request ID 编码原 session/进程代次，回传时还原 native request_id，避免两个独立进程的相同 native ID 串用。
 

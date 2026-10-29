@@ -19,18 +19,24 @@ import (
 )
 
 type transcriptEntry struct {
-	Type           string `json:"type"`
-	UUID           string `json:"uuid"`
-	Parent         string `json:"parentUuid"`
-	Sidechain      bool   `json:"isSidechain"`
-	Meta           bool   `json:"isMeta"`
-	Summary        bool   `json:"isCompactSummary"`
-	Team           string `json:"teamName"`
-	SessionID      string `json:"sessionId"`
-	PromptID       string `json:"promptId"`
-	RepeatsSummary bool   `json:"repeatsCompactSummary"`
-	Subtype        string `json:"subtype"`
-	Compact        struct {
+	Type           string          `json:"type"`
+	UUID           string          `json:"uuid"`
+	Parent         string          `json:"parentUuid"`
+	Sidechain      bool            `json:"isSidechain"`
+	Meta           bool            `json:"isMeta"`
+	Summary        bool            `json:"isCompactSummary"`
+	Team           string          `json:"teamName"`
+	SessionID      string          `json:"sessionId"`
+	PromptID       string          `json:"promptId"`
+	RepeatsSummary bool            `json:"repeatsCompactSummary"`
+	Subtype        string          `json:"subtype"`
+	Content        json.RawMessage `json:"content"`
+	Level          string          `json:"level"`
+	CommandRun     struct {
+		Command string `json:"command"`
+		Args    string `json:"args"`
+	} `json:"commandRun"`
+	Compact struct {
 		Segment struct {
 			Head   string `json:"headUuid"`
 			Anchor string `json:"anchorUuid"`
@@ -223,7 +229,7 @@ func conversation(raw []byte, id string) ([]transcriptEntry, error) {
 			if !exists {
 				break
 			}
-			if entry.Type == "user" || entry.Type == "assistant" {
+			if entry.Type == "user" || entry.Type == "assistant" || entry.Type == "system" && entry.Subtype == "local_command" {
 				if !entry.Sidechain && !entry.Meta && entry.Team == "" && positions[key] > best {
 					leaf, best = key, positions[key]
 				}
@@ -329,6 +335,11 @@ func (c *Client) history(s session) ([]agent.HistoryTurn, string, error) {
 			continue
 		}
 		var blocks []contentBlock
+		if saved, ok := checkpoints[entry.Parent]; ok && current != nil && current.ID == saved.ID {
+			if output, ok := localCommandOutput(entry, saved); ok {
+				appendItem(map[string]any{"id": entry.UUID, "type": "agentMessage", "text": output})
+			}
+		}
 		if json.Unmarshal(entry.Message.Content, &blocks) != nil {
 			var text string
 			if json.Unmarshal(entry.Message.Content, &text) == nil {
@@ -441,6 +452,27 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 	_, currentDigest, err := c.history(s)
 	if err != nil {
 		return agent.ResumedThread{}, err
+	}
+	if s.run == nil && len(s.Turns) > 0 && s.Turns[len(s.Turns)-1].Status == "unknown" && s.Digest != "" && s.Digest == currentDigest {
+		if uuid, ok := c.localCommandCompletion(s, currentDigest); ok {
+			c.mu.Lock()
+			live := c.sessions[id]
+			last := len(s.Turns) - 1
+			if live != nil && live.run == nil && live.Generation == s.Generation && live.Digest == s.Digest && len(live.Turns) == len(s.Turns) && live.Turns[last].ID == s.Turns[last].ID && live.Turns[last].Status == "unknown" {
+				s.Turns[last].Status, s.Turns[last].LastUUID = "completed", uuid
+				err = ctx.Err()
+				if err == nil {
+					err = c.save(&s)
+				}
+				if err == nil {
+					live.Turns[last] = s.Turns[last]
+				}
+			}
+			c.mu.Unlock()
+			if err != nil {
+				return agent.ResumedThread{}, fmt.Errorf("保存 Claude 本地命令核验结果：%w", err)
+			}
+		}
 	}
 	status := "idle"
 	if s.run != nil || len(s.Turns) > 0 && (s.Turns[len(s.Turns)-1].Status == "inProgress" || s.Turns[len(s.Turns)-1].Status == "unknown" || currentDigest != s.Digest) {
