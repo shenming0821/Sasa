@@ -53,6 +53,8 @@
 
 输入候选位于 `internal/ui/completion.go`。`/new`、`/resume`、`/status`、`/skills` 执行本地已有动作；`$` 按当前 cwd 请求原生技能，支持筛选、键盘和鼠标选择，输入法组合期间暂停候选确认。候选浮层不取得输入焦点；选中技能只替换光标前 token，并继续编辑。技能缓存与选择归属会话，选择的名称/路径随草稿保存；发送仅附带仍在草稿中的引用。详见[输入候选验收](../verification/2026-10-23-input-completion.md)。
 
+Claude Code 会话的 `/` 按当前会话 cwd 加载原生目录，只展示 `get_skills_dialog` 确认且出现在 initialize 命令目录中的可调用技能，按技能名称及显示名称关联，排除关闭的技能；`/model`、`/compact` 等其他命令暂不展示。候选与技能共用按会话缓存，标题为“技能”，加载中显示“正在读取技能…”，失败显示错误与重试；重新读取时清除旧错误，确认候选后把 `/名称 ` 作为普通文本插入草稿，由 Runtime 执行。详见 [Claude 技能候选验证](../verification/2026-10-29-claude-slash-commands.md)。
+
 ## 关闭与退出
 
 `internal/ui/lifecycle.go` 在关闭窗口时保存并隐藏；Fuyu 与后台任务继续运行。Dock 的“打开 Fuyu”或再次激活应用显示原窗口。

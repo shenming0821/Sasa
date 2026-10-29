@@ -74,6 +74,9 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 	if q.kind == '/' {
 		if a.kind.Normalized() == agent.Claude {
 			for _, command := range a.completion.commands {
+				if !command.IsSkill {
+					continue
+				}
 				name := "/" + command.Name
 				if strings.Contains(strings.ToLower(name), query) {
 					items = append(items, completionItem{name: name, description: command.Description})
@@ -121,6 +124,7 @@ func (a *App) loadCompletionSkills() {
 	if a.kind.Normalized() == agent.Claude {
 		backend, ok := a.sessionBackend().(agent.CommandCatalog)
 		s.completion.cwd = s.State.Cwd
+		s.completion.error = ""
 		s.completion.loaded = true
 		if !ok {
 			return
@@ -274,8 +278,9 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 		return
 	}
 	panel.Children(func() {
+		runtimeSkills := q.kind == '/' && a.kind.Normalized() == agent.Claude
 		title := "命令"
-		if q.kind == '$' {
+		if q.kind == '$' || runtimeSkills {
 			title = "技能"
 		}
 		native.Row(c).FillWidth().Children(func() {
@@ -283,13 +288,13 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 			native.Spacer(c)
 			native.Text(c, "↑↓ 选择 · Enter / Tab 确认 · Esc 关闭").FontSize(10).TextColor(t.TextMuted)
 		})
-		if q.kind == '$' && a.completion.loading {
+		if (q.kind == '$' || runtimeSkills) && a.completion.loading {
 			native.Text(c, "正在读取技能…").FontSize(12)
 		}
-		if q.kind == '$' && a.completion.error != "" {
+		if (q.kind == '$' || runtimeSkills) && a.completion.error != "" {
 			native.Row(c).FillWidth().Gap(8).Children(func() {
 				native.Text(c, a.completion.error).FontSize(12).Grow(1).TextColor(t.TextMuted)
-				if quietButton(c, "重新读取技能").Children(func() { native.Text(c, "重试").FontSize(12) }).Clicked() {
+				if quietButton(c, "重新读取").Children(func() { native.Text(c, "重试").FontSize(12) }).Clicked() {
 					a.completion.loaded = false
 					a.loadCompletionSkills()
 				}

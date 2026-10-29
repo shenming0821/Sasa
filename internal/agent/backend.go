@@ -72,6 +72,7 @@ type Forker interface {
 type Command struct {
 	Name, Description, Source, Cwd string
 	Arguments                      []string
+	IsSkill                        bool
 }
 
 type CommandCatalog interface {

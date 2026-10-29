@@ -2,12 +2,14 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/codex"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
@@ -190,6 +192,136 @@ func TestSkillLoadingAndSubmissionStayWithTheirSession(t *testing.T) {
 	}
 	if !strings.Contains(a.State.Phase, "执行") {
 		t.Fatal(a.State.Phase)
+	}
+}
+
+func TestClaudeSlashCompletionLoadsRuntimeSkills(t *testing.T) {
+	b := &commandTestBackend{request: make(chan string, 1), result: make(chan []agent.Command, 1)}
+	a := New(stubBackend{}, "test", "/claude-work", nil)
+	if err := a.RegisterBackend(agent.Claude, "/claude", b); err != nil {
+		t.Fatal(err)
+	}
+	a.newSession("/claude-work")
+	a.session.kind, a.session.runtimeKey = agent.Claude, "/claude"
+	a.session.State.Agent = agent.Claude
+	jobs := make(chan func(), 4)
+	a.dispatch = func(fn func()) { jobs <- fn }
+	sent := 0
+	a.submit = func() { sent++ }
+	tt := native.NewTester(a.view, 640, 480)
+	tt.Click("任务输入")
+	tt.Type("/")
+	select {
+	case cwd := <-b.request:
+		if cwd != "/claude-work" {
+			t.Fatal(cwd)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("typing / did not read Claude commands")
+	}
+	b.result <- []agent.Command{
+		{Name: "frontend-design", Description: "设计界面", Source: "Claude Code", Cwd: "/claude-work", IsSkill: true},
+		{Name: "compact", Description: "压缩上下文", Source: "Claude Code", Cwd: "/claude-work"},
+		{Name: "model", Description: "选择模型", Source: "Claude Code", Cwd: "/claude-work"},
+	}
+	select {
+	case job := <-jobs:
+		job()
+	case <-time.After(time.Second):
+		t.Fatal("no command result")
+	}
+	tt.Frame()
+	if _, ok := tt.Find("候选 /frontend-design"); !ok {
+		t.Fatal("Claude skill missing from slash menu")
+	}
+	for _, command := range []string{"compact", "model", "new", "resume"} {
+		if _, ok := tt.Find("候选 /" + command); ok {
+			t.Fatalf("non-skill command /%s shown", command)
+		}
+	}
+	tt.Key(0, native.KeyTab)
+	if a.State.Draft != "/frontend-design " || sent != 0 {
+		t.Fatalf("runtime command not inserted as text: %q sent=%d", a.State.Draft, sent)
+	}
+}
+
+func TestClaudeSlashCompletionRetryClearsError(t *testing.T) {
+	backend := &commandTestBackend{
+		request: make(chan string, 1), result: make(chan []agent.Command, 1), failure: make(chan error, 1),
+	}
+	application := New(stubBackend{}, "test", "/claude-work", nil)
+	if err := application.RegisterBackend(agent.Claude, "/claude", backend); err != nil {
+		t.Fatal(err)
+	}
+	application.newSession("/claude-work")
+	application.session.kind, application.session.runtimeKey = agent.Claude, "/claude"
+	application.State.Agent = agent.Claude
+	jobs := make(chan func(), 4)
+	application.dispatch = func(job func()) { jobs <- job }
+	awaitResult := func() {
+		t.Helper()
+		select {
+		case job := <-jobs:
+			job()
+		case <-time.After(time.Second):
+			t.Fatal("no command result")
+		}
+	}
+	awaitRequest := func() {
+		t.Helper()
+		select {
+		case cwd := <-backend.request:
+			if cwd != "/claude-work" {
+				t.Fatal(cwd)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("no command request")
+		}
+	}
+	tester := native.NewTester(application.view, 640, 480)
+	tester.Click("任务输入")
+	tester.Type("/")
+	awaitRequest()
+	backend.failure <- errors.New("command catalog temporarily unavailable")
+	awaitResult()
+	tester.Frame()
+	if application.completion.error == "" {
+		t.Fatal("catalog failure was not shown")
+	}
+	if err := tester.Click("重新读取"); err != nil {
+		t.Fatal(err)
+	}
+	awaitRequest()
+	if !application.completion.loading || application.completion.error != "" {
+		t.Fatalf("retry did not clear previous failure: %+v", application.completion)
+	}
+	backend.result <- []agent.Command{{Name: "frontend-design", Description: "设计界面", Cwd: "/claude-work", IsSkill: true}}
+	awaitResult()
+	tester.Frame()
+	if _, ok := tester.Find("候选 /frontend-design"); !ok {
+		t.Fatal("successful retry did not show command")
+	}
+	if _, ok := tester.Find("重新读取"); ok || application.completion.error != "" || application.completion.loading {
+		t.Fatalf("successful retry still shows failure: %+v", application.completion)
+	}
+}
+
+type commandTestBackend struct {
+	stubBackend
+	request chan string
+	result  chan []agent.Command
+	failure chan error
+}
+
+func (b *commandTestBackend) ListCommands(ctx context.Context, cwd string) ([]agent.Command, error) {
+	b.request <- cwd
+	select {
+	case commands := <-b.result:
+		return commands, nil
+	case err := <-b.failure:
+		return nil, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 

@@ -349,7 +349,8 @@ func (a *App) composer(c *native.Context) {
 		anchor, caret := composer.TextAnchorCaret()
 		query, show := queryCompletion(a.State.Draft, anchor, caret)
 		if show && !composing {
-			if query.kind == '$' {
+			// Claude 的斜杠命令来自运行时目录，与技能共用这份按会话缓存。
+			if query.kind == '$' || query.kind == '/' && a.kind.Normalized() == agent.Claude {
 				a.loadCompletionSkills()
 			}
 			key := completionKey(query)

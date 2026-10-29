@@ -10,15 +10,19 @@ import (
 	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
-func (c *Client) catalog(ctx context.Context, cwd string) (json.RawMessage, error) {
+func (c *Client) startCatalog(ctx context.Context, cwd string) (*execution, json.RawMessage, error) {
 	if cwd == "" {
 		var err error
 		cwd, err = os.UserHomeDir()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	run, raw, err := c.spawn(ctx, &session{Cwd: cwd}, agent.TurnIdentity{}, "")
+	return c.spawn(ctx, &session{Cwd: cwd}, agent.TurnIdentity{}, "")
+}
+
+func (c *Client) catalog(ctx context.Context, cwd string) (json.RawMessage, error) {
+	run, raw, err := c.startCatalog(ctx, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -79,10 +83,11 @@ func (c *Client) DefaultModel(ctx context.Context, cwd string) (string, error) {
 }
 
 func (c *Client) ListCommands(ctx context.Context, cwd string) ([]agent.Command, error) {
-	raw, err := c.catalog(ctx, cwd)
+	run, raw, err := c.startCatalog(ctx, cwd)
 	if err != nil {
 		return nil, err
 	}
+	defer run.stopProcess()
 	var response struct {
 		Commands []struct {
 			Name        string `json:"name"`
@@ -93,9 +98,32 @@ func (c *Client) ListCommands(ctx context.Context, cwd string) ([]agent.Command,
 	if err := json.Unmarshal(raw, &response); err != nil {
 		return nil, err
 	}
+	rawSkills, err := run.control(ctx, map[string]any{"subtype": "get_skills_dialog"})
+	if err != nil {
+		return nil, fmt.Errorf("读取 Claude 技能目录：%w", err)
+	}
+	var skills struct {
+		Skills []struct {
+			Name        string `json:"name"`
+			DisplayName string `json:"display_name"`
+			State       string `json:"state"`
+		} `json:"skills"`
+	}
+	if err := json.Unmarshal(rawSkills, &skills); err != nil {
+		return nil, fmt.Errorf("解析 Claude 技能目录：%w", err)
+	}
+	skillNames := make(map[string]bool)
+	for _, skill := range skills.Skills {
+		if skill.State != "off" {
+			skillNames[skill.Name] = true
+			if skill.DisplayName != "" {
+				skillNames[skill.DisplayName] = true
+			}
+		}
+	}
 	commands := []agent.Command{}
 	for _, command := range response.Commands {
-		commands = append(commands, agent.Command{Name: command.Name, Description: command.Description, Source: "Claude Code", Cwd: cwd, Arguments: []string{command.Arguments}})
+		commands = append(commands, agent.Command{Name: command.Name, Description: command.Description, Source: "Claude Code", Cwd: cwd, Arguments: []string{command.Arguments}, IsSkill: skillNames[command.Name]})
 	}
 	return commands, nil
 }

@@ -10,6 +10,8 @@
 
 `client.go` 管理会话检查点，`protocol.go` 管理每轮子进程与 stream-json。使用 `--permission-prompt-tool stdio --permission-mode default`，发送 initialize 并核验返回的 `current_permission_mode=default` 后再发送用户帧。模型和命令目录来自 initialize；模型选择通过 `--model` 传递，命令保留原生 `/名称 参数` 文本。
 
+Claude 的 `/` 候选仅显示技能。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 仅展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他命令。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。
+
 当前实现每轮 spawn，后续使用原 session UUID resume；该策略已通过真实上下文与重开续发验证。两种策略的真实双轮对照均通过，本次记录中第二轮分别约 1.943 秒与 2.034 秒；这只是单次测量，不作为性能统计。首版保留每轮进程基线，并暂不开放会话授权规则；常驻进程的第二轮中断/空闲/授权矩阵未用于生产验收。result 后关闭 stdin 并有界排空 stdout，自有进程组由 `internal/runtime` 回收，模型/命令探测进程也纳入 Client 关闭范围。
 
 应用 TurnID、发送 user UUID、transcript UUID 与模型 message.id 分开维护。reader 路由控制响应、审批和撤销，等待用户期间继续读取。writer 串行化并限制单次写入 10 秒，控制请求最多 30 秒。协议帧上限 16 MiB；显示队列上限 4096 条/4 MiB，优先移除文字增量并发送缺口标记；控制事件无法保留时明确断开并关闭自有进程，保留未知结果供核验。

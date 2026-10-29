@@ -14,9 +14,27 @@ for line in sys.stdin:
     message = json.loads(line)
     if message["type"] == "control_request":
         request = message["request"]
+        if request["subtype"] == "get_skills_dialog":
+            result = {"skills": [
+                {"name": "frontend-design", "display_name": "frontend-design", "source": "user", "state": "on"},
+                {"name": "trace-analysis", "display_name": "winning_trace_analysis", "source": "project", "state": "user-invocable-only"},
+                {"name": "disabled-skill", "display_name": "disabled-skill", "source": "plugin", "state": "off"},
+            ]}
+            response = {"subtype": "success", "request_id": message["request_id"], "response": result}
+            if os.path.exists("skills-unavailable"):
+                response = {"subtype": "error", "request_id": message["request_id"], "error": "get_skills_dialog unavailable"}
+            elif os.path.exists("skills-empty"):
+                response["response"] = {"skills": []}
+            emit({"type": "control_response", "response": response})
+            continue
         response = {"type": "control_response", "response": {
             "subtype": "success", "request_id": message["request_id"],
-            "response": {"current_permission_mode": "default", "configHome": os.environ.get("CLAUDE_CONFIG_DIR"), "models": [{"value": "default", "displayName": "Default"}, {"value": "opus", "resolvedModel": "fixture/model", "displayName": "Fixture"}]}}}
+            "response": {"current_permission_mode": "default", "configHome": os.environ.get("CLAUDE_CONFIG_DIR"), "models": [{"value": "default", "displayName": "Default"}, {"value": "opus", "resolvedModel": "fixture/model", "displayName": "Fixture"}],
+                         "commands": [{"name": "frontend-design", "description": "Design interfaces", "argumentHint": "[page]"},
+                                      {"name": "winning_trace_analysis", "description": "Analyze traces", "argumentHint": ""},
+                                      {"name": "disabled-skill", "description": "Disabled skill", "argumentHint": ""},
+                                      {"name": "model", "description": "Set model", "argumentHint": "[model]"},
+                                      {"name": "compact", "description": "Compact context", "argumentHint": ""}]}}}
         emit(response)
         if request["subtype"] == "interrupt":
             emit({"type": "result", "subtype": "error_during_execution", "is_error": True,
