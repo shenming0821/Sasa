@@ -92,6 +92,10 @@ def main():
         "width := th.em(th.ListIndent)\n\tif !b.Ordered {\n"
         "\t\twidth = min(width, th.em(1.4))\n\t}\n\tif b.Ordered {",
     )]
+    edits["ui/markdown/view.go"].append((
+        "case st.o.OnLink != nil:",
+        'case st.o.OnLink != nil && !strings.HasPrefix(dest, "#"):',
+    ))
     # Go forbids overlays inside GOMODCACHE, so patch an isolated project cache.
     revision = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()[:16]
     cache = root / ".cache" / "mygo-input-style"

@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/egoist/mygo/ui/markdown"
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 )
@@ -447,11 +446,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 					})
 				}
 			} else if m.Role == "assistant" {
-				if m.Done {
-					markdown.View(c, m.Text, &a.md)
-				} else {
-					markdown.Stream(c, m.Text, &a.md)
-				}
+				a.messageMarkdown(c, m)
 				if m.Done && m.Text != "" {
 					native.Row(c).Children(func() {
 						glyph, label := copyIcon, "复制回复"
