@@ -54,6 +54,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	a.repositories = snapshot.Repositories
 	a.projectOrder = slices.Clone(snapshot.ProjectOrder)
 	a.hiddenProjects = maps.Clone(snapshot.HiddenProjects)
+	a.worktreeNames = maps.Clone(snapshot.WorktreeNames)
 	if len(snapshot.Sessions) == 0 {
 		return a.persist()
 	}
@@ -147,8 +148,9 @@ func (a *App) snapshot() storage.Snapshot {
 		Preferences:      &a.preferences,
 		Repositories:     a.repositories,
 		ProjectOrder:     slices.Clone(a.projectOrder), HiddenProjects: maps.Clone(a.hiddenProjects),
-		OpenTabs: []int{},
-		Selected: a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
+		WorktreeNames: maps.Clone(a.worktreeNames),
+		OpenTabs:      []int{},
+		Selected:      a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,
 		HistoryOpen: a.historyOpen, CollapsedProjects: maps.Clone(a.collapsedProjects),
 		RightPanelWidth: a.rightPanelWidth,
 	}

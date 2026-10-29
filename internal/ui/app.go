@@ -25,6 +25,7 @@ type Backend = agent.Backend
 
 type App struct {
 	settingsState
+	worktreeRenameState
 	imageCache         map[string]*imagePreview
 	imageLoading       bool
 	imageClock         uint64

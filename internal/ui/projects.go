@@ -231,7 +231,7 @@ func (a *App) repositoryMatches(repo project.Repository) bool {
 		if w.Missing || w.Prunable {
 			continue
 		}
-		if matchesQuery(a.sessionQuery, w.Path, w.Branch) {
+		if matchesQuery(a.sessionQuery, w.Path, w.Branch, a.worktreeName(w.Path)) {
 			return true
 		}
 		for _, s := range a.worktreeSessions(w) {
@@ -313,7 +313,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 					continue
 				}
 				sessions := a.worktreeSessions(w)
-				match := whole || matchesQuery(a.sessionQuery, w.Path, w.Branch)
+				match := whole || matchesQuery(a.sessionQuery, w.Path, w.Branch, a.worktreeName(w.Path))
 				if !match {
 					for _, s := range sessions {
 						if s.hasProjectConversation() && matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
@@ -327,7 +327,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 				}
 				var latest *session
 				for _, s := range sessions {
-					if s.hasProjectConversation() && (whole || matchesQuery(a.sessionQuery, w.Path, w.Branch, s.title(), s.State.Cwd)) {
+					if s.hasProjectConversation() && (whole || matchesQuery(a.sessionQuery, w.Path, w.Branch, a.worktreeName(w.Path), s.title(), s.State.Cwd)) {
 						latest = s
 						break
 					}
@@ -341,13 +341,18 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 				}
 				card.Children(func() {
 					b := native.ButtonBase(wc).Label("打开工作区 "+w.Path).FillWidth().MinWidth(0).Radius(10).Padding(10, 16, 10, 29).Disabled(!w.Available())
+					b.ContextMenu(func(menu *native.Menu) {
+						if menu.Item("重命名").Chosen() {
+							a.beginWorktreeRename(w.Path)
+						}
+					})
 					if b.FocusVisible() {
 						card.Background(t.SurfacePressed)
 					}
 					b.Children(func() {
 						native.Column(wc).FillWidth().Gap(3).Children(func() {
 							native.Row(wc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-								native.Text(wc, filepath.Base(w.Path)).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+								native.Text(wc, a.worktreeName(w.Path)).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 								if w.Main {
 									native.Text(wc, "主要").FontSize(9).TextColor(t.TextMuted).Padding(1, 4).BorderWidth(1).BorderColor(t.Border).Radius(3)
 								}

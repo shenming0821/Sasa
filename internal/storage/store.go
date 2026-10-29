@@ -53,6 +53,7 @@ type Snapshot struct {
 	Repositories      []project.Repository
 	ProjectOrder      []string
 	HiddenProjects    map[string]bool
+	WorktreeNames     map[string]string
 	Selected          int
 	OpenTabs          []int
 	SidebarOpen       bool
