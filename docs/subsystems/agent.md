@@ -14,9 +14,9 @@
 
 每条事件的 `Method` 保持字符串，`Params` 保持 `json.RawMessage`；原始 wire 帧仍由 adapter 处理。Codex 现有方法名、参数与原生 turn ID 直接透传，默认事件由接收循环补充 Codex/Runtime 影响域。UI 按 Agent/Runtime/session/generation 筛选；旧测试的无来源事件仅用于默认 Codex。Claude 单进程异常携带 session 和 generation，预期退出不投影为 `fuyu/disconnected`，未知退出阻止所属会话续发；显示控制队列耗尽才升级为 Claude 后端范围故障。
 
-模型目录、加载状态和原生历史目录缓存存放在 session，目录与 Runtime 改变后失效，异步回调核对 Agent/Runtime/cwd 后写回原 session；模型选择的持久化包含 `ModelAgent`。技能候选也由各 session 按 cwd 保存，Claude 原生命令保留名称和参数。`agent.CacheKey` 明确 Agent/Runtime/cwd 的缓存边界，Claude Runtime 为实际生效的规范化配置根。
+模型目录、加载状态和原生历史目录缓存存放在 session，目录与 Runtime 改变后失效，异步回调核对 Agent/Runtime/cwd 后写回原 session；模型选择的持久化包含 `ModelAgent`。历史目录合并默认 Codex 与已注册 Claude 来源，`ThreadMeta.Agent/Runtime` 在 UI 取得原生列表后补充，不进入原生协议 JSON；各来源的 cursor 与读取完成状态独立保存，按 Agent/Runtime/thread ID 去重。技能候选也由各 session 按 cwd 保存，Claude 原生命令保留名称和参数。`agent.CacheKey` 明确 Agent/Runtime/cwd 的缓存边界，Claude Runtime 为实际生效的规范化配置根。
 
-从历史列表创建会话时，仅在来源缓存键与目标 Agent/Runtime/cwd 完全一致时复制已有列表、分页游标和错误状态；列表使用独立切片，进行中的请求仍归原会话。缓存键不同时，按目标会话的后端重新加载列表；选择已存在的会话时也核对并加载目标列表，已有完整缓存由加载入口直接复用。受控回归见 `TestOpenHistoryCarriesOnlyMatchingCache`、`TestOpenHistoryLoadsTargetWhenCacheDirectoryChanges` 和 `TestResponsivePanelsPreserveComposerAndNavigation`。
+从历史列表创建会话时，按该行的 Agent/Runtime 定位后端，不继承新会话默认 Agent 的模型或连接错误。仅在来源缓存键与目标 Agent/Runtime/cwd 完全一致时复制已有列表、各来源分页状态和错误状态；列表与来源状态使用独立容器，进行中的请求仍归原会话。缓存键不同时重新加载双来源目录；选择已存在的会话时也核对并加载目标列表，已有完整缓存由加载入口直接复用。受控回归见 `TestOpenHistoryCarriesOnlyMatchingCache`、`TestOpenHistoryLoadsTargetWhenCacheDirectoryChanges`、`TestHistoryOpensTheRowAgentInsteadOfDefault` 和 `TestResponsivePanelsPreserveComposerAndNavigation`。
 
 ## 能力与历史核验
 

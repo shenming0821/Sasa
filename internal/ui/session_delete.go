@@ -33,12 +33,13 @@ func (a *App) sessionMenu(target *session) func(*native.Menu) {
 }
 
 func (a *App) historySession(thread agent.ThreadMeta) *session {
+	key := a.threadSourceKey(thread)
 	for _, target := range a.sessions {
-		if target.kind.Normalized() == a.kind.Normalized() && target.runtimeKey == a.runtimeKey && target.State.ThreadID == thread.ID {
+		if target.kind.Normalized() == key.kind && target.runtimeKey == key.runtime && target.State.ThreadID == thread.ID {
 			return target
 		}
 	}
-	target := &session{kind: a.kind, runtimeKey: a.runtimeKey, State: app.New(thread.Cwd)}
+	target := &session{kind: key.kind, runtimeKey: key.runtime, State: app.New(thread.Cwd)}
 	target.State.ThreadID = thread.ID
 	target.saved.Title = thread.Preview
 	if thread.Name != nil && *thread.Name != "" {

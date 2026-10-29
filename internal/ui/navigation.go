@@ -275,7 +275,7 @@ func (a *App) toggleHistory() {
 			a.cancelGitRefresh(w)
 		}
 	}
-	if a.historyOpen && a.rightTab == "history" && len(a.nativeThreads) == 0 {
+	if a.historyOpen && a.rightTab == "history" {
 		a.loadThreadList()
 	}
 }
@@ -316,11 +316,6 @@ func (a *App) historyPanel(c *native.Context) {
 		native.Column(c).FillWidth().Padding(12).Gap(12).Children(func() {
 			native.TextInput(c, &a.historyQuery).Label("搜索历史").Placeholder("搜索已加载的历史").FillWidth().FontSize(12)
 			native.Segmented(c, &a.historyScope, "当前项目", "全部项目").FillWidth()
-			scope := "全部项目"
-			if a.historyScope == 0 {
-				scope = projectName(a.State.Cwd)
-			}
-			native.Text(c, scope).FontSize(11).TextColor(t.TextMuted).SingleLine().Tooltip(a.State.Cwd)
 		})
 		a.historyBrowser(c)
 	})

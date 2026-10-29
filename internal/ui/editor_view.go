@@ -36,7 +36,7 @@ func (a *App) rightPanel(c *native.Context) {
 							a.cancelGitRefresh(w)
 						}
 					}
-					if tab.id == "history" && len(a.nativeThreads) == 0 {
+					if tab.id == "history" {
 						a.loadThreadList()
 					}
 				}
@@ -49,11 +49,6 @@ func (a *App) rightPanel(c *native.Context) {
 				native.Text(c, "会话历史").FontSize(13).Bold()
 				native.TextInput(c, &a.historyQuery).Label("搜索历史").Placeholder("搜索已加载的历史").FillWidth().FontSize(12)
 				native.Segmented(c, &a.historyScope, "当前项目", "全部项目").FillWidth()
-				scope := "全部项目"
-				if a.historyScope == 0 {
-					scope = projectName(a.workspaceCwd())
-				}
-				native.Text(c, scope).FontSize(11).TextColor(t.TextMuted).SingleLine()
 			})
 			a.historyBrowser(c)
 			return

@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -299,46 +302,119 @@ func (a *App) loadOlder() {
 	}()
 }
 
+type threadSource struct {
+	cursor *string
+	loaded bool
+}
+
+func (a *App) threadSourceKey(thread agent.ThreadMeta) backendKey {
+	if thread.Agent == "" {
+		return backendKey{kind: a.kind.Normalized(), runtime: a.runtimeKey}
+	}
+	return backendKey{kind: thread.Agent.Normalized(), runtime: thread.Runtime}
+}
+
 func (a *App) loadThreadList() {
 	a = a.forSession(a.session)
 	key := agent.CacheKey{Agent: a.kind.Normalized(), Runtime: a.runtimeKey, Cwd: a.State.Cwd}
 	if a.historyCacheKey != key && !a.threadsLoading {
 		a.nativeThreads, a.threadsCursor, a.threadsError = nil, nil, ""
+		a.threadSources = nil
 		a.historyCacheKey = key
 	}
-	backend, ok := a.sessionBackend().(historyBackend)
-	if !ok || a.threadsLoading || len(a.nativeThreads) > 0 && a.threadsCursor == nil {
+	if a.threadsLoading {
 		return
 	}
+	root := a.application()
+	backends := make(map[backendKey]historyBackend)
+	if backend, ok := root.backend.(historyBackend); ok {
+		backends[backendKey{kind: agent.Codex}] = backend
+	}
+	for source, backend := range root.backends {
+		if history, ok := backend.(historyBackend); ok {
+			backends[source] = history
+		}
+	}
+	if (len(a.threadSources) > 0 || len(backends) <= 1 && len(a.nativeThreads) > 0) && a.threadsCursor == nil && a.threadsError == "" {
+		return
+	}
+	sources := make([]backendKey, 0, len(backends))
+	for source := range backends {
+		if state := a.threadSources[source]; !state.loaded || state.cursor != nil {
+			sources = append(sources, source)
+		}
+	}
+	if len(sources) == 0 {
+		return
+	}
+	sort.Slice(sources, func(first, second int) bool {
+		if sources[first].kind != sources[second].kind {
+			return sources[first].kind < sources[second].kind
+		}
+		return sources[first].runtime < sources[second].runtime
+	})
 	a.threadsLoading, a.threadsError = true, ""
-	cursor := a.threadsCursor
+	states := make(map[backendKey]threadSource, len(sources))
+	for _, source := range sources {
+		states[source] = a.threadSources[source]
+		if len(a.threadSources) == 0 && source == (backendKey{kind: a.kind.Normalized(), runtime: a.runtimeKey}) {
+			states[source] = threadSource{cursor: a.threadsCursor}
+		}
+	}
 	go func() {
 		ctx, cancel := agent.RequestContext()
 		defer cancel()
-		page, err := backend.ListThreads(ctx, cursor)
+		var incoming []agent.ThreadMeta
+		var failures []string
+		for _, source := range sources {
+			page, err := backends[source].ListThreads(ctx, states[source].cursor)
+			if err != nil {
+				failures = append(failures, source.kind.String()+"："+err.Error())
+				continue
+			}
+			states[source] = threadSource{cursor: page.NextCursor, loaded: true}
+			for _, thread := range page.Data {
+				thread.Agent, thread.Runtime = source.kind, source.runtime
+				incoming = append(incoming, thread)
+			}
+		}
 		a.update(func() {
 			a.threadsLoading = false
 			if key != (agent.CacheKey{Agent: a.kind.Normalized(), Runtime: a.runtimeKey, Cwd: a.State.Cwd}) {
 				return
 			}
-			if err != nil {
-				a.threadsError = "读取历史失败：" + err.Error()
-				return
+			if len(failures) > 0 {
+				a.threadsError = "读取历史失败：" + strings.Join(failures, "；")
 			}
-			threads := make([]agent.ThreadMeta, 0, len(a.nativeThreads)+len(page.Data))
+			threads := make([]agent.ThreadMeta, 0, len(a.nativeThreads)+len(incoming))
 			positions := make(map[string]int)
-			for _, batch := range [][]agent.ThreadMeta{a.nativeThreads, page.Data} {
+			for _, batch := range [][]agent.ThreadMeta{a.nativeThreads, incoming} {
 				for _, thread := range batch {
-					if i, exists := positions[thread.ID]; exists {
+					source := a.threadSourceKey(thread)
+					identity := string(source.kind) + "\x00" + source.runtime + "\x00" + thread.ID
+					if i, exists := positions[identity]; exists {
 						threads[i] = thread
 					} else {
-						positions[thread.ID] = len(threads)
+						positions[identity] = len(threads)
 						threads = append(threads, thread)
 					}
 				}
 			}
 			a.nativeThreads = threads
-			a.threadsCursor = page.NextCursor
+			if a.threadSources == nil {
+				a.threadSources = make(map[backendKey]threadSource)
+			}
+			a.threadsCursor = nil
+			for source, state := range states {
+				a.threadSources[source] = state
+				if state.cursor != nil || !state.loaded {
+					cursor := "pending"
+					a.threadsCursor = &cursor
+					if state.cursor != nil {
+						a.threadsCursor = state.cursor
+					}
+				}
+			}
 			a.threadsLayoutPending = true
 		})
 	}()
@@ -349,14 +425,15 @@ func (a *App) recordClaudeHistory() {
 		return
 	}
 	key := agent.CacheKey{Agent: agent.Claude, Runtime: a.runtimeKey, Cwd: a.State.Cwd}
-	thread := agent.ThreadMeta{ID: a.State.ThreadID, Cwd: a.State.Cwd, Preview: a.session.title(), Status: agent.ThreadStatus{Type: "notLoaded"}}
+	thread := agent.ThreadMeta{Agent: agent.Claude, Runtime: a.runtimeKey, ID: a.State.ThreadID, Cwd: a.State.Cwd, Preview: a.session.title(), Status: agent.ThreadStatus{Type: "notLoaded"}}
 	for _, target := range a.application().sessions {
-		if target.historyCacheKey != key {
+		_, includesClaude := target.threadSources[backendKey{kind: agent.Claude, runtime: a.runtimeKey}]
+		if target.historyCacheKey != key && !includesClaude {
 			continue
 		}
 		threads := []agent.ThreadMeta{thread}
 		for _, existing := range target.nativeThreads {
-			if existing.ID != thread.ID {
+			if existing.ID != thread.ID || a.forSession(target).threadSourceKey(existing) != (backendKey{kind: agent.Claude, runtime: a.runtimeKey}) {
 				threads = append(threads, existing)
 			}
 		}
@@ -371,7 +448,8 @@ func (a *App) historyBrowser(c *native.Context) {
 		native.Column(c).FillWidth().Padding(8).Gap(6).Children(func() {
 			count := 0
 			for _, thread := range a.nativeThreads {
-				if a.threadDeleted(a.kind, a.runtimeKey, thread.ID) {
+				sourceKey := a.threadSourceKey(thread)
+				if a.threadDeleted(sourceKey.kind, sourceKey.runtime, thread.ID) {
 					continue
 				}
 				if a.historyScope == 0 && filepath.Clean(thread.Cwd) != filepath.Clean(a.workspaceCwd()) {
@@ -392,30 +470,36 @@ func (a *App) historyBrowser(c *native.Context) {
 					continue
 				}
 				count++
-				b := treeButton(c.Key(thread.ID), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(thread.Cwd)
+				rowKey := string(sourceKey.kind) + "\x00" + sourceKey.runtime + "\x00" + thread.ID
+				b := treeButton(c.Key(rowKey), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(sourceKey.kind.String() + " · " + thread.Cwd)
 				b.ContextMenu(a.sessionMenu(target))
 				b.Children(func() {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
-						native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)
+						native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
+							agentIcon(c, sourceKey.kind, 12).Label("历史 Agent " + sourceKey.kind.String())
+							native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)
+						})
 						native.Text(c, thread.Cwd).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Shrink(1).MinWidth(0)
 					})
 				})
 				if b.Clicked() {
 					for _, s := range a.sessions {
-						if s.kind.Normalized() == a.kind.Normalized() && s.runtimeKey == a.runtimeKey && s.State.ThreadID == thread.ID {
+						if s.kind.Normalized() == sourceKey.kind && s.runtimeKey == sourceKey.runtime && s.State.ThreadID == thread.ID {
 							a.selectSession(s)
 							a.loadThreadList()
 							return
 						}
 					}
-					kind, runtime := a.kind, a.runtimeKey
+					kind, runtime := sourceKey.kind, sourceKey.runtime
 					source := a.session
-					a.newSession(thread.Cwd)
+					a.newSessionForAgent(thread.Cwd, kind, runtime)
 					s := a.session
 					s.kind, s.runtimeKey = kind, runtime
+					s.State.Agent = kind
 					s.historyCacheKey = agent.CacheKey{Agent: kind.Normalized(), Runtime: runtime, Cwd: thread.Cwd}
 					if source.historyCacheKey == s.historyCacheKey {
 						s.nativeThreads = slices.Clone(source.nativeThreads)
+						s.threadSources = maps.Clone(source.threadSources)
 						s.threadsCursor, s.threadsError = source.threadsCursor, source.threadsError
 						s.threadsLayoutPending = true
 					} else {

@@ -20,6 +20,7 @@ type session struct {
 	threadsLoading       bool
 	threadsLayoutPending bool
 	threadsError         string
+	threadSources        map[backendKey]threadSource
 	historyCacheKey      agent.CacheKey
 	kind                 agent.AgentKind
 	runtimeKey           string
@@ -84,17 +85,24 @@ func (s *session) rowHandle(id string) *native.Handle {
 }
 
 func (a *App) newSession(cwd string) {
+	kind := a.defaultAgent.Normalized()
+	runtime := ""
+	if kind == agent.Claude {
+		runtime = a.agentRuntime(kind)
+	}
+	a.newSessionForAgent(cwd, kind, runtime)
+}
+
+func (a *App) newSessionForAgent(cwd string, kind agent.AgentKind, runtime string) {
 	a.nextSession++
 	s := &session{
 		modelsCwd: cwd, id: a.nextSession, State: app.New(cwd), loaded: true,
-		historyCacheKey: agent.CacheKey{Agent: agent.Codex, Cwd: cwd},
+		kind: kind, runtimeKey: runtime,
+		historyCacheKey: agent.CacheKey{Agent: kind.Normalized(), Runtime: runtime, Cwd: cwd},
 	}
-	if a.defaultAgent.Normalized() == agent.Claude {
-		s.kind = agent.Claude
-		s.runtimeKey = a.agentRuntime(agent.Claude)
+	if kind.Normalized() == agent.Claude {
 		s.selectedModel = a.lastClaudeModels[s.runtimeKey]
 		s.State.Agent = agent.Claude
-		s.historyCacheKey = agent.CacheKey{Agent: agent.Claude, Runtime: s.runtimeKey, Cwd: cwd}
 		if a.forSession(s).sessionBackend() == nil {
 			s.State.Disconnected = true
 			s.State.Error = a.agentErrors[agent.Claude]

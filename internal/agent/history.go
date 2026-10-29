@@ -11,6 +11,8 @@ type HistoryTurn struct {
 }
 
 type ThreadMeta struct {
+	Agent   AgentKind     `json:"-"`
+	Runtime string        `json:"-"`
 	ID      string        `json:"id"`
 	Cwd     string        `json:"cwd"`
 	Preview string        `json:"preview"`
