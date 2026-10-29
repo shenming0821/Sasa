@@ -120,7 +120,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		})
 	}
 	message, col := w.gitNotice, t.TextMuted
-	if w.gitBusy != "" {
+	if w.gitBusy != "" && w.gitBusy != "暂存" && w.gitBusy != "取消暂存" {
 		message = "正在" + w.gitBusy + "…"
 	}
 	if w.gitActionError != "" {

@@ -914,32 +914,36 @@ func (a *App) refreshGit(w *workspacePage) {
 				}
 				return
 			}
-			w.gitError = ""
-			fingerprint := fmt.Sprintf("%+v", s)
-			w.gitFingerprint = fingerprint
-			w.gitStatsFingerprint = ""
-			w.git = s
 			w.gitBranches, w.gitRemotes, w.gitOperation = branches, remotes, operation
-			if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" && d.turnReview == nil && !strings.HasPrefix(d.compare, "提交 ") {
-				rel, _ := filepath.Rel(w.root, d.path)
-				found := false
-				for _, entry := range s.Entries {
-					if entry.Path == rel {
-						a.loadGitDiff(d, entry, d.compare == "已暂存")
-						found = true
-						break
-					}
-				}
-				if !found {
-					d.gitReview = nil
-					d.buffer = native.NewTextBuffer("没有差异")
-					d.file = editor.File{Path: d.path, Reason: "只读差异"}
-					d.loaded = true
-					d.err = ""
-				}
-			}
+			a.applyGitStatus(w, s)
 		})
 	})
+}
+
+func (a *App) applyGitStatus(w *workspacePage, status gitview.Status) {
+	w.gitError = ""
+	w.gitTime = time.Now()
+	w.gitFingerprint = fmt.Sprintf("%+v", status)
+	w.gitStatsFingerprint = ""
+	w.git = status
+	if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" && d.turnReview == nil && !strings.HasPrefix(d.compare, "提交 ") {
+		rel, _ := filepath.Rel(w.root, d.path)
+		found := false
+		for _, entry := range status.Entries {
+			if entry.Path == rel {
+				a.loadGitDiff(d, entry, d.compare == "已暂存")
+				found = true
+				break
+			}
+		}
+		if !found {
+			d.gitReview = nil
+			d.buffer = native.NewTextBuffer("没有差异")
+			d.file = editor.File{Path: d.path, Reason: "只读差异"}
+			d.loaded = true
+			d.err = ""
+		}
+	}
 }
 func (a *App) openGitDiff(w *workspacePage, e gitview.Entry, staged bool) {
 	kind := "更改"

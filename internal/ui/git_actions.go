@@ -103,23 +103,40 @@ func (a *App) gitAction(w *workspacePage, label string, fn func(context.Context)
 	}
 	a.cancelGitRefresh(w)
 	w.gitBusy, w.gitActionError, w.gitNotice = label, "", ""
+	indexOnly := label == "暂存" || label == "取消暂存"
 	ctx, cancel := a.projectContext(2 * time.Minute)
 	a.runGitTaskContext(ctx, func() {
 		defer cancel()
+		var status gitview.Status
+		var statusErr error
 		err := ctx.Err()
 		if err == nil {
 			err = fn(ctx)
+		}
+		if indexOnly {
+			status, statusErr = gitview.Read(ctx, w.root)
 		}
 		a.update(func() {
 			w.gitBusy = ""
 			if err != nil {
 				w.gitActionError = label + "失败：" + err.Error()
 			} else {
-				w.gitNotice = label + "完成"
+				if !indexOnly {
+					w.gitNotice = label + "完成"
+				}
 				w.gitSelection = nil
 				if done != nil {
 					done()
 				}
+			}
+			if indexOnly {
+				if statusErr != nil {
+					w.gitError = statusErr.Error()
+					a.refreshGit(w)
+				} else {
+					a.applyGitStatus(w, status)
+				}
+				return
 			}
 			w.gitHistoryLoaded = false
 			w.gitStatsFingerprint = ""
