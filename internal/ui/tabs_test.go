@@ -202,7 +202,7 @@ func TestTabTooltipsShowOnlyTitleAndSkipClose(t *testing.T) {
 				a.tabs = []storage.Tab{tab}
 				label, closeLabel = "文件标签 "+tab.Path, "关闭文件标签 "+tab.Path
 			}
-			tt := native.NewTester(func(c *native.Context) { a.sessionTabs(c) }, 640, 200)
+			tt := native.NewTester(func(c *native.Context) { a.sessionTabs(c, true, true) }, 640, 200)
 			before := tt.Texts()
 			r, ok := tt.Find(label)
 			if !ok {
@@ -382,7 +382,7 @@ func TestLastClosedTabRestoresEmptyWorkspace(t *testing.T) {
 		t.Fatal("restart created or recovered a tab, or lost the closed draft")
 	}
 	tt := native.NewTester(b.view, 1000, 760)
-	if tt.HasText("从一个清晰的任务开始") || tt.HasText("会话标签 1") || !tt.HasText("新会话") {
+	if tt.HasText("从一个清晰的任务开始") || tt.HasText("会话标签 1") || !tt.HasText("使用 Codex 新建会话") || !tt.HasText("使用 Claude Code 新建会话") {
 		t.Fatal("empty workspace shows conversation content or lacks a new-chat entry")
 	}
 	if err := tt.Click("切换会话 1"); err != nil {
@@ -394,7 +394,7 @@ func TestLastClosedTabRestoresEmptyWorkspace(t *testing.T) {
 	b.closeSession(b.session)
 	b.sidebarOpen = false
 	tt.Frame()
-	if err := tt.Click("新会话"); err != nil {
+	if err := tt.Click("使用 Codex 新建会话"); err != nil {
 		t.Fatal(err)
 	}
 	if !b.open || len(b.sessions) != 2 || b.State.Cwd != "/project" {

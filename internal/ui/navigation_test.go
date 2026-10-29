@@ -315,9 +315,9 @@ func TestSidebarTogglesMoveBetweenPanelHeadersAndConversation(t *testing.T) {
 				}
 				right, _ := tt.Find("切换右侧边栏")
 				history, historyShown := tt.Find("搜索历史")
-				directory, _ := tt.Find("工作目录")
+				create, _ := tt.Find("使用 Claude Code 新建会话")
 				if historyShown {
-					if right.X < history.X || right.Y >= history.Y || directory.X+directory.W >= history.X {
+					if right.X < history.X || right.Y >= history.Y || create.X+create.W >= history.X {
 						t.Fatalf("right toggle outside panel header: toggle=%+v search=%+v", right, history)
 					}
 				} else if right.Y >= 46 {

@@ -9,8 +9,8 @@
 | 项目 | 当前记录 |
 |---|---|
 | 所处阶段 | Claude Code 基础接入完成，P6.2/P6.3 当前支持范围实现与验证通过；P6.4 基础闭环取得真实 Runtime/原生 GUI 证据，扩展真实协议样本仍按下方待办保留。P4 原验收边界保留 |
-| 下一动作 | 已修复 Claude `/model` 本地命令成功后误记 unknown 导致会话永久待核验的问题，并在正常重启后确认用户原会话恢复输入、提示消失。全量 test/vet、相关 race、真实 CLI 本地命令和重开恢复、构建及原生窗口验证通过，代码保留工作区。Claude 技能候选的自动化和真实 CLI 验证已通过，候选浮层与键盘确认的原生验收仍独立保留；P6.0 扩展样本、极窄窗口和整应用强杀实验继续保留 |
-| 最新修改 | Claude `/` 新增本地 `/clear`：保留旧历史并切换到相同后端、目录和模型的空上下文会话。全量 test/vet、相关 UI race、构建和差异检查通过。已正常退出旧进程并启动新实例 PID 68278；窗口工具及重连均超时，最终原生操作待验收，保留实例。见 [/clear 验证](verification/2026-10-29-claude-clear.md)。此前权限配置继承仍有效，真实 CLI 已确认 `bypassPermissions`，见[权限验证](verification/2026-10-29-claude-permission-mode.md)。修改保留工作区 |
+| 下一动作 | 用户最新要求的单行标签栏已实现并完成检查、构建及原生重启验收，交由用户查看。此前 Claude 技能候选浮层与键盘确认、P6.0 扩展样本、极窄窗口、整应用强杀实验及 P4 验收边界继续独立保留 |
+| 最新修改 | 删除会话视图目录工具栏，标签栏行尾用 16 px Codex、Claude Code 图标替代通用新会话按钮；会话页签标题前增加对应 Agent 的 12 px 图标，移除 Claude 文字前缀。复用 Orca 原始 SVG，Claude 保持橙色；输入区继续提供模型选择。完整 test/vet、相关 race、构建、差异检查通过；正常退出并启动最终实例 PID 70108，原生确认单行布局及两种 Agent 的新建入口和页签图标。临时页签 55、56 已关闭，恢复用户原会话 50，见[双图标验证](verification/2026-10-29-agent-session-buttons.md)。此前 `/clear` 和权限配置继承的验收边界保留，见 [/clear 验证](verification/2026-10-29-claude-clear.md)和[权限验证](verification/2026-10-29-claude-permission-mode.md)。本轮修改纳入本次提交，未推送 |
 | 已完成 | Go/MyGo 工程、分层源码、原生窗口、Codex 双向协议、状态/协议/UI 组件测试 |
 | 已实现功能 | P1/P2 任务交互；P3 多会话、SQLite 索引与迁移、原生分页历史、草稿/阅读/折叠恢复、异常状态核验、窗口驻留和退出流程 |
 | 已有文件 | 新增 `internal/agent/`、`internal/claude/testdata/` 与 v4 迁移；其余源码按实际工作区核对 |

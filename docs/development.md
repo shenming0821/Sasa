@@ -38,7 +38,7 @@ bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 
 默认数据目录为 `~/Library/Application Support/Fuyu`，可用 `-data-dir /absolute/path` 隔离测试实例。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的 `CODEX_HOME`（默认 `~/.codex`），切换原生历史目录时使用独立数据目录。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
 
-Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。配置根来自 `CLAUDE_CONFIG_DIR`，默认 `~/.claude`；应用按 Agent 独立绑定根目录，子进程显式使用这一根，切换配置根时使用独立应用数据目录。Claude 检查点保存于应用数据目录的 `claude/`。缺失 CLI 时菜单显示具体原因，可继续使用另一可用 Agent。
+Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。配置根来自 `CLAUDE_CONFIG_DIR`，默认 `~/.claude`；应用按 Agent 独立绑定根目录，子进程显式使用这一根，切换配置根时使用独立应用数据目录。Claude 检查点保存于应用数据目录的 `claude/`。缺失 CLI 时点击对应的新建图标显示具体原因，可继续使用另一可用 Agent。
 
 ## 2. 目录与代码定位
 

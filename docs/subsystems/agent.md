@@ -4,7 +4,7 @@
 
 `internal/agent/` 保存应用需要的身份、任务、事件、审批意图和可选能力契约。`internal/ui/app.go` 的 `Backend` 是 `agent.Backend` 的兼容别名；UI 与 `internal/app/` 使用 agent 类型。`internal/codex/` 保留协议编解码、原生 RPC 参数、审批响应与子进程读取行为；既有导出类型通过别名兼容原测试和调用者。
 
-当前入口启动 Codex 并注册可用的 Claude Code，连接失败保留对应错误。输入框下方提供 Agent 入口，空白会话切换保留草稿并清空模型/命令缓存；已有任务选择其他 Agent 时在同目录新建会话，原任务继续独立运行。新建会话记住最近选择，历史按原 Agent 恢复。Claude 的原生协议与验证边界见 [Claude 运行时](claude-runtime.md)。
+当前入口启动 Codex 并注册可用的 Claude Code，连接失败保留对应错误。标签栏行尾由 `internal/ui/agent_picker.go` 提供两个 16 px 图标新建动作，始终在当前目录创建独立会话，原草稿、模型、缓存和任务保留。输入区保留模型入口；连接不可用时显示具体错误并保留当前会话。`internal/ui/agent_icons.go` 复用 Orca 的 `OpenAIIcon`、`ClaudeIcon` SVG 路径，会话页签标题前显示所属 Agent 的 12 px 图标。会话视图的目录工具栏已移除；侧栏折叠时，对应恢复按钮放在标签栏。新建会话记住最近选择，历史按原 Agent 恢复。Claude 的原生协议与验证边界见 [Claude 运行时](claude-runtime.md)。
 
 ## 身份、路由和缓存
 

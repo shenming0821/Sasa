@@ -328,7 +328,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				a.sidebarToggle(c, false)
 			}
 		})
-		a.sessionTabs(c)
+		a.sessionTabs(c, true, true)
 		a.fileExitNotice(c)
 		if d.kind == "diff" && d.compare != "外部更改" {
 			a.gitDiffToolbar(c.Key("git-diff-toolbar"), d)

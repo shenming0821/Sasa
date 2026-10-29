@@ -50,7 +50,7 @@ func TestLiveAgentsRunIndependently(t *testing.T) {
 	codexSession := a.session
 	codexSession.State.Draft = "Use the shell tool to run sleep 2; printf 'FUYU_CODEX_PARALLEL\\n' > codex-proof.txt in this working directory. Do not modify any other file. Then reply CODEX_DONE."
 	a.send()
-	if err := a.chooseAgent(agent.Claude); err != nil {
+	if err := a.newAgentSession(agent.Claude); err != nil {
 		t.Fatal(err)
 	}
 	claudeSession := a.session

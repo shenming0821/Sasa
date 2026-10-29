@@ -33,7 +33,6 @@ type session struct {
 	modelResolving       bool
 	modelResolvedCwd     string
 	modelMenuOpen        bool
-	agentMenuOpen        bool
 	modelError           string
 	imagesImporting      bool
 	importingImages      int
@@ -50,7 +49,6 @@ type session struct {
 	completion           inputCompletion
 	readingContext       *native.Context
 	restoreOffset        bool
-	projectOpen          bool
 	detailsOpen          bool
 	copiedID             string
 	snapshotPending      bool
@@ -116,7 +114,7 @@ func (a *App) selectSession(s *session) {
 	a.selectWorkspace(a.workspaceRoot(s.State.Cwd))
 	a.ensureSessionTab(s)
 	a.compactSidebar = false
-	s.projectOpen, s.detailsOpen = false, false
+	s.detailsOpen = false
 	if !s.loaded && (a.win != nil || a.dispatch != nil) {
 		a.recoverSession(s)
 	}

@@ -168,7 +168,7 @@ func TestP4BackgroundApprovalKeepsFileWorkspaceForSaveHistoryAndNewChat(t *testi
 	if err != nil || string(nowA) != string(originalA) {
 		t.Fatal("file save modified running task workspace", err)
 	}
-	if err := tt.Click("新会话"); err != nil {
+	if err := tt.Click("使用 Codex 新建会话"); err != nil {
 		t.Fatal(err)
 	}
 	if a.session == owner || a.State.Cwd != rootB || !owner.State.Busy {
@@ -206,7 +206,7 @@ func TestP4ClickingPartlyVisibleTabRevealsWholeTab(t *testing.T) {
 	first := a.session
 	a.newSession("/workspace")
 	a.newSession("/workspace")
-	tt := native.NewTester(a.sessionTabs, 450, 38)
+	tt := native.NewTester(func(c *native.Context) { a.sessionTabs(c, true, true) }, 450, 38)
 	before, ok := tt.Find("会话标签 1")
 	if !ok || before.W >= 100 || before.X+before.W <= 20 {
 		t.Fatal("fixture does not contain a partly visible tab", before)

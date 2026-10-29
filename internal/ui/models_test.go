@@ -80,7 +80,7 @@ func TestClaudeModelChoiceBecomesDefaultAcrossSessionsAndRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := imageStore(t, application)
-	if err := application.chooseAgent(agent.Claude); err != nil {
+	if err := application.newAgentSession(agent.Claude); err != nil {
 		t.Fatal(err)
 	}
 	application.models = []agent.Model{
@@ -103,13 +103,13 @@ func TestClaudeModelChoiceBecomesDefaultAcrossSessionsAndRestart(t *testing.T) {
 	if application.selectedModel != "sonnet" {
 		t.Fatal("new Claude session lost last selected model", application.selectedModel)
 	}
-	if err := application.chooseAgent(agent.Codex); err != nil {
+	if err := application.newAgentSession(agent.Codex); err != nil {
 		t.Fatal(err)
 	}
 	if application.selectedModel != "" {
 		t.Fatal("Claude model leaked to Codex")
 	}
-	if err := application.chooseAgent(agent.Claude); err != nil {
+	if err := application.newAgentSession(agent.Claude); err != nil {
 		t.Fatal(err)
 	}
 	if application.selectedModel != "sonnet" {
@@ -138,7 +138,7 @@ func TestClaudeCatalogReplacesLegacyDefaultWithConcreteModel(t *testing.T) {
 	if err := application.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := application.chooseAgent(agent.Claude); err != nil {
+	if err := application.newAgentSession(agent.Claude); err != nil {
 		t.Fatal(err)
 	}
 	application.selectedModel = "default"

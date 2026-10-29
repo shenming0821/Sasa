@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"path/filepath"
 	"slices"
 
 	native "github.com/egoist/mygo/ui"
@@ -118,20 +117,10 @@ func (a *App) view(c *native.Context) {
 func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
-		native.Row(c).FillWidth().Height(46).Padding(0, 16).Gap(12).AlignItems(native.Center).Children(func() {
-			if !leftShown {
-				a.sidebarToggle(c, true)
-			}
-			native.Spacer(c)
-			create := quietButton(c, "新会话").Size(28, 28)
-			create.Children(func() { native.Icon(c, newIcon).Size(15, 15) })
-			if create.Clicked() {
-				a.newSession(a.workspaceCwd())
-			}
-			if !rightShown {
-				a.sidebarToggle(c, false)
-			}
-		})
+		a.sessionTabs(c, leftShown, rightShown)
+		if a.modelError != "" {
+			native.Text(c, a.modelError).FontSize(12).TextColor(t.Danger).Padding(12, 16)
+		}
 		a.fileExitNotice(c)
 	})
 }
@@ -140,8 +129,7 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	a.list.FollowEnd = true
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
-		a.toolbar(c, leftShown, rightShown)
-		a.sessionTabs(c)
+		a.sessionTabs(c, leftShown, rightShown)
 		a.fileExitNotice(c)
 		if pending := a.State.PendingInteractions(); len(pending) > 0 {
 			native.Row(c).FillWidth().Padding(6, 24).Children(func() {
@@ -291,46 +279,6 @@ func (a *App) conversation(c *native.Context) {
 	})
 }
 
-func (a *App) toolbar(c *native.Context, leftShown, rightShown bool) {
-	t := c.Theme()
-	native.Row(c).FillWidth().Height(46).Padding(0, 16).Gap(12).
-		AlignItems(native.Center).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(0.5)).Children(func() {
-		if !leftShown {
-			a.sidebarToggle(c, true)
-		}
-		project := "Fuyu"
-		if a.State.Cwd != "" {
-			project = filepath.Base(a.State.Cwd)
-		}
-		b := quietButton(c, "工作目录").MinWidth(0).Shrink(1).Gap(8)
-		b.Children(func() {
-			native.Icon(c, folderIcon).Size(17, 17)
-			native.Text(c, project).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-			native.Icon(c, chevron).Size(12, 12)
-		})
-		if b.Clicked() {
-			a.projectOpen = !a.projectOpen
-		}
-		native.Popover(c, b, &a.projectOpen, func() {
-			native.Column(c).Width(360).Gap(10).Children(func() {
-				path := a.State.Cwd
-				if path == "" {
-					path = "选择工作目录后开始任务"
-				}
-				native.Text(c, path).FontSize(13).Selectable()
-				if actionButton(c, "选择目录").Disabled(a.State.Disconnected).Clicked() {
-					a.projectOpen = false
-					go a.chooseDirectory(a.session, a.State.Cwd)
-				}
-			})
-		})
-		native.Spacer(c)
-		if !rightShown {
-			a.sidebarToggle(c, false)
-		}
-	})
-}
-
 func (a *App) composer(c *native.Context) {
 	t := c.Theme()
 	box := native.Column(c).FillWidth().Padding(14, 14, 10, 14).Gap(8).Radius(22).
@@ -409,7 +357,6 @@ func (a *App) composer(c *native.Context) {
 		})
 		native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
 			a.imagePickerButton(c)
-			a.agentPicker(c)
 			a.modelPicker(c)
 			native.Spacer(c)
 			action, glyph := "发送", upIcon

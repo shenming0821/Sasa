@@ -136,10 +136,13 @@ var refreshProjectIcon = icon(`<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l
 
 var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 
-func (a *App) sessionTabs(c *native.Context) {
+func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	renderedActive := a.activeTab
 	native.Row(c).FillWidth().Height(38).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(.5)).Children(func() {
+		if !leftShown {
+			a.sidebarToggle(c, true)
+		}
 		native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
 			native.Row(c).FillHeight().Children(func() {
 				for _, tab := range a.tabs {
@@ -186,7 +189,14 @@ func (a *App) sessionTabs(c *native.Context) {
 						b.Bind(a.tabHandles[tab.ID])
 						b.Children(func() {
 							native.Row(tc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-								if tab.Kind != "session" {
+								if tab.Kind == "session" {
+									for _, target := range a.sessions {
+										if target.id == tab.SessionID {
+											agentIcon(tc, target.kind, 12).Label("会话 Agent " + target.kind.String())
+											break
+										}
+									}
+								} else {
 									glyph := fileIcon
 									if tab.Kind == "diff" {
 										glyph = gitIcon
@@ -226,10 +236,9 @@ func (a *App) sessionTabs(c *native.Context) {
 				}
 			})
 		})
-		b := quietButton(c, "新会话").Size(38, 36)
-		b.Children(func() { native.Icon(c, newIcon).Size(15, 15) })
-		if b.Clicked() {
-			a.newSession(a.workspaceCwd())
+		a.agentSessionButtons(c)
+		if !rightShown {
+			a.sidebarToggle(c, false)
 		}
 	})
 	// A click in this pass can change activeTab after its row was built.

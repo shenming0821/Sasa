@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"github.com/shenming0821/Fuyu/internal/agent"
 	"path/filepath"
 	"strings"
 	"time"
@@ -209,9 +208,6 @@ func (a *App) tabTitle(tab storage.Tab) string {
 	if tab.Kind == "session" {
 		for _, s := range a.sessions {
 			if s.id == tab.SessionID {
-				if s.kind.Normalized() == agent.Claude {
-					return "Claude · " + s.title()
-				}
 				return s.title()
 			}
 		}

@@ -4,7 +4,7 @@
 
 `cmd/desktop/main.go` 发现本机 Claude CLI，使用 `CLAUDE_CONFIG_DIR`（未设置时为 `~/.claude`）规范化路径注册独立后端，检查点保存于应用数据目录的 `claude/`。子进程显式使用这一配置根，历史读取与实际执行保持一致。发现/启动错误属于 Claude，不切换到 Codex。
 
-输入区 Agent 菜单由 `internal/ui/agent_picker.go` 实现，与模型入口并列。空白会话切换保留文字和图片草稿，清空模型与命令缓存；已有消息、任务或恢复状态时，菜单提示使用另一 Agent 新建会话，原会话与任务保持独立。最近选择写入应用索引，会话历史保留 Agent/Runtime 归属。
+标签栏行尾的 Codex 和 Claude Code 图标由 `internal/ui/agent_picker.go` 实现，点击后在当前目录新建对应 Agent 的空白会话，原会话的文字/图片草稿、模型、上下文和运行中任务保留。会话页签标题前用小图标显示 Agent，原 Claude 文字前缀由图标替代；会话视图移除上方目录工具栏。输入区保留模型选择；连接不可用时显示具体原因并保留当前会话。最近选择写入应用索引，会话历史保留 Agent/Runtime 归属。
 
 ## 协议与进程
 
