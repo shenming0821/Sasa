@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -20,6 +21,7 @@ func clearTestApp(t *testing.T) *App {
 	application.State.Agent = agent.Claude
 	application.historyCacheKey = agent.CacheKey{Agent: agent.Claude, Runtime: "/claude", Cwd: "/claude-work"}
 	application.completion.cwd, application.completion.loaded = "/claude-work", true
+	application.completion.cacheKey, application.completion.checked = application.completionCacheKey(), time.Now()
 	application.selectedModel = "test-model"
 	return application
 }

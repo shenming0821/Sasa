@@ -103,13 +103,13 @@ func TestProtocolHelper(t *testing.T) {
 			}
 			enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]any{"id": "image-turn", "status": "inProgress"}}})
 			continue
-		case "skills":
+		case "skills", "skills-reload":
 			if m.Method == "skills/list" {
 				var params struct {
 					Cwds        []string `json:"cwds"`
 					ForceReload bool     `json:"forceReload"`
 				}
-				if json.Unmarshal(m.Params, &params) != nil || len(params.Cwds) != 1 || params.Cwds[0] != "/workspace" || !params.ForceReload {
+				if json.Unmarshal(m.Params, &params) != nil || len(params.Cwds) != 1 || params.Cwds[0] != "/workspace" || params.ForceReload != (scenario == "skills-reload") {
 					os.Exit(2)
 				}
 				enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"data": []any{map[string]any{"cwd": "/workspace", "skills": []any{map[string]any{"name": "design", "path": "/skills/SKILL.md", "description": "Design", "enabled": true}}, "errors": []any{map[string]any{"path": "/bad/SKILL.md", "message": "invalid metadata"}}}}}})

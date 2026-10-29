@@ -14,6 +14,7 @@ import (
 // A session owns both its protocol projection and its reading/interaction state.
 // Switching the selected session never changes the owner of a pending callback.
 type session struct {
+	conversationCache
 	nativeThreads        []agent.ThreadMeta
 	threadsCursor        *string
 	threadsLoading       bool

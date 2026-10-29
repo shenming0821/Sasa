@@ -55,6 +55,7 @@ type workspacePage struct {
 	git                          gitview.Status
 	gitError                     string
 	gitLoading                   bool
+	gitRefreshPending            bool
 	gitContext                   context.Context
 	gitCancel                    context.CancelFunc
 	gitTime                      time.Time
@@ -84,6 +85,7 @@ type filePage struct {
 	readCancel                                                          context.CancelFunc
 	checkContext                                                        context.Context
 	checkCancel                                                         context.CancelFunc
+	checkPending                                                        bool
 	err                                                                 string
 	scroll, hscroll                                                     native.ScrollState
 	lines                                                               native.TextLines
@@ -487,11 +489,17 @@ func (a *App) finishFileSave(d *filePage, ok bool) {
 	}
 }
 func (a *App) checkFile(d *filePage) {
-	if d.checking || d.saving || !d.loaded || !a.canAsync() {
+	if d.checking {
+		d.checkPending = true
 		return
 	}
+	if d.saving || !d.loaded || !a.canAsync() {
+		return
+	}
+	d.checkPending = false
 	d.checking = true
 	epoch := d.diskEpoch
+	path := d.path
 	d.checkedAt = time.Now()
 	ctx, cancel := a.projectContext(5 * time.Second)
 	d.checkContext, d.checkCancel = ctx, cancel
@@ -500,35 +508,44 @@ func (a *App) checkFile(d *filePage) {
 		var f editor.File
 		err := ctx.Err()
 		if err == nil {
-			f, err = editor.Read(d.path)
+			f, err = editor.Read(path)
 		}
-		a.update(func() {
+		a.updateIfChanged(func() bool {
 			if a.files[d.id] != d || d.checkContext != ctx {
-				return
+				return false
 			}
 			d.checkContext, d.checkCancel = nil, nil
 			d.checking = false
+			defer func() {
+				if d.checkPending && !errors.Is(err, context.Canceled) {
+					a.checkFile(d)
+				}
+			}()
 			if epoch != d.diskEpoch || errors.Is(err, context.Canceled) {
-				return
+				return false
 			}
 			if err != nil {
+				changed := d.err != err.Error()
 				d.missing = errors.Is(err, os.ErrNotExist)
 				d.err = err.Error()
-				return
+				return changed
 			}
+			changed := d.missing
 			d.missing = false
 			for _, comparison := range a.files {
 				if comparison.comparisonSource == d.id && comparison.loaded && comparison.comparisonDisk.Changed(f) {
+					changed = changed || !comparison.comparisonStale
 					comparison.comparisonStale = true
 				}
 			}
 			if !d.file.Changed(f) {
-				return
+				return changed
 			}
 			a.observeFile(d)
 			if d.dirty() {
+				changed = changed || !d.conflict
 				d.conflict = true
-				return
+				return changed
 			}
 			d.file = f
 			d.cancelFind()
@@ -543,6 +560,7 @@ func (a *App) checkFile(d *filePage) {
 			d.undo = nil
 			d.redo = nil
 			a.requestHighlight(d)
+			return true
 		})
 	})
 }
@@ -755,39 +773,36 @@ func (a *App) startWatcher(w *workspacePage) {
 	})
 	go func() {
 		pending := map[string]bool{}
-		tick := time.NewTicker(250 * time.Millisecond)
-		defer tick.Stop()
+		timer := time.NewTimer(time.Hour)
+		timer.Stop()
+		defer timer.Stop()
+		var tick <-chan time.Time
 		for {
 			select {
 			case ev, ok := <-watcher.Events:
 				if !ok {
 					return
 				}
-				pending[filepath.Dir(ev.Name)] = true
+				if len(pending) < 4096 {
+					pending[ev.Name] = true
+				} else {
+					pending[""] = true
+				}
+				if tick == nil {
+					timer.Reset(250 * time.Millisecond)
+					tick = timer.C
+				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
 				a.update(func() { w.error = "文件监听：" + err.Error() })
-			case <-tick.C:
+			case <-tick:
+				tick = nil
 				if len(pending) > 0 {
 					paths := pending
 					pending = map[string]bool{}
-					a.update(func() {
-						for path := range paths {
-							if w.expanded[path] {
-								a.loadDirectory(w, path)
-							}
-						}
-						for _, d := range a.files {
-							if d.root == w.root && d.kind == "file" {
-								a.checkFile(d)
-							}
-						}
-						if a.gitWorkspaceVisible(w) {
-							a.refreshGit(w)
-						}
-					})
+					a.update(func() { a.applyWorkspaceChanges(w, paths) })
 				}
 			case <-ctx.Done():
 				return
@@ -826,6 +841,7 @@ func (a *App) closeWorkspaceResources() {
 }
 
 func (a *App) cancelFileRead(d *filePage) {
+	d.checkPending = false
 	if d.readCancel != nil {
 		d.readCancel()
 		d.readContext, d.readCancel = nil, nil
@@ -839,6 +855,7 @@ func (a *App) cancelFileRead(d *filePage) {
 }
 
 func (a *App) cancelGitRefresh(w *workspacePage) {
+	w.gitRefreshPending = false
 	if w.gitCancel != nil {
 		w.gitCancel()
 		w.gitContext, w.gitCancel = nil, nil
@@ -857,6 +874,7 @@ func (a *App) refreshGit(w *workspacePage) {
 		return
 	}
 	w.gitLoading = true
+	w.gitRefreshPending = false
 	ctx, cancel := a.projectContext(5 * time.Second)
 	w.gitContext, w.gitCancel = ctx, cancel
 	a.runGitTaskContext(ctx, func() {
@@ -880,6 +898,11 @@ func (a *App) refreshGit(w *workspacePage) {
 			}
 			w.gitContext, w.gitCancel = nil, nil
 			w.gitLoading = false
+			defer func() {
+				if w.gitRefreshPending && a.gitWorkspaceVisible(w) && !errors.Is(err, context.Canceled) {
+					a.refreshGit(w)
+				}
+			}()
 			if errors.Is(err, context.Canceled) {
 				return
 			}

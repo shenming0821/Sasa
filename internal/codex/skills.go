@@ -12,10 +12,18 @@ type Skill = agent.Skill
 type SkillsEntry = agent.SkillsEntry
 
 func (c *Client) ListSkills(ctx context.Context, cwd string) ([]SkillsEntry, error) {
+	return c.listSkills(ctx, cwd, false)
+}
+
+func (c *Client) ReloadSkills(ctx context.Context, cwd string) ([]SkillsEntry, error) {
+	return c.listSkills(ctx, cwd, true)
+}
+
+func (c *Client) listSkills(ctx context.Context, cwd string, forceReload bool) ([]SkillsEntry, error) {
 	var result struct {
 		Data []SkillsEntry `json:"data"`
 	}
-	err := c.Call(ctx, "skills/list", map[string]any{"cwds": []string{cwd}, "forceReload": true}, &result)
+	err := c.Call(ctx, "skills/list", map[string]any{"cwds": []string{cwd}, "forceReload": forceReload}, &result)
 	return result.Data, err
 }
 

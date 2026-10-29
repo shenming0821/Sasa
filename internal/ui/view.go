@@ -41,6 +41,7 @@ func readingColumn(c *native.Context, build func()) {
 }
 
 func (a *App) view(c *native.Context) {
+	defer a.scheduleSave()
 	a.applyAppearance(c)
 	if c.Shortcut(native.Cmd, native.KeyComma) {
 		a.openSettings()
@@ -219,7 +220,7 @@ func (a *App) conversation(c *native.Context) {
 	t := c.Theme()
 	a.session.restoreRowOffset(c)
 	rows := a.session.conversationRows()
-	messages := a.session.displayMessages()
+	messages := a.session.projectedMessages
 	if len(a.rows) > len(messages) {
 		visibleIDs := make(map[string]bool, len(messages))
 		for _, m := range messages {

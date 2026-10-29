@@ -9,37 +9,38 @@ import (
 )
 
 func (a *App) autosave() {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
+	timer := time.NewTimer(500 * time.Millisecond)
+	defer timer.Stop()
+	deadline := time.Now().Add(500 * time.Millisecond)
 	for {
 		select {
-		case <-ticker.C:
-			applied := make(chan struct{})
-			a.update(func() {
-				a.advanceQuit()
-				if a.gitQuitPending && !a.hasGitWrites() {
-					a.gitQuitPending = false
-					mygo.App.Quit()
-				}
-				a.advanceFileExit()
-				a.checkpointFiles()
-				a.trimEditorCaches()
-				if d := a.currentFile(); d != nil && d.loaded && d.kind == "file" && time.Since(d.checkedAt) > 2*time.Second {
-					a.checkFile(d)
-				}
-				if a.activeWorkspace != "" && (a.historyOpen && a.rightTab == "git" || a.currentFile() != nil && a.currentFile().kind == "diff") {
-					w := a.workspace(a.activeWorkspace)
-					if time.Since(w.gitTime) > 5*time.Second {
-						a.refreshGit(w)
+		case <-a.wake:
+			if time.Until(deadline) > 500*time.Millisecond {
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
 					}
 				}
-				if !a.projectsLoading && time.Since(a.projectsRefreshed) >= 30*time.Second {
-					a.refreshProjects()
-				}
+				deadline = time.Now().Add(500 * time.Millisecond)
+				timer.Reset(time.Until(deadline))
+			}
+		case <-timer.C:
+			applied := make(chan struct{})
+			delay := 30 * time.Second
+			work := func() {
+				delay = a.maintain(time.Now())
 				close(applied)
-			})
+			}
+			if a.dispatch != nil {
+				a.dispatch(work)
+			} else {
+				mygo.RunOnMain(work)
+			}
 			select {
 			case <-applied:
+				deadline = time.Now().Add(delay)
+				timer.Reset(delay)
 			case <-a.shutdown:
 				return
 			}

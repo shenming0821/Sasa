@@ -59,9 +59,9 @@ Claude 本地命令被旧版本误记为 unknown 时，后端根据同一发送�
 
 `internal/ui/session_rename.go` 将自定义标题保存在 Fuyu 索引，不修改原生 Runtime 历史。保存后标签、项目会话行、历史展示及搜索使用同一标题，分页、继续对话和重启均保留。尚未打开的原生历史先按 Agent、Runtime、ThreadID 查找已有会话；首次改名时仅建立关闭的本地记录，不切换会话或启动恢复。后续打开复用该记录；相同 ID 的其他 Agent/Runtime 独立。运行中也可修改标题，不改变任务、草稿和目录；保存失败回退原标题并保留弹窗。新增字段存于现有 JSON 记录，无需数据库迁移。验证见[重命名验证](../verification/2026-10-29-session-rename.md)。
 
-输入候选位于 `internal/ui/completion.go`。`/new`、`/resume`、`/status`、`/skills` 执行本地已有动作；`$` 按当前 cwd 请求原生技能，支持筛选、键盘和鼠标选择，输入法组合期间暂停候选确认。候选浮层不取得输入焦点；选中技能只替换光标前 token，并继续编辑。技能缓存与选择归属会话，选择的名称/路径随草稿保存；发送仅附带仍在草稿中的引用。详见[输入候选验收](../verification/2026-10-23-input-completion.md)。
+输入候选位于 `internal/ui/completion.go`。`/new`、`/resume`、`/status`、`/skills` 执行本地已有动作；`$` 使用当前 cwd 的原生技能目录，支持筛选、键盘和鼠标选择，输入法组合期间暂停候选确认。候选浮层不取得输入焦点；选中技能只替换光标前 token，并继续编辑。目录在空闲时预加载，由同 Agent/Runtime/cwd 的会话共享；技能选择归属会话，选择的名称/路径随草稿保存，发送仅附带仍在草稿中的引用。缓存失效、刷新与失败行为见[使用性能与后台维护](performance.md)，原有交互见[输入候选验收](../verification/2026-10-23-input-completion.md)。
 
-Claude Code 会话的 `/` 按当前会话 cwd 加载原生目录，展示 `get_skills_dialog` 确认且出现在 initialize 命令目录中的可调用技能，按技能名称及显示名称关联，排除关闭的技能；另提供本地 `/clear`，`/model`、`/compact` 等其他命令暂不展示。候选与技能共用按会话缓存，标题为“技能与命令”，后台读取时保持安静，读取完成后展示候选或空结果，失败显示错误与重试；重新读取时清除旧错误，确认候选后把 `/名称 ` 作为普通文本插入草稿，发送时执行。技能交给 Runtime；`/clear` 在本地保存旧历史、关闭旧标签并打开空上下文的新会话，保留 Claude 后端、工作目录和选中模型，后续发送创建新的原生会话。仅在会话可发送且没有图片附件时执行，保存失败时保留原会话，当前只支持不带参数的 `/clear`。Codex 技能候选同样使用安静的后台读取。详见 [Claude 技能候选验证](../verification/2026-10-29-claude-slash-commands.md)及 [/clear 验证](../verification/2026-10-29-claude-clear.md)。
+Claude Code 会话的 `/` 按当前会话 cwd 加载原生目录，展示 `get_skills_dialog` 确认且出现在 initialize 命令目录中的可调用技能，按技能名称及显示名称关联，排除关闭的技能；另提供本地 `/clear`，`/model`、`/compact` 等其他命令暂不展示。候选与技能共用同 Agent/Runtime/cwd 的应用缓存，标题为“技能与命令”，后台读取时保持安静，读取完成后展示候选或空结果，失败保留上次结果并显示错误与重试；重新读取时清除旧错误，确认候选后把 `/名称 ` 作为普通文本插入草稿，发送时执行。技能交给 Runtime；`/clear` 在本地保存旧历史、关闭旧标签并打开空上下文的新会话，保留 Claude 后端、工作目录和选中模型，后续发送创建新的原生会话。仅在会话可发送且没有图片附件时执行，保存失败时保留原会话，当前只支持不带参数的 `/clear`。Codex 技能候选同样使用安静的后台读取。详见 [Claude 技能候选验证](../verification/2026-10-29-claude-slash-commands.md)及 [/clear 验证](../verification/2026-10-29-claude-clear.md)。
 
 ## 关闭与退出
 

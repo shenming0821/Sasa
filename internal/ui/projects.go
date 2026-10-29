@@ -69,6 +69,7 @@ func (a *App) addProject(path string) {
 		}
 		repo, err := project.Discover(ctx, path)
 		a.update(func() {
+			defer a.persist()
 			a.projectsLoading = false
 			if errors.Is(err, project.ErrNotRepository) {
 				a.restoreProject(directoryProjectID(path))
@@ -162,6 +163,7 @@ func (a *App) refreshProjects() {
 				a.promoteDirectoryProject(path, repo)
 			}
 			a.repositories, a.projectErrors, a.projectsLoading = repos, failures, false
+			a.persist()
 		})
 	}()
 }

@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode"
 
 	native "github.com/egoist/mygo/ui"
@@ -17,6 +17,8 @@ type inputCompletion struct {
 	selected        int
 	skills          []agent.Skill
 	cwd             string
+	checked         time.Time
+	cacheKey        agent.CacheKey
 	loading, loaded bool
 	error           string
 	chosen          map[string]agent.Skill
@@ -120,79 +122,7 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 }
 
 func (a *App) loadCompletionSkills() {
-	s := a.session
-	if s.completion.cwd == s.State.Cwd && (s.completion.loaded || s.completion.loading) {
-		return
-	}
-	if a.kind.Normalized() == agent.Claude {
-		backend, ok := a.sessionBackend().(agent.CommandCatalog)
-		s.completion.cwd = s.State.Cwd
-		s.completion.error = ""
-		s.completion.loaded = true
-		if !ok {
-			return
-		}
-		s.completion.loading = true
-		cwd := s.State.Cwd
-		runtime := s.runtimeKey
-		bound := a.forSession(s)
-		go func() {
-			ctx, cancel := agent.RequestContext()
-			defer cancel()
-			commands, err := backend.ListCommands(ctx, cwd)
-			bound.update(func() {
-				if s.State.Cwd != cwd || s.runtimeKey != runtime || s.kind != agent.Claude {
-					return
-				}
-				s.completion.loading = false
-				if err != nil {
-					s.completion.error = err.Error()
-					return
-				}
-				s.completion.commands = commands
-			})
-		}()
-		return
-	}
-	backend, ok := a.sessionBackend().(interface {
-		ListSkills(context.Context, string) ([]agent.SkillsEntry, error)
-	})
-	s.completion.cwd = s.State.Cwd
-	s.completion.skills, s.completion.error = nil, ""
-	s.completion.loaded = false
-	if !ok {
-		s.completion.loaded = true
-		s.completion.error = "当前连接不支持读取技能"
-		return
-	}
-	s.completion.loading = true
-	cwd, kind, runtime := s.State.Cwd, s.kind.Normalized(), s.runtimeKey
-	bound := a.forSession(s)
-	go func() {
-		ctx, cancel := agent.RequestContext()
-		defer cancel()
-		entries, err := backend.ListSkills(ctx, cwd)
-		bound.update(func() {
-			if s.State.Cwd != cwd || s.completion.cwd != cwd || s.kind.Normalized() != kind || s.runtimeKey != runtime {
-				return
-			}
-			s.completion.loading = false
-			s.completion.loaded = true
-			if err != nil {
-				s.completion.error = "读取技能失败：" + err.Error()
-				return
-			}
-			for _, entry := range entries {
-				if entry.Cwd != cwd {
-					continue
-				}
-				s.completion.skills = append(s.completion.skills, entry.Skills...)
-				if len(entry.Errors) > 0 {
-					s.completion.error = "技能加载异常：" + entry.Errors[0].Message
-				}
-			}
-		})
-	}()
+	a.loadCompletionCatalog(false)
 }
 
 func (a *App) isClearCommand(text string) bool {
@@ -306,13 +236,17 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 			native.Text(c, title).FontSize(11).TextColor(t.TextMuted)
 			native.Spacer(c)
 			native.Text(c, "↑↓ 选择 · Enter / Tab 确认 · Esc 关闭").FontSize(10).TextColor(t.TextMuted)
+			if q.kind == '$' || runtimeSkills {
+				if quietButton(c, "刷新技能").KeepFocus().Disabled(a.completion.loading).Children(func() { native.Text(c, "刷新").FontSize(11) }).Clicked() {
+					a.loadCompletionCatalog(true)
+				}
+			}
 		})
 		if (q.kind == '$' || runtimeSkills) && a.completion.error != "" {
 			native.Row(c).FillWidth().Gap(8).Children(func() {
 				native.Text(c, a.completion.error).FontSize(12).Grow(1).TextColor(t.TextMuted)
-				if quietButton(c, "重新读取").Children(func() { native.Text(c, "重试").FontSize(12) }).Clicked() {
-					a.completion.loaded = false
-					a.loadCompletionSkills()
+				if quietButton(c, "重新读取").KeepFocus().Children(func() { native.Text(c, "重试").FontSize(12) }).Clicked() {
+					a.loadCompletionCatalog(true)
 				}
 			})
 		}

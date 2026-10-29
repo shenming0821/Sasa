@@ -43,6 +43,9 @@ func conversationSpacing(rows []conversationRow, i int) float32 {
 
 // Project groups once for both virtual-list indices and saved reading anchors.
 func (s *session) conversationRows() []conversationRow {
+	if s.conversationUnchanged() {
+		return s.projectedRows
+	}
 	var rows []conversationRow
 	var changes []*app.Message
 	turn := ""
@@ -82,6 +85,11 @@ func (s *session) conversationRows() []conversationRow {
 		rows = append(rows, row)
 	}
 	flush()
+	s.projectedRows = rows
+	s.projectedMessages = make([]*app.Message, len(rows))
+	for index, row := range rows {
+		s.projectedMessages[index] = row.message
+	}
 	return rows
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
@@ -211,11 +212,8 @@ func (a *App) snapshot() storage.Snapshot {
 }
 
 func (s *session) displayMessages() []*app.Message {
-	var messages []*app.Message
-	for _, row := range s.conversationRows() {
-		messages = append(messages, row.message)
-	}
-	return messages
+	s.conversationRows()
+	return s.projectedMessages
 }
 
 func (a *App) persist() error {
@@ -226,6 +224,9 @@ func (a *App) persist() error {
 	snapshot := a.snapshot()
 	raw, err := json.Marshal(snapshot)
 	if err == nil && bytes.Equal(raw, a.lastSaved) {
+		a.storageError = ""
+		a.savePending = false
+		a.saveDue = time.Time{}
 		return nil
 	}
 	if err == nil {
@@ -233,8 +234,12 @@ func (a *App) persist() error {
 	}
 	if err != nil {
 		a.storageError = fmt.Sprintf("保存会话失败，退出前请重试：%v", err)
+		a.savePending = true
+		a.saveDue = time.Now().Add(time.Second)
 		return err
 	}
+	a.savePending = false
+	a.saveDue = time.Time{}
 	a.storageError, a.lastSaved = "", raw
 	for i, s := range a.sessions {
 		s.saved = snapshot.Sessions[i]

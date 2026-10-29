@@ -24,6 +24,8 @@ import (
 type Backend = agent.Backend
 
 type App struct {
+	maintenanceState
+	completionCatalogState
 	settingsState
 	worktreeRenameState
 	sessionRenameState
@@ -88,7 +90,8 @@ type App struct {
 func New(backend Backend, version, cwd string, startupErr error) *App {
 	a := &App{
 		backend: backend, version: strings.TrimSpace(version), shutdown: make(chan struct{}), sidebarOpen: true,
-		quitApp: mygo.App.Quit, quitPrompt: mygo.Dialog.Message, sidebarWidth: 240,
+		maintenanceState: maintenanceState{wake: make(chan struct{}, 1)},
+		quitApp:          mygo.App.Quit, quitPrompt: mygo.Dialog.Message, sidebarWidth: 240,
 	}
 	a.preferences = defaultPreferences()
 	a.rightTab = "history"
@@ -422,6 +425,12 @@ func (a *App) applyBatch(batch []agent.Event) {
 	for _, s := range a.sessions {
 		a.forSession(s).applySessionBatch(batch)
 	}
+	for _, event := range batch {
+		if event.Method == "turn/completed" || event.Method == "fuyu/disconnected" {
+			a.persist()
+			break
+		}
+	}
 }
 
 func (a *App) applySessionBatch(batch []agent.Event) {
@@ -556,7 +565,7 @@ func (a *App) reconcileIfNeeded() {
 func (a *App) update(fn func()) {
 	wrapped := func() {
 		fn()
-		a.persist()
+		a.scheduleSave()
 	}
 	if a.dispatch != nil {
 		a.dispatch(wrapped)

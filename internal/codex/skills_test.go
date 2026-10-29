@@ -22,6 +22,16 @@ func TestSkillsListAndExplicitSkillInput(t *testing.T) {
 	}
 }
 
+func TestSkillsExplicitRefreshBypassesRuntimeCache(t *testing.T) {
+	client := fixture(t, "skills-reload")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	entries, err := client.ReloadSkills(ctx, "/workspace")
+	if err != nil || len(entries) != 1 || len(entries[0].Skills) != 1 {
+		t.Fatalf("reload: %+v %v", entries, err)
+	}
+}
+
 // This opt-in reads installed skills only; it never creates a thread or turn.
 func TestLiveSkillsReadOnly(t *testing.T) {
 	if os.Getenv("FUYU_LIVE_SKILLS") != "1" {

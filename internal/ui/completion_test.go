@@ -17,6 +17,7 @@ import (
 func completionTestApp() *App {
 	a := New(stubBackend{}, "test", "/tmp", nil)
 	a.completion.cwd, a.completion.loaded = "/tmp", true
+	a.completion.cacheKey, a.completion.checked = a.completionCacheKey(), time.Now()
 	a.completion.skills = []codex.Skill{
 		{Name: "frontend-design", Path: "/tmp/skills/frontend-design/SKILL.md", Description: "Design interfaces", Enabled: true},
 		{Name: "disabled", Path: "/tmp/disabled/SKILL.md", Description: "disabled skill", Enabled: false},
