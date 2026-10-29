@@ -221,6 +221,11 @@ func (a *App) conversation(c *native.Context) {
 	a.session.restoreRowOffset(c)
 	rows := a.session.conversationRows()
 	messages := a.session.projectedMessages
+	entries := a.session.navigationEntries
+	padding := float32(24)
+	if len(entries) > 1 {
+		padding = 48
+	}
 	if len(a.rows) > len(messages) {
 		visibleIDs := make(map[string]bool, len(messages))
 		for _, m := range messages {
@@ -262,7 +267,7 @@ func (a *App) conversation(c *native.Context) {
 					}
 				})
 			}
-		}).Fill().Padding(24, 24, scrollFadeHeight, 24).Gap(0).TrackScroll(&a.scroll)
+		}).Fill().Padding(24, padding, scrollFadeHeight, padding).Gap(0).TrackScroll(&a.scroll)
 		a.loadHistoryNearTop()
 		if !a.list.AtEnd() {
 			// The tint fades into the composer surface without intercepting scrolling.
@@ -280,6 +285,7 @@ func (a *App) conversation(c *native.Context) {
 				}
 			})
 		}
+		a.conversationNavigator(c, entries)
 	})
 }
 

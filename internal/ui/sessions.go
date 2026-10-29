@@ -15,6 +15,7 @@ import (
 // Switching the selected session never changes the owner of a pending callback.
 type session struct {
 	conversationCache
+	conversationNavigation
 	nativeThreads        []agent.ThreadMeta
 	threadsCursor        *string
 	threadsLoading       bool

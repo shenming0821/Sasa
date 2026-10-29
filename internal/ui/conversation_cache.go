@@ -6,6 +6,7 @@ type conversationCache struct {
 	projectionKeys    []conversationKey
 	projectedRows     []conversationRow
 	projectedMessages []*app.Message
+	navigationEntries []conversationEntry
 }
 
 type conversationKey struct {

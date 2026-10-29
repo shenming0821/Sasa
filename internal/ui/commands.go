@@ -86,6 +86,7 @@ func (s *session) conversationRows() []conversationRow {
 	}
 	flush()
 	s.projectedRows = rows
+	s.navigationEntries = conversationEntries(rows)
 	s.projectedMessages = make([]*app.Message, len(rows))
 	for index, row := range rows {
 		s.projectedMessages[index] = row.message
