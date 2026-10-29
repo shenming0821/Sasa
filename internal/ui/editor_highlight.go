@@ -20,6 +20,7 @@ func (a *App) requestHighlight(d *filePage) {
 		return
 	}
 	family := a.codeFontFamily()
+	path := d.path
 	buffer := d.buffer
 	snapshot := buffer.Snapshot()
 	review := d.gitReview
@@ -47,7 +48,7 @@ func (a *App) requestHighlight(d *filePage) {
 			a.update(func() {
 				d.highlighting = false
 				d.highlightCancel = nil
-				if !valid || a.files[d.id] != d || d.buffer != buffer || family != a.codeFontFamily() {
+				if !valid || a.files[d.id] != d || d.buffer != buffer || d.path != path || family != a.codeFontFamily() {
 					return
 				}
 				if d.buffer.Version() == snapshot.Version() {
@@ -62,14 +63,14 @@ func (a *App) requestHighlight(d *filePage) {
 		if ctx.Err() != nil {
 			return
 		}
-		lexer := lexers.Match(d.path)
+		lexer := lexers.Match(path)
 		if decorate && lexer != nil && snapshot.ByteLen() <= editor.EditBytes {
 			preview := highlightText(ctx, lexer, snapshot.Slice(lo, hi), lo)
 			if ctx.Err() != nil {
 				return
 			}
 			a.update(func() {
-				if a.files[d.id] == d && d.buffer == buffer && buffer.Version() == snapshot.Version() {
+				if a.files[d.id] == d && d.path == path && d.buffer == buffer && buffer.Version() == snapshot.Version() {
 					d.highlights = preview
 					d.highlightVersion = snapshot.Version()
 				}

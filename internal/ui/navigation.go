@@ -173,6 +173,9 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 							closeLabel = fmt.Sprintf("关闭会话标签 %d", tab.SessionID)
 						}
 						b := native.ButtonBase(tc).Label(label).Tooltip(a.tabTitle(tab)).Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
+						if tab.Kind == "file" || tab.Kind == "diff" {
+							b.ContextMenu(a.fileMenu(tab.Workspace, tab.Path, false))
+						}
 						if tab.Kind == "session" {
 							for _, target := range a.sessions {
 								if target.id == tab.SessionID {

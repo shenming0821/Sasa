@@ -207,6 +207,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			w.rowHandles[row.Path] = &native.Handle{}
 		}
 		b.Bind(w.rowHandles[row.Path])
+		b.ContextMenu(a.fileMenu(w.root, row.Path, false))
 		if w.focusPath == row.Path {
 			b.Focus()
 			w.focusPath = ""
@@ -529,6 +530,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		width := max(available, d.contentWidth)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
 			area := native.TextAreaBufferBase(c.Key("source"), d.buffer).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
+			area.ContextMenu(a.fileMenu(d.root, d.path, true))
 			if d.pendingSelection != nil {
 				area.SetTextSelection(d.pendingSelection[0], d.pendingSelection[1])
 				d.pendingSelection = nil

@@ -19,6 +19,7 @@ import (
 )
 
 type editorState struct {
+	fileAction                                fileActionState
 	fileWorkers, gitWorkers, highlightWorkers chan struct{}
 	fileBackgroundWorkers                     chan struct{}
 	tabs                                      []storage.Tab
