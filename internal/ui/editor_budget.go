@@ -76,6 +76,8 @@ func (a *App) trimEditorCaches() {
 			d.undo = nil
 			d.redo = nil
 			d.gitReview, d.gitLeft, d.gitRight, d.gitConflict = nil, nil, nil, nil
+			d.gitRows, d.gitPairs = nil, nil
+			d.gitLeftHighlights, d.gitRightHighlights = nil, nil
 		}
 	}
 	// Release watchers once neither the selected workspace nor an open file uses them.
@@ -101,8 +103,9 @@ func gitDocumentBytes(d *filePage) int {
 		}
 	}
 	if d.gitReview != nil {
-		total += len(d.gitReview.Patch)
+		total += len(d.gitReview.Patch) + len(d.gitReview.BeforeText)
 	}
+	total += len(d.gitRows)*64 + len(d.gitPairs)*128
 	if d.turnReview != nil {
 		for _, f := range d.turnReview.files {
 			total += len(f.Patch)

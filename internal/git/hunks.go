@@ -25,6 +25,8 @@ type Review struct {
 	Token             string
 	Added, Deleted    int
 	Binary, Blockable bool
+	BeforeText        string
+	BeforeKnown       bool
 }
 
 var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
@@ -125,6 +127,12 @@ func ReadReview(ctx context.Context, root string, entry Entry, staged bool) (Rev
 	if err != nil {
 		return Review{}, err
 	}
+	review := ParsePatch(patch)
+	reference := ":"
+	if staged {
+		reference = "HEAD:"
+	}
+	ReadReviewBase(ctx, root, reference, entry, &review)
 	after, _, err := reviewToken(ctx, root, entry)
 	if err != nil {
 		return Review{}, err
@@ -132,10 +140,30 @@ func ReadReview(ctx context.Context, root string, entry Entry, staged bool) (Rev
 	if before != after {
 		return Review{}, errors.New("读取期间文件或暂存区发生变化，请刷新")
 	}
-	review := ParsePatch(patch)
 	review.Entry, review.Staged, review.Token = entry, staged, after
 	review.Blockable = allowed && !entry.Conflict && !entry.Submodule && !review.Binary && entry.Original == ""
 	return review, nil
+}
+
+func ReadReviewBase(ctx context.Context, root, reference string, entry Entry, review *Review) {
+	if review.Binary || len(review.Hunks) == 0 {
+		return
+	}
+	if review.Hunks[0].OldStart == 0 && review.Hunks[0].OldCount == 0 {
+		review.BeforeKnown = true
+		return
+	}
+	path := entry.Path
+	if entry.Original != "" {
+		path = entry.Original
+	}
+	if validPaths([]string{path}) != nil {
+		return
+	}
+	text, err := run(ctx, root, "show", reference+path)
+	if err == nil && !strings.ContainsRune(string(text), '\x00') {
+		review.BeforeText, review.BeforeKnown = string(text), true
+	}
 }
 
 func ApplyHunk(ctx context.Context, root string, review Review, index int) error {

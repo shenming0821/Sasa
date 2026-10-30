@@ -54,23 +54,27 @@ type gitWorkflow struct {
 }
 
 type gitDiffState struct {
-	gitConflict       *gitConflictState
-	gitReview         *gitview.Review
-	gitHunk           int
-	gitSplit          bool
-	gitLeft, gitRight *native.TextBuffer
-	gitLeftScroll     native.ScrollState
-	gitRightScroll    native.ScrollState
-	gitLeftHScroll    native.ScrollState
-	gitRightHScroll   native.ScrollState
-	gitLeftWidth      float32
-	gitRightWidth     float32
-	gitSplitY         float32
-	gitSplitCaret     [2]int
-	gitCommit         string
-	gitCommitInfo     gitview.CommitInfo
-	gitCommitFiles    []gitview.Entry
-	gitCommitFile     int
+	gitConflict                           *gitConflictState
+	gitReview                             *gitview.Review
+	gitHunk                               int
+	gitSplit                              bool
+	gitLeft, gitRight                     *native.TextBuffer
+	gitLeftScroll                         native.ScrollState
+	gitRightScroll                        native.ScrollState
+	gitLeftHScroll                        native.ScrollState
+	gitRightHScroll                       native.ScrollState
+	gitLeftWidth                          float32
+	gitRightWidth                         float32
+	gitSplitY                             float32
+	gitSplitCaret                         [2]int
+	gitCommit                             string
+	gitCommitInfo                         gitview.CommitInfo
+	gitCommitFiles                        []gitview.Entry
+	gitCommitFile                         int
+	gitRows                               []diffCodeRow
+	gitPairs                              []diffCodePair
+	gitNote                               string
+	gitLeftHighlights, gitRightHighlights []native.TextRange
 }
 
 func gitKey(group, path string) string { return group + "\x00" + path }
@@ -402,6 +406,10 @@ func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo, path ...string
 		if err == nil && len(entries) > 0 {
 			text, err = gitview.CommitDiff(ctx, d.root, info.Hash, entries[selected])
 		}
+		review := gitview.ParsePatch(text)
+		if err == nil && len(entries) > 0 {
+			gitview.ReadReviewBase(ctx, d.root, info.Hash+"^:", entries[selected], &review)
+		}
 		a.update(func() {
 			if a.files[d.id] != d || d.readContext != ctx {
 				return
@@ -412,7 +420,6 @@ func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo, path ...string
 				return
 			}
 			d.gitCommitFiles, d.gitCommitInfo, d.gitCommitFile = entries, info, selected
-			review := gitview.ParsePatch(text)
 			if text == "" {
 				text = "此提交没有文件差异"
 			}
@@ -423,8 +430,18 @@ func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo, path ...string
 
 func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	d.err = ""
+	previous := d.gitReview
 	d.gitReview = review
-	if d.loaded && d.buffer != nil && d.buffer.String() == text {
+	rows, pairs := diffCodeRows(review)
+	d.gitRows, d.gitPairs = rows, pairs
+	if len(rows) > 0 {
+		text = diffRowsText(rows)
+	} else if review != nil && review.Binary {
+		text = "二进制文件内容发生变化"
+	} else if review != nil && strings.HasPrefix(text, "diff --git ") {
+		text = "文件路径、权限或类型发生变化，无文本内容差异"
+	}
+	if d.loaded && d.buffer != nil && d.buffer.String() == text && previous != nil && review != nil && previous.Patch == review.Patch && previous.BeforeText == review.BeforeText && previous.BeforeKnown == review.BeforeKnown {
 		return
 	}
 	if d.highlightCancel != nil {
@@ -433,6 +450,7 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	d.contentWidth, d.highlightVersion = 0, 0
 	d.gitLeftWidth, d.gitRightWidth = 0, 0
 	d.highlights = nil
+	d.gitLeftHighlights, d.gitRightHighlights = nil, nil
 	d.buffer = native.NewTextBuffer(text)
 	d.file.Path, d.file.Text, d.file.Reason = d.path, text, "只读差异"
 	d.observed = d.buffer.Snapshot()

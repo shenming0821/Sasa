@@ -540,10 +540,8 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			d.anchor, d.caret = area.TextAnchorCaret()
 			if d.kind == "diff" && d.gitReview != nil && d.caret != previousCaret {
 				line := snap.LineAt(d.caret)
-				for i, hunk := range d.gitReview.Hunks {
-					if hunk.PatchLine <= line {
-						d.gitHunk = i
-					}
+				if line < len(d.gitRows) && d.gitRows[line].hunk >= 0 {
+					d.gitHunk = d.gitRows[line].hunk
 				}
 			}
 			if d.focus {
@@ -560,6 +558,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				var ranges []native.TextRange
 				for _, r := range d.highlights {
 					if r.End >= lo && r.Start <= hi {
+						if d.kind == "diff" {
+							r.Color = diffSyntaxColor(r.Color, t)
+						}
 						ranges = append(ranges, r)
 					}
 				}
@@ -610,22 +611,22 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			if d.kind == "diff" {
 				area.Draw(func(p *native.Painter, r native.Rect) {
 					first := max(0, int(d.scroll.Y/20))
-					last := min(snap.LineCount(), first+int(r.H/20)+3)
+					last := min(len(d.gitRows), first+int(r.H/20)+3)
 					for i := first; i < last; i++ {
-						line := snap.Line(i)
+						row := d.gitRows[i]
 						var color native.Color
-						if d.gitReview != nil && d.gitHunk < len(d.gitReview.Hunks) && i == d.gitReview.Hunks[d.gitHunk].PatchLine {
-							color = t.Accent.Alpha(.12)
-						}
-						if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+						if row.kind == '+' {
 							color = t.Success.Alpha(.1)
 						}
-						if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+						if row.kind == '-' {
 							color = t.Danger.Alpha(.08)
 						}
 						if color.A != 0 {
 							y := r.Y + 8 + float32(i)*20 - d.scroll.Y
 							p.Fill(native.Rect{X: r.X + 48, Y: y, W: r.W - 48, H: 20}, color, 0)
+							if row.hunk == d.gitHunk {
+								p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: 20}, t.Accent, 0)
+							}
 						}
 					}
 				})
@@ -636,7 +637,22 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				for i := first; i < last; i++ {
 					y := r.Y + 8 + float32(i)*20 - d.scroll.Y
 					if y >= r.Y && y < r.Y+r.H {
-						p.Text(r.X+10, y, fmt.Sprint(i+1), 11, t.TextMuted)
+						number := i + 1
+						if d.kind == "diff" {
+							if i >= len(d.gitRows) {
+								continue
+							}
+							row := d.gitRows[i]
+							number = row.next
+							if row.kind == '-' {
+								number = row.old
+							}
+							drawDiffLineNumber(p, r.X+10, y, number, row.kind, t)
+							continue
+						}
+						if number > 0 {
+							p.Text(r.X+10, y, fmt.Sprint(number), 11, t.TextMuted)
+						}
 					}
 				}
 			})

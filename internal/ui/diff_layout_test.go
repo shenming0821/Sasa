@@ -33,15 +33,15 @@ func TestDiffHorizontalEndRevealsWholeLine(t *testing.T) {
 					label, line       string
 					scroll            *native.ScrollState
 					size, left, right float32
-				}{{"文件内容 " + d.path, "+" + text + " new", &d.hscroll, 13, 58, 24}}
+				}{{"文件内容 " + d.path, text + " new", &d.hscroll, 13, 58, 24}}
 				if split {
 					sides = []struct {
 						label, line       string
 						scroll            *native.ScrollState
 						size, left, right float32
 					}{
-						{"差异 原版本", "   1 − " + text, &d.gitLeftHScroll, 12, 10, 10},
-						{"差异 新版本", "   1 + " + text + " new", &d.gitRightHScroll, 12, 10, 10},
+						{"差异 原版本", text, &d.gitLeftHScroll, 12, 58, 10},
+						{"差异 新版本", text + " new", &d.gitRightHScroll, 12, 58, 10},
 					}
 				}
 				for _, side := range sides {

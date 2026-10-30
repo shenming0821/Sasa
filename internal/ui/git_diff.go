@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	native "github.com/egoist/mygo/ui"
 	gitview "github.com/shenming0821/Fuyu/internal/git"
@@ -97,6 +96,9 @@ func (a *App) gitDiffToolbar(c *native.Context, d *filePage) {
 				}
 			})
 		})
+		if d.gitNote != "" {
+			native.Text(c, d.gitNote).FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 14)
+		}
 		if d.gitReview != nil && d.gitReview.Blockable && len(d.gitReview.Hunks) > 0 {
 			native.Row(c).FillWidth().Padding(0, 14, 5, 14).Gap(6).AlignItems(native.Center).Children(func() {
 				label := "暂存此修改块"
@@ -128,15 +130,13 @@ func (a *App) gitStepHunk(d *filePage, step int) {
 	}
 	total := len(d.gitReview.Hunks)
 	d.gitHunk = (d.gitHunk + step + total) % total
-	hunk := d.gitReview.Hunks[d.gitHunk]
-	d.scroll.Y = float32(hunk.PatchLine) * 20
+	d.scroll.Y = float32(diffHunkRow(d.gitRows, d.gitHunk)) * 20
 	d.pinFrame, d.pinY = 2, d.scroll.Y
-	// Split rows have their own line mapping because additions/deletions align.
-	if d.gitSplit && d.gitLeft != nil {
-		left := d.gitLeft.Snapshot()
-		for i := 0; i < left.LineCount(); i++ {
-			if left.Line(i) == hunk.Header {
-				d.gitLeftScroll.Y, d.gitRightScroll.Y = float32(i)*20, float32(i)*20
+	if d.gitSplit {
+		for index, pair := range d.gitPairs {
+			if pair.left.hunk == d.gitHunk && (pair.left.kind == '-' || pair.right.kind == '+') {
+				d.gitSplitY = float32(index) * 20
+				d.gitLeftScroll.Y, d.gitRightScroll.Y = d.gitSplitY, d.gitSplitY
 				break
 			}
 		}
@@ -179,59 +179,18 @@ func (a *App) gitStepFile(d *filePage, step int) {
 }
 
 func splitPatch(review gitview.Review) (string, string) {
-	var left, right strings.Builder
-	for _, hunk := range review.Hunks {
-		left.WriteString(hunk.Header + "\n")
-		right.WriteString(hunk.Header + "\n")
-		old, next := hunk.OldStart, hunk.NewStart
-		lines := strings.Split(strings.TrimSuffix(hunk.Patch, "\n"), "\n")
-		for i := 1; i < len(lines); {
-			line := lines[i]
-			if strings.HasPrefix(line, "-") || strings.HasPrefix(line, "+") {
-				var deleted, added []string
-				for i < len(lines) && (strings.HasPrefix(lines[i], "-") || strings.HasPrefix(lines[i], "+")) {
-					if lines[i][0] == '-' {
-						deleted = append(deleted, lines[i][1:])
-					} else {
-						added = append(added, lines[i][1:])
-					}
-					i++
-				}
-				for j := range max(len(deleted), len(added)) {
-					if j < len(deleted) {
-						fmt.Fprintf(&left, "%4d − %s\n", old, deleted[j])
-						old++
-					} else {
-						left.WriteString("\n")
-					}
-					if j < len(added) {
-						fmt.Fprintf(&right, "%4d + %s\n", next, added[j])
-						next++
-					} else {
-						right.WriteString("\n")
-					}
-				}
-			} else {
-				if strings.HasPrefix(line, " ") {
-					fmt.Fprintf(&left, "%4d   %s\n", old, line[1:])
-					fmt.Fprintf(&right, "%4d   %s\n", next, line[1:])
-					old++
-					next++
-				} else {
-					left.WriteString(line + "\n")
-					right.WriteString(line + "\n")
-				}
-				i++
-			}
-		}
-	}
-	return left.String(), right.String()
+	_, pairs := diffCodeRows(&review)
+	return diffPairText(pairs)
 }
 
 func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 	t := c.Theme()
+	_, height := c.Size()
 	if d.gitLeft == nil || d.gitRight == nil {
-		left, right := splitPatch(*d.gitReview)
+		if d.gitPairs == nil {
+			d.gitRows, d.gitPairs = diffCodeRows(d.gitReview)
+		}
+		left, right := diffPairText(d.gitPairs)
 		d.gitLeft, d.gitRight = native.NewTextBuffer(left), native.NewTextBuffer(right)
 	}
 	// Both buffers contain the same number of aligned rows.
@@ -255,33 +214,61 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 				native.Text(c, side.name).FontSize(10).TextColor(t.TextMuted).Padding(5, 10)
 				native.ScrollHorizontal(c.Key("horizontal")).TrackScroll(side.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
 					area := native.TextAreaBufferBase(c, side.buffer).Label("差异 "+side.name).ReadOnly(true).Font(a.codeFontFamily()).FontSize(12).
-						FixedLineHeight(20).NoWrap().Width(max((available-1)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10).TrackScroll(side.scroll)
+						FixedLineHeight(20).NoWrap().Width(max((available-1)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10, 6, 58).TrackScroll(side.scroll)
+					highlights := d.gitLeftHighlights
+					if sideIndex == 1 {
+						highlights = d.gitRightHighlights
+					}
+					snapshot := side.buffer.Snapshot()
+					firstLine := max(0, int(side.scroll.Y/20)-2)
+					start, _ := snapshot.LineRange(firstLine)
+					_, end := snapshot.LineRange(min(snapshot.LineCount()-1, firstLine+int(height/20)+4))
+					var visible []native.TextRange
+					for _, span := range highlights {
+						if span.End >= start && span.Start <= end {
+							span.Color = diffSyntaxColor(span.Color, t)
+							visible = append(visible, span)
+						}
+					}
+					area.TextRanges(visible...)
 					_, caret := area.TextAnchorCaret()
 					if caret != d.gitSplitCaret[sideIndex] {
 						d.gitSplitCaret[sideIndex] = caret
 						line := side.buffer.Snapshot().LineAt(caret)
-						selected := -1
-						for i := 0; i <= line; i++ {
-							if strings.HasPrefix(side.buffer.Snapshot().Line(i), "@@ ") {
-								selected++
-							}
-						}
-						if selected >= 0 {
-							d.gitHunk = selected
+						if line < len(d.gitPairs) && d.gitPairs[line].left.hunk >= 0 {
+							d.gitHunk = d.gitPairs[line].left.hunk
 						}
 					}
 					area.Draw(func(p *native.Painter, r native.Rect) {
-						snap := side.buffer.Snapshot()
 						first := max(0, int(side.scroll.Y/20))
-						last := min(snap.LineCount(), first+int(r.H/20)+2)
+						last := min(len(d.gitPairs), first+int(r.H/20)+2)
 						for i := first; i < last; i++ {
-							line := snap.Line(i)
-							if d.gitReview != nil && d.gitHunk < len(d.gitReview.Hunks) && line == d.gitReview.Hunks[d.gitHunk].Header {
-								p.Fill(native.Rect{X: r.X, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: r.W, H: 20}, t.Accent.Alpha(.12), 0)
+							row := d.gitPairs[i].left
+							if sideIndex == 1 {
+								row = d.gitPairs[i].right
 							}
-							if strings.Contains(line, " − ") || strings.Contains(line, " + ") {
+							if row.kind == '-' || row.kind == '+' {
 								p.Fill(native.Rect{X: r.X, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: r.W, H: 20}, side.color.Alpha(.09), 0)
+								if row.hunk == d.gitHunk {
+									p.Fill(native.Rect{X: r.X + 50, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: 2, H: 20}, t.Accent, 0)
+								}
 							}
+						}
+					})
+					area.DrawOver(func(p *native.Painter, r native.Rect) {
+						first := max(0, int(side.scroll.Y/20))
+						last := min(len(d.gitPairs), first+int(r.H/20)+2)
+						for index := first; index < last; index++ {
+							row := d.gitPairs[index].left
+							if sideIndex == 1 {
+								row = d.gitPairs[index].right
+							}
+							number := row.old
+							if sideIndex == 1 {
+								number = row.next
+							}
+							y := r.Y + 6 + float32(index)*20 - side.scroll.Y
+							drawDiffLineNumber(p, r.X+10, y, number, row.kind, t)
 						}
 					})
 				})

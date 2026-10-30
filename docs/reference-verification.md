@@ -272,6 +272,8 @@ codex app-server generate-json-schema --experimental --out /tmp/fuyu-p3-schema
 
 ## 13. Mayoi：P4 轻量原生编辑器参考
 
+2026-10-30 为 Diff 代码展示只读核对 Mayoi 提交 `cd08688ade5ece3411d9bb812228c7d30492526a`，本地参考 `/tmp/fuyu-mayoi-diff-20261030`。重点核对 `cmd/mayoi/diffrows.go` 的 `diffRow`、`lineRows`、`foldRows`，以及 `diffview.go`、`diffhunks.go`：代码内容、旧/新行号、增删类型与修改块身份分开保存，行内和并排布局各有行映射。Fuyu 按该职责分离方式实现自己的 `diff_rows.go`，继续复用自己的补丁快照、token 校验、后台高亮和滚动组件；未直接移植源码，未构建或运行 Mayoi。当前采用完整可核验上下文，缺少源版本的历史采用省略标记，未引入 Mayoi 的折叠展开或逐字符差异能力。Fuyu 的验证单独记录于 [Diff 代码展示](verification/2026-10-30-diff-source-view.md)。
+
 2026-10-24 按用户提供的仓库克隆并只读核对，固定提交 `2650b9bfa90c87ffe0d48fffb140dd2fc428ff1c`，本地参考为 `/tmp/fuyu-mayoi-reference-20261024`。Mayoi 使用 Go + MyGo 原生 UI，许可为 MIT（Copyright 2026 chencheng）。本轮未构建或运行 Mayoi，未移植代码。
 
 | 固定源码（相对 Mayoi 仓库） | 核对结果与 Fuyu 设计用途 |

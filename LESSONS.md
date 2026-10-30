@@ -1,5 +1,9 @@
 # 经验记录
 
+## 2026-10-30：Diff 代码与补丁身份分离
+
+当 Diff 需要以编辑器形式呈现时，将代码正文、旧/新行号、增删类型与原始修改块身份分开保存，跳转与块操作通过行映射定位。补丁文件头和块头用于比较与操作，正文与复制内容显示真实代码；补齐未修改代码时先验证对应源版本与补丁上下文一致。参考 Mayoi 行模型后的实现与临时仓库回归见 [Diff 代码展示验证](docs/verification/2026-10-30-diff-source-view.md)。
+
 ## 2026-10-29：Claude 本地命令的完成与历史末尾
 
 当原生本地命令返回 success、正常退出但没有 terminal_reason 时，结合本次发送 UUID、命令参数及原生 `system/local_command` 的 info 输出核验完成。选取历史主链末尾时纳入本地命令的 system 输出，避免只保留 user/assistant 而丢失完成证据。恢复旧 unknown 检查点时，同时核对历史摘要、运行状态和任务归属，并持久化核验结果；一般未知任务继续等待核验。实际 `/model` 误判、隔离测试与原会话恢复证据见[本地命令恢复验证](docs/verification/2026-10-29-claude-local-command-recovery.md)。

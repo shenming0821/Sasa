@@ -24,7 +24,11 @@ func (a *App) requestHighlight(d *filePage) {
 	buffer := d.buffer
 	snapshot := buffer.Snapshot()
 	review := d.gitReview
-	decorate := d.kind == "file" && d.file.Reason == ""
+	decorate := d.kind == "file" && d.file.Reason == "" || d.kind == "diff" && len(d.gitRows) > 0
+	var leftText, rightText string
+	if review != nil {
+		leftText, rightText = diffPairText(d.gitPairs)
+	}
 	first := max(0, int(d.scroll.Y/20)-50)
 	last := min(snapshot.LineCount()-1, first+200)
 	lo, _ := snapshot.LineRange(first)
@@ -35,6 +39,7 @@ func (a *App) requestHighlight(d *filePage) {
 	a.runHighlightTask(ctx, func() {
 		var text string
 		var ranges []native.TextRange
+		var leftRanges, rightRanges []native.TextRange
 		var width float32
 		var leftWidth, rightWidth float32
 		defer func() {
@@ -56,6 +61,7 @@ func (a *App) requestHighlight(d *filePage) {
 					d.highlightVersion = snapshot.Version()
 					d.contentWidth = width
 					d.gitLeftWidth, d.gitRightWidth = leftWidth, rightWidth
+					d.gitLeftHighlights, d.gitRightHighlights = leftRanges, rightRanges
 					d.modified = d.kind == "file" && text != d.savedText
 				}
 			})
@@ -79,12 +85,15 @@ func (a *App) requestHighlight(d *filePage) {
 		text = snapshot.String()
 		width = editorTextWidthForFont(ctx, text, family, 13, 90)
 		if review != nil {
-			left, right := splitPatch(*review)
-			leftWidth = editorTextWidthForFont(ctx, left, family, 12, 28)
-			rightWidth = editorTextWidthForFont(ctx, right, family, 12, 28)
+			leftWidth = editorTextWidthForFont(ctx, leftText, family, 12, 76)
+			rightWidth = editorTextWidthForFont(ctx, rightText, family, 12, 76)
 		}
 		if decorate && len(text) <= editor.EditBytes && lexer != nil {
 			ranges = highlightText(ctx, lexer, text, 0)
+			if review != nil {
+				leftRanges = highlightText(ctx, lexer, leftText, 0)
+				rightRanges = highlightText(ctx, lexer, rightText, 0)
+			}
 		}
 	})
 }
@@ -192,13 +201,10 @@ func (a *App) loadDiskComparison(source, d *filePage) {
 				d.err = err.Error()
 				return
 			}
-			d.err = ""
-			d.buffer = native.NewTextBuffer(text)
-			d.file = editor.File{Path: d.path, Text: text, Reason: "只读比较 · 本地编辑 ↔ 磁盘版本"}
-			d.loaded = true
-			d.resync = true
-			d.observed = d.buffer.Snapshot()
-			d.contentWidth = 0
+			review := gitview.ParsePatch(text)
+			review.BeforeText, review.BeforeKnown = local.String(), true
+			a.gitSetDiffText(d, text, &review)
+			d.file.Reason = "只读比较 · 本地编辑 ↔ 磁盘版本"
 			d.comparisonSource, d.comparisonVersion = source.id, local.Version()
 			d.comparisonDisk = disk
 			d.comparisonStale = source.buffer == nil || source.buffer.Version() != local.Version()

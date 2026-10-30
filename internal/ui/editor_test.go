@@ -468,7 +468,7 @@ func TestP4GitPanelDiffAndReadOnly(t *testing.T) {
 	}
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
 	d := a.currentFile()
-	if !strings.Contains(d.buffer.String(), "+package disk") || !strings.Contains(d.buffer.String(), "-package staged") {
+	if !strings.Contains(d.buffer.String(), "package disk") || !strings.Contains(d.buffer.String(), "package staged") {
 		t.Fatal("wrong unstaged baseline")
 	}
 	before := d.buffer.String()
@@ -483,7 +483,7 @@ func TestP4GitPanelDiffAndReadOnly(t *testing.T) {
 		t.Fatal(e)
 	}
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != d && a.currentFile().loaded })
-	if !strings.Contains(a.currentFile().buffer.String(), "+package staged") {
+	if !strings.Contains(a.currentFile().buffer.String(), "package staged") {
 		t.Fatal("wrong staged baseline")
 	}
 	tt.Advance(300 * time.Millisecond)
@@ -822,7 +822,7 @@ func TestP4DiskComparisonPreservesSnapshotUntilRefresh(t *testing.T) {
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != source && a.currentFile().loaded })
 	d := a.currentFile()
 	before := d.buffer.String()
-	if !strings.Contains(before, "-local version") || !strings.Contains(before, "+disk version") || d.file.Reason == "" {
+	if !strings.Contains(before, "local version") || !strings.Contains(before, "disk version") || d.file.Reason == "" || len(d.gitRows) != 2 || d.gitRows[0].kind != '-' || d.gitRows[1].kind != '+' {
 		t.Fatal("comparison is not read-only unified diff", before)
 	}
 	source.buffer.Set("local version two\n")
@@ -835,7 +835,7 @@ func TestP4DiskComparisonPreservesSnapshotUntilRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	p4Wait(t, tt, q, func() bool { return !d.loading })
-	if d.comparisonStale || !strings.Contains(d.buffer.String(), "-local version two") {
+	if d.comparisonStale || !strings.Contains(d.buffer.String(), "local version two") {
 		t.Fatal("explicit comparison refresh failed", d.err)
 	}
 	// Restart restores the comparison tab identity, but not its immutable text.
@@ -844,7 +844,7 @@ func TestP4DiskComparisonPreservesSnapshotUntilRefresh(t *testing.T) {
 	a.selectFile(source)
 	a.showDiskComparison(source)
 	p4Wait(t, tt, q, func() bool { return d.loaded && !d.loading })
-	if a.currentFile() != d || d.err != "" || !strings.Contains(d.buffer.String(), "-local version two") {
+	if a.currentFile() != d || d.err != "" || !strings.Contains(d.buffer.String(), "local version two") {
 		t.Fatal("reopening from the source left the restored comparison unusable", d.err)
 	}
 }

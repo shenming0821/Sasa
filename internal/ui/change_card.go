@@ -200,8 +200,9 @@ func (a *App) setTurnReviewFile(d *filePage) {
 		d.path = filepath.Join(d.root, d.path)
 	}
 	text := f.Patch
+	d.gitNote = ""
 	if !f.Exact {
-		text = "记录不完整，以下按操作顺序显示已保存的差异，未合并为净变更。\n\n" + text
+		d.gitNote = "记录不完整，以下按操作顺序显示已保存的差异，未合并为净变更。"
 	}
 	if text == "" {
 		text = "本轮无净内容增减"

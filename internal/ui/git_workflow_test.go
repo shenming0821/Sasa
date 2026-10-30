@@ -90,7 +90,7 @@ func TestGitWorkflowStagesOnlyChosenFileAndCommitsIndex(t *testing.T) {
 		return d != nil && d.loaded && !d.loading && d.gitCommit == info.Hash
 	})
 	d := a.currentFile()
-	if len(d.gitCommitFiles) != 1 || d.gitCommitFiles[0].Path != "README.md" || !strings.Contains(d.buffer.String(), "+selected") {
+	if len(d.gitCommitFiles) != 1 || d.gitCommitFiles[0].Path != "README.md" || !strings.Contains(d.buffer.String(), "selected") {
 		t.Fatal("commit content not shown", d.err)
 	}
 }
@@ -132,13 +132,13 @@ func TestGitHistoryCommitExpandCollapseAndOpenChosenFile(t *testing.T) {
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded && !a.currentFile().loading })
 	d := a.currentFile()
 	if d.gitCommitFiles[d.gitCommitFile].Path != "internal/main.go" ||
-		!strings.Contains(d.buffer.String(), "+package chosen") || strings.Contains(d.buffer.String(), "+history readme") {
+		!strings.Contains(d.buffer.String(), "package chosen") || strings.Contains(d.buffer.String(), "history readme") {
 		t.Fatal("file click did not select the corresponding historical diff", d.err)
 	}
 	a.gitOpenCommit(w, info, "README.md")
 	a.gitOpenCommit(w, info, "internal/main.go")
 	p4Wait(t, tt, q, func() bool { return !d.loading })
-	if d.gitCommitFiles[d.gitCommitFile].Path != "internal/main.go" || !strings.Contains(d.buffer.String(), "+package chosen") {
+	if d.gitCommitFiles[d.gitCommitFile].Path != "internal/main.go" || !strings.Contains(d.buffer.String(), "package chosen") {
 		t.Fatal("late result replaced the last selected file")
 	}
 	other := a.workspace(t.TempDir())
@@ -466,12 +466,12 @@ func TestGitHistoryPerFileNavigationAndPagination(t *testing.T) {
 	a.gitOpenCommit(w, w.gitHistory[0])
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
 	d := a.currentFile()
-	if len(d.gitCommitFiles) != 2 || !strings.Contains(d.buffer.String(), "+history readme") {
+	if len(d.gitCommitFiles) != 2 || !strings.Contains(d.buffer.String(), "history readme") {
 		t.Fatal("historical first file missing", d.err)
 	}
 	a.gitStepFile(d, 1)
 	p4Wait(t, tt, q, func() bool { return !d.loading })
-	if !strings.Contains(d.buffer.String(), "+package historical") || strings.Contains(d.buffer.String(), "+history readme") {
+	if !strings.Contains(d.buffer.String(), "package historical") || strings.Contains(d.buffer.String(), "history readme") {
 		t.Fatal("historical file selection showed wrong file")
 	}
 	if err := tt.Click("打开文件"); err != nil {

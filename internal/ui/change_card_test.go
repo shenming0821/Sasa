@@ -108,7 +108,7 @@ func TestChangeCardResponsiveExpansionAndHistoricReview(t *testing.T) {
 					t.Fatal(err)
 				}
 				d := a.currentFile()
-				if d == nil || d.turnReview == nil || d.turnReview.selected != 1 || !strings.Contains(d.buffer.String(), "+added") || d.gitReview.Blockable {
+				if d == nil || d.turnReview == nil || d.turnReview.selected != 1 || !strings.Contains(d.buffer.String(), "added") || d.gitReview.Blockable {
 					t.Fatal("file did not open immutable protocol diff")
 				}
 				a.gitStepFile(d, 1)
