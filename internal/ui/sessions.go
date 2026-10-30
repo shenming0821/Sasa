@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"strings"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -74,6 +75,8 @@ type session struct {
 	forkUncertain        bool
 	submitCancel         context.CancelFunc
 	submitStop           bool
+	releaseAfter         time.Time
+	releasing            bool
 }
 
 func (s *session) rowHandle(id string) *native.Handle {
@@ -126,7 +129,7 @@ func (a *App) selectSession(s *session) {
 	a.ensureSessionTab(s)
 	a.compactSidebar = false
 	s.detailsOpen = false
-	if !s.loaded && (a.win != nil || a.dispatch != nil) {
+	if !s.loaded && !s.releasing && (a.win != nil || a.dispatch != nil) {
 		a.recoverSession(s)
 	}
 }
@@ -175,6 +178,7 @@ func (a *App) closeSession(s *session) {
 		}
 	}
 	s.open = false
+	s.releaseAfter = time.Now().Add(closedSessionRetention)
 	a.removeWorkspaceTab(id)
 	s.completion.focus = false
 	if a.activeTab != id {

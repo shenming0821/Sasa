@@ -48,7 +48,7 @@ func (a *App) rightPanel(c *native.Context) {
 			native.Column(c).FillWidth().Padding(12).Gap(12).Children(func() {
 				native.Text(c, "会话历史").FontSize(13).Bold()
 				native.TextInput(c, &a.historyQuery).Label("搜索历史").Placeholder("搜索已加载的历史").FillWidth().FontSize(12)
-				native.Segmented(c, &a.historyScope, "当前项目", "全部项目").FillWidth()
+				a.historyScopeControl(c)
 			})
 			a.historyBrowser(c)
 			return

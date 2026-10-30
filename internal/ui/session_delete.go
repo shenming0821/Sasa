@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
@@ -16,7 +17,7 @@ func (a *App) threadDeleted(kind agent.AgentKind, runtime, id string) bool {
 }
 
 func (a *App) canDeleteSession(target *session) bool {
-	return target != nil && !a.quitting && !a.quitDialog && !target.State.Busy && !target.recovering &&
+	return target != nil && !a.quitting && !a.quitDialog && !target.State.Busy && !target.recovering && !target.releasing &&
 		!target.historyLoading && !target.forking && !target.forkUncertain && !target.reviewRequired &&
 		!target.saved.Active && !(target.loaded && target.recoveryBlocked) && !target.imagesImporting && target.submitCancel == nil
 }
@@ -135,4 +136,7 @@ func (a *App) deleteSession(target *session) {
 	}
 	a.lastSaved = nil
 	a.persist()
+	if a.canAsync() {
+		a.releaseClosedSession(target, time.Now())
+	}
 }

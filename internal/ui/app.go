@@ -151,7 +151,7 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
-	return a.open && a.sessionBackend() != nil && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
+	return a.open && a.sessionBackend() != nil && !a.releasing && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		!a.imagesImporting && a.State.Cwd != "" && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
 }
 

@@ -49,7 +49,9 @@ type Client struct {
 }
 
 func Start(ctx context.Context, executable, cwd string) (*Client, error) {
-	c, err := startProcess(executable, []string{"app-server", "--listen", "stdio://"}, cwd)
+	// Fuyu applies its own close grace period. Once it unsubscribes, release
+	// native resources immediately rather than retaining another idle cache.
+	c, err := startProcess(executable, []string{"-c", "thread_unload_delay_secs=0", "app-server", "--listen", "stdio://"}, cwd)
 	if err != nil {
 		return nil, err
 	}

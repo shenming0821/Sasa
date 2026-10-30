@@ -34,7 +34,8 @@ def metadata(thread):
     data = threads[thread]
     return {
         "id": thread, "cwd": data["cwd"], "preview": data.get("title", ""),
-        "turns": [], "status": {"type": "idle"},
+        "parentThreadId": data.get("parentThreadId"),
+        "turns": [], "status": {"type": "active" if (root / (thread + ".active")).exists() else "idle"},
     }
 
 
@@ -72,6 +73,8 @@ for line in sys.stdin:
         result = {"thread": metadata(thread), "cwd": threads[thread]["cwd"],
                   "model": "P3-fixture", "approvalPolicy": "on-request",
                   "sandbox": {"type": "readOnly"}}
+    elif method == "thread/loaded/list":
+        result = {"data": list(threads), "nextCursor": None}
     elif method == "thread/list":
         values = [metadata(t) for t in reversed(threads)]
         start = int(p.get("cursor") or "0")
@@ -86,6 +89,16 @@ for line in sys.stdin:
         thread = p["threadId"]
         result = {"thread": {**metadata(thread),
                             "turns": threads[thread]["turns"] if p.get("includeTurns") else []}}
+    elif method == "thread/backgroundTerminals/list":
+        thread = p["threadId"]
+        result = {"data": [{"processId": "background"}] if (root / (thread + ".terminal")).exists() else [],
+                  "nextCursor": None}
+    elif method == "thread/unsubscribe":
+        thread = p["threadId"]
+        if (root / (thread + ".unsubscribe-error")).exists():
+            emit({"id": m["id"], "error": {"code": -32603, "message": "uncertain unsubscribe"}})
+            continue
+        result = {"status": "unsubscribed"}
     elif method == "turn/start":
         thread = p["threadId"]
         text = p["input"][0]["text"]

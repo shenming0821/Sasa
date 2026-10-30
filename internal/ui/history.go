@@ -25,7 +25,7 @@ func (a *App) recoverSession(s *session) {
 // preserving the fork's deferred goal instead of resuming it a second time.
 func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 	backend, ok := a.forSession(s).sessionBackend().(historyBackend)
-	if !ok || s.State.Disconnected || s.recovering || s.forking || s.State.ThreadID == "" {
+	if !ok || s.State.Disconnected || s.recovering || s.releasing || s.forking || s.State.ThreadID == "" {
 		return
 	}
 	if s.loaded && (!s.recoveryBlocked || s.writerOccupied) {

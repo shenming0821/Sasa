@@ -315,9 +315,23 @@ func (a *App) historyPanel(c *native.Context) {
 		})
 		native.Column(c).FillWidth().Padding(12).Gap(12).Children(func() {
 			native.TextInput(c, &a.historyQuery).Label("搜索历史").Placeholder("搜索已加载的历史").FillWidth().FontSize(12)
-			native.Segmented(c, &a.historyScope, "当前项目", "全部项目").FillWidth()
+			a.historyScopeControl(c)
 		})
 		a.historyBrowser(c)
+	})
+}
+
+func (a *App) historyScopeControl(c *native.Context) {
+	t := c.Theme()
+	labels := []string{"当前项目", "全部项目"}
+	parts := native.SegmentedBase(c, &a.historyScope, len(labels))
+	parts.Track.Label("历史项目范围").FillWidth().AlignItems(native.Stretch).
+		Padding(2).Gap(2).Radius(8).Background(t.Surface).Border(1, t.Border).Children(func() {
+		for index, label := range labels {
+			segment := parts.Segment(index).Label(label).Padding(6, 10).Radius(6).TextColor(t.Text)
+			selectedButtonFace(c, segment, a.historyScope == index, 6, 0)
+			segment.Children(func() { native.Text(c, label).SingleLine() })
+		}
 	})
 }
 

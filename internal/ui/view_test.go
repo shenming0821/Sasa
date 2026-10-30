@@ -96,7 +96,7 @@ func TestUserBubbleLongPlainTextLayout(t *testing.T) {
 				if !ok || bubble.X < 0 || bubble.X+bubble.W > float32(width)+0.5 || bubble.H > 1600 {
 					t.Fatalf("long question missing or outside viewport: %+v", bubble)
 				}
-				if bubble.H < 6*24+32 {
+				if bubble.H < 6*24+16 {
 					t.Fatalf("question lines are too dense: %+v", bubble)
 				}
 				if m.Text != text {

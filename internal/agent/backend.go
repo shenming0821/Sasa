@@ -65,6 +65,13 @@ type ThreadReader interface {
 	ReadThreadMeta(context.Context, string) (ThreadMeta, error)
 }
 
+// IdleThreadReleaser releases this connection's subscription only after checking
+// native activity. True also covers an uncertain unsubscribe response: the
+// caller must resume before using the thread again.
+type IdleThreadReleaser interface {
+	ReleaseIdleThread(context.Context, string) (bool, error)
+}
+
 type Forker interface {
 	ForkThread(context.Context, string) (ResumedThread, error)
 }

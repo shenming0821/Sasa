@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
 type maintenanceState struct {
@@ -50,6 +51,7 @@ func (a *App) maintain(now time.Time) time.Duration {
 	}
 	a.advanceFileExit()
 	a.checkpointFiles()
+	a.releaseClosedSessions(now)
 	if now.Sub(a.trimmedAt) >= 30*time.Second {
 		a.trimEditorCaches()
 		a.trimmedAt = now
@@ -89,6 +91,13 @@ func (a *App) maintenanceDelay(now time.Time) time.Duration {
 		if d.dirty() {
 			delay = min(delay, 500*time.Millisecond)
 			break
+		}
+	}
+	for _, s := range a.sessions {
+		if s.canReleaseRuntime() {
+			if _, ok := a.forSession(s).sessionBackend().(agent.IdleThreadReleaser); ok {
+				delay = min(delay, max(100*time.Millisecond, s.releaseAfter.Sub(now)))
+			}
 		}
 	}
 	if d := a.currentFile(); d != nil && d.kind == "file" {

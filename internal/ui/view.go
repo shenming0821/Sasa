@@ -453,7 +453,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 				if m.Text != "" {
 					native.Row(c).FillWidth().Justify(native.End).Children(func() {
 						native.Text(c, m.Text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
-							MaxWidthPercent(85).Padding(16, 20).Radius(20).Background(t.Surface)
+							MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(t.Surface)
 					})
 				}
 			} else if m.Role == "assistant" {
