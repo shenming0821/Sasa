@@ -16,9 +16,12 @@ import (
 
 func navigationTickPixels(picture *image.RGBA, rail native.Rect, center float32) int {
 	ink := picture.RGBAAt(int(rail.X+rail.W/2), int(center))
+	background := picture.RGBAAt(int(rail.X+1), int(center))
+	contrast := math.Abs(float64(int(ink.R) - int(background.R)))
 	count := 0
 	for column := int(rail.X + 2); column < int(rail.X+rail.W-2); column++ {
-		if picture.RGBAAt(column, int(center)) == ink {
+		pixel := picture.RGBAAt(column, int(center))
+		if math.Abs(float64(int(pixel.R)-int(background.R))) >= contrast*.5 {
 			count++
 		}
 	}
@@ -70,6 +73,9 @@ func TestConversationNavigationBothAgents(t *testing.T) {
 						if dark && lastBrightness <= firstBrightness || !dark && lastBrightness >= firstBrightness {
 							t.Fatalf("last tick is not highlighted at bottom: first=%v last=%v", firstColor, lastColor)
 						}
+						if navigationTickPixels(picture, rail, rail.Y+start+.5*step) != navigationTickPixels(picture, rail, rail.Y+start+13.5*step) {
+							t.Fatal("active tick is longer without hover")
+						}
 					}
 					assertLatestHighlight()
 					x, y := rail.X+rail.W/2, rail.Y+start+2.5*step
@@ -93,7 +99,7 @@ func TestConversationNavigationBothAgents(t *testing.T) {
 					selectedPixels := navigationTickPixels(tt.Image(), rail, y)
 					nearPixels := navigationTickPixels(tt.Image(), rail, y-step)
 					farPixels := navigationTickPixels(tt.Image(), rail, y+5*step)
-					if selectedPixels <= beforePixels || selectedPixels-beforePixels > 9 || nearPixels <= farPixels || leftEdge(tt.Image()) != beforeLeft {
+					if selectedPixels <= beforePixels || selectedPixels-beforePixels > 11 || nearPixels <= farPixels || leftEdge(tt.Image()) != beforeLeft {
 						t.Fatalf("marks did not magnify near pointer: before=%d selected=%d near=%d far=%d", beforePixels, selectedPixels, nearPixels, farPixels)
 					}
 					preview, shown := tt.Find("对话预览")
@@ -103,6 +109,29 @@ func TestConversationNavigationBothAgents(t *testing.T) {
 					if preview.X < rail.X+rail.W || preview.X+preview.W > float32(width) || preview.Y < rail.Y-16 || preview.Y+preview.H > rail.Y+rail.H+24 {
 						t.Fatalf("preview clipped: rail=%+v preview=%+v", rail, preview)
 					}
+					titleBounds, foundTitle := tt.Find(a.navigationEntries[2].title())
+					if !foundTitle || math.Abs(float64(titleBounds.Y+titleBounds.H+4-y)) > 1 || math.Abs(float64(preview.X-(rail.X+14+18)-9)) > 1 {
+						t.Fatalf("preview is not aligned with tick: preview=%+v rail=%+v tickY=%v", preview, rail, y)
+					}
+					reply := a.navigationEntries[2].reply
+					replyText := reply.Text
+					reply.Text = ""
+					tt.Frame()
+					if shortPreview, _ := tt.Find("对话预览"); math.Abs(float64(shortPreview.Y+24.1-y)) > 1 {
+						t.Fatal("question-only preview is not centered on title")
+					}
+					reply.Text = replyText
+					tt.Frame()
+					user := a.navigationEntries[2].user
+					userText := user.Text
+					user.Text = strings.Repeat("验证两行问题标题与回复之间空白的对齐位置。", 5)
+					tt.Frame()
+					wrappedTitle, foundTitle := tt.Find(a.navigationEntries[2].title())
+					if !foundTitle || wrappedTitle.H < 30 || math.Abs(float64(wrappedTitle.Y+wrappedTitle.H+4-y)) > 1 {
+						t.Fatalf("wrapped title gap is not aligned: %+v", wrappedTitle)
+					}
+					user.Text = userText
+					tt.Frame()
 					if after, _ := tt.Find("任务输入"); after != composer || a.scroll.Y != before {
 						t.Fatal("hover changed the layout or reading position")
 					}
@@ -114,6 +143,7 @@ func TestConversationNavigationBothAgents(t *testing.T) {
 						t.Fatalf("click missed prompt: row=%d visible=%d..%d", entry.row, first, last)
 					}
 					tt.Move(float32(width)-4, 200)
+					tt.Advance(150 * time.Millisecond)
 					if tt.HasText("对话预览") || a.State.Draft != "保留原草稿" {
 						t.Fatal("preview did not dismiss or draft changed")
 					}

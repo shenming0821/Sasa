@@ -155,9 +155,12 @@ func (a *App) conversationNavigator(c *native.Context, entries []conversationEnt
 	widths := make([]float32, len(entries))
 	for index, entry := range entries {
 		width := float32(8)
-		if selected >= 0 {
+		if selected >= 0 && a.navigationHovering {
 			distance := math.Abs(float64(index - selected))
 			width += float32(8 * math.Exp(-distance*distance/3))
+		}
+		if index == selected && a.navigationHovering {
+			width += 2
 		}
 		if !c.Preferences().ReduceMotion {
 			width = area.Animate(entry.user.ID, width, 100*time.Millisecond)
@@ -182,14 +185,28 @@ func (a *App) conversationNavigator(c *native.Context, entries []conversationEnt
 	if width < 100 {
 		return
 	}
-	height := min(float32(172), max(float32(0), container.H-16))
-	top := min(max(float32(8), 16+start+(float32(selected)+.5)*step-height/2), max(float32(8), container.H-height-8))
 	entry := entries[selected]
-	native.Column(c.Key("conversation-preview")).Label("对话预览").Absolute().Left(44).Top(top).
+	title := entry.title()
+	span := native.Span{Text: title, Size: 13, Weight: 600}
+	_, singleLineHeight := c.MeasureText(0, span)
+	_, wrappedHeight := c.MeasureText(width-30, span)
+	titleHeight := float32(13 * 1.4)
+	if wrappedHeight > singleLineHeight*1.5 {
+		titleHeight *= 2
+	}
+	hasReply := entry.reply != nil && strings.TrimSpace(entry.reply.Text) != ""
+	anchorOffset := 1 + 14 + titleHeight/2
+	if hasReply {
+		anchorOffset = 1 + 14 + titleHeight + 4
+	}
+	minimumPreviewHeight := 2 + 14*2 + titleHeight
+	top := min(max(float32(8), 16+start+(float32(selected)+.5)*step-anchorOffset), max(float32(8), container.H-minimumPreviewHeight-8))
+	height := min(float32(172), max(float32(0), container.H-top-8))
+	native.Column(c.Key("conversation-preview")).Label("对话预览").Absolute().Left(45).Top(top).
 		Width(width).MaxHeight(height).Padding(14).Gap(8).Radius(12).PassThrough().
 		Background(t.Background).Border(1, t.Border.Alpha(.8)).Shadow(0, 5, 16, 0, native.RGBA(0, 0, 0, .12)).Clip().Children(func() {
-		native.Text(c, entry.title()).FontSize(13).FontWeight(600).LineHeight(1.4).MaxLines(2).FillWidth()
-		if entry.reply != nil && strings.TrimSpace(entry.reply.Text) != "" {
+		native.Text(c, title).FontSize(13).FontWeight(600).LineHeight(1.4).MaxLines(2).FillWidth()
+		if hasReply {
 			native.Text(c, conversationExcerpt(entry.reply.Text, 260)).FontSize(12).LineHeight(1.5).TextColor(t.TextMuted).MaxLines(4).FillWidth()
 		}
 	})
