@@ -38,8 +38,8 @@ type execution struct {
 	identity              agent.TurnIdentity
 	process               *process.Process
 	mu                    sync.Mutex
-	writeMu               sync.Mutex
-	controls              agent.RequestTable[controlReply]
+	writeMu               *sync.Mutex
+	controls              *agent.RequestTable[controlReply]
 	pending               map[string]permission
 	resolved              map[string]bool
 	done                  chan struct{}
@@ -50,6 +50,7 @@ type execution struct {
 	interruptAcknowledged bool
 	userAttempted         bool
 	compactRequested      bool
+	localCommand          bool
 	compactBoundary       bool
 	lastUUID              string
 	messageID             string
@@ -59,6 +60,13 @@ type execution struct {
 	background            map[string]bool
 	offsets               map[string]int
 	diagnostics           *diagnosticBuffer
+	connection            *sessionProcess
+	turnDone              chan struct{}
+	finishOnce            sync.Once
+	reusable              bool
+	idleTimer             *time.Timer
+	idleSince             time.Time
+	projectionDigest      string
 }
 
 type diagnosticBuffer struct {
@@ -200,6 +208,10 @@ func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdent
 		return nil, nil, fmt.Errorf("启动 Claude Code：%w", err)
 	}
 	run := &execution{client: c, session: s, identity: identity, process: p, done: make(chan struct{}), pending: make(map[string]permission), resolved: make(map[string]bool), blocks: make(map[int]*contentBlock), tools: make(map[string]map[string]any), seen: make(map[string]bool), background: make(map[string]bool)}
+	run.writeMu = &sync.Mutex{}
+	run.controls = &agent.RequestTable[controlReply]{}
+	run.turnDone = make(chan struct{})
+	run.connection = &sessionProcess{next: make(chan nextExecution), model: model, config: c.processConfiguration(s.Cwd)}
 	run.diagnostics = diagnostics
 	if identity.ID != "" {
 		s.run = run
@@ -306,68 +318,132 @@ func (r *execution) item(method string, item map[string]any) {
 	r.emit(method, map[string]any{"threadId": r.session.ID, "turnId": r.identity.ID, "item": item})
 }
 
-func (r *execution) read() {
-	scanner := bufio.NewScanner(r.process.Stdout)
-	scanner.Buffer(make([]byte, 64<<10), agent.MaxFrameBytes)
-	for scanner.Scan() {
-		var message frame
-		if err := json.Unmarshal(scanner.Bytes(), &message); err != nil {
-			r.mu.Lock()
-			r.problem = fmt.Errorf("Claude JSON 帧损坏：%w", err)
-			r.mu.Unlock()
-			break
-		}
-		if message.Type == "control_response" {
-			r.mu.Lock()
-			if message.Response.RequestID == r.interruptID && message.Response.Subtype == "success" {
-				r.interruptAcknowledged = true
-			}
-			r.mu.Unlock()
-			r.controls.Route(message.Response.RequestID, message.Response)
-			continue
-		}
-		if message.Type == "control_request" {
-			r.permissionRequest(message, len(scanner.Bytes()))
-			continue
-		}
-		if message.Type == "control_cancel_request" {
-			r.cancelRequest(message.RequestID)
-			continue
-		}
-		if message.SessionID != "" && message.SessionID != r.session.ID && r.identity.ID != "" {
-			continue
-		}
-		if message.Type == "result" {
-			r.mu.Lock()
-			if r.result == nil {
-				copy := message
-				r.result = &copy
-			}
-			r.mu.Unlock()
-			_ = r.process.Stdin.Close()
-			time.AfterFunc(2*time.Second, func() { _ = r.process.Close() })
-			continue
-		}
-		if message.Type == "system" && message.Subtype == "compact_boundary" {
-			r.compactBoundary = true
-		}
-		r.project(message)
+func (root *execution) read() {
+	type input struct {
+		frame frame
+		size  int
+		err   error
 	}
-	if err := scanner.Err(); err != nil {
-		r.mu.Lock()
-		r.problem = fmt.Errorf("读取 Claude 协议：%w", err)
-		r.mu.Unlock()
+	incoming := make(chan input, 1)
+	stopScan, scanned := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(scanned)
+		defer close(incoming)
+		scanner := bufio.NewScanner(root.process.Stdout)
+		scanner.Buffer(make([]byte, 64<<10), agent.MaxFrameBytes)
+		for scanner.Scan() {
+			message := input{size: len(scanner.Bytes())}
+			if err := json.Unmarshal(scanner.Bytes(), &message.frame); err != nil {
+				message.err = fmt.Errorf("Claude JSON 帧损坏：%w", err)
+			}
+			select {
+			case incoming <- message:
+			case <-stopScan:
+				return
+			}
+			if message.err != nil {
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			select {
+			case incoming <- input{err: fmt.Errorf("读取 Claude 协议：%w", err)}:
+			case <-stopScan:
+			}
+		}
+	}()
+	r := root
+reading:
+	for {
+		select {
+		case next := <-root.connection.next:
+			r = next.run
+			r.client.mu.Lock()
+			r.session.run = r
+			r.client.mu.Unlock()
+			close(next.ready)
+		case input, ok := <-incoming:
+			if !ok {
+				break reading
+			}
+			if input.err != nil {
+				r.mu.Lock()
+				r.problem = input.err
+				r.mu.Unlock()
+				break reading
+			}
+			message := input.frame
+			if message.Type == "control_response" {
+				r.mu.Lock()
+				if message.Response.RequestID == r.interruptID && message.Response.Subtype == "success" {
+					r.interruptAcknowledged = true
+				}
+				r.mu.Unlock()
+				r.controls.Route(message.Response.RequestID, message.Response)
+				continue
+			}
+			if message.Type == "control_request" {
+				r.permissionRequest(message, input.size)
+				continue
+			}
+			if message.Type == "control_cancel_request" {
+				r.cancelRequest(message.RequestID)
+				continue
+			}
+			if message.SessionID != "" && message.SessionID != r.session.ID && r.identity.ID != "" {
+				continue
+			}
+			if message.Type == "result" {
+				r.mu.Lock()
+				if r.result == nil {
+					copy := message
+					r.result = &copy
+				}
+				ordinary := !r.localCommand && !r.interrupted && len(r.background) == 0 && message.Subtype == "success" && !message.IsError && message.TerminalReason == "completed" && r.problem == nil
+				r.reusable = ordinary
+				r.mu.Unlock()
+				if ordinary {
+					r.finish(nil)
+					if !r.reusable {
+						_ = r.process.Stdin.Close()
+						time.AfterFunc(2*time.Second, func() { _ = root.process.Close() })
+					}
+				} else {
+					_ = r.process.Stdin.Close()
+					time.AfterFunc(2*time.Second, func() { _ = root.process.Close() })
+				}
+				continue
+			}
+			if message.Type == "system" && message.Subtype == "compact_boundary" {
+				r.compactBoundary = true
+			}
+			r.project(message)
+		}
 	}
-	_ = r.process.Stdin.Close()
-	_ = r.process.Stdout.Close()
-	timer := time.AfterFunc(2*time.Second, func() { _ = r.process.Close() })
-	exitErr := r.process.Wait()
+	close(stopScan)
+	_ = root.process.Stdin.Close()
+	_ = root.process.Stdout.Close()
+	<-scanned
+	timer := time.AfterFunc(2*time.Second, func() { _ = root.process.Close() })
+	exitErr := root.process.Wait()
 	timer.Stop()
 	r.finish(exitErr)
-	close(r.done)
+	if r.reusable && exitErr == nil {
+		r.refreshIdleDigest()
+	}
 	r.client.mu.Lock()
-	delete(r.client.executions, r)
+	if r.session.idle == r {
+		r.session.idle = nil
+		if r.idleTimer != nil {
+			r.idleTimer.Stop()
+		}
+	}
+	if r.session.retiring == r {
+		r.session.retiring = nil
+	}
+	delete(r.client.executions, root)
 	r.client.mu.Unlock()
+	close(root.done)
 }
 
 func (c *Client) Send(ctx context.Context, id, text string) (agent.Turn, error) {
@@ -409,6 +485,15 @@ func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []ag
 	}
 	if len(s.Turns) > 0 {
 		digest, err := c.transcriptDigest(s.ID)
+		source := s.idle
+		if source == nil {
+			source = s.retiring
+		}
+		if err == nil && digest != s.Digest && source != nil {
+			if projection, projectionErr := c.transcriptProjection(s.ID); projectionErr == nil && projection == source.projectionDigest {
+				s.Digest = digest
+			}
+		}
 		if err != nil || digest != s.Digest {
 			c.mu.Unlock()
 			return turn, fmt.Errorf("Claude 原生记录已变化，请先重新核验历史")
@@ -440,8 +525,28 @@ func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []ag
 		return turn, err
 	}
 	model = s.Model
+	idle := s.idle
+	retiring := s.retiring
+	s.idle = nil
+	s.retiring = nil
+	if idle != nil && idle.idleTimer != nil {
+		idle.idleTimer.Stop()
+	}
 	c.mu.Unlock()
-	run, _, err := c.spawn(ctx, s, identity, model)
+	if retiring != nil {
+		retiring.stopProcess()
+	}
+	var run *execution
+	if idle != nil {
+		if idle.connection.model == model && idle.connection.config == c.processConfiguration(s.Cwd) {
+			run, err = idle.continueWith(ctx, identity)
+		} else {
+			idle.stopProcess()
+		}
+	}
+	if run == nil && err == nil {
+		run, _, err = c.spawn(ctx, s, identity, model)
+	}
 	if err == nil && ctx.Err() != nil {
 		run.stopProcess()
 		err = ctx.Err()
@@ -460,6 +565,7 @@ func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []ag
 	}
 	run.emit("turn/started", map[string]any{"threadId": id, "turn": map[string]any{"id": identity.ID, "status": "inProgress"}})
 	run.mu.Lock()
+	run.localCommand = strings.HasPrefix(strings.TrimSpace(text), "/")
 	run.compactRequested = strings.TrimSpace(text) == "/compact" || strings.HasPrefix(strings.TrimSpace(text), "/compact ")
 	run.userAttempted = true
 	run.mu.Unlock()
@@ -493,7 +599,7 @@ func (c *Client) Interrupt(ctx context.Context, id, turnID string) error {
 	}
 	time.AfterFunc(5*time.Second, func() {
 		select {
-		case <-run.done:
+		case <-run.turnDone:
 			return
 		default:
 			_ = run.process.Close()
@@ -503,6 +609,15 @@ func (c *Client) Interrupt(ctx context.Context, id, turnID string) error {
 }
 
 func (r *execution) finish(exitErr error) {
+	r.finishOnce.Do(func() {
+		r.finishTurn(exitErr)
+		if r.turnDone != nil {
+			close(r.turnDone)
+		}
+	})
+}
+
+func (r *execution) finishTurn(exitErr error) {
 	if r.identity.ID == "" {
 		return
 	}
@@ -569,6 +684,9 @@ func (r *execution) finish(exitErr error) {
 		checkpoint := &s.Turns[len(s.Turns)-1]
 		checkpoint.Status, checkpoint.LastUUID = status, r.lastUUID
 		s.Digest, _ = c.transcriptDigest(s.ID)
+		if r.reusable {
+			r.projectionDigest, _ = c.transcriptProjection(s.ID)
+		}
 		if err := c.save(s); err != nil {
 			status = "unknown"
 			checkpoint.Status = status
@@ -577,6 +695,13 @@ func (r *execution) finish(exitErr error) {
 	}
 	if s.run == r {
 		s.run = nil
+	}
+	r.reusable = r.reusable && status == "completed" && problem == nil
+	if r.reusable && !c.closed && !c.failed {
+		s.idle = r
+		r.idleSince = time.Now()
+		r.idleTimer = time.AfterFunc(sessionIdleTimeout, r.expireIdle)
+		c.trimIdleProcesses()
 	}
 	c.mu.Unlock()
 	c.turns.Complete(r.identity.Session, r.identity.Generation, r.identity.ID)

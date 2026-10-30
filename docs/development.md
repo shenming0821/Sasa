@@ -34,7 +34,7 @@ bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 
 `-codex /absolute/path` 优先使用指定文件，文件失效时明确报错。路径含空格可正常使用；自动搜索排除空目录与相对 PATH 项。npm/Bun 的 `#!/usr/bin/env node` 包装入口会检查 Node.js 是否可找到，避免只修复 Codex 路径后仍无法启动。
 
-登录 shell 环境探测最多等待 2 秒，输出最多 64 KiB，失败后继续检查常见目录；版本探测最多 5 秒，App Server 初始化单独允许 60 秒。未找到 Codex、缺少 Node.js 或连接失败时，窗口显示具体原因。自定义安装位置可通过登录 shell 的 PATH 或 `-codex` 指定。实际验证见[启动路径验收](verification/2026-10-23-codex-discovery.md)。
+窗口先恢复本地索引并显示，再后台发现与连接 Agent。登录 shell 环境探测最多等待 2 秒，输出最多 64 KiB，失败后继续检查常见目录；版本探测与 App Server 初始化并行，分别最多 5 秒和 60 秒。未找到 Codex、缺少 Node.js 或连接失败时，窗口显示具体原因。自定义安装位置可通过登录 shell 的 PATH 或 `-codex` 指定。实际验证见[启动路径验收](verification/2026-10-23-codex-discovery.md)。
 
 默认数据目录为 `~/Library/Application Support/Fuyu`，可用 `-data-dir /absolute/path` 隔离测试实例。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的 `CODEX_HOME`（默认 `~/.codex`），切换原生历史目录时使用独立数据目录。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
 

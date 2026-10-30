@@ -174,6 +174,14 @@ func (r *execution) project(message frame) {
 }
 
 func (r *execution) permissionRequest(message frame, size int) {
+	if r.turnDone != nil {
+		select {
+		case <-r.turnDone:
+			_ = r.write(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "error", "request_id": message.RequestID, "error": "Turn already completed"}})
+			return
+		default:
+		}
+	}
 	var request struct {
 		Subtype string `json:"subtype"`
 		permission

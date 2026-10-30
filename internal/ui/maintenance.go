@@ -67,6 +67,7 @@ func (a *App) maintain(now time.Time) time.Duration {
 		a.refreshProjects()
 	}
 	a.prewarmCompletionSkills()
+	a.prewarmModels()
 	if a.savePending && !now.Before(a.saveDue) {
 		a.persist()
 	}

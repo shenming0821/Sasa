@@ -19,6 +19,7 @@ type session struct {
 	nativeThreads        []agent.ThreadMeta
 	threadsCursor        *string
 	threadsLoading       bool
+	threadsReload        bool
 	threadsLayoutPending bool
 	threadsError         string
 	threadSources        map[backendKey]threadSource

@@ -97,6 +97,9 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		}
 		if a.forSession(s).sessionBackend() == nil {
 			s.State.Error, s.State.Disconnected = "当前 Agent 尚未连接，请核验运行时配置。", true
+			if a.startup != nil {
+				s.State.Error = ""
+			}
 		} else if disconnected && s.kind.Normalized() == agent.Codex {
 			s.State.Error, s.State.Disconnected = startupError, true
 		}

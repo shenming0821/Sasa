@@ -335,7 +335,13 @@ func (a *App) loadThreadList() {
 			backends[source] = history
 		}
 	}
-	if (len(a.threadSources) > 0 || len(backends) <= 1 && len(a.nativeThreads) > 0) && a.threadsCursor == nil && a.threadsError == "" {
+	missingSource := false
+	for source := range backends {
+		if _, exists := a.threadSources[source]; !exists {
+			missingSource = true
+		}
+	}
+	if !missingSource && (len(a.threadSources) > 0 || len(backends) <= 1 && len(a.nativeThreads) > 0) && a.threadsCursor == nil && a.threadsError == "" {
 		return
 	}
 	sources := make([]backendKey, 0, len(backends))
@@ -416,6 +422,10 @@ func (a *App) loadThreadList() {
 				}
 			}
 			a.threadsLayoutPending = true
+			if a.threadsReload {
+				a.threadsReload = false
+				a.loadThreadList()
+			}
 		})
 	}()
 }

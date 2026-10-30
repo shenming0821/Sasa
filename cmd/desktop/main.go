@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -70,50 +71,63 @@ func run() error {
 		}
 		*cwd = path
 	}
-	resolved, searchPath, launchErr := process.ResolveCodex(*executable)
-	if launchErr == nil {
-		launchErr = os.Setenv("PATH", searchPath)
-	}
-	version := "Codex 不可用"
-	if launchErr == nil {
-		versionCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		value, err := codex.Version(versionCtx, resolved)
-		cancel()
-		if err == nil {
-			version = value
-		}
-	}
-	serverDir, err := os.UserHomeDir()
-	if err != nil {
-		serverDir = os.TempDir()
-	}
-	var client *codex.Client
-	if launchErr == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		client, launchErr = codex.Start(ctx, resolved, serverDir)
-		cancel()
-	}
-	var backend ui.Backend
-	if client != nil {
-		defer client.Close()
-		backend = client
-	}
-	desktop := ui.New(backend, strings.TrimSpace(version), *cwd, launchErr)
-	claudeExecutable, claudeErr := claude.ResolveExecutable()
-	if claudeErr == nil {
-		claudeClient, err := claude.New(claudeExecutable, "", filepath.Join(*dataDir, "claude"))
-		if err == nil {
-			defer claudeClient.Close()
-			err = store.BindAgentRuntime(agent.Claude, claudeClient.Home())
-			if err == nil {
-				err = desktop.RegisterBackend(agent.Claude, claudeClient.Home(), claudeClient)
-			}
-		}
-		claudeErr = err
-	}
-	desktop.SetAgentError(agent.Claude, claudeErr)
+	desktop := ui.New(nil, "Codex", *cwd, nil)
+	desktop.SetStartup(func(ctx context.Context, publish func(ui.RuntimeConnection)) {
+		loadRuntimes(ctx, *executable, *dataDir, publish)
+	})
 	if err := desktop.AttachStore(store); err != nil {
 		return fmt.Errorf("restore application index (original data preserved): %w", err)
 	}
 	return desktop.Run()
+}
+
+func loadRuntimes(ctx context.Context, executable, dataDir string, publish func(ui.RuntimeConnection)) {
+	resolved, searchPath, launchErr := process.ResolveCodex(executable)
+	if launchErr == nil {
+		launchErr = os.Setenv("PATH", searchPath)
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	var workers sync.WaitGroup
+	defer workers.Wait()
+	workers.Go(func() {
+		path, err := claude.ResolveExecutable()
+		var client *claude.Client
+		if err == nil {
+			client, err = claude.New(path, "", filepath.Join(dataDir, "claude"))
+		}
+		result := ui.RuntimeConnection{Kind: agent.Claude, Err: err}
+		if client != nil {
+			defer client.Close()
+			result.Backend, result.Runtime = client, client.Home()
+		}
+		publish(result)
+		<-ctx.Done()
+	})
+	if launchErr != nil {
+		publish(ui.RuntimeConnection{Kind: agent.Codex, Err: launchErr})
+		return
+	}
+	workers.Go(func() {
+		versionCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if version, err := codex.Version(versionCtx, resolved); err == nil {
+			publish(ui.RuntimeConnection{Version: strings.TrimSpace(version)})
+		}
+	})
+	serverDir, err := os.UserHomeDir()
+	if err != nil {
+		serverDir = os.TempDir()
+	}
+	startCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	client, err := codex.Start(startCtx, resolved, serverDir)
+	cancel()
+	result := ui.RuntimeConnection{Kind: agent.Codex, Err: err}
+	if client != nil {
+		defer client.Close()
+		result.Backend = client
+	}
+	publish(result)
+	<-ctx.Done()
 }

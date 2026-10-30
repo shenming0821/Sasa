@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import time
 
 
 def emit(message):
@@ -14,7 +15,12 @@ for line in sys.stdin:
     message = json.loads(line)
     if message["type"] == "control_request":
         request = message["request"]
+        if request["subtype"] == "initialize" and os.path.exists("record-catalog"):
+            with open("catalog-starts", "a") as starts:
+                starts.write("initialize\n")
         if request["subtype"] == "get_skills_dialog":
+            while os.path.exists("skills-wait"):
+                time.sleep(0.01)
             result = {"skills": [
                 {"name": "frontend-design", "display_name": "frontend-design", "source": "user", "state": "on"},
                 {"name": "trace-analysis", "display_name": "winning_trace_analysis", "source": "project", "state": "user-invocable-only"},

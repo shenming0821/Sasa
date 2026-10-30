@@ -24,6 +24,7 @@ import (
 type Backend = agent.Backend
 
 type App struct {
+	startupState
 	maintenanceState
 	completionCatalogState
 	settingsState
@@ -41,6 +42,7 @@ type App struct {
 	editorState
 	backend            Backend
 	backends           map[backendKey]Backend
+	modelCatalogs      map[agent.CacheKey]*modelCatalogEntry
 	agentErrors        map[agent.AgentKind]string
 	defaultAgent       agent.AgentKind
 	lastClaudeModels   map[string]string
@@ -110,6 +112,9 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 }
 
 func (a *App) Run() error {
+	defer a.catalogWrites.Wait()
+	stopStartup := func() {}
+	defer func() { stopStartup() }()
 	defer close(a.shutdown)
 	defer a.closeWorkspaceResources()
 	mygo.App.WhenReady(func() {
@@ -121,6 +126,7 @@ func (a *App) Run() error {
 		a.installLifecycle()
 		a.installSettingsMenu()
 		a.installNotificationActions()
+		a.loadCompletionDiskCache()
 		a.refreshProjects()
 		if a.backend != nil {
 			go a.receive()
@@ -132,6 +138,7 @@ func (a *App) Run() error {
 			go a.receiveBackend(backend, key)
 		}
 		a.recoverSelectedSession()
+		stopStartup = a.startRuntimeLoading()
 		go a.autosave()
 	})
 	return mygo.App.Run()
@@ -381,26 +388,28 @@ func (a *App) receive() {
 
 func (a *App) receiveBackend(backend Backend, key backendKey) {
 	events := backend.Events()
-	for event := range events {
-		batch := []agent.Event{event}
-		timer := time.NewTimer(40 * time.Millisecond)
-	collect:
-		for len(batch) < 256 {
-			select {
-			case next, ok := <-events:
-				if !ok {
-					break collect
-				}
-				batch = append(batch, next)
-			case <-timer.C:
-				break collect
+	delivery := eventDelivery{}
+	for {
+		var event agent.Event
+		select {
+		case next, ok := <-events:
+			if !ok {
+				return
 			}
+			event = next
+		case <-a.shutdown:
+			return
 		}
+		timer := time.NewTimer(40 * time.Millisecond)
+		batch := delivery.collect(event, events, timer.C, a.shutdown)
 		if !timer.Stop() {
 			select {
 			case <-timer.C:
 			default:
 			}
+		}
+		if len(batch) == 0 {
+			return
 		}
 		for i := range batch {
 			batch[i].Session.Agent = key.kind

@@ -22,6 +22,10 @@ type Client struct {
 	failed                     bool
 	turns                      agent.TurnMap
 	queue                      eventQueue
+	catalogs                   map[string]*catalogEntry
+	catalogContext             context.Context
+	cancelCatalogs             context.CancelFunc
+	catalogWorkers             sync.WaitGroup
 }
 
 type session struct {
@@ -35,6 +39,8 @@ type session struct {
 	Generation     agent.ProcessGeneration `json:"generation"`
 	Digest         string                  `json:"digest"`
 	run            *execution
+	idle           *execution
+	retiring       *execution
 }
 
 type checkpoint struct {
@@ -99,6 +105,7 @@ func New(executable, home, stateDir string) (*Client, error) {
 		}
 		c.sessions[s.ID] = &s
 	}
+	c.catalogContext, c.cancelCatalogs = context.WithCancel(context.Background())
 	c.queue.start()
 	return c, nil
 }
@@ -232,6 +239,13 @@ func (c *Client) Close() {
 		return
 	}
 	c.closed = true
+	c.cancelCatalogs()
+	for _, s := range c.sessions {
+		if s.idle != nil && s.idle.idleTimer != nil {
+			s.idle.idleTimer.Stop()
+		}
+		s.idle = nil
+	}
 	var running []*execution
 	for run := range c.executions {
 		running = append(running, run)
@@ -240,5 +254,6 @@ func (c *Client) Close() {
 	for _, run := range running {
 		run.stopProcess()
 	}
+	c.catalogWorkers.Wait()
 	c.queue.close()
 }

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -88,9 +89,10 @@ type Tab struct {
 }
 
 type Store struct {
-	db   *sql.DB
-	lock *os.File
-	dir  string
+	catalogMu sync.Mutex
+	db        *sql.DB
+	lock      *os.File
+	dir       string
 }
 
 func (s *Store) Directory() string { return s.dir }

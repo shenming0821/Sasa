@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -13,62 +14,137 @@ type modelSender = agent.ModelSender
 
 type modelCatalog = agent.ModelCatalog
 
+type modelCatalogEntry struct {
+	models  []agent.Model
+	loading bool
+	loaded  bool
+	error   string
+	checked time.Time
+}
+
 func (a *App) loadModels() {
-	root := a.session
-	if root.modelsCwd != a.State.Cwd || root.modelsRuntime != a.runtimeKey {
-		root.models, root.modelsLoaded = nil, false
-		root.modelsCwd, root.modelsRuntime = a.State.Cwd, a.runtimeKey
-	}
-	if root.modelsLoading {
-		return
+	owner, root := a.session, a.application()
+	key := owner.completionCacheKey()
+	if owner.modelsCwd != key.Cwd || owner.modelsRuntime != key.Runtime {
+		owner.models, owner.modelsLoaded = nil, false
+		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
 	}
 	backend, ok := a.sessionBackend().(modelCatalog)
-	if !ok {
-		root.modelsError = "当前连接不支持读取模型列表"
+	if !ok || owner.State.Disconnected {
 		return
 	}
-	root.modelsLoading, root.modelsError = true, ""
-	cwd, runtime, kind := root.State.Cwd, root.runtimeKey, root.kind.Normalized()
+	if root.modelCatalogs == nil {
+		root.modelCatalogs = make(map[agent.CacheKey]*modelCatalogEntry)
+	}
+	entry := root.modelCatalogs[key]
+	if entry == nil {
+		if len(root.modelCatalogs) >= completionCatalogLimit {
+			var oldest agent.CacheKey
+			var candidate *modelCatalogEntry
+			for k, e := range root.modelCatalogs {
+				if !e.loading && (candidate == nil || e.checked.Before(candidate.checked)) {
+					oldest, candidate = k, e
+				}
+			}
+			if candidate == nil {
+				return
+			}
+			delete(root.modelCatalogs, oldest)
+		}
+		entry = &modelCatalogEntry{}
+		root.modelCatalogs[key] = entry
+	}
+	if entry.loading || !owner.modelsLoaded && entry.loaded && entry.error == "" && time.Since(entry.checked) < completionCatalogTTL {
+		root.applyModelCatalog(key, entry)
+		return
+	}
+	force := entry.error != "" || entry.loaded
+	entry.loading, entry.error = true, ""
+	root.applyModelCatalog(key, entry)
+	ctx, cancel := root.projectContext(30 * time.Second)
 	go func() {
-		ctx, cancel := agent.RequestContext()
 		defer cancel()
 		var models []agent.Model
 		var err error
-		if scoped, ok := backend.(interface {
+		if reloader, ok := backend.(interface {
+			ReloadModelsForDirectory(context.Context, string) ([]agent.Model, error)
+		}); force && ok {
+			models, err = reloader.ReloadModelsForDirectory(ctx, key.Cwd)
+		} else if scoped, ok := backend.(interface {
 			ListModelsForDirectory(context.Context, string) ([]agent.Model, error)
 		}); ok {
-			models, err = scoped.ListModelsForDirectory(ctx, cwd)
+			models, err = scoped.ListModelsForDirectory(ctx, key.Cwd)
 		} else {
 			models, err = backend.ListModels(ctx)
 		}
-		a.update(func() {
-			if root.kind.Normalized() != kind || root.runtimeKey != runtime {
-				return
-			}
-			root.modelsLoading = false
-			if root.State.Cwd != cwd || root.runtimeKey != runtime {
-				root.models, root.modelsLoaded = nil, false
-				return
-			}
+		select {
+		case <-root.shutdown:
+			return
+		default:
+		}
+		root.update(func() {
+			entry.loading, entry.checked = false, time.Now()
 			if err != nil {
-				root.modelsError = "读取模型失败：" + err.Error()
-				return
+				entry.error = "读取模型失败：" + err.Error()
+			} else {
+				entry.models, entry.loaded = models, true
 			}
-			root.models, root.modelsLoaded = models, true
-			if kind == agent.Claude && len(models) > 0 && (root.selectedModel == "" || root.selectedModel == "default" || strings.HasSuffix(root.selectedModel, "[1m]")) {
-				root.selectedModel = models[0].Model
-				for _, model := range models {
-					if !model.Hidden && (root.State.Model != "" && model.DisplayName == root.State.Model || model.Model == a.application().lastClaudeModels[runtime]) {
-						root.selectedModel = model.Model
-						break
-					}
-				}
-				if err := a.persist(); err != nil {
-					root.modelError = "保存模型选择失败：" + err.Error()
-				}
-			}
+			root.applyModelCatalog(key, entry)
 		})
 	}()
+}
+
+func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
+	var selected []*session
+	for _, owner := range a.sessions {
+		if owner.completionCacheKey() != key {
+			if owner.kind.Normalized() == key.Agent && owner.modelsRuntime == key.Runtime && owner.modelsCwd == key.Cwd {
+				owner.models, owner.modelsLoaded, owner.modelsLoading = nil, false, false
+			}
+			continue
+		}
+		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
+		owner.models, owner.modelsLoaded = entry.models, entry.loaded
+		owner.modelsLoading, owner.modelsError = entry.loading, entry.error
+		if key.Agent != agent.Claude || !entry.loaded || len(entry.models) == 0 || entry.loading {
+			continue
+		}
+		if owner.selectedModel == "" || owner.selectedModel == "default" || strings.HasSuffix(owner.selectedModel, "[1m]") {
+			owner.selectedModel = entry.models[0].Model
+			for _, model := range entry.models {
+				if !model.Hidden && (owner.State.Model != "" && model.DisplayName == owner.State.Model || model.Model == a.lastClaudeModels[key.Runtime]) {
+					owner.selectedModel = model.Model
+					break
+				}
+			}
+			selected = append(selected, owner)
+		}
+	}
+	if len(selected) > 0 {
+		if err := a.persist(); err != nil {
+			for _, owner := range selected {
+				owner.modelError = "保存模型选择失败：" + err.Error()
+			}
+		}
+	}
+}
+
+func (a *App) prewarmModels() {
+	if a.session == nil || !a.open || a.State.Cwd == "" || a.State.Disconnected || a.anyBusy() || !a.canAsync() || a.quitting || a.quitStopping {
+		return
+	}
+	entry := a.application().modelCatalogs[a.completionCacheKey()]
+	expired := false
+	if entry != nil && !entry.loading {
+		ttl := completionCatalogTTL
+		if entry.error != "" {
+			ttl = completionRetryDelay
+		}
+		expired = time.Since(entry.checked) >= ttl
+	}
+	if expired || !a.modelsLoaded && !a.modelsLoading && a.modelsError == "" {
+		a.loadModels()
+	}
 }
 
 func shortModel(model string) string { return model[strings.LastIndex(model, "/")+1:] }
@@ -122,7 +198,7 @@ func (a *App) modelPicker(c *native.Context) {
 		root.models, root.modelsLoaded, root.modelsError = nil, false, ""
 		root.modelsCwd, root.modelsRuntime = root.State.Cwd, root.runtimeKey
 	}
-	if a.win != nil || a.dispatch != nil {
+	if !a.State.Disconnected && (a.win != nil || a.dispatch != nil) {
 		if a.kind.Normalized() == agent.Claude {
 			if !root.modelsLoaded && !root.modelsLoading && root.modelsError == "" {
 				a.loadModels()
@@ -212,7 +288,7 @@ func (a *App) modelMenu(c *native.Context) {
 				}
 			})
 		})
-		if root.modelsLoading {
+		if root.modelsLoading && !root.modelsLoaded {
 			native.Text(c, "读取模型列表…").FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 8)
 		}
 		if root.modelsError != "" {

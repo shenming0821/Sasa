@@ -87,15 +87,19 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 			}
 		}
 	}
+	firstStarted := time.Now()
 	first, err := client.Send(ctx, thread.Thread.ID, "In this working directory only, use Bash to write proof.txt containing exactly FUYU_CLAUDE_LIVE followed by a newline. Keep the token FUYU_CLAUDE_LIVE in this conversation for our next turn. Do not save it to memory files, do not use background tasks, and do not change any other files.")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log("first reply:", wait(first))
+	firstProcess := idleExecution(t, client, thread.Thread.ID)
+	firstDuration := time.Since(firstStarted)
 	raw, err := os.ReadFile(filepath.Join(cwd, "proof.txt"))
 	if err != nil || string(raw) != "FUYU_CLAUDE_LIVE\n" {
 		t.Fatalf("proof=%q err=%v", raw, err)
 	}
+	secondStarted := time.Now()
 	second, err := client.Send(ctx, thread.Thread.ID, "Without tools, reply with only the exact token I asked you to remember.")
 	if err != nil {
 		t.Fatal(err)
@@ -103,6 +107,10 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 	if reply := wait(second); !strings.Contains(reply, "FUYU_CLAUDE_LIVE") {
 		t.Fatalf("context=%q", reply)
 	}
+	if current := idleExecution(t, client, thread.Thread.ID); current.process != firstProcess.process {
+		t.Fatal("native continuous conversation did not reuse its process")
+	}
+	t.Logf("native persistent PID=%d first=%s second=%s; one sample, prompts differ", firstProcess.process.Cmd.Process.Pid, firstDuration, time.Since(secondStarted))
 	page, err := client.ListTurns(ctx, thread.Thread.ID, nil)
 	if err != nil || len(page.Data) != 2 {
 		t.Fatalf("history=%+v err=%v", page, err)
@@ -457,6 +465,7 @@ func testLiveClaudeInterruptTool(t *testing.T, background, resumed bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var warmProcess *execution
 	if resumed {
 		warmup, err := client.Send(ctx, thread.Thread.ID, "Reply only FUYU_RESUME_STOP_READY. Do not use tools or write memory.")
 		if err != nil {
@@ -485,6 +494,7 @@ func testLiveClaudeInterruptTool(t *testing.T, background, resumed bool) {
 				t.Fatal(ctx.Err())
 			}
 		}
+		warmProcess = idleExecution(t, client, thread.Thread.ID)
 	}
 	prompt := "Use Bash to run exactly this foreground command in the current directory: printf '%s' $$ > task.pid; printf started > started.txt; sleep 30; printf forbidden > forbidden.txt . Do not change other files, use background tools, or write memory. We will interrupt the running command."
 	if background {
@@ -493,6 +503,14 @@ func testLiveClaudeInterruptTool(t *testing.T, background, resumed bool) {
 	turn, err := client.Send(ctx, thread.Thread.ID, prompt)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if warmProcess != nil {
+		client.mu.Lock()
+		reused := client.sessions[thread.Thread.ID].run
+		client.mu.Unlock()
+		if reused == nil || reused.process != warmProcess.process {
+			t.Fatal("second-turn interruption did not exercise a reused process")
+		}
 	}
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()

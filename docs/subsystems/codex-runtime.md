@@ -2,9 +2,9 @@
 
 ## 入口与资源归属
 
-`cmd/desktop/main.go` 校验初始目录并启动自有 App Server。`run()` 返回前执行 `Client.Close()`，随后 main 才根据错误设置退出码。Fuyu 不连接或终止共享 Codex daemon，不改动用户登录、模型或权限配置。
+`cmd/desktop/main.go` 校验初始目录、恢复本地索引并创建窗口，随后后台启动自有 App Server。`internal/ui/startup.go` 在主线程安装连接并恢复对应会话；退出时取消启动并等待加载器执行 `Client.Close()`，随后 main 才根据错误设置退出码。Fuyu 不连接或终止共享 Codex daemon，不改动用户登录、模型或权限配置。
 
-桌面入口先调用 `internal/runtime/codex.go` 的 `ResolveCodex`：根据当前用户目录、继承环境和有时限的交互式登录 shell 探测定位可执行文件，并返回包含 Node.js 安装目录的 PATH。仅在 UI 与 App Server 创建前更新 Fuyu 进程的 PATH；保留其余环境、`CODEX_HOME` 与用户原生配置。显式路径失效时直接报错，不替换为另一安装。脚本包装入口单独检查 Node.js 依赖；自动搜索不使用项目当前目录。版本探测与 App Server 初始化分别采用 5 秒和 60 秒截止时间，普通 RPC 截止时间保持原约定。安装方式与回归证据见[启动路径验收](../verification/2026-10-23-codex-discovery.md)。
+窗口创建后的后台加载器调用 `internal/runtime/codex.go` 的 `ResolveCodex`：根据当前用户目录、继承环境和有时限的交互式登录 shell 探测定位可执行文件，并返回包含 Node.js 安装目录的 PATH。在启动 Agent 子进程前更新 Fuyu 进程的 PATH；保留其余环境、`CODEX_HOME` 与用户原生配置。显式路径失效时直接报错，不替换为另一安装。脚本包装入口单独检查 Node.js 依赖；自动搜索不使用项目当前目录。版本探测与 App Server 初始化并行，分别采用 5 秒和 60 秒截止时间，普通 RPC 截止时间保持原约定。安装方式与回归证据见[启动路径验收](../verification/2026-10-23-codex-discovery.md)。
 
 `internal/runtime/` 通过参数数组启动进程，为其建立独立进程组。stdio 关闭后读取者负责清理自有组并回收 leader；正常关闭先关闭 stdin，等待最多 2 秒，超时再终止自有组。隔离测试确认：忽略 EOF 的 leader 能强制退出并回收；另建进程组的后代仍可能残留。当前只保证原进程组清理，不保证所有后代清理，也不以模糊名称匹配终止进程。测试自行按精确 PID 清理受控后代。
 
@@ -26,7 +26,7 @@
 
 `internal/app/state.go` 在 UI 线程投影 thread、turn、消息与连接状态。增量与最终文本按 item ID 合并；已结束 turn 的重复事件不能结束下一次提交。连接失效后保持失联，晚到事件不恢复执行。
 
-`internal/ui/app.go` 通过 `Window.Update` 将后台结果投递到主线程。MyGo 的 Update **异步返回**，不能将其当成同步屏障。事件按 40 ms / 最多 256 条批量应用，等待本批主线程回调完成后再派发下一批，同时限制 UI 的待执行工作量；使用原生虚拟列表、稳定消息 ID 与跟随末尾。
+`internal/ui/app.go` 通过 `Window.Update` 将后台结果投递到主线程。MyGo 的 Update **异步返回**，不能将其当成同步屏障。首条可见输出、审批/提问、开始/结束、断线和错误立即刷新；后续文字按 40 ms / 最多 256 条批量应用，等待本批主线程回调完成后再派发下一批，同时限制 UI 的待执行工作量；使用原生虚拟列表、稳定消息 ID 与跟随末尾。
 
 `internal/codex/skills.go` 使用 `skills/list(cwds=[当前目录], forceReload=true)` 读取原生技能与加载错误，UI 筛除 disabled 技能并优先使用 interface 展示信息。选中技能后的 `turn/start` 保留 text 输入，并追加独立的 `type=skill`、`name`、`path` 输入；普通发送仍只有 text。接口由本机 0.163.0 schema 核验，真实只读数据与受控输入测试见[输入候选验收](../verification/2026-10-23-input-completion.md)。
 

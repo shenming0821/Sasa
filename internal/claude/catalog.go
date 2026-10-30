@@ -35,10 +35,22 @@ func (c *Client) ListModels(ctx context.Context) ([]agent.Model, error) {
 }
 
 func (c *Client) ListModelsForDirectory(ctx context.Context, cwd string) ([]agent.Model, error) {
-	raw, err := c.catalog(ctx, cwd)
+	return c.models(ctx, cwd, false)
+}
+
+func (c *Client) ReloadModelsForDirectory(ctx context.Context, cwd string) ([]agent.Model, error) {
+	return c.models(ctx, cwd, true)
+}
+
+func (c *Client) models(ctx context.Context, cwd string, force bool) ([]agent.Model, error) {
+	entry, err := c.directoryCatalog(ctx, cwd, force, true)
 	if err != nil {
 		return nil, err
 	}
+	return append([]agent.Model(nil), entry.models...), entry.modelErr
+}
+
+func catalogModels(raw json.RawMessage) ([]agent.Model, error) {
 	var response struct {
 		Models []struct {
 			Value    string `json:"value"`
@@ -83,11 +95,29 @@ func (c *Client) DefaultModel(ctx context.Context, cwd string) (string, error) {
 }
 
 func (c *Client) ListCommands(ctx context.Context, cwd string) ([]agent.Command, error) {
-	run, raw, err := c.startCatalog(ctx, cwd)
+	return c.commands(ctx, cwd, false)
+}
+
+func (c *Client) ReloadCommands(ctx context.Context, cwd string) ([]agent.Command, error) {
+	return c.commands(ctx, cwd, true)
+}
+
+func (c *Client) commands(ctx context.Context, cwd string, force bool) ([]agent.Command, error) {
+	entry, err := c.directoryCatalog(ctx, cwd, force, false)
 	if err != nil {
 		return nil, err
 	}
-	defer run.stopProcess()
+	commands := append([]agent.Command(nil), entry.commands...)
+	for i := range commands {
+		commands[i].Arguments = append([]string(nil), commands[i].Arguments...)
+		if cwd != "" {
+			commands[i].Cwd = cwd
+		}
+	}
+	return commands, entry.commandErr
+}
+
+func catalogCommands(ctx context.Context, run *execution, raw json.RawMessage, cwd string) ([]agent.Command, error) {
 	var response struct {
 		Commands []struct {
 			Name        string `json:"name"`

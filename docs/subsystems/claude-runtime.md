@@ -8,21 +8,23 @@
 
 ## 协议与进程
 
-`client.go` 管理会话检查点，`protocol.go` 管理每轮子进程与 stream-json。使用 `--permission-prompt-tool stdio`，权限模式由 CLI 按原生配置与当前 cwd 决定；新任务、恢复后的后续任务和模型/技能目录探测共用此启动入口。发送 initialize 并核验返回的 `current_permission_mode` 为非空字符串后再发送用户帧，缺失或格式错误时终止初始化并保持未发送状态。模型和命令目录来自 initialize；模型选择通过 `--model` 传递，命令保留原生 `/名称 参数` 文本。2026-10-29 本机 `permissions.defaultMode=bypassPermissions`，真实 CLI 初始化确认 `current_permission_mode=bypassPermissions`，验证见[权限配置继承](../verification/2026-10-29-claude-permission-mode.md)。
+`client.go` 管理会话检查点，`protocol.go` 与 `session_process.go` 管理任务进程、独立轮次与 stream-json。使用 `--permission-prompt-tool stdio`，权限模式由 CLI 按原生配置与当前 cwd 决定；新任务、恢复后的后续任务和模型/技能目录探测共用此启动入口。发送 initialize 并核验返回的 `current_permission_mode` 为非空字符串后再发送用户帧，缺失或格式错误时终止初始化并保持未发送状态。模型和命令目录来自 initialize；模型选择通过 `--model` 传递，命令保留原生 `/名称 参数` 文本。2026-10-29 本机 `permissions.defaultMode=bypassPermissions`，真实 CLI 初始化确认 `current_permission_mode=bypassPermissions`，验证见[权限配置继承](../verification/2026-10-29-claude-permission-mode.md)。
 
 Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clear`。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他原生命令，本地 `/clear` 保持可见。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。
 
 本机 CLI 的 `/clear` 会发出 `conversation_reset` 并更换 session UUID。Fuyu 发送入口在本地处理这一命令：保存并保留旧会话历史，切换到相同 cwd、后端和模型的空白会话，后续任务再分配新原生 UUID，避免继续持有已被重置的旧身份。见 [/clear 验证](../verification/2026-10-29-claude-clear.md)。
 
-当前实现每轮 spawn，后续使用原 session UUID resume；该策略已通过真实上下文与重开续发验证。两种策略的真实双轮对照均通过，本次记录中第二轮分别约 1.943 秒与 2.034 秒；这只是单次测量，不作为性能统计。首版保留每轮进程基线，并暂不开放会话授权规则；常驻进程的第二轮中断/空闲/授权矩阵未用于生产验收。result 后关闭 stdin 并有界排空 stdout，自有进程组由 `internal/runtime` 回收，模型/命令探测进程也纳入 Client 关闭范围。
+普通成功轮次在完整原生 success/completed result 后保存终态并保留进程，下一轮复用其 reader/writer 和已初始化上下文，分配新的应用轮次身份。空闲 2 分钟回收，最多 4 个空闲进程；模型或关联配置变化时先回收再重新 initialize/resume。slash 命令、失败、中断和仍有后台工具的结果沿用排空并退出的路径。目录探测独立于任务进程。策略、摘要核验和退出边界见[使用性能](performance.md#claude-连续对话进程)。真实同 PID 双轮上下文、重启续聊、同 PID 允许/拒绝/提问和第二轮运行中断通过，见[性能收尾验证](../verification/2026-10-30-performance-completion.md)。
 
 应用 TurnID、发送 user UUID、transcript UUID 与模型 message.id 分开维护。reader 路由控制响应、审批和撤销，等待用户期间继续读取。writer 串行化并限制单次写入 10 秒，控制请求最多 30 秒。协议帧上限 16 MiB；显示队列上限 4096 条/4 MiB，优先移除文字增量并发送缺口标记；控制事件无法保留时明确断开并关闭自有进程，保留未知结果供核验。
 
 初始化阶段取消时，关闭并等待该次自有进程，回滚尚未写入用户帧的检查点，返回 `agent.NotSubmittedError`；这种退出不投影成任务失败或断线。输入帧开始写入后，读取失败继续保留 unknown，不能用请求上下文取消推断未执行。输入区在尚无原生 turn ID 的准备阶段也提供停止操作；若发送已完成，则改发原生 interrupt 并等待终态。
 
-普通成功需 result 的 subtype、is_error、terminal_reason 与正常退出共同确认。`/compact` 的本机原生结果为 success、is_error=false、无 terminal_reason；仅在明确发送该命令且收到 compact_boundary、进程正常退出时认定完成。实测停止返回 `error_during_execution + is_error=true`，terminal_reason 可能为 `aborted_tools` 或 `aborted_streaming`；这两种终态仅在收到对应 interrupt 成功回执时映射 interrupted，无回执仍判失败。无 result、坏帧与不确定写入保留 unknown 检查点并阻止重发。
+普通可复用轮次以完整 result 的 success、is_error=false、terminal_reason=completed 确认任务完成；进程可以继续等待下一轮。本地命令和非复用路径继续结合正常退出核验。`/compact` 的本机原生结果为 success、is_error=false、无 terminal_reason；仅在明确发送该命令且收到 compact_boundary、进程正常退出时认定完成。实测停止返回 `error_during_execution + is_error=true`，terminal_reason 可能为 `aborted_tools` 或 `aborted_streaming`；这两种终态仅在收到对应 interrupt 成功回执时映射 interrupted，无回执仍判失败。无 result、坏帧与不确定写入保留 unknown 检查点并阻止重发。
 
 `/model` 等本地命令也可能成功但没有 terminal_reason。此时要求成功 result、正常进程退出，并在原生历史主链末尾找到同一发送 UUID 的 `system/local_command`、`level=info`、匹配的命令与参数，以及完整的 `local-command-stdout` 输出，才认定完成；一般成功判定及失败保护保持上述规则。
+
+模型、默认模型与技能目录通过 `catalog_cache.go` 按 cwd 共享探测进程、在途请求及结果；Client 自身绑定可执行文件与配置根。模型在 initialize 后立即可用，技能接口的延迟或失败独立反馈。缓存、刷新与退出回收约定见[使用性能](performance.md#窗口启动与模型目录)。
 
 ## 审批与投影
 
