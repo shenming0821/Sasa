@@ -17,6 +17,7 @@ import (
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Fuyu/internal/power"
 	"github.com/shenming0821/Fuyu/internal/project"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
@@ -112,6 +113,11 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 }
 
 func (a *App) Run() error {
+	a.powerController = power.New()
+	defer a.powerController.Close()
+	if err := a.powerController.Set(a.preferences.KeepAwake); err != nil {
+		a.settingsError = "保持唤醒未生效：" + err.Error()
+	}
 	defer a.catalogWrites.Wait()
 	stopStartup := func() {}
 	defer func() { stopStartup() }()

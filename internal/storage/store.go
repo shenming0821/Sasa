@@ -73,6 +73,7 @@ type DeletedThread struct {
 }
 
 type Preferences struct {
+	KeepAwake              string
 	Theme                  string
 	EnglishFont            string
 	ChineseFont            string

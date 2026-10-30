@@ -6,10 +6,13 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/power"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
 type settingsState struct {
+	powerController    *power.Controller
+	awakePicker        bool
 	preferences        storage.Preferences
 	settingsOpen       bool
 	settingsSection    string
@@ -25,12 +28,13 @@ type settingsState struct {
 var settingsIcon = icon(`<path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z"/><circle cx="12" cy="12" r="3"/>`)
 
 func defaultPreferences() storage.Preferences {
-	return storage.Preferences{Theme: "system", EnglishFont: latinFont, ChineseFont: ".PingFang UI SC", CodeFont: latinFont, CompletionNotification: true}
+	return storage.Preferences{KeepAwake: power.Never, Theme: "system", EnglishFont: latinFont, ChineseFont: ".PingFang UI SC", CodeFont: latinFont, CompletionNotification: true}
 }
 
 func (a *App) normalizePreferences() {
 	p := &a.preferences
 	d := defaultPreferences()
+	p.KeepAwake = power.Normalize(p.KeepAwake)
 	if p.Theme != "light" && p.Theme != "dark" {
 		p.Theme = "system"
 	}
@@ -77,8 +81,9 @@ func (a *App) applySystemTheme() {
 func (a *App) openSettings() {
 	a = a.application()
 	a.settingsOpen, a.fontPicker = true, ""
+	a.awakePicker = false
 	if a.settingsSection == "" {
-		a.settingsSection = "外观"
+		a.settingsSection = "通用"
 	}
 	if a.fontFamilies == nil {
 		for _, f := range native.FontFamilies() {
@@ -88,9 +93,22 @@ func (a *App) openSettings() {
 }
 
 func (a *App) savePreferences(previous storage.Preferences) {
+	awakeChanged := a.powerController != nil && (previous.KeepAwake != a.preferences.KeepAwake || a.powerController.Err() != nil)
+	if awakeChanged {
+		if err := a.powerController.Set(a.preferences.KeepAwake); err != nil {
+			a.preferences = previous
+			a.settingsError = "保持唤醒未生效：" + err.Error()
+			return
+		}
+	}
 	if err := a.persist(); err != nil {
 		a.preferences = previous
 		a.settingsError = "设置未保存：" + err.Error()
+		if awakeChanged {
+			if rollbackErr := a.powerController.Set(previous.KeepAwake); rollbackErr != nil {
+				a.settingsError += "；恢复保持唤醒失败：" + rollbackErr.Error()
+			}
+		}
 		return
 	}
 	a.settingsError = ""
@@ -137,7 +155,7 @@ func (a *App) settingsView(c *native.Context) {
 			})
 			native.Row(c).FillWidth().Grow(1).MinHeight(0).Gap(20).Children(func() {
 				native.Column(c).Width(82).FillHeight().Gap(4).Children(func() {
-					for _, section := range []string{"外观", "通知"} {
+					for _, section := range []string{"通用", "外观", "通知"} {
 						b := treeButton(c, "设置分类 "+section).FillWidth().Padding(8).Justify(native.Start)
 						if a.settingsSection == section {
 							b.Background(t.SurfacePressed).TextColor(t.Text)
@@ -145,13 +163,16 @@ func (a *App) settingsView(c *native.Context) {
 						b.Children(func() { native.Text(c, section).FontSize(12) })
 						if b.Clicked() {
 							a.settingsSection, a.fontPicker = section, ""
+							a.awakePicker = false
 						}
 					}
 				})
 				native.Box(c).Width(1).FillHeight().Background(t.Border.Alpha(.6))
 				native.Scroll(c.Key(a.settingsSection)).Grow(1).MinWidth(0).FillHeight().Children(func() {
 					native.Column(c).FillWidth().Gap(18).Children(func() {
-						if a.settingsSection == "通知" {
+						if a.settingsSection == "通用" {
+							a.generalSettings(c)
+						} else if a.settingsSection == "通知" {
 							a.notificationSettings(c)
 						} else {
 							a.appearanceSettings(c)

@@ -22,6 +22,7 @@ func TestSettingsAppearancePersistenceAndFontScope(t *testing.T) {
 	a.openSettings()
 	a.fontFamilies = []string{latinFont, "Menlo", "Helvetica", "PingFang SC"}
 	tt.Frame()
+	tt.Click("设置分类 外观")
 	if !tt.HasText("字体预览") || !tt.HasText("代码字体") {
 		t.Fatal("font settings missing")
 	}
@@ -120,6 +121,7 @@ func TestSettingsLayoutAndDefaultMigration(t *testing.T) {
 				tt.SetDark(dark)
 				a.openSettings()
 				tt.Frame()
+				tt.Click("设置分类 外观")
 				for _, label := range []string{"关闭设置", "主题 跟随系统", "选择英文字体", "选择中文字体", "选择代码字体"} {
 					r, ok := tt.Find(label)
 					if !ok || r.X < 0 || r.Y < 0 || r.X+r.W > float32(size[0]) || r.Y+r.H > float32(size[1]) {
@@ -239,6 +241,7 @@ func TestSettingsLabelsAndFontDropdownAlign(t *testing.T) {
 				a.fontFamilies = []string{latinFont, "Menlo", strings.Repeat("Very Long Font Family ", 5)}
 				tt := native.NewTester(a.view, size[0], size[1])
 				tt.SetDark(dark)
+				tt.Click("设置分类 外观")
 				var controlX, controlRight float32
 				for i, label := range []string{"英文字体", "中文字体", "代码字体"} {
 					caption, ok := tt.Find("设置标签 " + label)
