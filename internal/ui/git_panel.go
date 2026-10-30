@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	gitview "github.com/shenming0821/Fuyu/internal/git"
@@ -12,7 +13,8 @@ import (
 
 var gitPlusIcon = icon(`<path d="M12 5v14M5 12h14"/>`)
 var gitMinusIcon = icon(`<path d="M5 12h14"/>`)
-var gitFetchIcon = icon(`<path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/>`)
+var gitFetchIcon = icon(`<path d="M20 16.6A5 5 0 0 0 18 7h-1.3a7 7 0 1 0-13 6.3M12 12v9m-4-4 4 4 4-4"/>`)
+var gitPullIcon = icon(`<path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4"/>`)
 var gitPushIcon = icon(`<path d="M12 16V4m-4 4 4-4 4 4M4 17v4h16v-4"/>`)
 var gitMoreIcon = icon(`<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>`)
 var gitUndoIcon = icon(`<path d="M4 5v6h6M4 11a8 8 0 1 1 2 8"/>`)
@@ -38,6 +40,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 	disabled := w.gitPreparing || initialLoading || a.gitQuitPending || a.quitStopping ||
 		w.gitBusy != "" && !isGitIndexAction(w.gitBusy)
 	busy := disabled || w.gitBusy != ""
+	var branchProgress float32
 	native.Row(c.Key("git-toolbar")).FillWidth().Height(36).Padding(0, 12).Gap(2).AlignItems(native.Center).Children(func() {
 		branch := w.git.Branch
 		if branch == "" {
@@ -47,22 +50,34 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 			branch = w.git.Head[:8]
 		}
 		button := treeButton(c, "选择 Git 分支").Height(28).Padding(0, 4).Grow(1).MinWidth(0).Disabled(disabled)
+		if button.Clicked() && !busy {
+			w.gitBranchPicker = !w.gitBranchPicker
+			if w.gitBranchPicker {
+				w.gitBranchBase = w.git.Branch
+				if w.gitBranchBase == "(detached)" {
+					w.gitBranchBase = "HEAD"
+				}
+			}
+		}
+		if w.gitBranchPicker {
+			branchProgress = 1
+		}
+		if !c.Preferences().ReduceMotion {
+			branchProgress = button.Animate("branches-open", branchProgress, 180*time.Millisecond)
+		}
 		button.Children(func() {
 			native.Row(c).Fill().Gap(5).AlignItems(native.Center).Children(func() {
 				native.Icon(c, gitIcon).Size(13, 13)
 				native.Text(c, branch).FontSize(12).Bold().SingleLine().Shrink(1).MinWidth(0)
-				native.Icon(c, chevron).Size(10, 10).Rotate(90)
+				native.Icon(c, chevron).Label("Git 分支展开箭头").Size(10, 10).Shrink(0).Rotate(-90 * (1 - branchProgress))
 			})
 		})
-		if button.Clicked() && !busy {
-			w.gitBranchPicker = !w.gitBranchPicker
-		}
 		if len(w.gitRemotes) > 0 {
 			if gitIconButton(c.Key("fetch"), "获取远程更新", gitFetchIcon, disabled).Clicked() && !busy {
 				a.gitRemoteAction(w, "fetch")
 			}
 			if w.git.Upstream != "" {
-				if gitIconButton(c.Key("pull"), fmt.Sprintf("拉取 %d 个提交", w.git.Behind), gitFetchIcon, disabled).Clicked() && !busy {
+				if gitIconButton(c.Key("pull"), fmt.Sprintf("拉取 %d 个提交", w.git.Behind), gitPullIcon, disabled).Clicked() && !busy {
 					a.gitRemoteAction(w, "pull")
 				}
 				if gitIconButton(c.Key("push"), fmt.Sprintf("推送 %d 个提交", w.git.Ahead), gitPushIcon, disabled).Clicked() && !busy {
@@ -84,8 +99,16 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 			native.Text(c, fmt.Sprintf("%d↓ %d↑", w.git.Behind, w.git.Ahead)).FontSize(10).TextColor(t.TextMuted).SingleLine()
 		})
 	}
-	if w.gitBranchPicker {
-		a.gitBranchPickerView(c.Key("branches"), w)
+	if w.gitBranchPicker || branchProgress > 0 {
+		panel := native.Column(c.Key("branches-motion")).Label("Git 分支展开区域").FillWidth().Shrink(0)
+		var inner native.Element
+		panel.Children(func() {
+			inner = native.Column(c).FillWidth().Shrink(0)
+			inner.Children(func() { a.gitBranchPickerView(c.Key("branches"), w) })
+		})
+		if branchProgress < 1 {
+			panel.ClipY().Height(branchProgress * inner.Bounds().H)
+		}
 	}
 	if w.gitError != "" && w.gitFingerprint == "" {
 		message := "读取失败：" + w.gitError

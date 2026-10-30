@@ -94,14 +94,31 @@ func Branches(ctx context.Context, root string) ([]Branch, error) {
 }
 
 func Switch(ctx context.Context, root, branch string, create bool) error {
+	if create {
+		return CreateBranch(ctx, root, branch, "")
+	}
 	if _, err := run(ctx, root, "check-ref-format", "--branch", branch); err != nil {
 		return fmt.Errorf("分支名称无效：%w", err)
 	}
-	args := []string{"switch"}
-	if create {
-		args = append(args, "-c")
+	_, err := run(ctx, root, "switch", branch)
+	return err
+}
+
+func CreateBranch(ctx context.Context, root, branch, base string) error {
+	if _, err := run(ctx, root, "check-ref-format", "--branch", branch); err != nil {
+		return fmt.Errorf("分支名称无效：%w", err)
 	}
-	_, err := run(ctx, root, append(args, branch)...)
+	args := []string{"switch", "-c", branch}
+	if base != "" && base != "HEAD" {
+		base = "refs/heads/" + base
+		if _, err := run(ctx, root, "check-ref-format", base); err != nil {
+			return fmt.Errorf("来源分支无效：%w", err)
+		}
+	}
+	if base != "" {
+		args = append(args, base)
+	}
+	_, err := run(ctx, root, args...)
 	return err
 }
 

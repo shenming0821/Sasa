@@ -36,6 +36,7 @@ type gitWorkflow struct {
 	gitOperation                                   string
 	gitBranchPicker                                bool
 	gitBranchName                                  string
+	gitBranchBase                                  string
 	gitHistory                                     []gitview.CommitInfo
 	gitHistoryLoading, gitHistoryLoaded            bool
 	gitHistoryMore                                 bool

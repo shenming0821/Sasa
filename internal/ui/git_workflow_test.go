@@ -683,7 +683,7 @@ func TestGitHunkStageConfirmsUnsavedEditorBeforeUsingDisk(t *testing.T) {
 	}
 }
 
-func TestGitOccupiedBranchOpensItsWorktreeAndPreservesOriginalDraft(t *testing.T) {
+func TestGitOccupiedBranchReportsSwitchFailureAndPreservesWorkspace(t *testing.T) {
 	a, q, root, git := gitWorkflowApp(t)
 	other := filepath.Join(t.TempDir(), "other worktree")
 	git("worktree", "add", "-b", "other", other)
@@ -700,12 +700,30 @@ func TestGitOccupiedBranchOpensItsWorktreeAndPreservesOriginalDraft(t *testing.T
 	if err := tt.Click("选择 Git 分支"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Advance(200 * time.Millisecond)
+	if tt.HasText("other · 打开工作区") {
+		t.Fatal("branch row shows a workspace action")
+	}
 	if err := tt.Click("切换分支 other"); err != nil {
 		t.Fatal(err)
 	}
-	if a.State.Cwd != other || a.activeWorkspace != other || original.State.Draft != "保留原工作区的输入" ||
+	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && w.gitActionError != "" })
+	if a.State.Cwd != root || a.activeWorkspace != root || original.State.Draft != "保留原工作区的输入" ||
 		w.gitMessage != "fix: original workspace" || strings.TrimSpace(git("branch", "--show-current")) != "main" {
 		t.Fatal("occupied branch changed original worktree or lost its draft", a.State.Cwd, a.activeWorkspace)
+	}
+	if !strings.Contains(w.gitActionError, "other") || !w.gitBranchPicker {
+		t.Fatal("switch failure did not retain the picker and report the occupied branch", w.gitActionError)
+	}
+	git("branch", "available")
+	a.refreshGit(w)
+	p4Wait(t, tt, q, func() bool { return !w.gitLoading && len(w.gitBranches) == 3 })
+	if err := tt.Click("切换分支 available"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && w.git.Branch == "available" })
+	if a.State.Cwd != root || a.activeWorkspace != root || w.gitBranchPicker || strings.TrimSpace(git("branch", "--show-current")) != "available" {
+		t.Fatal("branch click did not switch the original workspace")
 	}
 }
 
