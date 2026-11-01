@@ -74,6 +74,7 @@ type DeletedThread struct {
 
 type Preferences struct {
 	KeepAwake              string
+	Terminal               string
 	Theme                  string
 	EnglishFont            string
 	ChineseFont            string
@@ -84,6 +85,7 @@ type Preferences struct {
 
 type Tab struct {
 	ID, Kind, Workspace, Path, Compare string
+	TerminalEngine                     string
 	SessionID                          int
 	Caret                              int
 	ScrollY                            float32

@@ -46,6 +46,8 @@ Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。
 
 ## 3. 验证方式
 
+主窗口终端使用 Ghostty 原生库，macOS arm64 构建启用 cgo。`./scripts/build` 通过 `scripts/prepare-ghostty.py` 构建并打包固定版本原生库、主题、shell integration 和许可证；首次构建需要网络和 Zig 0.15.2（可用 `FUYU_ZIG` 指定，未提供时下载校验后的工具链）。后续构建复用 `.cache/ghostty-native/`。终端不依赖 WebView、JavaScript、npm 或已安装的 Ghostty.app。配置复用与原生验收方式见[终端验证](verification/2026-11-01-terminal.md)。
+
 | 改动 | 应执行的验证 |
 |---|---|
 | 文档、规范或模板 | 链接、内容一致性、文件可见性、最终差异 |

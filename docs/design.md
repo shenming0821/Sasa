@@ -1,6 +1,6 @@
 # Fuyu 设计文档 v2.2
 
-> 更新日期：2026-10-28
+> 更新日期：2026-11-01
 > 当前交付目标：Codex / Claude Code 原生 UI 交互
 > 原始方案：`/Users/shenming/Downloads/Fuyu 设计文档v2.0.md`  
 > 参考源码与核验边界：[参考项目核验](reference-verification.md)  
@@ -13,6 +13,12 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提�
 当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)推进，原有验收边界保留。当前入口注册独立的 Codex/Claude 后端，使用 P6.1 应用 Agent 契约路由。Claude adapter 和 Agent 入口已实现，完整验收状态见实施计划；协议差异及恢复边界见 [Claude 运行时](subsystems/claude-runtime.md)。
 
 会话视图使用单行标签栏，行尾并排提供 Codex 和 Claude Code 新建图标，替代通用新会话按钮；上方目录工具栏已移除。新建图标为 16 px，会话页签标题前显示所属 Agent 的 12 px 图标，以图标替代 Claude 文字前缀；文件与差异页签保留自身图标。悬停新建图标提示对应动作。点击任一图标均在当前目录创建对应 Agent 的独立空白会话，并聚焦输入框；即使选择与当前相同的 Agent，也创建新会话。原会话的文字/图片草稿、模型、上下文与运行中任务保留。输入区保留模型选择。连接不可用时显示具体错误并保留当前会话。新建会话记住最近选择，历史使用自身保存的 Agent，后台完成不改变当前焦点。运行详情展示原生确认的实际模型、版本和权限。
+
+标签栏在两个 Agent 图标右侧提供 16 px 终端图标，点击后在主窗口创建终端标签页，目录取自当前会话、文件或工作区。每页拥有独立 PTY 与 shell，切换标签保留进程、输出、滚动和输入。“设置 → 通用 → 默认终端”保存默认实现，目前仅提供已实现的 Ghostty 原生终端；旧网页原型的引擎值归一为 Ghostty。
+
+终端使用固定版本 Ghostty 1.3.1 的完整原生嵌入接口：AppKit 子视图承载 Metal 渲染，终端解析、字体、键盘编码、PTY 与 shell 生命周期由 libghostty 管理。原生库通过 Ghostty 自身的默认及递归配置加载器读取本机配置；字体、配色、光标、shell、终端键位等沿用 Ghostty 配置，cwd 由当前 Fuyu 工作区指定。窗口、标签、设置和退出动作由 Fuyu 管理，Ghostty 独立应用的窗口外观不接管 Fuyu。
+
+所有 AppKit 与 libghostty UI 操作在主线程执行；隐藏标签通过 occlusion 通知暂停不可见绘制，保留 shell。应用内弹窗期间隐藏原生子视图，恢复时交还焦点。关闭活动终端或退出应用时确认结束 shell 及任务，释放原生 surface。重启仅恢复标签目录及引擎，点击“启动终端”创建新 shell；进程和输出历史不跨进程恢复。构建依赖、兼容边界和验收结果见[终端验证](verification/2026-11-01-terminal.md)。
 
 ### 1.1 当前需要实现
 
@@ -34,7 +40,8 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提�
 | 文件树、轻量文件编辑、Git 状态与只读 Diff | 按 [P4 设计](p4-editor-design.md)实现中；组件验收通过，原生交互待验收 |
 | 暂存、提交、远程、历史 Diff、分支与冲突 | 用户于 2026-10-26 授权扩展，约定及验收见 [Git 工作流](git-workflow-design.md) |
 | Commit Graph、Blame、PR 管理 | 后续范围，尚未实现 |
-| 原生终端、远程 Daemon、退出后持续运行 | 后续运行管理阶段 |
+| 主窗口原生终端 | 2026-11-01 接入中，按终端验证记录核对验收状态 |
+| 远程 Daemon、退出后持续运行 | 后续运行管理阶段 |
 | Windows / Linux | macOS 交互验证后 |
 
 首版允许选择非 Git 目录。会话绑定绝对工作目录，未来通过迁移补充 repository_id / worktree_id。

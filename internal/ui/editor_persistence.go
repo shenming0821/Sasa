@@ -8,11 +8,13 @@ import (
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/editor"
 	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Fuyu/internal/terminal"
 )
 
 func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error {
 	a.tabs = nil
 	a.files = map[string]*filePage{}
+	a.terminals = map[string]*terminalPage{}
 	a.activeTab = ""
 	a.activeWorkspace = snapshot.ActiveWorkspace
 	a.rightTab = snapshot.RightTab
@@ -64,6 +66,13 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 						}
 					}
 				}
+			case "terminal":
+				if !filepath.IsAbs(tab.Workspace) {
+					return fmt.Errorf("终端标签路径损坏，保留原设置")
+				}
+				tab.TerminalEngine = terminal.Normalize(tab.TerminalEngine)
+				a.tabs = append(a.tabs, tab)
+				a.terminals[tab.ID] = &terminalPage{id: tab.ID, root: tab.Workspace, engine: tab.TerminalEngine, focus: true}
 			case "file", "diff":
 				if !filepath.IsAbs(tab.Workspace) || !filepath.IsAbs(tab.Path) {
 					return fmt.Errorf("文件标签路径损坏，保留原设置")

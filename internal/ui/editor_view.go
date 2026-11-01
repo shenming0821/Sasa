@@ -872,7 +872,11 @@ func (a *App) finishCloseFile(d *filePage) {
 	}
 }
 func (a *App) selectWorkspaceTab(tab storage.Tab) {
-	if tab.Kind == "session" {
+	if tab.Kind == "terminal" {
+		if page := a.terminals[tab.ID]; page != nil {
+			a.selectTerminal(page)
+		}
+	} else if tab.Kind == "session" {
 		for _, s := range a.sessions {
 			if s.id == tab.SessionID {
 				a.selectSession(s)

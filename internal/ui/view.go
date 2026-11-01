@@ -43,6 +43,7 @@ func readingColumn(c *native.Context, build func()) {
 func (a *App) view(c *native.Context) {
 	defer a.scheduleSave()
 	a.applyAppearance(c)
+	defer a.hideInactiveTerminals()
 	if c.Shortcut(native.Cmd, native.KeyComma) {
 		a.openSettings()
 	}
@@ -55,6 +56,8 @@ func (a *App) view(c *native.Context) {
 			a.settingsOpen = false
 		} else if a.application().viewerOpen {
 			a.application().viewerOpen = false
+		} else if page := a.currentTerminal(); page != nil {
+			a.closeTerminal(page)
 		} else if d := a.currentFile(); d != nil {
 			a.closeFile(d)
 		} else if a.open {
@@ -71,7 +74,9 @@ func (a *App) view(c *native.Context) {
 	native.Box(c).Fill().Children(func() {
 		center := func() {
 			main := func() {
-				if d := a.currentFile(); d != nil {
+				if page := a.currentTerminal(); page != nil {
+					a.terminalView(c.Key(page.id), page, leftShown, rightShown)
+				} else if d := a.currentFile(); d != nil {
 					a.fileView(c.Key(d.id), d, leftShown, rightShown)
 				} else if a.open {
 					a.sessionView(c.Key(a.session.id), leftShown, rightShown)
@@ -108,6 +113,14 @@ func (a *App) view(c *native.Context) {
 	a.worktreeRenameView(c)
 	a.sessionRenameView(c)
 	a.fileActionView(c)
+	if a.terminalError != "" {
+		native.Column(c.Key("terminal-error")).Absolute().Bottom(20).Left(20).Right(20).Padding(12).Gap(8).Background(c.Theme().Surface).BorderWidth(1).BorderColor(c.Theme().Danger).Radius(8).Children(func() {
+			native.Text(c, a.terminalError).FontSize(12).TextColor(c.Theme().Danger)
+			if actionButton(c, "关闭终端提示").Clicked() {
+				a.terminalError = ""
+			}
+		})
+	}
 	if a.sessionDeleteError != "" {
 		native.Column(c.Key("session-delete-error")).Absolute().Bottom(20).Left(20).Right(20).Padding(12).Gap(8).Background(c.Theme().Surface).BorderWidth(1).BorderColor(c.Theme().Danger).Radius(8).Children(func() {
 			native.Text(c, a.sessionDeleteError).FontSize(12).TextColor(c.Theme().Danger)

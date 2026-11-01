@@ -192,7 +192,7 @@ func (a *App) closeSession(s *session) {
 }
 
 func (a *App) recoverSelectedSession() {
-	if a.currentFile() == nil && a.open && !a.loaded {
+	if a.currentFile() == nil && a.currentTerminal() == nil && a.open && !a.loaded {
 		a.recoverSession(a.session)
 	}
 }

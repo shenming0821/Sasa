@@ -10,6 +10,8 @@
 
 ## Schema 与事务
 
+`Preferences.Terminal` 在 settings JSON 中保存原生终端默认实现，目前支持 `ghostty`。旧记录缺失、网页原型的 `xterm` 或无效值由 UI 归一为 `ghostty`，无须迁移数据库。`WorkspaceTabs` 中 `Kind=terminal` 的记录保存 ID、Workspace 及 `TerminalEngine`，重启恢复标签并提示用户新建 shell；原生 surface、PTY 进程及输出不写入索引。Ghostty 自身的配置从本机文件读取，不复制到 Fuyu 索引。
+
 删除会话使用 `Store.DeleteSession(snapshot, id)` 在同一 SQLite 事务内删除指定 `sessions` 行并保存剩余会话及设置；验证或写入失败时整个事务回滚。设置 payload 的 `DeletedThreads` 保存 `Agent`、`Runtime`、`ThreadID`，由 UI 在原生历史呈现时过滤。旧设置缺少此字段等同于空列表，无需变更 schema 版本。原生历史和共享图片不在此事务中删除。行为见[会话管理](sessions.md#删除会话)。
 
 通过 `PRAGMA user_version` 管理版本：

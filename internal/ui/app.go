@@ -29,6 +29,7 @@ type App struct {
 	maintenanceState
 	completionCatalogState
 	settingsState
+	terminalState
 	worktreeRenameState
 	sessionRenameState
 	imageCache         map[string]*imagePreview

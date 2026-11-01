@@ -8,11 +8,13 @@ import (
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/power"
 	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Fuyu/internal/terminal"
 )
 
 type settingsState struct {
 	powerController    *power.Controller
 	awakePicker        bool
+	terminalPicker     bool
 	preferences        storage.Preferences
 	settingsOpen       bool
 	settingsSection    string
@@ -28,13 +30,14 @@ type settingsState struct {
 var settingsIcon = icon(`<path d="M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1Z"/><circle cx="12" cy="12" r="3"/>`)
 
 func defaultPreferences() storage.Preferences {
-	return storage.Preferences{KeepAwake: power.Never, Theme: "system", EnglishFont: latinFont, ChineseFont: ".PingFang UI SC", CodeFont: latinFont, CompletionNotification: true}
+	return storage.Preferences{KeepAwake: power.Never, Terminal: terminal.Ghostty, Theme: "system", EnglishFont: latinFont, ChineseFont: ".PingFang UI SC", CodeFont: latinFont, CompletionNotification: true}
 }
 
 func (a *App) normalizePreferences() {
 	p := &a.preferences
 	d := defaultPreferences()
 	p.KeepAwake = power.Normalize(p.KeepAwake)
+	p.Terminal = terminal.Normalize(p.Terminal)
 	if p.Theme != "light" && p.Theme != "dark" {
 		p.Theme = "system"
 	}
@@ -82,6 +85,7 @@ func (a *App) openSettings() {
 	a = a.application()
 	a.settingsOpen, a.fontPicker = true, ""
 	a.awakePicker = false
+	a.terminalPicker = false
 	if a.settingsSection == "" {
 		a.settingsSection = "通用"
 	}
@@ -164,6 +168,7 @@ func (a *App) settingsView(c *native.Context) {
 						if b.Clicked() {
 							a.settingsSection, a.fontPicker = section, ""
 							a.awakePicker = false
+							a.terminalPicker = false
 						}
 					}
 				})

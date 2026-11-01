@@ -64,6 +64,7 @@ func (a *App) agentSessionButtons(c *native.Context) {
 				}
 			}
 		}
+		a.terminalButton(c)
 	})
 }
 

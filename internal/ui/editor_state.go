@@ -149,6 +149,9 @@ func (a *App) removeWorkspaceTab(id string) {
 }
 func (a *App) currentFile() *filePage { return a.files[a.activeTab] }
 func (a *App) workspaceCwd() string {
+	if page := a.currentTerminal(); page != nil {
+		return page.root
+	}
 	if a.currentFile() != nil || !a.open {
 		if a.activeWorkspace != "" {
 			return a.activeWorkspace
@@ -814,6 +817,12 @@ func (a *App) startWatcher(w *workspacePage) {
 	}()
 }
 func (a *App) closeWorkspaceResources() {
+	for _, page := range a.terminals {
+		if page.connection != nil {
+			page.connection.Close()
+		}
+	}
+	a.terminalWorkers.Wait()
 	for _, d := range a.files {
 		a.cancelFileRead(d)
 		d.cancelFind()

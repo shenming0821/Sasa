@@ -171,6 +171,9 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 						if tab.Kind == "session" {
 							label = fmt.Sprintf("会话标签 %d", tab.SessionID)
 							closeLabel = fmt.Sprintf("关闭会话标签 %d", tab.SessionID)
+						} else if tab.Kind == "terminal" {
+							label = "终端标签 " + tab.ID
+							closeLabel = "关闭终端标签 " + tab.ID
 						}
 						b := native.ButtonBase(tc).Label(label).Tooltip(a.tabTitle(tab)).Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
 						if tab.Kind == "file" || tab.Kind == "diff" {
@@ -203,6 +206,8 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 									glyph := fileIcon
 									if tab.Kind == "diff" {
 										glyph = gitIcon
+									} else if tab.Kind == "terminal" {
+										glyph = launchTerminalIcon
 									}
 									native.Icon(tc, glyph).Size(12, 12).TextColor(t.TextMuted)
 								}
@@ -231,6 +236,8 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 										break
 									}
 								}
+							} else if page := a.terminals[tab.ID]; page != nil {
+								a.closeTerminal(page)
 							} else if d := a.files[tab.ID]; d != nil {
 								a.closeFile(d)
 							}

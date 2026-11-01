@@ -57,6 +57,11 @@ func (a *App) activeTasks() []string {
 			tasks = append(tasks, fmt.Sprintf("• %s（%s）", s.title(), s.State.Cwd))
 		}
 	}
+	for _, page := range a.terminals {
+		if page.connection != nil && !page.connection.Exited() {
+			tasks = append(tasks, "• 终端（"+page.root+"）")
+		}
+	}
 	return tasks
 }
 
@@ -70,6 +75,18 @@ func (a *App) beginQuit() {
 	for _, s := range a.sessions {
 		if s.State.Busy {
 			a.quitTargets[s.id] = true
+		}
+	}
+	for _, page := range a.terminals {
+		if page.connection != nil && !page.closing {
+			page.closing = true
+			connection := page.connection
+			a.terminalWorkers.Add(1)
+			go func() {
+				defer a.terminalWorkers.Done()
+				connection.Close()
+				a.update(func() { a.advanceQuit() })
+			}()
 		}
 	}
 }
@@ -141,7 +158,7 @@ func (a *App) installLifecycle() {
 			result, err := a.quitPrompt(mygo.MessageOptions{
 				Parent: a.win, Type: mygo.MessageWarning, Title: "退出 Fuyu",
 				Message: fmt.Sprintf("仍有 %d 个任务正在运行，要退出吗？", len(tasks)),
-				Detail:  strings.Join(tasks, "\n") + "\n将请求停止这些任务并等待原生终态，再关闭共享 Codex 连接。独立后台进程仍需另行核验。",
+				Detail:  strings.Join(tasks, "\n") + "\n将停止 Agent 任务并等待原生终态，同时结束窗口内的终端 shell。独立后台进程仍需另行核验。",
 				Buttons: []string{"取消", "停止任务并退出"}, DefaultButton: 0, CancelButton: 0,
 			})
 			a.update(func() {

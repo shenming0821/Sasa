@@ -1,0 +1,222 @@
+package ui
+
+import (
+	"fmt"
+	"path/filepath"
+	"slices"
+	"strings"
+	"sync"
+
+	"github.com/egoist/mygo"
+	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Fuyu/internal/terminal"
+)
+
+var launchTerminalIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/>`)
+
+type terminalConnection interface {
+	Present(uintptr, native.Rect, bool, bool) error
+	Hide()
+	Close()
+	Exited() bool
+	SetShortcut(func(string))
+}
+
+type terminalState struct {
+	terminals       map[string]*terminalPage
+	terminalSerial  int
+	terminalError   string
+	terminalFactory func(string) (terminalConnection, error)
+	terminalWorkers sync.WaitGroup
+}
+
+type terminalPage struct {
+	id, root, engine string
+	connection       terminalConnection
+	err              string
+	focus            bool
+	closing          bool
+	layout           terminalLayout
+}
+
+type terminalLayout struct {
+	width, height, sidebar, right float32
+	left, history, settings       bool
+}
+
+func (a *App) hideInactiveTerminals() {
+	for _, page := range a.terminals {
+		if page.connection != nil && (a.activeTab != page.id || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open) {
+			page.connection.Hide()
+			if a.activeTab == page.id {
+				page.focus = true
+			}
+		}
+	}
+}
+
+func (a *App) currentTerminal() *terminalPage { return a.terminals[a.activeTab] }
+
+func (a *App) terminalButton(c *native.Context) {
+	button := quietIconButton(c, "打开终端").Size(30, 30).Tooltip("在当前工作区新建终端（" + terminal.Label(a.preferences.Terminal) + "）")
+	button.Children(func() { native.Icon(c, launchTerminalIcon).Size(16, 16) })
+	if button.Clicked() {
+		a.newTerminal()
+	}
+}
+
+func (a *App) newTerminal() {
+	root := a.application()
+	if root.terminals == nil {
+		root.terminals = map[string]*terminalPage{}
+	}
+	for {
+		root.terminalSerial++
+		if root.terminals[fmt.Sprintf("terminal-%d", root.terminalSerial)] == nil {
+			break
+		}
+	}
+	page := &terminalPage{id: fmt.Sprintf("terminal-%d", root.terminalSerial), root: a.workspaceCwd(), engine: terminal.Normalize(root.preferences.Terminal), focus: true}
+	root.terminals[page.id] = page
+	root.tabs = append(root.tabs, storage.Tab{ID: page.id, Kind: "terminal", Workspace: page.root, TerminalEngine: page.engine})
+	root.selectTerminal(page)
+	root.startTerminal(page)
+}
+
+func (a *App) selectTerminal(page *terminalPage) {
+	a.activeTab = page.id
+	a.selectWorkspace(page.root)
+	page.focus = true
+	a.compactSidebar = false
+}
+
+func (a *App) startTerminal(page *terminalPage) {
+	if page.connection != nil || page.closing {
+		return
+	}
+	factory := a.terminalFactory
+	if factory == nil {
+		factory = func(cwd string) (terminalConnection, error) { return terminal.Start(cwd) }
+	}
+	connection, err := factory(page.root)
+	if err != nil {
+		page.err = "启动终端失败：" + err.Error()
+		return
+	}
+	page.connection, page.err = connection, ""
+	connection.SetShortcut(func(key string) {
+		a.update(func() {
+			if a.currentTerminal() != page || a.terminals[page.id] != page {
+				return
+			}
+			switch strings.ToLower(key) {
+			case "w":
+				a.closeTerminal(page)
+			case ",":
+				a.openSettings()
+			case "t":
+				a.newTerminal()
+			}
+		})
+	})
+}
+
+func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rightShown bool) {
+	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(c.Theme().Background).Children(func() {
+		a.sessionTabs(c, leftShown, rightShown)
+		if page.closing {
+			native.Text(c, "正在关闭终端…").Padding(16).FontSize(12)
+			return
+		}
+		if page.connection == nil {
+			native.Column(c).Fill().Padding(20).Gap(12).Children(func() {
+				message := "重新启动 Fuyu 后，终端需要新建 shell 会话。"
+				if page.err != "" {
+					message = page.err
+				}
+				native.Text(c, message).FontSize(12)
+				if actionButton(c, "启动终端").Clicked() {
+					a.startTerminal(page)
+				}
+			})
+			return
+		}
+		if a.win == nil {
+			native.Text(c, "终端 "+page.root).FontSize(12)
+			return
+		}
+		host := native.Box(c.Key("native-terminal")).Label("工作区终端 " + page.root).Grow(1).FillWidth().MinHeight(0)
+		width, height := c.Size()
+		layout := terminalLayout{width, height, a.sidebarWidth, a.rightPanelWidth, leftShown, rightShown, a.settingsOpen}
+		if layout != page.layout {
+			page.layout = layout
+			c.AnimationFrame()
+		}
+		bounds := host.Bounds()
+		if bounds.W == 0 || bounds.H == 0 {
+			c.AnimationFrame()
+			return
+		}
+		if a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open {
+			return
+		}
+		if err := page.connection.Present(a.win.NativeHandle(), bounds, c.Theme().Dark, page.focus); err != nil {
+			page.err = "无法显示终端：" + err.Error()
+			page.connection.Close()
+			page.connection = nil
+			c.AnimationFrame()
+			return
+		}
+		page.focus = false
+	})
+}
+
+func (a *App) closeTerminal(page *terminalPage) {
+	if page.closing || a.quitDialog {
+		return
+	}
+	if page.connection == nil || page.connection.Exited() || a.win == nil {
+		a.finishCloseTerminal(page)
+		return
+	}
+	a.quitDialog = true
+	go func() {
+		result, err := a.quitPrompt(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning, Title: "关闭终端", Message: "关闭终端并结束其中的 shell 和任务？", Detail: page.root, Buttons: []string{"取消", "关闭终端"}, DefaultButton: 0, CancelButton: 0})
+		a.update(func() {
+			a.quitDialog = false
+			if err != nil {
+				a.terminalError = err.Error()
+			} else if result.Button == 1 {
+				a.finishCloseTerminal(page)
+			}
+		})
+	}()
+}
+
+func (a *App) finishCloseTerminal(page *terminalPage) {
+	page.closing = true
+	if page.connection != nil {
+		page.connection.Hide()
+	}
+	index := slices.IndexFunc(a.tabs, func(tab storage.Tab) bool { return tab.ID == page.id })
+	a.removeWorkspaceTab(page.id)
+	delete(a.terminals, page.id)
+	if a.activeTab == page.id {
+		a.activeTab = ""
+		if len(a.tabs) > 0 {
+			a.selectWorkspaceTab(a.tabs[min(max(0, index-1), len(a.tabs)-1)])
+		}
+	}
+	if page.connection != nil {
+		a.terminalWorkers.Add(1)
+		go func() {
+			defer a.terminalWorkers.Done()
+			page.connection.Close()
+		}()
+	}
+}
+
+func (a *App) terminalTitle(tab storage.Tab) string {
+	return "终端 · " + filepath.Base(tab.Workspace)
+}

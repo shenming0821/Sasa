@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 bundle="bin/Fuyu.app/Contents"
 mkdir -p "$bundle/MacOS" "$bundle/Resources/licenses"
 cp internal/ui/fonts/OFL.txt "$bundle/Resources/licenses/MPLUSCodeLatin-OFL.txt"
+python3 scripts/prepare-ghostty.py "$bundle"
 ./scripts/go build -o "$bundle/MacOS/Fuyu" ./cmd/desktop
 # Keep the original command pointing to the same application executable.
 ln -sfn Fuyu.app/Contents/MacOS/Fuyu bin/fuyu
