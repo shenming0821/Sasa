@@ -227,6 +227,7 @@ func (a *App) send() {
 						a.submitCancel = nil
 						a.submitStop = false
 						a.State.Busy = false
+						a.State.FinishTiming()
 						a.State.Error, a.State.Phase = "读取默认模型失败，本次未发送："+err.Error(), "未发送"
 						if errors.Is(err, context.Canceled) {
 							a.State.Error, a.State.Phase = "", "已取消"
@@ -308,6 +309,7 @@ func (a *App) send() {
 				}
 				if a.State.Busy {
 					stopping := a.State.Stopping()
+					a.State.BindTiming(turn.ID)
 					a.State.TurnID = turn.ID
 					if stopping && a.submitStop {
 						a.stop()
@@ -321,6 +323,7 @@ func (a *App) send() {
 }
 
 func (a *App) abortBeforeTurn(text string, err error) {
+	a.State.FinishTiming()
 	a.State.Busy = false
 	a.State.Error, a.State.Phase = "会话状态未能保存，本次未发送："+err.Error(), "未发送"
 	if a.State.Draft == "" {
@@ -339,6 +342,7 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 	if a.State.Sequence != sequence {
 		return
 	}
+	a.State.FinishTiming()
 	var rpc *agent.RPCError
 	var notSubmitted *agent.NotSubmittedError
 	a.submitCancel = nil

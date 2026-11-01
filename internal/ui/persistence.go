@@ -167,6 +167,15 @@ func (a *App) snapshot() storage.Snapshot {
 			result.OpenTabs = append(result.OpenTabs, s.id)
 		}
 		item := s.saved
+		item.TurnTimings = maps.Clone(item.TurnTimings)
+		for _, message := range s.State.Messages {
+			if message.Role == "user" && message.TurnID != "" && message.Timing != nil {
+				if item.TurnTimings == nil {
+					item.TurnTimings = make(map[string]app.TurnTiming)
+				}
+				item.TurnTimings[message.TurnID] = *message.Timing
+			}
+		}
 		item.ID, item.ThreadID, item.Cwd = s.id, s.State.ThreadID, s.State.Cwd
 		item.Draft, item.Title = s.State.Draft, s.title()
 		item.DraftImages = slices.Clone(s.State.DraftImages)

@@ -95,6 +95,7 @@ func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 				return
 			}
 			state.Agent = s.kind.Normalized()
+			state.RestoreTimings(s.saved.TurnTimings)
 			state.Draft = s.State.Draft
 			state.DraftImages = slices.Clone(s.State.DraftImages)
 			if s.saved.Title == "" || s.saved.Title == "新会话" {
@@ -253,6 +254,7 @@ func (a *App) loadOlder() {
 				s.State.Error = err.Error()
 				return
 			}
+			older.RestoreTimings(s.saved.TurnTimings)
 			seen := make(map[string]bool)
 			for _, m := range s.State.Messages {
 				seen[m.ID] = true

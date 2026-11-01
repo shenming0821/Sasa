@@ -251,8 +251,9 @@ func (a *App) conversation(c *native.Context) {
 		}
 	}
 	thinking := a.thinking()
+	completedTimings, activeTiming := a.conversationTimings(rows)
 	count := len(messages)
-	if thinking {
+	if thinking || activeTiming != nil {
 		count++
 	}
 	a.list.Key = func(i int) any {
@@ -267,10 +268,18 @@ func (a *App) conversation(c *native.Context) {
 			gap := conversationSpacing(rows, i)
 			if i == len(messages) {
 				native.Column(c).FillWidth().Padding(gap, 0, 0, 0).Children(func() {
-					readingColumn(c, func() { thinkingIndicator(c) })
+					readingColumn(c, func() {
+						turnTiming(c, activeTiming)
+						if thinking {
+							thinkingIndicator(c)
+						}
+					})
 				})
 			} else {
 				native.Column(c).FillWidth().Padding(gap, 0, 0, 0).Bind(a.rowHandle(messages[i].ID)).Children(func() {
+					if timing := completedTimings[i]; timing != nil {
+						readingColumn(c, func() { turnTiming(c, timing) })
+					}
 					if len(rows[i].changes) > 0 {
 						readingColumn(c, func() { a.changeCard(c.Key(messages[i].ID), rows[i].changes) })
 					} else if len(rows[i].commands) > 0 {

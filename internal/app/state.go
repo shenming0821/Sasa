@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -14,6 +15,7 @@ import (
 const MaxMessageBytes = 2 * 1024 * 1024
 
 type Message struct {
+	Timing      *TurnTiming
 	Images      []attachment.Image
 	ID          string
 	Role        string
@@ -57,7 +59,7 @@ func New(cwd string) State { return State{Cwd: cwd, Phase: "就绪"} }
 func (s *State) Begin(text string) {
 	s.Sequence++
 	s.Messages = append(s.Messages, &Message{
-		ID: fmt.Sprintf("user-%d", s.Sequence), Role: "user", Text: text, Done: true, Images: slices.Clone(s.DraftImages),
+		ID: fmt.Sprintf("user-%d", s.Sequence), Role: "user", Text: text, Done: true, Images: slices.Clone(s.DraftImages), Timing: &TurnTiming{Started: time.Now()},
 	})
 	s.DraftImages = nil
 	s.Draft, s.Error, s.TurnID, s.retryError = "", "", "", ""
@@ -88,6 +90,7 @@ func (s *State) Apply(event agent.Event) {
 		return
 	}
 	if event.Method == "fuyu/disconnected" {
+		s.FinishTiming()
 		s.expireInteractions("已失效")
 		s.Disconnected, s.Busy, s.Phase = true, false, "连接已断开"
 		s.Error = s.Agent.String() + " 连接已断开，请重新启动 Fuyu。当前结果尚需核验。"
@@ -181,6 +184,7 @@ func (s *State) Apply(event agent.Event) {
 	case "serverRequest/resolved":
 		s.resolveInteraction(p.RequestID)
 	case "turn/started":
+		s.BindTiming(p.Turn.ID)
 		s.TurnID, s.Busy, s.Phase = p.Turn.ID, true, "正在执行"
 		if s.stopRequested {
 			s.Phase = "正在停止"
@@ -270,6 +274,8 @@ func (s *State) Apply(event agent.Event) {
 			return
 		}
 		s.clearRetry()
+		s.BindTiming(p.Turn.ID)
+		s.FinishTiming()
 		s.expireInteractions("已失效")
 		s.TurnID, s.Busy = p.Turn.ID, false
 		s.stopRequested = false

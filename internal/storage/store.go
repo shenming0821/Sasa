@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/project"
 
@@ -20,6 +21,7 @@ import (
 // Only application-owned metadata belongs here. Messages and credentials stay
 // with Codex; pending protocol requests and secret form answers are never saved.
 type Session struct {
+	TurnTimings   map[string]app.TurnTiming `json:",omitempty"`
 	Agent         agent.AgentKind
 	Runtime       string
 	ModelAgent    agent.AgentKind
