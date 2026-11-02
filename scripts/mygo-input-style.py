@@ -43,7 +43,7 @@ def main():
             ("op.Rect.W = max(round(p.scale), 1)",
              "op.Rect.W = max(round(2*p.scale), 1)"),
             ("Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{})",
-             "Color: t.Text.scene(), Wide: p.wide(t.Text, Color{}, Color{})"),
+             "Color: ts.color.scene(), Wide: p.wide(ts.color, Color{}, Color{})"),
         ])
     # Let multiline inputs handle Cmd+Enter through the editor's normal insertion,
     # preserving the selection, caret, undo history and native IME routing.

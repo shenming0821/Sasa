@@ -527,8 +527,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			c.AnimationFrame()
 		}
 		width := max(available, d.contentWidth)
-		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
-			area := native.TextAreaBufferBase(c.Key("source"), d.buffer).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
+		palette := githubEditorPalette(t.Dark)
+		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
+			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
 			area.ContextMenu(a.fileMenu(d.root, d.path, true))
 			if d.pendingSelection != nil {
 				area.SetTextSelection(d.pendingSelection[0], d.pendingSelection[1])
@@ -559,16 +560,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				last := first + 100
 				lo, _ := snap.LineRange(first)
 				_, hi := snap.LineRange(min(last, snap.LineCount()-1))
-				var ranges []native.TextRange
-				for _, r := range d.highlights {
-					if r.End >= lo && r.Start <= hi {
-						if d.kind == "diff" {
-							r.Color = diffSyntaxColor(r.Color, t)
-						}
-						ranges = append(ranges, r)
-					}
-				}
-				area.TextRanges(ranges...)
+				area.TextRanges(palette.ranges(d.highlights, lo, hi)...)
 			}
 			composing := area.Composing()
 			area.OnPaste(func(text string) bool {
@@ -620,16 +612,16 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 						row := d.gitRows[i]
 						var color native.Color
 						if row.kind == '+' {
-							color = t.Success.Alpha(.1)
+							color = palette.addedBackground
 						}
 						if row.kind == '-' {
-							color = t.Danger.Alpha(.08)
+							color = palette.deletedBackground
 						}
 						if color.A != 0 {
 							y := r.Y + 8 + float32(i)*20 - d.scroll.Y
 							p.Fill(native.Rect{X: r.X + 48, Y: y, W: r.W - 48, H: 20}, color, 0)
 							if row.hunk == d.gitHunk {
-								p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: 20}, t.Accent, 0)
+								p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: 20}, palette.accent, 0)
 							}
 						}
 					}
@@ -651,11 +643,11 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 							if row.kind == '-' {
 								number = row.old
 							}
-							drawDiffLineNumber(p, r.X+10, y, number, row.kind, t)
+							drawDiffLineNumber(p, r.X+10, y, number, row.kind, palette.lineTheme())
 							continue
 						}
 						if number > 0 {
-							p.Text(r.X+10, y, fmt.Sprint(number), 11, t.TextMuted)
+							p.Text(r.X+10, y, fmt.Sprint(number), 11, palette.muted)
 						}
 					}
 				}

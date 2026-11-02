@@ -75,7 +75,7 @@ type gitDiffState struct {
 	gitRows                               []diffCodeRow
 	gitPairs                              []diffCodePair
 	gitNote                               string
-	gitLeftHighlights, gitRightHighlights []native.TextRange
+	gitLeftHighlights, gitRightHighlights []syntaxToken
 }
 
 func gitKey(group, path string) string { return group + "\x00" + path }

@@ -105,7 +105,7 @@ type filePage struct {
 	findResult                                                          string
 	pendingSelection                                                    *[2]int
 	pendingLocation                                                     *fileLocation
-	highlights                                                          []native.TextRange
+	highlights                                                          []syntaxToken
 	highlightVersion                                                    uint64
 	highlighting                                                        bool
 	highlightCancel                                                     context.CancelFunc

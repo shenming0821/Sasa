@@ -192,14 +192,3 @@ func diffHunkRow(rows []diffCodeRow, hunk int) int {
 	}
 	return max(0, first)
 }
-
-func diffSyntaxColor(color native.Color, theme *native.Theme) native.Color {
-	if !theme.Dark || color.A == 0 {
-		return color
-	}
-	return native.RGB(
-		uint8((int(color.R)+2*int(theme.Text.R))/3),
-		uint8((int(color.G)+2*int(theme.Text.G))/3),
-		uint8((int(color.B)+2*int(theme.Text.B))/3),
-	)
-}

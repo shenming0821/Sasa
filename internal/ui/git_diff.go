@@ -185,6 +185,7 @@ func splitPatch(review gitview.Review) (string, string) {
 
 func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 	t := c.Theme()
+	palette := githubEditorPalette(t.Dark)
 	_, height := c.Size()
 	if d.gitLeft == nil || d.gitRight == nil {
 		if d.gitPairs == nil {
@@ -201,7 +202,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 		y = d.gitRightScroll.Y
 	}
 	d.gitSplitY, d.gitLeftScroll.Y, d.gitRightScroll.Y = y, y, y
-	native.Row(c.Key("split")).FillWidth().Grow(1).MinHeight(0).Gap(1).Background(t.Border).Children(func() {
+	native.Row(c.Key("split")).FillWidth().Grow(1).MinHeight(0).Gap(1).Background(palette.border).Children(func() {
 		for sideIndex, side := range []struct {
 			name    string
 			buffer  *native.TextBuffer
@@ -209,11 +210,11 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 			hscroll *native.ScrollState
 			width   float32
 			color   native.Color
-		}{{"原版本", d.gitLeft, &d.gitLeftScroll, &d.gitLeftHScroll, d.gitLeftWidth, t.Danger}, {"新版本", d.gitRight, &d.gitRightScroll, &d.gitRightHScroll, d.gitRightWidth, t.Success}} {
-			native.Column(c.Key(side.name)).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
+		}{{"原版本", d.gitLeft, &d.gitLeftScroll, &d.gitLeftHScroll, d.gitLeftWidth, palette.deletedBackground}, {"新版本", d.gitRight, &d.gitRightScroll, &d.gitRightHScroll, d.gitRightWidth, palette.addedBackground}} {
+			native.Column(c.Key(side.name)).Grow(1).FillHeight().MinWidth(0).Background(palette.background).Children(func() {
 				native.Text(c, side.name).FontSize(10).TextColor(t.TextMuted).Padding(5, 10)
 				native.ScrollHorizontal(c.Key("horizontal")).TrackScroll(side.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
-					area := native.TextAreaBufferBase(c, side.buffer).Label("差异 "+side.name).ReadOnly(true).Font(a.codeFontFamily()).FontSize(12).
+					area := palette.area(native.TextAreaBufferBase(c, side.buffer)).Label("差异 "+side.name).ReadOnly(true).Font(a.codeFontFamily()).FontSize(12).
 						FixedLineHeight(20).NoWrap().Width(max((available-1)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10, 6, 58).TrackScroll(side.scroll)
 					highlights := d.gitLeftHighlights
 					if sideIndex == 1 {
@@ -223,14 +224,9 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 					firstLine := max(0, int(side.scroll.Y/20)-2)
 					start, _ := snapshot.LineRange(firstLine)
 					_, end := snapshot.LineRange(min(snapshot.LineCount()-1, firstLine+int(height/20)+4))
-					var visible []native.TextRange
-					for _, span := range highlights {
-						if span.End >= start && span.Start <= end {
-							span.Color = diffSyntaxColor(span.Color, t)
-							visible = append(visible, span)
-						}
+					if d.buffer != nil && d.highlightVersion == d.buffer.Version() {
+						area.TextRanges(palette.ranges(highlights, start, end)...)
 					}
-					area.TextRanges(visible...)
 					_, caret := area.TextAnchorCaret()
 					if caret != d.gitSplitCaret[sideIndex] {
 						d.gitSplitCaret[sideIndex] = caret
@@ -248,9 +244,9 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 								row = d.gitPairs[i].right
 							}
 							if row.kind == '-' || row.kind == '+' {
-								p.Fill(native.Rect{X: r.X, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: r.W, H: 20}, side.color.Alpha(.09), 0)
+								p.Fill(native.Rect{X: r.X, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: r.W, H: 20}, side.color, 0)
 								if row.hunk == d.gitHunk {
-									p.Fill(native.Rect{X: r.X + 50, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: 2, H: 20}, t.Accent, 0)
+									p.Fill(native.Rect{X: r.X + 50, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: 2, H: 20}, palette.accent, 0)
 								}
 							}
 						}
@@ -268,7 +264,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 								number = row.next
 							}
 							y := r.Y + 6 + float32(index)*20 - side.scroll.Y
-							drawDiffLineNumber(p, r.X+10, y, number, row.kind, t)
+							drawDiffLineNumber(p, r.X+10, y, number, row.kind, palette.lineTheme())
 						}
 					})
 				})

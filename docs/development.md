@@ -16,7 +16,7 @@ Go 安装在 `~/.local/share/fuyu/toolchains/go1.27.3/`，未修改系统工具�
 
 该补丁同时让多行编辑器接收 `Cmd+Enter`，通过原有编辑器插入换行，保留光标、选区与撤销逻辑；输入框视图使用普通 Enter 发送，输入法组合门控继续保留。
 
-鼠标左键在已聚焦的文本编辑器中重新定位时，补丁重置光标闪烁计时，使新位置立即显示光标。升级 MyGo 时同时核对 `ui/input.go` 的点击定位路径；文件缓冲及普通文本区域的可控时钟与像素回归见 `TestEditorClickRestartsVisibleCaretPhase`。
+鼠标左键在已聚焦的文本编辑器中重新定位时，补丁重置光标闪烁计时，使新位置立即显示光标。光标颜色取控件解析后的正文色，编辑区的 GitHub 配色独立生效，普通输入继续继承应用正文色。升级 MyGo 时同时核对 `ui/input.go` 的点击定位路径及 `ui/editor_layout.go` / `ui/textarea.go` 的光标绘制；文件缓冲及普通文本区域的可控时钟与像素回归见 `TestEditorClickRestartsVisibleCaretPhase`、`TestEditorThemeSelectionAndCaretPixels`。
 
 P2 另在该隔离副本中修复 macOS 无障碍密码字段 setter 的缓存：AX value/selectedText 写入原文时，只将原文发送给编辑器，不保存在可读的 AppKit 无障碍值中。版本或目标代码不匹配时同样明确失败；升级框架后重新核对原生秘密输入和自动填充。
 

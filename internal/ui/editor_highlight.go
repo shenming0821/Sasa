@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/editor"
 	gitview "github.com/shenming0821/Fuyu/internal/git"
@@ -38,8 +37,8 @@ func (a *App) requestHighlight(d *filePage) {
 	d.highlighting = true
 	a.runHighlightTask(ctx, func() {
 		var text string
-		var ranges []native.TextRange
-		var leftRanges, rightRanges []native.TextRange
+		var ranges []syntaxToken
+		var leftRanges, rightRanges []syntaxToken
 		var width float32
 		var leftWidth, rightWidth float32
 		defer func() {
@@ -69,14 +68,14 @@ func (a *App) requestHighlight(d *filePage) {
 		if ctx.Err() != nil {
 			return
 		}
-		lexer := lexers.Match(path)
+		lexer := editorLexer(path)
 		if decorate && lexer != nil && snapshot.ByteLen() <= editor.EditBytes {
 			preview := highlightText(ctx, lexer, snapshot.Slice(lo, hi), lo)
 			if ctx.Err() != nil {
 				return
 			}
 			a.update(func() {
-				if a.files[d.id] == d && d.path == path && d.buffer == buffer && buffer.Version() == snapshot.Version() {
+				if ctx.Err() == nil && a.files[d.id] == d && d.path == path && d.buffer == buffer && buffer.Version() == snapshot.Version() && family == a.codeFontFamily() {
 					d.highlights = preview
 					d.highlightVersion = snapshot.Version()
 				}
@@ -116,32 +115,19 @@ func editorTextWidthForFont(ctx context.Context, text, family string, size, padd
 	return width + padding
 }
 
-func highlightText(ctx context.Context, lexer chroma.Lexer, text string, offset int) []native.TextRange {
+func highlightText(ctx context.Context, lexer chroma.Lexer, text string, offset int) []syntaxToken {
 	iter, err := lexer.Tokenise(nil, text)
 	if err != nil {
 		return nil
 	}
-	var ranges []native.TextRange
+	var ranges []syntaxToken
 	for token := iter(); token != chroma.EOF; token = iter() {
 		if ctx.Err() != nil {
 			return nil
 		}
 		end := offset + utf8.RuneCountInString(token.Value)
-		var color native.Color
-		switch {
-		case token.Type.InCategory(chroma.Keyword):
-			color = native.Hex("#9852A1")
-		case token.Type.InCategory(chroma.LiteralString):
-			color = native.Hex("#3A7954")
-		case token.Type.InCategory(chroma.Comment):
-			color = native.Hex("#7D858B")
-		case token.Type.InCategory(chroma.LiteralNumber):
-			color = native.Hex("#A66A35")
-		case token.Type.InSubCategory(chroma.NameFunction):
-			color = native.Hex("#37789B")
-		}
-		if color.A != 0 {
-			ranges = append(ranges, native.TextRange{Start: offset, End: end, Color: color})
+		if end > offset && token.Type != chroma.Text && token.Type != chroma.TextWhitespace {
+			ranges = append(ranges, syntaxToken{Start: offset, End: end, Type: token.Type})
 		}
 		offset = end
 		if len(ranges) > 100000 {
