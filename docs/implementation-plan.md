@@ -8,6 +8,7 @@
 
 | 项目 | 当前记录 |
 |---|---|
+| Linux 电源后端编译兼容 | 2026-11-02 新增 `internal/power/system_other.go`，在非 Darwin 或禁用 cgo 时返回明确不支持错误，保留原有 Controller 与 IOKit 逻辑。Linux 全量 build、电源包测试及 Darwin arm64 无 cgo 电源包交叉构建通过；指定联合测试仍因 UI 菜单及几何/像素断言失败，详见文末本轮记录。真实 macOS cgo 与窗口重启未验证。 |
 | 间歇性网络故障取证 | 2026-11-02 新增 `python3 scripts/diagnose-network.py`，默认保存最近 15 分钟、网关端口 3425 的系统日志，以及 Fuyu 进程树、签名、代理与路由快照。实跑 8 项采集通过，错误保留分支检查通过；下次故障在重启前采集并记录发送时间，再对齐 Runtime 与网关。见[网络验证](verification/2026-11-02-local-network.md#间歇性复发取证)。 |
 | GUI 局域网请求阻断 | 2026-11-02 内核证实 Fuyu Codex 子进程遭 NECP 本机拦截、Claude 同期 EHOSTUNREACH；修正构建签名标识 a.out 与 bundle ID 不一致，完整签名资源并增加局域网用途说明。构建、严格签名核验及正常重启通过，真实窗口 Codex/Claude 分别约 6 秒/1 秒回复。故障修复前已自行恢复，尚不能证明间歇性拦截根治；本机无 Apple 签发证书，跨构建身份可靠性待验。见[网络验证](verification/2026-11-02-local-network.md)。 |
 | 送达确认提示精简 | 2026-11-02 按用户要求，待确认输入保持普通用户气泡，后台继续核验送达；明确未发送时保留标记与草稿恢复。送达/中断/气泡定向回归、UI vet 和构建通过。正常退出出现当前会话仍有 1 个活动任务的提示，保留提示，待本轮结束后重启加载新版。 |
@@ -816,3 +817,13 @@ P3 验收通过后，使用 Fuyu 完成真实的小型开发任务，记录使�
 ### Claude 接入工作区进展（2026-10-28）
 
 用户确认输入区并列 Agent/模型入口，并授权继续实现直至接入完成。已实现和待验收行为见 [Claude 运行时](subsystems/claude-runtime.md)，本轮证据追加至 [P6 验证记录](verification/2026-10-28-p6-agent.md)。当前使用每轮 spawn+resume，不开放 session 授权规则、外部会话接管或 Claude 分叉。
+
+### 2026-11-02：Linux 电源后端编译兼容
+
+- 本轮完成：新增 `internal/power/system_other.go`，构建条件为 `!darwin || !cgo`；`onAC` 返回 `(true, errUnsupported)`，`acquire` 和 `release` 返回同一错误，文案沿用原生终端的“需要 macOS 和启用 cgo 的构建”形式。未修改 `system_darwin.go` 和 `power.go`。
+- 修改文件：上述新增后端、设置子系统说明及本文。
+- 环境：`GOOS=linux`、`GOARCH=amd64`、`CGO_ENABLED=1`，`GOROOT=/home/ming/.local/share/fuyu/toolchains/go1.27.3`。PATH 中无 `gofmt`，使用该工具链的 `bin/gofmt` 格式化。默认 Go 缓存写入受沙箱限制，授权后执行构建和测试。
+- 通过：`./scripts/go build ./...`；指定联合测试中的 `internal/power`（0.002 秒），`cmd/desktop` 编译通过且无测试文件；`GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 GOCACHE=/tmp/fuyu-power-cross-cache ./scripts/go build ./internal/power/`；差异空白检查。
+- 失败：`./scripts/go test ./internal/power/ ./internal/ui/ ./cmd/desktop/` 整体退出码为 1，UI 包耗时 11.297 秒。`TestCloseMenuClosesSelectedSessionAndKeepsBackgroundTask`、`TestCloseMenuDismissesOverlayBeforeTab`、`TestCloseMenuPreservesUnsavedFileOnCancel` 及 `TestCloseShortcutAndMenuCloseTerminalTabs/menu` 失败于菜单仍含原生关闭角色；`TestConversationNavigationBothAgents` 的八组子测试失败于预览与刻度对齐；`TestTurnTimingArrowVisualAlignment` 浅深色均失败，箭头/文字中心为 20.25/20.75，超过 0.3 容差。核对这些测试的失败路径为菜单结构及内存渲染器断言，不调用新增电源后端；本轮保留其源码，未扩大修复范围。
+- 未验证：Linux 本机未执行真实 Darwin cgo/IOKit 验证或 macOS 原生窗口退出重启；无 cgo 交叉构建只证明兜底后端可编译。未运行真实模型任务。
+- 接续：本次编译缺陷已修复，联合测试全通过的验收尚未达成；后续单独处理 Linux UI 菜单与渲染断言。交叉构建缓存留在 `/tmp/fuyu-power-cross-cache`，本轮构建与测试进程均已结束。
