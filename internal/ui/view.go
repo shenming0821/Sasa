@@ -47,22 +47,8 @@ func (a *App) view(c *native.Context) {
 	if c.Shortcut(native.Cmd, native.KeyComma) {
 		a.openSettings()
 	}
-	if !a.quitDialog && c.Shortcut(native.Cmd, native.KeyW) {
-		if a.fileAction.open {
-			a.fileAction.open = false
-		} else if a.worktreeRenameOpen {
-			a.worktreeRenameOpen = false
-		} else if a.settingsOpen {
-			a.settingsOpen = false
-		} else if a.application().viewerOpen {
-			a.application().viewerOpen = false
-		} else if page := a.currentTerminal(); page != nil {
-			a.closeTerminal(page)
-		} else if d := a.currentFile(); d != nil {
-			a.closeFile(d)
-		} else if a.open {
-			a.closeSession(a.session)
-		}
+	if c.Shortcut(native.Cmd, native.KeyW) {
+		a.closeCurrentPage()
 	}
 	width, _ := c.Size()
 	a.sidebarWidth = min(max(a.sidebarWidth, 200), 320)

@@ -601,7 +601,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					return true
 				}
 				if k.Mods == native.Cmd && k.Key == native.KeyW {
-					a.closeFile(d)
+					a.closeCurrentPage()
 					return true
 				}
 				if k.Key == native.KeyZ && k.Mods&native.Cmd != 0 {

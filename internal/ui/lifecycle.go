@@ -8,6 +8,32 @@ import (
 	"github.com/egoist/mygo"
 )
 
+func (a *App) closeCurrentPage() {
+	if a.quitDialog || a.quitting || a.quitStopping {
+		return
+	}
+	switch {
+	case a.fileAction.open:
+		a.fileAction.open = false
+	case a.worktreeRenameOpen:
+		a.worktreeRenameOpen = false
+	case a.sessionRenameOpen:
+		a.sessionRenameOpen = false
+	case a.settingsOpen:
+		a.settingsOpen = false
+	case a.application().viewerOpen:
+		a.application().viewerOpen = false
+	default:
+		if page := a.currentTerminal(); page != nil {
+			a.closeTerminal(page)
+		} else if page := a.currentFile(); page != nil {
+			a.closeFile(page)
+		} else if a.open {
+			a.closeSession(a.session)
+		}
+	}
+}
+
 func (a *App) autosave() {
 	timer := time.NewTimer(500 * time.Millisecond)
 	defer timer.Stop()

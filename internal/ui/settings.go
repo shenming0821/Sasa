@@ -130,15 +130,22 @@ func (a *App) savePreferences(previous storage.Preferences) {
 }
 
 func (a *App) installSettingsMenu() {
-	mygo.App.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
+	mygo.App.SetMenu(a.applicationMenu())
+}
+
+func (a *App) applicationMenu() *mygo.Menu {
+	return mygo.NewMenu([]*mygo.MenuItem{
 		{Label: "Fuyu", Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout}, mygo.Separator(),
 			{Label: "设置…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { a.win.Update(func() { a.openSettings() }); a.win.Show() }},
 			mygo.Separator(), {Role: mygo.RoleServices}, mygo.Separator(),
 			{Role: mygo.RoleHide}, {Role: mygo.RoleHideOthers}, {Role: mygo.RoleUnhide}, mygo.Separator(), {Role: mygo.RoleQuit},
 		}},
-		{Role: mygo.RoleFileMenu}, {Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, {Role: mygo.RoleWindowMenu},
-	}))
+		{Label: "文件", Submenu: []*mygo.MenuItem{
+			{ID: "close-current-page", Label: "关闭当前页签", Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) { a.update(a.closeCurrentPage) }},
+		}},
+		{Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, {Role: mygo.RoleWindowMenu},
+	})
 }
 
 func (a *App) settingsView(c *native.Context) {

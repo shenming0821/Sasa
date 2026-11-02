@@ -112,7 +112,7 @@ func (a *App) startTerminal(page *terminalPage) {
 			}
 			switch strings.ToLower(key) {
 			case "w":
-				a.closeTerminal(page)
+				a.closeCurrentPage()
 			case ",":
 				a.openSettings()
 			case "t":
