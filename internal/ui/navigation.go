@@ -145,7 +145,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 		}
 		native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
 			native.Row(c).FillHeight().Children(func() {
-				for _, tab := range a.tabs {
+				for _, tab := range a.folderTabs(a.activeWorkspace) {
 					if tab.Kind == "session" {
 						valid := false
 						for _, s := range a.sessions {
@@ -357,6 +357,7 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 	gc := c.Key(group.path)
 	native.Column(gc).FillWidth().Gap(3).Children(func() {
 		a.projectDisclosure(gc, group.path, "展开项目 "+group.path, func() {
+			a.folderTabIndicator(gc, group.path, -2)
 			native.Icon(gc, folderIcon).Size(14, 14)
 			native.Text(gc, projectName(group.path)).FontSize(12).Bold().TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 			native.Spacer(gc)
@@ -364,7 +365,7 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 			for _, s := range group.sessions {
 				b := treeButton(gc.Key(s.id), fmt.Sprintf("切换会话 %d", s.id)).FillWidth().Padding(9, 12, 9, 28)
 				b.ContextMenu(a.sessionMenu(s))
-				if a.session == s && s.open {
+				if a.activeTab == sessionTabID(s.id) && s.open {
 					b.Background(t.SurfacePressed)
 				}
 				b.Children(func() {

@@ -16,7 +16,8 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 	a.files = map[string]*filePage{}
 	a.terminals = map[string]*terminalPage{}
 	a.activeTab = ""
-	a.activeWorkspace = snapshot.ActiveWorkspace
+	a.activeWorkspace = a.workspaceRoot(snapshot.ActiveWorkspace)
+	a.folderSelectedTabs = map[string]string{}
 	a.rightTab = snapshot.RightTab
 	if a.rightTab == "" {
 		a.rightTab = "history"
@@ -86,7 +87,14 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 		a.activeTab = snapshot.ActiveTabID
 		if !slices.ContainsFunc(a.tabs, func(tab storage.Tab) bool { return tab.ID == a.activeTab }) {
 			a.activeTab = ""
-			if len(a.tabs) > 0 {
+			if tabs := a.folderTabs(a.workspaceRoot(a.activeWorkspace)); len(tabs) > 0 {
+				a.activeTab = tabs[0].ID
+				for _, tab := range tabs {
+					if tab.ID == snapshot.FolderSelectedTabs[a.activeWorkspace] {
+						a.activeTab = tab.ID
+					}
+				}
+			} else if snapshot.ActiveWorkspace == "" && snapshot.ActiveTabID != "" && len(a.tabs) > 0 {
 				a.activeTab = a.tabs[0].ID
 			}
 		}
@@ -98,7 +106,14 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 	}
 	for _, tab := range a.tabs {
 		if tab.ID == a.activeTab {
-			a.activeWorkspace = tab.Workspace
+			a.activeWorkspace, _ = a.tabFolder(tab)
+			if tab.Kind == "session" {
+				for _, target := range a.sessions {
+					if target.id == tab.SessionID {
+						a.session = target
+					}
+				}
+			}
 		}
 	}
 	if a.activeWorkspace == "" && a.session != nil {
@@ -126,11 +141,19 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 		d.loaded = true
 		d.conflict = true
 		d.err = "已恢复未保存编辑，请核对磁盘版本后保存"
-		if a.activeTab == "" {
+		if a.activeTab == "" && (a.activeWorkspace == "" || a.workspaceRoot(r.Workspace) == a.activeWorkspace) {
 			a.activeTab = id
-			a.activeWorkspace = r.Workspace
+			a.activeWorkspace = a.workspaceRoot(r.Workspace)
 		}
 	}
+	for _, tab := range a.tabs {
+		if folder, valid := a.tabFolder(tab); valid {
+			if a.folderSelectedTabs[folder] == "" || snapshot.FolderSelectedTabs[folder] == tab.ID {
+				a.folderSelectedTabs[folder] = tab.ID
+			}
+		}
+	}
+	a.rememberFolderTab()
 	return nil
 }
 func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
@@ -140,6 +163,8 @@ func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
 	s.RightTab = a.rightTab
 	s.ExpandedFiles = map[string][]string{}
 	s.GitDrafts = map[string]string{}
+	s.FolderSelectedTabs = map[string]string{}
+	a.rememberFolderTab()
 	for _, tab := range a.tabs {
 		if tab.Kind == "session" {
 			valid := false
@@ -163,6 +188,11 @@ func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
 			tab.ScrollY = d.scroll.Y
 		}
 		s.WorkspaceTabs = append(s.WorkspaceTabs, tab)
+		if folder, valid := a.tabFolder(tab); valid {
+			if s.FolderSelectedTabs[folder] == "" || a.folderSelectedTabs[folder] == tab.ID {
+				s.FolderSelectedTabs[folder] = tab.ID
+			}
+		}
 	}
 	if len(s.WorkspaceTabs) == 0 {
 		s.ActiveTabID = ""

@@ -117,9 +117,8 @@ func TestCloseTabsPreservesBackgroundWorkflowAndLastTabFallback(t *testing.T) {
 	a.newSession("/other")
 	second := a.session
 	tt := native.NewTester(a.view, 1000, 760)
-	if err := tt.Click("关闭会话标签 1"); err != nil {
-		t.Fatal(err)
-	}
+	a.closeSession(first)
+	tt.Frame()
 	if a.session != second || first.open || !a.anyBusy() || len(a.activeTasks()) != 1 {
 		t.Fatal("closing background tab changed task ownership or quit protection")
 	}
@@ -136,9 +135,11 @@ func TestCloseTabsPreservesBackgroundWorkflowAndLastTabFallback(t *testing.T) {
 	if err := tt.Click("关闭会话标签 1"); err != nil {
 		t.Fatal(err)
 	}
-	if a.session != second {
-		t.Fatal("selected close did not choose remaining tab")
+	if a.activeTab != "" || a.activeWorkspace != "/project" || !second.open {
+		t.Fatal("last folder tab close switched folders or closed background tab")
 	}
+	a.selectSession(second)
+	tt.Frame()
 	if err := tt.Click("关闭会话标签 2"); err != nil {
 		t.Fatal(err)
 	}

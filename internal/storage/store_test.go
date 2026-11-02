@@ -53,6 +53,7 @@ func TestVersionTwoBackupAndMixedTabs(t *testing.T) {
 	}
 	want.ActiveTabID = "file-a"
 	want.ActiveWorkspace, want.RightTab = "/project", "git"
+	want.FolderSelectedTabs = map[string]string{"/project": "file-a", "/other": "terminal-b"}
 	want.ExpandedFiles = map[string][]string{"/project": {"/project/sub"}}
 	if err := s.Save(want); err != nil {
 		t.Fatal(err)

@@ -849,27 +849,8 @@ func (a *App) finishCloseFile(d *filePage) {
 	}
 	a.cancelFileRead(d)
 	d.cancelFind()
-	old := a.activeTab
-	index := 0
-	for i, t := range a.tabs {
-		if t.ID == d.id {
-			index = i
-			break
-		}
-	}
 	delete(a.files, d.id)
 	a.removeWorkspaceTab(d.id)
-	if old != d.id {
-		return
-	}
-	a.activeTab = ""
-	if len(a.tabs) > 0 {
-		a.selectWorkspaceTab(a.tabs[max(0, index-1)])
-	} else {
-		for _, s := range a.sessions {
-			s.open = false
-		}
-	}
 }
 func (a *App) selectWorkspaceTab(tab storage.Tab) {
 	if tab.Kind == "terminal" {

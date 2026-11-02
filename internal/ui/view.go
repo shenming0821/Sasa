@@ -64,7 +64,7 @@ func (a *App) view(c *native.Context) {
 					a.terminalView(c.Key(page.id), page, leftShown, rightShown)
 				} else if d := a.currentFile(); d != nil {
 					a.fileView(c.Key(d.id), d, leftShown, rightShown)
-				} else if a.open {
+				} else if a.open && a.activeTab != "" {
 					a.sessionView(c.Key(a.session.id), leftShown, rightShown)
 				} else {
 					a.emptyWorkspace(c.Key("empty-workspace"), leftShown, rightShown)

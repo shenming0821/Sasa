@@ -94,6 +94,7 @@ func (a *App) addProject(path string) {
 			delete(a.hiddenProjects, directoryProjectID(repo.Path))
 			a.restoreProject(repositoryProjectID(repo.CommonDir))
 			a.repositories = mergeRepository(a.repositories, repo)
+			a.refreshFolderSelection()
 			delete(a.projectErrors, repo.CommonDir)
 			delete(a.collapsedProjects, repo.CommonDir)
 		})
@@ -163,6 +164,7 @@ func (a *App) refreshProjects() {
 				a.promoteDirectoryProject(path, repo)
 			}
 			a.repositories, a.projectErrors, a.projectsLoading = repos, failures, false
+			a.refreshFolderSelection()
 			a.persist()
 		})
 	}()
@@ -201,6 +203,9 @@ func (a *App) worktreeSessions(w project.Worktree) []*session {
 
 func (a *App) openWorktree(w project.Worktree) {
 	if !w.Available() {
+		return
+	}
+	if a.restoreFolderTab(w.Path) {
 		return
 	}
 	sessions := a.worktreeSessions(w)
@@ -336,7 +341,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 				}
 				wc := rc.Key(w.Path)
 				card := native.Column(wc).FillWidth().Gap(0).Radius(10)
-				if current := a.worktreeFor(a.State.Cwd); current != nil && current.Path == w.Path && a.open {
+				if a.activeWorkspace == w.Path {
 					card.Background(t.SurfacePressed)
 				} else if card.Hovered() {
 					card.Background(t.SurfaceHover)
@@ -354,6 +359,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 					b.Children(func() {
 						native.Column(wc).FillWidth().Gap(3).Children(func() {
 							native.Row(wc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
+								a.folderTabIndicator(wc, w.Path, -14)
 								native.Text(wc, a.worktreeName(w.Path)).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 								if w.Main {
 									native.Text(wc, "主要").FontSize(9).TextColor(t.TextMuted).Padding(1, 4).BorderWidth(1).BorderColor(t.Border).Radius(3)

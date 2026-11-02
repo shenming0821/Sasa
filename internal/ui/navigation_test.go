@@ -35,13 +35,20 @@ func TestProjectNavigationSearchCollapseAndTabs(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Type("修复")
+	tt.Advance(300 * time.Millisecond)
 	if !tt.HasText("切换会话 1") || tt.HasText("切换会话 2") {
 		t.Fatal("search failed to reveal matching collapsed session")
 	}
 	if err := tt.Click("切换会话 1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("会话标签 2"); err != nil {
+	tt.Frame()
+	if tt.HasText("会话标签 2") {
+		t.Fatalf("another folder's tab is visible: selected=%d folder=%q", a.session.id, a.activeWorkspace)
+	}
+	a.sessionQuery = ""
+	tt.Frame()
+	if err := tt.Click("切换会话 2"); err != nil {
 		t.Fatal(err)
 	}
 	if a.session != second || first.State.Draft != "草稿一" || second.State.Draft != "草稿二" {
@@ -361,6 +368,8 @@ func TestProjectNavigationOmitsUnboundSessions(t *testing.T) {
 		t.Fatal("hiding placeholder changed session or draft")
 	}
 	a.sessionQuery = ""
+	a.selectSession(unbound)
+	tt.Frame()
 	if err := tt.Click("会话标签 1"); err != nil {
 		t.Fatal(err)
 	}

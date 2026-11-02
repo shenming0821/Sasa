@@ -28,7 +28,7 @@ func (a *App) closeCurrentPage() {
 			a.closeTerminal(page)
 		} else if page := a.currentFile(); page != nil {
 			a.closeFile(page)
-		} else if a.open {
+		} else if a.open && a.activeTab != "" {
 			a.closeSession(a.session)
 		}
 	}

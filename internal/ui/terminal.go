@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 
@@ -199,15 +198,8 @@ func (a *App) finishCloseTerminal(page *terminalPage) {
 	if page.connection != nil {
 		page.connection.Hide()
 	}
-	index := slices.IndexFunc(a.tabs, func(tab storage.Tab) bool { return tab.ID == page.id })
 	a.removeWorkspaceTab(page.id)
 	delete(a.terminals, page.id)
-	if a.activeTab == page.id {
-		a.activeTab = ""
-		if len(a.tabs) > 0 {
-			a.selectWorkspaceTab(a.tabs[min(max(0, index-1), len(a.tabs)-1)])
-		}
-	}
 	if page.connection != nil {
 		a.terminalWorkers.Add(1)
 		go func() {

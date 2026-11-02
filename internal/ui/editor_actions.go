@@ -218,6 +218,11 @@ func (a *App) renameEditorPath(root, path, name string) error {
 		if a.activeTab == oldID {
 			a.activeTab = page.id
 		}
+		for folder, selected := range a.folderSelectedTabs {
+			if selected == oldID {
+				a.folderSelectedTabs[folder] = page.id
+			}
+		}
 		for index := range a.tabs {
 			if a.tabs[index].ID == oldID {
 				a.tabs[index].ID, a.tabs[index].Path = page.id, page.path

@@ -209,14 +209,14 @@ func TestP4HistoryFilterIsPerWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Type("second-filter")
-	if err := tt.Click("文件标签 " + first); err != nil {
-		t.Fatal(err)
+	if !a.restoreFolderTab(root) {
+		t.Fatal("first folder lost its open file")
 	}
 	if a.historyQuery != "first-filter" || a.historyScope != 1 {
 		t.Fatal("first workspace filter not restored", a.historyQuery)
 	}
-	if err := tt.Click("文件标签 " + second); err != nil {
-		t.Fatal(err)
+	if !a.restoreFolderTab(secondRoot) {
+		t.Fatal("second folder lost its open file")
 	}
 	if !strings.Contains(a.historyQuery, "second-filter") || a.historyScope != 0 {
 		t.Fatal("second workspace filter not restored", a.historyQuery)

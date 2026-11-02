@@ -23,6 +23,7 @@ type editorState struct {
 	fileWorkers, gitWorkers, highlightWorkers chan struct{}
 	fileBackgroundWorkers                     chan struct{}
 	tabs                                      []storage.Tab
+	folderSelectedTabs                        map[string]string
 	activeTab, activeWorkspace, rightTab      string
 	files                                     map[string]*filePage
 	workspaces                                map[string]*workspacePage
@@ -129,6 +130,9 @@ type filePage struct {
 
 func sessionTabID(id int) string { return fmt.Sprintf("session-%d", id) }
 func (a *App) workspaceRoot(cwd string) string {
+	if cwd == "" {
+		return ""
+	}
 	if w := a.worktreeFor(cwd); w != nil {
 		return w.Path
 	}
@@ -145,14 +149,16 @@ func (a *App) ensureSessionTab(s *session) {
 	a.tabs = append(a.tabs, storage.Tab{ID: id, Kind: "session", SessionID: s.id, Workspace: a.workspaceRoot(s.State.Cwd)})
 }
 func (a *App) removeWorkspaceTab(id string) {
+	previous := a.folderTabs(a.activeWorkspace)
 	a.tabs = slices.DeleteFunc(a.tabs, func(t storage.Tab) bool { return t.ID == id })
+	a.selectAfterTabClose(id, previous)
 }
 func (a *App) currentFile() *filePage { return a.files[a.activeTab] }
 func (a *App) workspaceCwd() string {
 	if page := a.currentTerminal(); page != nil {
 		return page.root
 	}
-	if a.currentFile() != nil || !a.open {
+	if a.currentFile() != nil || !a.open || a.activeTab == "" {
 		if a.activeWorkspace != "" {
 			return a.activeWorkspace
 		}
@@ -171,6 +177,8 @@ func (a *App) workspace(root string) *workspacePage {
 	return w
 }
 func (a *App) selectWorkspace(root string) {
+	root = a.workspaceRoot(root)
+	a.rememberFolderTab()
 	if a.activeWorkspace == root {
 		return
 	}

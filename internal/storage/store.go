@@ -44,28 +44,29 @@ type Session struct {
 }
 
 type Snapshot struct {
-	DeletedThreads    []DeletedThread
-	LastClaudeModels  map[string]string
-	DefaultAgent      agent.AgentKind
-	Preferences       *Preferences
-	WorkspaceTabs     []Tab
-	ActiveTabID       string
-	ActiveWorkspace   string
-	RightTab          string
-	ExpandedFiles     map[string][]string
-	GitDrafts         map[string]string
-	Repositories      []project.Repository
-	ProjectOrder      []string
-	HiddenProjects    map[string]bool
-	WorktreeNames     map[string]string
-	Selected          int
-	OpenTabs          []int
-	SidebarOpen       bool
-	SidebarWidth      float32
-	RightPanelWidth   float32
-	HistoryOpen       bool
-	CollapsedProjects map[string]bool
-	Sessions          []Session
+	DeletedThreads     []DeletedThread
+	LastClaudeModels   map[string]string
+	DefaultAgent       agent.AgentKind
+	Preferences        *Preferences
+	WorkspaceTabs      []Tab
+	ActiveTabID        string
+	ActiveWorkspace    string
+	FolderSelectedTabs map[string]string
+	RightTab           string
+	ExpandedFiles      map[string][]string
+	GitDrafts          map[string]string
+	Repositories       []project.Repository
+	ProjectOrder       []string
+	HiddenProjects     map[string]bool
+	WorktreeNames      map[string]string
+	Selected           int
+	OpenTabs           []int
+	SidebarOpen        bool
+	SidebarWidth       float32
+	RightPanelWidth    float32
+	HistoryOpen        bool
+	CollapsedProjects  map[string]bool
+	Sessions           []Session
 }
 
 type DeletedThread struct {

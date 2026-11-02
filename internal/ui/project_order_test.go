@@ -218,7 +218,7 @@ func TestProjectHeadingUsesOneHoverBackground(t *testing.T) {
 			if _, ok := tt.Find(pair[1]); ok {
 				t.Fatal("project options button still rendered")
 			}
-			sampleTitleX, sampleMenuX := title.X+3, title.X+title.W-3
+			sampleTitleX, sampleMenuX := title.X+5, title.X+title.W-3
 			y := title.Y + title.H/2
 			before := tt.Image().RGBAAt(int(sampleMenuX), int(y))
 			for _, x := range []float32{title.X + 40, title.X + title.W - 8} {
