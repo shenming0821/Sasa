@@ -47,7 +47,7 @@ func TestTimingVisibleThroughStreamingAndCompletion(t *testing.T) {
 			desktop.State.Apply(agent.Event{Method: "item/agentMessage/delta", Params: json.RawMessage(`{"turnId":"turn","itemId":"reply","delta":"回复正文"}`)})
 			tester.Frame()
 			if !tester.HasText("已处理 3分钟 44秒") || tester.HasText("正在思考") {
-				t.Fatal("streaming lost the timing footer")
+				t.Fatal("streaming lost the timing below the user question")
 			}
 			desktop.State.Apply(agent.Event{Method: "turn/completed", Params: json.RawMessage(`{"turn":{"id":"turn","status":"completed"}}`)})
 			desktop.State.Messages[0].Timing.Finished = desktop.State.Messages[0].Timing.Started.Add(309 * time.Second)
@@ -86,7 +86,7 @@ func TestTimingPersistsAndRestoresNativeHistory(t *testing.T) {
 	}
 }
 
-func TestTimingGroupsFinalRepliesAndKeepsSessionsSeparate(t *testing.T) {
+func TestTimingFollowsUserQuestionAndKeepsSessionsSeparate(t *testing.T) {
 	desktop := New(stubBackend{}, "test", "/tmp", nil)
 	first := &app.TurnTiming{Started: time.Now().Add(-time.Minute), Finished: time.Now()}
 	second := &app.TurnTiming{Started: time.Now()}
@@ -98,13 +98,80 @@ func TestTimingGroupsFinalRepliesAndKeepsSessionsSeparate(t *testing.T) {
 		{ID: "user-two", Role: "user", Timing: second},
 		{ID: "stream", Role: "assistant", Text: "正在回复"},
 	}
-	completed, active := desktop.conversationTimings(desktop.conversationRows())
-	if len(completed) != 1 || completed[2] != first || active != second {
-		t.Fatal("duration is not above the final reply or running footer lost ownership")
+	timings := desktop.conversationTimings(desktop.conversationRows())
+	if len(timings) != 2 || timings[0] != first || timings[3] != second {
+		t.Fatal("completed and running durations are not attached to their user questions")
+	}
+	desktop.State.Busy = false
+	if timings := desktop.conversationTimings(desktop.conversationRows()); len(timings) != 1 || timings[0] != first {
+		t.Fatal("idle session displayed an unconfirmed running clock")
 	}
 	other := New(stubBackend{}, "test", "/elsewhere", nil)
-	completed, active = other.conversationTimings(other.conversationRows())
-	if len(completed) != 0 || active != nil || other.maintenanceDelay(time.Now()) != 30*time.Second {
+	if len(other.conversationTimings(other.conversationRows())) != 0 || other.maintenanceDelay(time.Now()) != 30*time.Second {
 		t.Fatal("inactive session inherited another session's clock")
+	}
+}
+
+func TestTimingLayoutBelowQuestionBeforeCommands(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, width := range []int{640, 1000} {
+			for _, withReply := range []bool{false, true} {
+				t.Run(fmt.Sprintf("dark=%v/width=%d/reply=%v", dark, width, withReply), func(t *testing.T) {
+					desktop := New(stubBackend{}, "test", "/tmp", nil)
+					desktop.sidebarOpen = false
+					started := time.Now().Add(-52 * time.Second)
+					desktop.State.Messages = []*app.Message{
+						{ID: "question", Role: "user", Text: "提交并推送", TurnID: "turn", Timing: &app.TurnTiming{Started: started, Finished: started.Add(52 * time.Second)}},
+						commandMessage("first-command", "completed"),
+						{ID: "read", Role: "tool", TurnID: "turn", Tool: &app.Tool{Kind: "mcpToolCall", Name: "Read", Status: "completed"}},
+						commandMessage("last-command", "completed"),
+					}
+					if withReply {
+						desktop.State.Messages = append(desktop.State.Messages, &app.Message{ID: "reply", Role: "assistant", Text: "已提交并推送。", TurnID: "turn", Done: true})
+					}
+					tester := native.NewTester(desktop.view, width, 760)
+					tester.SetDark(dark)
+					var runningTiming, runningCommand native.Rect
+					for _, running := range []bool{true, false} {
+						desktop.State.Busy = running
+						label := "用时 52秒"
+						if running {
+							desktop.State.Messages[0].Timing.Finished = time.Time{}
+							label = "已处理 52秒"
+						} else {
+							desktop.State.Messages[0].Timing.Finished = started.Add(52 * time.Second)
+						}
+						tester.Frame()
+						question, questionVisible := tester.Find("提交并推送")
+						timing, timingVisible := tester.Find(label)
+						firstCommand, firstVisible := tester.Find("命令组 first-command")
+						lastCommand, lastVisible := tester.Find("命令组 last-command")
+						if !questionVisible || !timingVisible || !firstVisible || !lastVisible {
+							t.Fatalf("missing question/timing/commands: %v", tester.Texts())
+						}
+						if timing.Y < question.Y+question.H || timing.Y+timing.H > firstCommand.Y || firstCommand.Y >= lastCommand.Y {
+							t.Fatalf("want question, duration, commands; got question=%+v timing=%+v first=%+v last=%+v", question, timing, firstCommand, lastCommand)
+						}
+						if gap := firstCommand.Y - timing.Y - timing.H; gap > 24 {
+							t.Fatalf("duration divider leaves too much space before the next record: %g", gap)
+						}
+						count := 0
+						for _, text := range tester.Texts() {
+							if text == label {
+								count++
+							}
+						}
+						if count != 1 {
+							t.Fatalf("duration rendered %d times", count)
+						}
+						if running {
+							runningTiming, runningCommand = timing, firstCommand
+						} else if timing.Y != runningTiming.Y || firstCommand.Y != runningCommand.Y {
+							t.Fatalf("completion moved duration or commands: running=%+v/%+v completed=%+v/%+v", runningTiming, runningCommand, timing, firstCommand)
+						}
+					}
+				})
+			}
+		}
 	}
 }

@@ -34,8 +34,13 @@ func conversationSpacing(rows []conversationRow, i int) float32 {
 	if i < len(rows) && rows[i-1].processRecord() && rows[i].processRecord() {
 		return 4
 	}
-	if rows[i-1].message != nil && rows[i-1].message.Role == "user" ||
-		i < len(rows) && rows[i].message != nil && rows[i].message.Role == "user" {
+	if i < len(rows) && rows[i].message != nil && rows[i].message.Role == "user" {
+		return 24
+	}
+	if previous := rows[i-1].message; previous != nil && previous.Role == "user" {
+		if previous.Timing != nil {
+			return 12
+		}
 		return 24
 	}
 	return 12

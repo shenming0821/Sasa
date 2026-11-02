@@ -28,40 +28,28 @@ func timingText(timing *app.TurnTiming, now time.Time) string {
 
 func turnTiming(c *native.Context, timing *app.TurnTiming) {
 	if text := timingText(timing, time.Now()); text != "" {
-		native.Column(c).FillWidth().Gap(10).Padding(0, 0, 12, 0).Children(func() {
+		native.Column(c).FillWidth().Gap(10).Children(func() {
 			native.Text(c, text).FontSize(13).TextColor(c.Theme().TextMuted).SingleLine()
 			native.Box(c).FillWidth().Height(1).Background(c.Theme().Border)
 		})
 	}
 }
 
-func (a *App) conversationTimings(rows []conversationRow) (map[int]*app.TurnTiming, *app.TurnTiming) {
-	completed := make(map[int]*app.TurnTiming)
-	var current *app.TurnTiming
-	last, reply := -1, -1
-	flush := func() {
-		if current != nil && !current.Finished.IsZero() {
-			if reply >= 0 {
-				completed[reply] = current
-			} else if last >= 0 {
-				completed[last] = current
-			}
-		}
-	}
+func (a *App) conversationTimings(rows []conversationRow) map[int]*app.TurnTiming {
+	timings := make(map[int]*app.TurnTiming)
+	current := -1
 	for index, row := range rows {
 		if row.message.Role == "user" {
-			flush()
-			current, last, reply = row.message.Timing, index, -1
-		} else {
-			last = index
-			if row.message.Role == "assistant" {
-				reply = index
+			current = index
+			if timing := row.message.Timing; timing != nil && !timing.Finished.IsZero() {
+				timings[index] = timing
 			}
 		}
 	}
-	flush()
-	if !a.State.Busy || current == nil || !current.Finished.IsZero() {
-		current = nil
+	if a.State.Busy && current >= 0 {
+		if timing := rows[current].message.Timing; timing != nil && timing.Finished.IsZero() {
+			timings[current] = timing
+		}
 	}
-	return completed, current
+	return timings
 }
