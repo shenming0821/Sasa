@@ -86,6 +86,11 @@ def main():
             '\t\t\tsendSuper(self, "MyGoAccessibilityElement", cmd, uintptr(cached))',
         ),
     ]
+    edits["ui/list.go"] = [(
+        "func (s *ListState) sync(e *node, n int) {\n\tst, rt := e.st, e.c.rt",
+        "func (s *ListState) sync(e *node, n int) {\n\tst, rt := e.st, e.c.rt\n"
+        "\tif !s.FollowEnd {\n\t\ts.following = false\n\t}",
+    )]
     # Keep bullets compact while ordered lists retain room for tabular digits.
     edits["ui/markdown/view.go"] = [(
         "width := th.em(th.ListIndent)\n\tif b.Ordered {",

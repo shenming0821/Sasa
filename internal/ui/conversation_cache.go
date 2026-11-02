@@ -14,6 +14,7 @@ type conversationKey struct {
 	role, turn, kind, status    string
 	parent                      string
 	empty, interaction, changes bool
+	finished, expanded          bool
 }
 
 func messageConversationKey(message *app.Message) conversationKey {
@@ -38,6 +39,10 @@ func (s *session) conversationUnchanged() bool {
 	}
 	for index, message := range s.State.Messages {
 		key := messageConversationKey(message)
+		if message.Role == "user" {
+			key.finished = message.Timing != nil && !message.Timing.Finished.IsZero()
+			key.expanded = s.expandedProcesses[message.ID] || s.processProgress[message.ID] > 0
+		}
 		if s.projectionKeys[index] != key {
 			unchanged = false
 			s.projectionKeys[index] = key

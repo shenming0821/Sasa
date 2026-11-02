@@ -11,9 +11,10 @@ import (
 var terminalIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18M7 12h6M7 16h10"/>`)
 
 type conversationRow struct {
-	message  *app.Message
-	commands []*app.Message
-	changes  []*app.Message
+	message   *app.Message
+	commands  []*app.Message
+	changes   []*app.Message
+	processID string
 }
 
 func (r conversationRow) processRecord() bool {
@@ -60,7 +61,7 @@ func (s *session) conversationRows() []conversationRow {
 			changes = nil
 		}
 	}
-	for _, m := range s.State.Messages {
+	for _, m := range s.visibleConversationMessages() {
 		if m.Role == "user" || (m.TurnID != "" && turn != "" && m.TurnID != turn) {
 			flush()
 			turn = ""
@@ -90,6 +91,27 @@ func (s *session) conversationRows() []conversationRow {
 		rows = append(rows, row)
 	}
 	flush()
+	question, result := "", -1
+	for index := range rows {
+		message := rows[index].message
+		if message.Role == "user" {
+			if result >= 0 {
+				rows[result].processID = ""
+			}
+			question, result = "", -1
+			if message.Timing != nil && !message.Timing.Finished.IsZero() {
+				question = message.ID
+			}
+			continue
+		}
+		rows[index].processID = question
+		if question != "" && message.Role == "assistant" {
+			result = index
+		}
+	}
+	if result >= 0 {
+		rows[result].processID = ""
+	}
 	s.projectedRows = rows
 	s.navigationEntries = conversationEntries(rows)
 	s.projectedMessages = make([]*app.Message, len(rows))

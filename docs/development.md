@@ -12,6 +12,8 @@ Go 安装在 `~/.local/share/fuyu/toolchains/go1.27.3/`，未修改系统工具�
 
 无序列表标记保留正文的行框，在框中心向下 0.08 em 处绘制直径 0.28 em 的实心圆、空心圆或方块，与中文及行内代码的可见中心对齐；15 DIP 正文下直径 4.2 DIP、下移 1.2 DIP。正文、缩进和有序列表编号保持原尺寸。
 
+列表兼容补丁在 `ui/list.go` 的 `ListState.sync` 读取到 `FollowEnd=false` 时清除旧跟随状态，使执行过程折叠期间的临时暂停立即生效；保持首次打开与正常输出的底部跟随。升级 MyGo 时重新核对该同步入口，Fuyu 的 `TestTurnProcessDisclosureKeepsReadingPosition` 覆盖动效和即时切换下的阅读位置。
+
 该补丁同时让多行编辑器接收 `Cmd+Enter`，通过原有编辑器插入换行，保留光标、选区与撤销逻辑；输入框视图使用普通 Enter 发送，输入法组合门控继续保留。
 
 鼠标左键在已聚焦的文本编辑器中重新定位时，补丁重置光标闪烁计时，使新位置立即显示光标。升级 MyGo 时同时核对 `ui/input.go` 的点击定位路径；文件缓冲及普通文本区域的可控时钟与像素回归见 `TestEditorClickRestartsVisibleCaretPhase`。

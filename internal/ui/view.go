@@ -130,7 +130,7 @@ func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
 
 func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
-	a.list.FollowEnd = true
+	a.list.FollowEnd = !a.processScrollHold
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 		a.sessionTabs(c, leftShown, rightShown)
 		a.fileExitNotice(c)
@@ -217,6 +217,7 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 
 func (a *App) conversation(c *native.Context) {
 	t := c.Theme()
+	a.session.animateProcesses(c)
 	a.session.restoreRowOffset(c)
 	rows := a.session.conversationRows()
 	messages := a.session.projectedMessages
@@ -257,22 +258,32 @@ func (a *App) conversation(c *native.Context) {
 					readingColumn(c, func() { thinkingIndicator(c) })
 				})
 			} else {
-				native.Column(c).FillWidth().Padding(gap, 0, 0, 0).Bind(a.rowHandle(messages[i].ID)).Children(func() {
-					if len(rows[i].changes) > 0 {
-						readingColumn(c, func() { a.changeCard(c.Key(messages[i].ID), rows[i].changes) })
-					} else if len(rows[i].commands) > 0 {
-						readingColumn(c, func() { a.commandGroup(c.Key(messages[i].ID), rows[i].commands) })
-					} else {
-						a.message(c, messages[i])
-					}
-					if timing := timings[i]; timing != nil {
-						readingColumn(c, func() {
-							native.Column(c).FillWidth().Padding(16, 0, 0, 0).Children(func() {
-								turnTiming(c, timing)
+				row := native.Column(c).FillWidth().Bind(a.rowHandle(messages[i].ID))
+				var inner native.Element
+				row.Children(func() {
+					inner = native.Column(c).FillWidth().Shrink(0).Padding(gap, 0, 0, 0)
+					inner.Children(func() {
+						if len(rows[i].changes) > 0 {
+							readingColumn(c, func() { a.changeCard(c.Key(messages[i].ID), rows[i].changes) })
+						} else if len(rows[i].commands) > 0 {
+							readingColumn(c, func() { a.commandGroup(c.Key(messages[i].ID), rows[i].commands) })
+						} else {
+							a.message(c, messages[i])
+						}
+						if timings[i] != nil {
+							readingColumn(c, func() {
+								native.Column(c).FillWidth().Padding(16, 0, 0, 0).Children(func() {
+									a.session.turnTiming(c.Key(messages[i].ID), messages[i])
+								})
 							})
-						})
-					}
+						}
+					})
 				})
+				if id := rows[i].processID; id != "" {
+					if progress := a.session.processScale(id); progress < 1 {
+						row.ClipY().Opacity(progress).Height(progress * inner.Bounds().H)
+					}
+				}
 			}
 		}).Fill().Padding(24, padding, scrollFadeHeight, padding).Gap(0).TrackScroll(&a.scroll)
 		a.loadHistoryNearTop()

@@ -99,7 +99,7 @@ func TestTimingFollowsUserQuestionAndKeepsSessionsSeparate(t *testing.T) {
 		{ID: "stream", Role: "assistant", Text: "正在回复"},
 	}
 	timings := desktop.conversationTimings(desktop.conversationRows())
-	if len(timings) != 2 || timings[0] != first || timings[3] != second {
+	if len(timings) != 2 || timings[0] != first || timings[2] != second {
 		t.Fatal("completed and running durations are not attached to their user questions")
 	}
 	desktop.State.Busy = false
@@ -131,6 +131,7 @@ func TestTimingLayoutBelowQuestionBeforeCommands(t *testing.T) {
 					}
 					tester := native.NewTester(desktop.view, width, 760)
 					tester.SetDark(dark)
+					tester.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
 					var runningTiming, runningCommand native.Rect
 					for _, running := range []bool{true, false} {
 						desktop.State.Busy = running
@@ -142,6 +143,15 @@ func TestTimingLayoutBelowQuestionBeforeCommands(t *testing.T) {
 							desktop.State.Messages[0].Timing.Finished = started.Add(52 * time.Second)
 						}
 						tester.Frame()
+						if !running {
+							if tester.HasText("命令组 first-command") || tester.HasText("命令组 last-command") {
+								t.Fatal("completion did not automatically collapse process records")
+							}
+							if err := tester.Click("展开执行过程 question"); err != nil {
+								t.Fatal(err)
+							}
+							tester.Frame()
+						}
 						question, questionVisible := tester.Find("提交并推送")
 						timing, timingVisible := tester.Find(label)
 						firstCommand, firstVisible := tester.Find("命令组 first-command")

@@ -50,6 +50,9 @@ type session struct {
 	scroll               native.ScrollState
 	rows                 map[string]*native.Handle
 	commandGroups        map[string]*bool
+	expandedProcesses    map[string]bool
+	processProgress      map[string]float32
+	processScrollHold    bool
 	changeSummaries      map[string]cachedChangeSummary
 	completion           inputCompletion
 	readingContext       *native.Context

@@ -77,6 +77,9 @@ func (a *App) releaseClosedSession(s *session, now time.Time) {
 				s.conversationCache = conversationCache{}
 				s.conversationNavigation = conversationNavigation{}
 				s.rows, s.commandGroups, s.changeSummaries = nil, nil, nil
+				s.expandedProcesses = nil
+				s.processProgress = nil
+				s.processScrollHold = false
 				s.readingContext = nil
 				s.list, s.scroll = native.ListState{}, native.ScrollState{}
 			}

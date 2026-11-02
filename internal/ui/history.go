@@ -167,6 +167,24 @@ func (s *session) restoreReading() {
 		s.list.ScrollToEnd()
 		return
 	}
+	var question *app.Message
+	for _, message := range s.State.Messages {
+		if message.Role == "user" {
+			question = message
+		}
+		if message.ID == s.saved.Anchor {
+			if question != nil && question.Timing != nil && !question.Timing.Finished.IsZero() && !s.expandedProcesses[question.ID] {
+				visible := false
+				for _, row := range s.conversationRows() {
+					visible = visible || row.message.ID == message.ID
+				}
+				if !visible {
+					s.saved.Anchor, s.saved.AnchorOffset = question.ID, 0
+				}
+			}
+			break
+		}
+	}
 	for i, row := range s.conversationRows() {
 		matches := row.message.ID == s.saved.Anchor
 		for _, command := range append(append([]*app.Message(nil), row.commands...), row.changes...) {
