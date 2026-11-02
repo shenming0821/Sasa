@@ -355,11 +355,12 @@ func TestWorktreeHidesBlankSessionRowsUntilConversationStarts(t *testing.T) {
 	if tt.HasText("切换会话 3") || !tt.HasText("打开工作区 /feature") {
 		t.Fatal("new blank session duplicated placeholder beside real task")
 	}
+	fresh := a.session
 	if err := tt.Click("打开工作区 /feature"); err != nil {
 		t.Fatal(err)
 	}
-	if a.session != draft || !a.State.Busy {
-		t.Fatal("real task was no longer reachable")
+	if a.session != fresh || !draft.open || !draft.State.Busy {
+		t.Fatal("folder click changed selected tab or background task")
 	}
 	first.State.ThreadID, first.loaded = "saved-history", false
 	tt.Frame()
@@ -376,6 +377,7 @@ func TestWorktreeCardShowsOnlyLatestConversation(t *testing.T) {
 	latest := a.session
 	latest.saved.Title = "latest conversation"
 	a.newSession("/repo")
+	fresh := a.session
 	tt := native.NewTester(a.view, 1000, 760)
 	if tt.HasText("切换会话 1") || tt.HasText("切换会话 2") || tt.HasText("切换会话 3") {
 		t.Fatal("worktree card must contain only its latest conversation")
@@ -383,8 +385,8 @@ func TestWorktreeCardShowsOnlyLatestConversation(t *testing.T) {
 	if err := tt.Click("打开工作区 /repo"); err != nil {
 		t.Fatal(err)
 	}
-	if a.session != latest {
-		t.Fatal("worktree card did not open its displayed conversation")
+	if a.session != fresh || !latest.open {
+		t.Fatal("worktree card did not retain its selected tab")
 	}
 }
 

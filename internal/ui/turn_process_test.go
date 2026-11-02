@@ -64,6 +64,45 @@ func TestCompletedTurnProcessDisclosure(t *testing.T) {
 	}
 }
 
+func TestTurnProcessDisclosureRequiresContent(t *testing.T) {
+	for _, example := range []struct {
+		name     string
+		messages []*app.Message
+		want     bool
+	}{
+		{name: "no reply"},
+		{name: "final reply", messages: []*app.Message{{Role: "assistant", Text: "嗨，我在。"}}},
+		{name: "empty placeholders", messages: []*app.Message{{Role: "assistant"}, {Role: "assistant", Text: "嗨，我在。"}, {Role: "assistant"}}},
+		{name: "intermediate reply", messages: []*app.Message{{Role: "assistant", Text: "正在检查"}, {Role: "assistant", Text: "完成"}}, want: true},
+		{name: "tool without reply", messages: []*app.Message{commandMessage("read", "completed")}, want: true},
+		{name: "tool and reply", messages: []*app.Message{commandMessage("read", "completed"), {Role: "assistant", Text: "完成"}}, want: true},
+		{name: "next turn process", messages: []*app.Message{{Role: "assistant", Text: "嗨"}, {Role: "user", Text: "检查文件"}, commandMessage("read", "completed")}},
+	} {
+		for _, expanded := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/expanded=%v", example.name, expanded), func(t *testing.T) {
+				desktop := New(stubBackend{}, "test", "/tmp", nil)
+				started := time.Now().Add(-6 * time.Second)
+				message := &app.Message{ID: "question", Role: "user", Timing: &app.TurnTiming{Started: started, Finished: started.Add(6 * time.Second)}}
+				desktop.State.Messages = append([]*app.Message{message}, example.messages...)
+				desktop.expandedProcesses = map[string]bool{"question": expanded}
+				tester := native.NewTester(func(c *native.Context) {
+					desktop.session.turnTiming(c, message)
+				}, 400, 100)
+				tester.Frame()
+				if !tester.HasText("用时 6秒") {
+					t.Fatal("duration disappeared")
+				}
+				_, arrow := tester.Find("执行过程箭头 question")
+				_, open := tester.Find("展开执行过程 question")
+				_, close := tester.Find("收起执行过程 question")
+				if arrow != example.want || (open || close) != example.want {
+					t.Fatalf("disclosure content mismatch: arrow=%v open=%v close=%v want=%v", arrow, open, close, example.want)
+				}
+			})
+		}
+	}
+}
+
 func TestTurnProcessDisclosureKeepsReadingPosition(t *testing.T) {
 	for _, reduce := range []bool{false, true} {
 		for _, longResult := range []bool{false, true} {
@@ -276,6 +315,7 @@ func TestTurnTimingArrowVisualAlignment(t *testing.T) {
 			desktop := New(stubBackend{}, "test", "/tmp", nil)
 			started := time.Now().Add(-time.Minute)
 			message := &app.Message{ID: "question", Role: "user", Timing: &app.TurnTiming{Started: started, Finished: started.Add(time.Minute)}}
+			desktop.State.Messages = []*app.Message{message, commandMessage("read", "completed")}
 			tester := native.NewTester(func(c *native.Context) {
 				desktop.applyAppearance(c)
 				native.Column(c).Fill().Padding(10).Background(c.Theme().Background).Children(func() {
@@ -326,6 +366,7 @@ func TestTurnTimingTextClickAndHover(t *testing.T) {
 			desktop := New(stubBackend{}, "test", "/tmp", nil)
 			started := time.Now().Add(-time.Minute)
 			message := &app.Message{ID: "question", Role: "user", Timing: &app.TurnTiming{Started: started, Finished: started.Add(time.Minute)}}
+			desktop.State.Messages = []*app.Message{message, commandMessage("read", "completed")}
 			var muted, primary native.Color
 			tester := native.NewTester(func(c *native.Context) {
 				muted, primary = c.Theme().TextMuted, c.Theme().Text

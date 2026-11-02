@@ -65,12 +65,40 @@ func timingText(timing *app.TurnTiming, now time.Time) string {
 	return fmt.Sprintf("%s%d秒", prefix, seconds)
 }
 
+func (s *session) hasTurnProcess(question *app.Message) bool {
+	inTurn, hasReply := false, false
+	for _, message := range s.State.Messages {
+		if message.Role == "user" {
+			if inTurn {
+				break
+			}
+			inTurn = message == question
+			continue
+		}
+		if !inTurn {
+			continue
+		}
+		if message.Role != "assistant" {
+			return true
+		}
+		// Empty assistant placeholders are skipped by conversationRows; the
+		// final nonempty reply stays visible even when the process is folded.
+		if message.Text != "" {
+			if hasReply {
+				return true
+			}
+			hasReply = true
+		}
+	}
+	return false
+}
+
 func (s *session) turnTiming(c *native.Context, message *app.Message) {
 	timing := message.Timing
 	if text := timingText(timing, time.Now()); text != "" {
 		native.Column(c).FillWidth().Gap(10).Children(func() {
 			native.Row(c).Gap(8).AlignItems(native.Center).Children(func() {
-				if !timing.Finished.IsZero() {
+				if !timing.Finished.IsZero() && s.hasTurnProcess(message) {
 					label := "展开"
 					if s.expandedProcesses[message.ID] {
 						label = "收起"

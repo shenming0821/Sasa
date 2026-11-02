@@ -32,6 +32,14 @@
 
 `forSession` 只绑定所属会话、传输和主线程派发资源。`thread/start` 成功后，先在主线程登记原生 ID 并保存索引，成功后再发 `turn/start`。后台回调通过 `Window.Update` 更新所属会话。共享断线向全部会话传播；普通事件按原生 thread ID 过滤。
 
+## 消息送达与快速中断
+
+Codex 本地用户气泡建立时先标记为等待送达确认；`turn/start` 的响应和 `turn/started` 只表示轮次建立。收到同轮原生 `userMessage` 条目后才确认送达。尚未确认输入的轮次结束时，通过 `thread/read(includeTurns=true)` 读取本轮完整条目；核验期间保留消息和用户正在编辑的草稿，核验明确前暂停下一次发送。
+
+原生记录含用户条目时保持已送达，不恢复为待重发内容；完整终态中没有用户条目时，将原气泡标为“未发送”，在输入框没有新文字或图片时恢复原文字和图片，供用户重新发送。已有新草稿时保留新内容并提示原消息未发送。核验失败、缺少轮次或条目不完整时保留不确定性，提供“重新核验结果”，确认后再开放发送。准备阶段明确未提交的取消与失败也标记为未发送。所有异步写回按原会话归属，恢复后的草稿沿用现有持久化。
+
+实现位于 `internal/app/submission.go`、`state.go`、`snapshot.go` 和 `internal/ui/app.go`；消息状态由 `internal/ui/view.go` 就地呈现。实际覆盖及原生限制见[快速中断送达验证](../verification/2026-11-02-interrupted-submission.md)。
+
 ## 对话刻度导航
 
 `internal/ui/conversation_navigation.go` 在至少有两条已加载用户消息时，在正文左侧显示固定 36 DIP 轨道。每条用户消息对应一个刻度，复用 `conversationRows` 的真实列表索引，工具分组不产生额外刻度。导航条目与消息行一起缓存，预览读取原消息对象，因此流式文字更新无需重建整组导航。

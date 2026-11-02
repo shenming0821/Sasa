@@ -153,6 +153,9 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
+	if a.State.PendingSubmission() != nil && (a.snapshotPending || a.State.NeedsSnapshot || a.State.Incomplete) {
+		return false
+	}
 	return a.open && a.sessionBackend() != nil && !a.releasing && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		!a.imagesImporting && a.State.Cwd != "" && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
 }
@@ -229,11 +232,12 @@ func (a *App) send() {
 						a.submitStop = false
 						a.State.Busy = false
 						a.State.FinishTiming()
+						a.State.RejectSubmission()
 						a.State.Error, a.State.Phase = "读取默认模型失败，本次未发送："+err.Error(), "未发送"
 						if errors.Is(err, context.Canceled) {
 							a.State.Error, a.State.Phase = "", "已取消"
 						}
-						if a.State.Draft == "" {
+						if a.State.Draft == "" && len(a.State.DraftImages) == 0 {
 							a.State.Draft = text
 						}
 						a.restoreSubmittedImages(text)
@@ -326,8 +330,9 @@ func (a *App) send() {
 func (a *App) abortBeforeTurn(text string, err error) {
 	a.State.FinishTiming()
 	a.State.Busy = false
+	a.State.RejectSubmission()
 	a.State.Error, a.State.Phase = "会话状态未能保存，本次未发送："+err.Error(), "未发送"
-	if a.State.Draft == "" {
+	if a.State.Draft == "" && len(a.State.DraftImages) == 0 {
 		a.State.Draft = text
 	}
 	a.restoreSubmittedImages(text)
@@ -351,18 +356,20 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 	rejectedStart := !turnSubmitted && errors.As(err, &rpc) && !a.State.Disconnected
 	a.State.Busy = false
 	if errors.As(err, &notSubmitted) {
+		a.State.RejectSubmission()
 		a.State.Error, a.State.Phase = "本次未发送："+err.Error(), "未发送"
 		if errors.Is(err, context.Canceled) {
 			a.State.Error, a.State.Phase = "", "已取消"
 		}
 	} else if rejectedStart {
+		a.State.RejectSubmission()
 		// No turn/start was attempted, so retrying cannot duplicate execution.
 		a.State.Error, a.State.Phase = "创建会话失败，可稍后重新发送："+err.Error(), "会话创建失败"
 	} else {
 		a.State.Error, a.State.Phase = "请求结果未确认，请重新启动 Fuyu 并核验原生记录："+err.Error(), "请求待核验"
 		a.State.Disconnected = true
 	}
-	if a.State.Draft == "" {
+	if a.State.Draft == "" && len(a.State.DraftImages) == 0 {
 		a.State.Draft = text
 	}
 	a.restoreSubmittedImages(text)
@@ -557,7 +564,8 @@ func (a *App) reconcileIfNeeded() {
 		ReadThread(context.Context, string) (json.RawMessage, error)
 	})
 	if !ok {
-		a.State.Notice = "部分事件未保留，当前连接无法读取原生记录，请核验结果。"
+		a.State.Incomplete = true
+		a.State.Notice = "当前连接无法读取原生记录，请核验本轮结果及消息是否送达。"
 		return
 	}
 	threadID, sequence := a.State.ThreadID, a.State.Sequence
@@ -573,10 +581,12 @@ func (a *App) reconcileIfNeeded() {
 				return
 			}
 			if err != nil {
+				a.State.Incomplete = true
 				a.State.Notice = "原生记录核验失败，结果可能不完整：" + err.Error()
 				return
 			}
 			if err := a.State.Reconcile(raw); err != nil {
+				a.State.Incomplete = true
 				a.State.Notice = fmt.Sprintf("原生记录无法校准：%v；结果可能不完整。", err)
 			}
 		})

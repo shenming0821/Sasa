@@ -208,19 +208,6 @@ func (a *App) openWorktree(w project.Worktree) {
 	if a.restoreFolderTab(w.Path) {
 		return
 	}
-	sessions := a.worktreeSessions(w)
-	for _, s := range sessions {
-		if s.hasProjectConversation() {
-			a.selectSession(s)
-			return
-		}
-	}
-	for _, s := range sessions {
-		if filepath.Clean(s.State.Cwd) == w.Path {
-			a.selectSession(s)
-			return
-		}
-	}
 	a.newSession(w.Path)
 }
 
@@ -388,11 +375,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 						})
 					})
 					if b.Clicked() {
-						if latest != nil {
-							a.selectSession(latest)
-						} else {
-							a.openWorktree(w)
-						}
+						a.openWorktree(w)
 					}
 				})
 			}

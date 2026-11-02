@@ -12,10 +12,11 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		Thread struct {
 			ID    string `json:"id"`
 			Turns []struct {
-				ID     string            `json:"id"`
-				Status string            `json:"status"`
-				Error  json.RawMessage   `json:"error"`
-				Items  []json.RawMessage `json:"items"`
+				ID        string            `json:"id"`
+				ItemsView string            `json:"itemsView"`
+				Status    string            `json:"status"`
+				Error     json.RawMessage   `json:"error"`
+				Items     []json.RawMessage `json:"items"`
 			} `json:"turns"`
 		} `json:"thread"`
 	}
@@ -32,11 +33,28 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		if turn.Status != "completed" && turn.Status != "failed" && turn.Status != "interrupted" {
 			return fmt.Errorf("任务尚未到达可核验终态")
 		}
+		if s.PendingSubmission() != nil && (turn.Items == nil || turn.ItemsView != "" && turn.ItemsView != "full") {
+			return fmt.Errorf("消息送达核验需要完整的任务条目")
+		}
 		// Apply authoritative items through the same projection in an isolated
 		// state; the live state's completed-turn guard remains intact.
 		projected := New(s.Cwd)
 		projected.ThreadID, projected.TurnID = s.ThreadID, s.TurnID
+		delivered := false
 		for _, item := range turn.Items {
+			var input struct {
+				Type string `json:"type"`
+				ID   string `json:"id"`
+			}
+			if err := json.Unmarshal(item, &input); err != nil {
+				return err
+			}
+			if input.Type == "" || input.ID == "" {
+				return fmt.Errorf("原生任务条目不完整")
+			}
+			if input.Type == "userMessage" {
+				delivered = true
+			}
 			params, _ := json.Marshal(map[string]any{"threadId": s.ThreadID, "turnId": s.TurnID, "item": item})
 			projected.Apply((agent.Event{Method: "item/completed", Params: params}).ForDisplay())
 		}
@@ -56,8 +74,16 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 			s.Error = projected.Error
 		}
 		s.Incomplete = false
+		s.NeedsSnapshot = false
 		s.clearUnfinishedToolError(turn.ID)
 		s.Notice = "已按原生记录核验本轮终态；显示内容仍受容量上限约束。"
+		if message := s.PendingSubmission(); message != nil && message.TurnID == turn.ID {
+			if delivered {
+				message.Delivery = "sent"
+			} else {
+				s.RejectSubmission()
+			}
+		}
 		s.limitDisplay()
 		return nil
 	}

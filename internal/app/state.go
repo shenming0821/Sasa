@@ -19,6 +19,7 @@ type Message struct {
 	Images      []attachment.Image
 	ID          string
 	Role        string
+	Delivery    string
 	Text        string
 	Done        bool
 	TurnID      string
@@ -57,10 +58,21 @@ type State struct {
 func New(cwd string) State { return State{Cwd: cwd, Phase: "就绪"} }
 
 func (s *State) Begin(text string) {
+	for index := len(s.Messages) - 1; index >= 0; index-- {
+		if message := s.Messages[index]; message.Role == "user" {
+			if message.Delivery == "unsent" {
+				s.Notice = ""
+			}
+			break
+		}
+	}
 	s.Sequence++
 	s.Messages = append(s.Messages, &Message{
 		ID: fmt.Sprintf("user-%d", s.Sequence), Role: "user", Text: text, Done: true, Images: slices.Clone(s.DraftImages), Timing: &TurnTiming{Started: time.Now()},
 	})
+	if s.Agent.Normalized() == agent.Codex {
+		s.Messages[len(s.Messages)-1].Delivery = "pending"
+	}
 	s.DraftImages = nil
 	s.Draft, s.Error, s.TurnID, s.retryError = "", "", "", ""
 	s.unfinishedToolError = ""
@@ -209,6 +221,10 @@ func (s *State) Apply(event agent.Event) {
 		m.Tool.Output, m.Tool.Truncated = appendOutput(m.Tool.Output, p.Delta, m.Tool.Truncated)
 	case "item/started", "item/completed":
 		switch p.Item.Type {
+		case "userMessage":
+			if message := s.PendingSubmission(); message != nil && id != "" && p.Item.ID != "" && message.TurnID == id {
+				message.Delivery = "sent"
+			}
 		case "agentMessage":
 			m := s.item(p.Item.ID, "assistant")
 			m.TurnID = id
@@ -278,6 +294,10 @@ func (s *State) Apply(event agent.Event) {
 		s.FinishTiming()
 		s.expireInteractions("已失效")
 		s.TurnID, s.Busy = p.Turn.ID, false
+		if s.PendingSubmission() != nil {
+			s.NeedsSnapshot = true
+			s.Notice = "正在确认本条消息是否送达。"
+		}
 		s.stopRequested = false
 		for _, m := range s.Messages {
 			if m.Tool != nil && m.TurnID == p.Turn.ID && !m.Done {

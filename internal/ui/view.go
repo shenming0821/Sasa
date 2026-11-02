@@ -474,6 +474,18 @@ func (a *App) message(c *native.Context, m *app.Message) {
 							MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(t.Surface)
 					})
 				}
+				label := ""
+				switch m.Delivery {
+				case "pending":
+					label = "等待送达确认"
+				case "unsent":
+					label = "未发送"
+				}
+				if label != "" {
+					native.Row(c).FillWidth().Justify(native.End).Children(func() {
+						native.Text(c, label).FontSize(11).TextColor(t.TextMuted)
+					})
+				}
 			} else if m.Role == "assistant" {
 				a.messageMarkdown(c, m)
 				if text := a.replyCopyText(m); text != "" {

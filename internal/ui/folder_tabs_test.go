@@ -85,6 +85,45 @@ func TestFolderTabsCloseUsesSameFolderNeighbors(t *testing.T) {
 	}
 }
 
+func TestFolderClickCreatesSessionAfterLastTabClosed(t *testing.T) {
+	for _, conversation := range []bool{false, true} {
+		t.Run(fmt.Sprintf("conversation=%t", conversation), func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/repo", nil)
+			tree := project.Worktree{Path: "/repo", Branch: "main"}
+			a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "repo", Worktrees: []project.Worktree{tree}}}
+			closed := a.session
+			closed.State.Draft = "preserved draft"
+			if conversation {
+				closed.saved.Title = "Previous conversation"
+				closed.State.ThreadID = "previous-thread"
+			}
+			tester := native.NewTester(a.view, 1000, 760)
+			a.closeSession(closed)
+			tester.Frame()
+			if err := tester.Click("打开工作区 /repo"); err != nil {
+				t.Fatal(err)
+			}
+			fresh := a.session
+			if fresh == closed || closed.open || len(a.sessions) != 2 || fresh.State.Cwd != tree.Path || !fresh.open || fresh.State.ThreadID != "" || fresh.State.Draft != "" {
+				t.Fatal("folder click restored closed session instead of creating a fresh session")
+			}
+			if closed.State.Draft != "preserved draft" {
+				t.Fatal("closing session discarded its draft")
+			}
+			if err := tester.Click("打开工作区 /repo"); err != nil {
+				t.Fatal(err)
+			}
+			if a.session != fresh || len(a.sessions) != 2 {
+				t.Fatal("folder click did not reuse its open tab")
+			}
+			a.selectSession(closed)
+			if a.session != closed || !closed.open || closed.State.Draft != "preserved draft" {
+				t.Fatal("explicitly reopening closed history lost its state")
+			}
+		})
+	}
+}
+
 func TestFolderTabsWorktreesRestoreMixedPages(t *testing.T) {
 	a, queue, root := p4App(t)
 	other := t.TempDir()
