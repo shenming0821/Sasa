@@ -30,13 +30,20 @@ func (b *resourceBackend) ReleaseIdleThread(ctx context.Context, id string) (boo
 	}
 }
 
-func resourceApp(t *testing.T) (*App, *resourceBackend, chan func()) {
+func resourceApp(t *testing.T, kinds ...agent.AgentKind) (*App, *resourceBackend, chan func()) {
 	t.Helper()
 	backend := &resourceBackend{
 		recoveryBackend: *recoveredBackend("completed"),
 		requests:        make(chan string, 8), results: make(chan bool, 8),
 	}
 	a := New(backend, "test", "/first", nil)
+	if len(kinds) > 0 && kinds[0] == agent.Claude {
+		a = New(&stubBackend{}, "test", "/first", nil)
+		if err := a.RegisterBackend(agent.Claude, "/claude", backend); err != nil {
+			t.Fatal(err)
+		}
+		a.kind, a.runtimeKey = agent.Claude, "/claude"
+	}
 	store, err := storage.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +66,13 @@ func resourceApp(t *testing.T) (*App, *resourceBackend, chan func()) {
 }
 
 func TestClosedSessionReleaseRetainsDraftAndResumesOnReopen(t *testing.T) {
-	a, backend, queue := resourceApp(t)
+	for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+		t.Run(string(kind), func(t *testing.T) { testClosedSessionReleaseRetainsDraftAndResumesOnReopen(t, kind) })
+	}
+}
+
+func testClosedSessionReleaseRetainsDraftAndResumesOnReopen(t *testing.T, kind agent.AgentKind) {
+	a, backend, queue := resourceApp(t, kind)
 	s := a.session
 	a.closeSession(s)
 	due := s.releaseAfter
@@ -97,7 +110,13 @@ func TestClosedSessionReleaseRetainsDraftAndResumesOnReopen(t *testing.T) {
 }
 
 func TestReopenDuringReleaseWaitsForResumeBeforeSending(t *testing.T) {
-	a, backend, queue := resourceApp(t)
+	for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+		t.Run(string(kind), func(t *testing.T) { testReopenDuringReleaseWaitsForResumeBeforeSending(t, kind) })
+	}
+}
+
+func testReopenDuringReleaseWaitsForResumeBeforeSending(t *testing.T, kind agent.AgentKind) {
+	a, backend, queue := resourceApp(t, kind)
 	s := a.session
 	a.closeSession(s)
 	a.releaseClosedSessions(s.releaseAfter)
@@ -133,15 +152,18 @@ func TestClosedSessionReleaseGuardsTasksAndRetriesNativeCheck(t *testing.T) {
 		{"inflight send", func(s *session) { s.submitCancel = func() {} }},
 		{"unfinished background tool", func(s *session) { s.State.Messages[0].Tool.AwaitingFinal = true }},
 		{"active tool", func(s *session) { s.State.Messages[0].Tool.Status = "inProgress" }},
-		{"other agent", func(s *session) { s.kind = agent.Claude }},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			a, backend, _ := resourceApp(t)
-			a.closeSession(a.session)
-			scenario.set(a.session)
-			a.releaseClosedSessions(a.releaseAfter)
-			if a.releasing || len(backend.requests) != 0 {
-				t.Fatal("release touched a protected session")
+			for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+				t.Run(string(kind), func(t *testing.T) {
+					a, backend, _ := resourceApp(t, kind)
+					a.closeSession(a.session)
+					scenario.set(a.session)
+					a.releaseClosedSessions(a.releaseAfter)
+					if a.releasing || len(backend.requests) != 0 {
+						t.Fatal("release touched a protected session")
+					}
+				})
 			}
 		})
 	}

@@ -8,6 +8,8 @@
 
 ## 协议与进程
 
+关闭会话标签后，UI 保留 30 秒再调用 `ReleaseIdleThread`：活动和未知任务保留，空闲进程停止计时、退出并等待清理完成；已按 2 分钟超时回收的进程也可进入缓存回收。原生历史可读取且恢复状态为 idle 时，清理关闭会话的消息及渲染缓存，保留草稿、标题、阅读位置和折叠状态；重开先恢复历史再允许发送。历史缺失、变化或读取失败时保留显示缓存，按现有 1 分钟间隔重试。进程自身仍保持 2 分钟空闲超时、最多 4 个空闲进程的上限。验证见[Claude 关闭会话回收](../verification/2026-11-02-claude-memory.md)。
+
 `client.go` 管理会话检查点，`protocol.go` 与 `session_process.go` 管理任务进程、独立轮次与 stream-json。使用 `--permission-prompt-tool stdio`，权限模式由 CLI 按原生配置与当前 cwd 决定；新任务、恢复后的后续任务和模型/技能目录探测共用此启动入口。发送 initialize 并核验返回的 `current_permission_mode` 为非空字符串后再发送用户帧，缺失或格式错误时终止初始化并保持未发送状态。模型和命令目录来自 initialize；模型选择通过 `--model` 传递，命令保留原生 `/名称 参数` 文本。2026-10-29 本机 `permissions.defaultMode=bypassPermissions`，真实 CLI 初始化确认 `current_permission_mode=bypassPermissions`，验证见[权限配置继承](../verification/2026-10-29-claude-permission-mode.md)。
 
 Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clear`。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他原生命令，本地 `/clear` 保持可见。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。

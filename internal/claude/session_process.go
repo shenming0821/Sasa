@@ -28,6 +28,53 @@ type sessionProcess struct {
 	model, config string
 }
 
+func (c *Client) ReleaseIdleThread(ctx context.Context, id string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	c.mu.Lock()
+	s := c.sessions[id]
+	if c.closed || c.failed || s == nil || s.run != nil || len(s.Turns) == 0 {
+		c.mu.Unlock()
+		return false, nil
+	}
+	status := s.Turns[len(s.Turns)-1].Status
+	if status == "inProgress" || status == "unknown" {
+		c.mu.Unlock()
+		return false, nil
+	}
+	generation := s.Generation
+	run := s.idle
+	if run != nil {
+		s.idle = nil
+		s.retiring = run
+		if run.idleTimer != nil {
+			run.idleTimer.Stop()
+		}
+	} else {
+		run = s.retiring
+		if run == nil {
+			for execution := range c.executions {
+				if execution.session == s {
+					c.mu.Unlock()
+					return false, nil
+				}
+			}
+		}
+	}
+	c.mu.Unlock()
+	if run != nil {
+		run.stopProcess()
+	}
+	resumed, err := c.ResumeThread(ctx, id)
+	if err != nil || resumed.ThreadMeta.Status.Type != "idle" {
+		return false, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return !c.closed && !c.failed && s.Generation == generation && s.run == nil && s.idle == nil && s.retiring == nil, nil
+}
+
 func (r *execution) expireIdle() {
 	c := r.client
 	c.mu.Lock()

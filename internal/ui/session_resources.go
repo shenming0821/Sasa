@@ -10,7 +10,7 @@ import (
 const closedSessionRetention = 30 * time.Second
 
 func (s *session) canReleaseRuntime() bool {
-	if s.kind.Normalized() != agent.Codex || s.open || !s.loaded || s.releasing ||
+	if s.open || !s.loaded || s.releasing ||
 		s.State.ThreadID == "" || s.State.TurnID == "" || s.State.Busy || s.State.Disconnected ||
 		s.recovering || s.recoveryBlocked || s.historyLoading || s.forking ||
 		s.forkUncertain || s.reviewRequired || s.writerOccupied || s.imagesImporting ||
