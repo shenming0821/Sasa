@@ -22,6 +22,7 @@ type fileLocation struct {
 }
 
 func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
+	a.md.Theme.Strong = c.Theme().Danger
 	owner := a.session
 	cwd := owner.State.Cwd
 	a.md.OnLink = func(destination string) {

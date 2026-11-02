@@ -123,6 +123,10 @@ Command+W 与“文件 → 关闭当前页签”共用 `closeCurrentPage`：有�
 
 聊天 Markdown 的无序列表标记列最多 1.4 em（当前字号 15 DIP，对应 21 DIP），圆点与正文更紧凑，嵌套层级及换行缩进沿用原渲染。有序列表保留 3 em 编号兼容宽度，流式与完成态使用相同设置。实现见 `scripts/mygo-input-style.py`，编号和无序列表回归见 `internal/ui/app_test.go`。
 
+助手回复中 Markdown 的加粗强调文字（`**文字**` 或 `__文字__`）采用主题红色并保留加粗，浅色为 `#dc2626`、深色为 `#ef4444`；流式输出、完成态与历史恢复使用同一渲染入口，切换主题时同步更新。正文、行内代码和链接沿用各自颜色，重要性由回复中的强调标记表达。实现见 `internal/ui/message_links.go`，段落、列表、表格与主题切换像素回归见 `TestMessageStrongTextUsesThemeRed`。
+
+聊天回复的二级标题（`##`）字号为正文的 1.2 倍：当前正文 15 DIP，对应标题 18 DIP，较原默认 20.25 DIP 缩小约 11%。标题字重、颜色与间距沿用原设置，其他标题级别保持原尺寸；流式与历史回复共用 `App.New` 中的 Markdown 主题配置。
+
 页签标题悬停仅显示一次完整标题，不追加工作区或文件完整路径；会话、文件和 Diff 页签关闭按钮保留无障碍名称与点击行为，悬停时不显示气泡。标题和关闭入口使用透明的 `ButtonBase`，悬停时保持背景不变；选中页签底色、底边标记及键盘焦点提示继续保留。验证见 `TestTabTooltipsShowOnlyTitleAndSkipClose`。
 
 会话历史列表分页按原生 thread ID 合并：同一页及跨页重复项更新已有条目的元信息并保持位置，不同 ID 的同名会话分别保留。请求期间避免重复加载，已有列表且分页游标为空时停止请求，防止再次从第一页追加。受控回归见 `TestThreadHistoryMergesPagesByIDAndStopsAtEnd`。
