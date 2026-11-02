@@ -31,8 +31,13 @@ cat > "$bundle/Info.plist" <<'PLIST'
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSLocalNetworkUsageDescription</key><string>Fuyu 需要连接你配置的局域网模型服务，以发送任务并接收回复。</string>
 </dict></plist>
 PLIST
+signing_identity="${FUYU_CODESIGN_IDENTITY:--}"
+codesign --force --sign "$signing_identity" --timestamp=none "$bundle/Frameworks/libghostty.dylib"
+codesign --force --sign "$signing_identity" --timestamp=none --identifier com.shenming.fuyu bin/Fuyu.app
+codesign --verify --deep --strict bin/Fuyu.app
 touch bin/Fuyu.app
 lsregister="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 if [ -x "$lsregister" ]; then

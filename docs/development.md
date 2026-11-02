@@ -48,6 +48,8 @@ Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。
 
 入口为 `cmd/desktop/main.go`。现有包与状态/进程边界见[子系统索引](subsystems/README.md)和[运行时说明](subsystems/codex-runtime.md)。
 
+构建在写完资源和 Info.plist 后，先签名内嵌 libghostty，再以 `com.shenming.fuyu` 签名整个应用，并严格核验包签名。本地默认 `FUYU_CODESIGN_IDENTITY=-`，使用 ad hoc 签名；已有 Apple 签发的代码签名证书时，通过 `FUYU_CODESIGN_IDENTITY` 指定钥匙串中的身份。Info.plist 包含局域网模型服务用途说明。macOS 按负责的 GUI 应用身份判定其子进程的局域网权限，终端 CLI 则自动获准访问；仅在 CLI 中连通不能证明 Fuyu 已获准。ad hoc 签名仍不能保证跨构建的权限身份稳定；可靠追踪需要 Apple 签发的身份。此次本机阻断与验证边界见[网络验证](verification/2026-11-02-local-network.md)。
+
 ## 3. 验证方式
 
 主窗口终端使用 Ghostty 原生库，macOS arm64 构建启用 cgo。`./scripts/build` 通过 `scripts/prepare-ghostty.py` 构建并打包固定版本原生库、主题、shell integration 和许可证；首次构建需要网络和 Zig 0.15.2（可用 `FUYU_ZIG` 指定，未提供时下载校验后的工具链）。后续构建复用 `.cache/ghostty-native/`。终端不依赖 WebView、JavaScript、npm 或已安装的 Ghostty.app。配置复用与原生验收方式见[终端验证](verification/2026-11-01-terminal.md)。
@@ -111,6 +113,8 @@ FUYU_LIVE_AGENTS=1 ./scripts/go test ./internal/ui -run '^TestLiveAgentsRunIndep
 测试结束核对自有进程和必要清理。真实服务不可用时如实记录，夹具验证结果单独保留。
 
 ## 5. 验证记录与交接
+
+Fuyu 间歇性无法收到模型回复时，在重启或切换网络前执行 `python3 scripts/diagnose-network.py`。默认保存最近 15 分钟、网关端口 3425 的内核网络日志，以及 Fuyu 进程树、nehelper、签名、系统代理与路由快照到 `~/Library/Logs/Fuyu/network/` 的独立目录；通过 `--minutes`、`--port` 调整实际窗口和端口。脚本保留每项命令的退出结果，采集失败时仍保留其余文件；不会发送测试请求、重启应用或改变网络配置。故障会话与大致发送时间需另行记录，用于对齐原生 Runtime 和网关时间。局域网签名故障证据与边界见[网络验证](verification/2026-11-02-local-network.md)。
 
 实际验收后按需创建 `docs/verification/`，以“日期-主题.md”记录操作、输入、期望、实际结果和证据。协议/进程测试应记录失败分支；截图只用于证明对应的实际场景。
 
