@@ -93,6 +93,21 @@ def main():
         "\t\twidth = min(width, th.em(1.4))\n\t}\n\tif b.Ordered {",
     )]
     edits["ui/markdown/view.go"].append((
+        'ui.Text(c, bullets[min(depth, 2)]).TextColor(th.Muted).Width(width - th.em(0.5)).TextAlign(ui.Center)',
+        '''ui.Text(c, bullets[min(depth, 2)]).TextColor(th.Muted.Alpha(0)).Width(width - th.em(0.5)).TextAlign(ui.Center).Draw(func(p *ui.Painter, r ui.Rect) {
+                size := th.em(0.28)
+                marker := ui.Rect{X: r.X + (r.W-size)/2, Y: r.Y + (r.H-size)/2 + th.em(0.08), W: size, H: size}
+                switch depth {
+                case 0:
+                    p.Fill(marker, th.Muted, size/2)
+                case 1:
+                    p.Stroke(marker, th.Muted, size/2, th.em(0.055))
+                default:
+                    p.Fill(marker, th.Muted, 0)
+                }
+            })''',
+    ))
+    edits["ui/markdown/view.go"].append((
         "case st.o.OnLink != nil:",
         'case st.o.OnLink != nil && !strings.HasPrefix(dest, "#"):',
     ))

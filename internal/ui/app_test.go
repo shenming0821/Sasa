@@ -158,3 +158,70 @@ func TestUnorderedListUsesCompactMarkerColumn(t *testing.T) {
 		}
 	}
 }
+
+func TestUnorderedListBulletIsVerticallyCentered(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, done := range []bool{false, true} {
+			a := New(stubBackend{}, "test", "/tmp", nil)
+			a.md.Reveal = &markdown.Reveal{Unit: markdown.AtOnce}
+			msg := &app.Message{ID: "bullet-center", Role: "assistant", Done: done, Text: "- First item wraps onto several lines in this narrow view\n  - Nested item\n    - Third level\n"}
+			tester := native.NewTester(func(c *native.Context) { a.message(c, msg) }, 240, 240)
+			tester.SetDark(dark)
+			for _, symbol := range []string{"•", "◦", "▪"} {
+				marker, found := tester.Find(symbol)
+				if !found {
+					t.Fatal("bullet missing")
+				}
+				pixels := tester.Image()
+				background := pixels.RGBAAt(int(marker.X), int(marker.Y))
+				minY, maxY := int(marker.Y+marker.H), -1
+				for row := int(marker.Y); row < int(marker.Y+marker.H); row++ {
+					for column := int(marker.X); column < int(marker.X+marker.W); column++ {
+						if pixels.RGBAAt(column, row) != background {
+							minY, maxY = min(minY, row), max(maxY, row)
+						}
+					}
+				}
+				center := float32(minY+maxY+1) / 2
+				want := marker.Y + marker.H/2 + a.md.Theme.FontSize*0.08
+				if maxY < 0 || center < want-0.75 || center > want+0.75 {
+					t.Fatalf("dark=%v done=%v bullet center=%v, line center=%v, ink=%d:%d", dark, done, center, want, minY, maxY)
+				}
+			}
+		}
+	}
+}
+
+func TestUnorderedListBulletAlignsWithVisibleText(t *testing.T) {
+	for _, text := range []string{"正文文字", "`./scripts/go test`"} {
+		a := New(stubBackend{}, "test", "/tmp", nil)
+		a.md.Reveal = &markdown.Reveal{Unit: markdown.AtOnce}
+		msg := &app.Message{ID: "bullet-visible-center", Role: "assistant", Done: true, Text: "- " + text}
+		tester := native.NewTester(func(c *native.Context) { a.message(c, msg) }, 320, 100)
+		marker, found := tester.Find("•")
+		if !found {
+			t.Fatal("bullet missing")
+		}
+		pixels := tester.Image()
+		background := pixels.RGBAAt(0, 0)
+		inkCenter := func(left, right int) float32 {
+			minY, maxY := int(marker.Y+marker.H), -1
+			for row := int(marker.Y); row < int(marker.Y+marker.H); row++ {
+				for column := left; column < right; column++ {
+					if pixels.RGBAAt(column, row) != background {
+						minY, maxY = min(minY, row), max(maxY, row)
+					}
+				}
+			}
+			if maxY < 0 {
+				t.Fatal("visible ink missing")
+			}
+			return float32(minY+maxY+1) / 2
+		}
+		markerCenter := inkCenter(int(marker.X), int(marker.X+marker.W))
+		textCenter := inkCenter(22, 310)
+		if markerCenter < textCenter-0.75 || markerCenter > textCenter+0.75 {
+			t.Errorf("text=%q marker center=%v, visible text center=%v", text, markerCenter, textCenter)
+		}
+	}
+}
