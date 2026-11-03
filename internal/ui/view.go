@@ -129,7 +129,11 @@ func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
 
 func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
-	a.list.FollowEnd = !a.processScrollHold
+	a.list.FollowEnd = !a.processScrollHold && a.edit == nil && a.editScrollHold == 0
+	if a.editScrollHold > 0 {
+		a.editScrollHold--
+		c.Invalidate()
+	}
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 		a.sessionTabs(c, leftShown, rightShown)
 		a.fileExitNotice(c)
@@ -362,6 +366,9 @@ func (a *App) composer(c *native.Context) {
 					return true
 				}
 			}
+			if k.Key == native.KeyEscape && k.Mods == 0 {
+				return a.composerEscape()
+			}
 			if k.Key == native.KeyEnter && k.Mods == 0 {
 				a.State.Draft = k.Text()
 				if a.canSend() {
@@ -376,18 +383,13 @@ func (a *App) composer(c *native.Context) {
 			a.imagePickerButton(c)
 			a.modelPicker(c)
 			native.Spacer(c)
-			action, glyph := "发送", upIcon
 			hint := "Enter 发送 · ⌘ Enter 换行"
 			disabled := !a.canSend()
 			if a.State.Busy {
-				action, glyph = "停止", stopIcon
-				hint = "停止当前任务"
+				hint = "Esc 停止当前任务"
 				disabled = a.State.TurnID == "" && a.submitCancel == nil || a.State.Phase == "正在停止"
 			}
-			button := native.ButtonBase(c).Label(action).Tooltip(hint).
-				Size(34, 34).Radius(17).TextColor(t.Background).Disabled(disabled)
-			buttonFace(c, button, t.Text, t.Text.Mix(t.Background, .12), t.Text.Mix(t.Background, .22), 17, 0)
-			button.Children(func() { native.Icon(c, glyph).Size(20, 20) })
+			button := taskSendButton(c, a.State.Busy, disabled, hint)
 			if button.Clicked() {
 				if a.State.Busy {
 					a.stop()
@@ -454,20 +456,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 	readingColumn(c, func() {
 		native.Column(c.Key(m.ID)).FillWidth().Gap(4).Children(func() {
 			if m.Role == "user" {
-				if len(m.Images) > 0 {
-					a.messageImages(c, m)
-				}
-				if m.Text != "" {
-					native.Row(c).FillWidth().Justify(native.End).Children(func() {
-						native.Text(c, m.Text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
-							MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(t.Surface)
-					})
-				}
-				if m.Delivery == "unsent" {
-					native.Row(c).FillWidth().Justify(native.End).Children(func() {
-						native.Text(c, "未发送").FontSize(11).TextColor(t.TextMuted)
-					})
-				}
+				a.userMessage(c, m)
 			} else if m.Role == "assistant" {
 				a.messageMarkdown(c, m)
 				if text := a.replyCopyText(m); text != "" {

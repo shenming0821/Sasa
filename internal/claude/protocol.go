@@ -180,7 +180,9 @@ func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdent
 	}
 	args := []string{"-p", "--verbose", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages", "--permission-prompt-tool", "stdio"}
 	if identity.ID != "" {
-		if len(s.Turns) > 1 {
+		if s.ResumeSource != "" {
+			args = append(args, "--resume", s.ResumeSource, "--resume-session-at", s.ResumeAt, "--fork-session", "--session-id", s.ID)
+		} else if len(s.Turns) > 1 {
 			args = append(args, "--resume", s.ID)
 		} else {
 			args = append(args, "--session-id", s.ID)
@@ -485,6 +487,9 @@ func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []ag
 	}
 	if len(s.Turns) > 0 {
 		digest, err := c.transcriptDigest(s.ID)
+		if s.ResumeSource != "" {
+			_, digest, err = c.history(*s)
+		}
 		source := s.idle
 		if source == nil {
 			source = s.retiring
@@ -574,6 +579,7 @@ func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []ag
 		run.stopProcess()
 		return turn, err
 	}
+	run.emit("item/completed", map[string]any{"threadId": id, "turnId": identity.ID, "item": map[string]any{"id": identity.UserUUID, "type": "userMessage", "content": content}})
 	turn.ID, turn.Status = string(identity.ID), "inProgress"
 	return turn, nil
 }
@@ -684,6 +690,9 @@ func (r *execution) finishTurn(exitErr error) {
 		checkpoint := &s.Turns[len(s.Turns)-1]
 		checkpoint.Status, checkpoint.LastUUID = status, r.lastUUID
 		s.Digest, _ = c.transcriptDigest(s.ID)
+		if s.Digest != "" {
+			s.ResumeSource, s.ResumeAt, s.ResumeDigest = "", "", ""
+		}
 		if r.reusable {
 			r.projectionDigest, _ = c.transcriptProjection(s.ID)
 		}

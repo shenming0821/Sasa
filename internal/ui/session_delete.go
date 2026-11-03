@@ -13,11 +13,16 @@ import (
 )
 
 func (a *App) threadDeleted(kind agent.AgentKind, runtime, id string) bool {
+	for _, s := range a.application().sessions {
+		if s.kind.Normalized() == kind.Normalized() && s.runtimeKey == runtime && slices.Contains(s.saved.ReplacedThreads, id) {
+			return true
+		}
+	}
 	return id != "" && slices.Contains(a.application().deletedThreads, storage.DeletedThread{Agent: kind.Normalized(), Runtime: runtime, ThreadID: id})
 }
 
 func (a *App) canDeleteSession(target *session) bool {
-	return target != nil && !a.quitting && !a.quitDialog && !target.State.Busy && !target.recovering && !target.releasing &&
+	return target != nil && !a.quitting && !a.quitDialog && !target.State.Busy && !target.recovering && !target.releasing && !target.editPreparing && !target.editSending &&
 		!target.historyLoading && !target.forking && !target.forkUncertain && !target.reviewRequired &&
 		!target.saved.Active && !(target.loaded && target.recoveryBlocked) && !target.imagesImporting && target.submitCancel == nil
 }
@@ -100,6 +105,9 @@ func (a *App) deleteSession(target *session) {
 	snapshot.WorkspaceTabs = slices.DeleteFunc(snapshot.WorkspaceTabs, func(tab storage.Tab) bool { return tab.Kind == "session" && tab.SessionID == target.id })
 	if target.State.ThreadID != "" && !a.threadDeleted(target.kind, target.runtimeKey, target.State.ThreadID) {
 		snapshot.DeletedThreads = append(snapshot.DeletedThreads, storage.DeletedThread{Agent: target.kind.Normalized(), Runtime: target.runtimeKey, ThreadID: target.State.ThreadID})
+	}
+	for _, id := range target.saved.ReplacedThreads {
+		snapshot.DeletedThreads = append(snapshot.DeletedThreads, storage.DeletedThread{Agent: target.kind.Normalized(), Runtime: target.runtimeKey, ThreadID: id})
 	}
 	if snapshot.Selected == target.id {
 		snapshot.Selected = 0

@@ -40,7 +40,7 @@ func (a *App) failedTaskMessage() *app.Message {
 }
 
 func (a *App) canRetryTask() bool {
-	return a.State.Phase == "执行失败" && !a.State.Incomplete && !a.State.Busy &&
+	return a.edit == nil && a.State.Phase == "执行失败" && !a.State.Incomplete && !a.State.Busy &&
 		strings.TrimSpace(a.State.Draft) == "" && len(a.State.DraftImages) == 0 &&
 		a.failedTaskMessage() != nil && a.canSubmitTask()
 }

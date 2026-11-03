@@ -38,6 +38,9 @@ type session struct {
 	Turns          []checkpoint            `json:"turns"`
 	Generation     agent.ProcessGeneration `json:"generation"`
 	Digest         string                  `json:"digest"`
+	ResumeSource   string                  `json:"resumeSource,omitempty"`
+	ResumeAt       string                  `json:"resumeAt,omitempty"`
+	ResumeDigest   string                  `json:"resumeDigest,omitempty"`
 	run            *execution
 	idle           *execution
 	retiring       *execution

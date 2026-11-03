@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
@@ -30,6 +31,7 @@ func History(cwd, threadID string, turns []agent.HistoryTurn) (State, bool, erro
 					Path string `json:"path"`
 					URL  string `json:"url"`
 				} `json:"content"`
+				Timestamp time.Time `json:"timestamp"`
 			}
 			if err := json.Unmarshal(raw, &item); err != nil || item.ID == "" {
 				return s, false, fmt.Errorf("历史条目无法读取：%v", err)
@@ -46,7 +48,11 @@ func History(cwd, threadID string, turns []agent.HistoryTurn) (State, bool, erro
 						texts = append(texts, "[非文本输入："+input.Type+"]")
 					}
 				}
-				s.Messages = append(s.Messages, &Message{ID: item.ID, Role: "user", Images: images, Text: bounded(strings.Join(texts, "\n")), TurnID: turn.ID, Done: true})
+				sentAt := item.Timestamp
+				if sentAt.IsZero() && turn.StartedAt != nil {
+					sentAt = time.Unix(*turn.StartedAt, 0)
+				}
+				s.Messages = append(s.Messages, &Message{ID: item.ID, NativeID: item.ID, SentAt: sentAt, Role: "user", Images: images, Text: bounded(strings.Join(texts, "\n")), TurnID: turn.ID, Done: true})
 				continue
 			}
 			params, _ := json.Marshal(map[string]any{"threadId": threadID, "turnId": turn.ID, "item": raw})

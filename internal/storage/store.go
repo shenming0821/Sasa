@@ -21,26 +21,36 @@ import (
 // Only application-owned metadata belongs here. Messages and credentials stay
 // with Codex; pending protocol requests and secret form answers are never saved.
 type Session struct {
-	TurnTimings   map[string]app.TurnTiming `json:",omitempty"`
-	Agent         agent.AgentKind
-	Runtime       string
-	ModelAgent    agent.AgentKind
-	SelectedModel string
-	DraftImages   []attachment.Image
-	ID            int
-	ThreadID      string
-	Cwd           string
-	Title         string
-	CustomTitle   string `json:",omitempty"`
-	Draft         string
-	DraftSkills   map[string]string
-	TurnID        string
-	Active        bool
-	Anchor        string
-	AtEnd         bool
-	ScrollY       float32
-	AnchorOffset  float32
-	Expanded      map[string]bool
+	EditDraft       *MessageEdit              `json:",omitempty"`
+	ReplacedThreads []string                  `json:",omitempty"`
+	TurnTimings     map[string]app.TurnTiming `json:",omitempty"`
+	Agent           agent.AgentKind
+	Runtime         string
+	ModelAgent      agent.AgentKind
+	SelectedModel   string
+	DraftImages     []attachment.Image
+	ID              int
+	ThreadID        string
+	Cwd             string
+	Title           string
+	CustomTitle     string `json:",omitempty"`
+	Draft           string
+	DraftSkills     map[string]string
+	TurnID          string
+	Active          bool
+	Anchor          string
+	AtEnd           bool
+	ScrollY         float32
+	AnchorOffset    float32
+	Expanded        map[string]bool
+}
+
+type MessageEdit struct {
+	ID, NativeID, TurnID, Text, Original string
+	SubmittedTurnID                      string
+	PrefixTurnID                         string
+	Images                               []attachment.Image
+	Prepared, Submitted                  bool
 }
 
 type Snapshot struct {

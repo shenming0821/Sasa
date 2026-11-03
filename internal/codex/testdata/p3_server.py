@@ -69,6 +69,9 @@ for line in sys.stdin:
         assert p["excludeTurns"] and p["deferGoalContinuation"]
         thread = "fixture-fork-" + str(len(threads) + 1)
         threads[thread] = copy.deepcopy(threads[source])
+        if p.get("beforeTurnId"):
+            boundary = next(index for index, turn in enumerate(threads[thread]["turns"]) if turn["id"] == p["beforeTurnId"])
+            threads[thread]["turns"] = threads[thread]["turns"][:boundary]
         save()
         result = {"thread": metadata(thread), "cwd": threads[thread]["cwd"],
                   "model": "P3-fixture", "approvalPolicy": "on-request",

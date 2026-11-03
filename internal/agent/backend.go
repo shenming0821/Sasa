@@ -76,6 +76,15 @@ type Forker interface {
 	ForkThread(context.Context, string) (ResumedThread, error)
 }
 
+type HistoryEditor interface {
+	EditHistory(context.Context, string, string, string) (HistoryEdit, error)
+}
+
+type HistoryEdit struct {
+	Thread ResumedThread
+	Turns  []HistoryTurn
+}
+
 type Command struct {
 	Name, Description, Source, Cwd string
 	Arguments                      []string

@@ -8,7 +8,7 @@ import (
 )
 
 func (s *session) canReleaseRuntime() bool {
-	if s.open || !s.loaded || s.releasing ||
+	if s.open || !s.loaded || s.releasing || s.editPreparing || s.editSending ||
 		s.State.ThreadID == "" || s.State.TurnID == "" || s.State.Busy || s.State.Disconnected ||
 		s.recovering || s.recoveryBlocked || s.historyLoading || s.forking ||
 		s.forkUncertain || s.reviewRequired || s.writerOccupied || s.imagesImporting ||

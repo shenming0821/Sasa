@@ -80,6 +80,11 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		s.open = slices.Contains(snapshot.OpenTabs, saved.ID)
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
 		s.State.DraftImages = slices.Clone(saved.DraftImages)
+		if saved.EditDraft != nil {
+			draft := *saved.EditDraft
+			draft.Images = slices.Clone(draft.Images)
+			s.edit = &draft
+		}
 		if saved.ModelAgent == "" || saved.ModelAgent.Normalized() == s.kind {
 			s.selectedModel = saved.SelectedModel
 		}
@@ -167,6 +172,12 @@ func (a *App) snapshot() storage.Snapshot {
 			result.OpenTabs = append(result.OpenTabs, s.id)
 		}
 		item := s.saved
+		item.EditDraft = nil
+		if s.edit != nil {
+			draft := *s.edit
+			draft.Images = slices.Clone(draft.Images)
+			item.EditDraft = &draft
+		}
 		item.TurnTimings = maps.Clone(item.TurnTimings)
 		for _, message := range s.State.Messages {
 			if message.Role == "user" && message.TurnID != "" && message.Timing != nil {

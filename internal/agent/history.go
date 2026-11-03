@@ -8,6 +8,7 @@ type HistoryTurn struct {
 	ItemsView string            `json:"itemsView"`
 	Items     []json.RawMessage `json:"items"`
 	Error     json.RawMessage   `json:"error"`
+	StartedAt *int64            `json:"startedAt,omitempty"`
 }
 
 type ThreadMeta struct {

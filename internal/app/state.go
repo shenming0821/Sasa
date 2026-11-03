@@ -15,6 +15,9 @@ import (
 const MaxMessageBytes = 2 * 1024 * 1024
 
 type Message struct {
+	NativeID    string
+	SentAt      time.Time
+	Edited      bool
 	Timing      *TurnTiming
 	Images      []attachment.Image
 	ID          string
@@ -222,8 +225,14 @@ func (s *State) Apply(event agent.Event) {
 	case "item/started", "item/completed":
 		switch p.Item.Type {
 		case "userMessage":
-			if message := s.PendingSubmission(); message != nil && id != "" && p.Item.ID != "" && message.TurnID == id {
-				message.Delivery = "sent"
+			for index := len(s.Messages) - 1; index >= 0; index-- {
+				message := s.Messages[index]
+				if message.Role == "user" {
+					if id != "" && p.Item.ID != "" && message.TurnID == id {
+						message.Delivery, message.NativeID = "sent", p.Item.ID
+					}
+					break
+				}
 			}
 		case "agentMessage":
 			m := s.item(p.Item.ID, "assistant")

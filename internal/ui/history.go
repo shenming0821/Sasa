@@ -25,7 +25,7 @@ func (a *App) recoverSession(s *session) {
 // preserving the fork's deferred goal instead of resuming it a second time.
 func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 	backend, ok := a.forSession(s).sessionBackend().(historyBackend)
-	if !ok || s.State.Disconnected || s.recovering || s.releasing || s.forking || s.State.ThreadID == "" {
+	if !ok || s.State.Disconnected || s.recovering || s.releasing || s.forking || s.editPreparing || s.editSending || s.State.ThreadID == "" {
 		return
 	}
 	if s.loaded && (!s.recoveryBlocked || s.writerOccupied) {
@@ -104,6 +104,7 @@ func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 			state.Model, state.Policy, state.Sandbox = resumed.Model, string(resumed.Policy), string(resumed.Sandbox)
 			state.RuntimeVersion = resumed.RuntimeVersion
 			s.State, s.loaded, s.historyCursor = state, true, page.NextCursor
+			bound.restoreMessageEdit()
 			// On a new transport an active/unfinished snapshot is evidence to
 			// investigate, not authority to replay a turn or revive an approval.
 			s.reviewRequired = s.saved.Active && s.saved.TurnID == ""

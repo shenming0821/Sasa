@@ -41,6 +41,7 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		projected := New(s.Cwd)
 		projected.ThreadID, projected.TurnID = s.ThreadID, s.TurnID
 		delivered := false
+		nativeID := ""
 		for _, item := range turn.Items {
 			var input struct {
 				Type string `json:"type"`
@@ -54,6 +55,7 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 			}
 			if input.Type == "userMessage" {
 				delivered = true
+				nativeID = input.ID
 			}
 			params, _ := json.Marshal(map[string]any{"threadId": s.ThreadID, "turnId": s.TurnID, "item": item})
 			projected.Apply((agent.Event{Method: "item/completed", Params: params}).ForDisplay())
@@ -79,7 +81,7 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		s.Notice = "已按原生记录核验本轮终态；显示内容仍受容量上限约束。"
 		if message := s.PendingSubmission(); message != nil && message.TurnID == turn.ID {
 			if delivered {
-				message.Delivery = "sent"
+				message.Delivery, message.NativeID = "sent", nativeID
 			} else {
 				s.RejectSubmission()
 			}

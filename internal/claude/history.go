@@ -14,11 +14,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
 type transcriptEntry struct {
+	Timestamp      time.Time       `json:"timestamp"`
 	Type           string          `json:"type"`
 	UUID           string          `json:"uuid"`
 	Parent         string          `json:"parentUuid"`
@@ -309,11 +311,7 @@ func (c *Client) history(s session) ([]agent.HistoryTurn, string, error) {
 	if len(s.Turns) == 0 {
 		return nil, "", nil
 	}
-	raw, err := c.transcript(s.ID)
-	if err != nil {
-		return nil, "", err
-	}
-	chain, err := conversation(raw, s.ID)
+	chain, hash, err := c.historyChain(s)
 	if err != nil {
 		return nil, "", err
 	}
@@ -391,7 +389,7 @@ func (c *Client) history(s session) ([]agent.HistoryTurn, string, error) {
 					content = append(content, map[string]any{"type": "image", "url": "data:" + block.Source.MediaType + ";base64," + block.Source.Data})
 				}
 			}
-			appendItem(map[string]any{"id": entry.UUID, "type": "userMessage", "content": content})
+			appendItem(map[string]any{"id": entry.UUID, "type": "userMessage", "content": content, "timestamp": entry.Timestamp})
 		}
 		if current == nil {
 			continue
@@ -429,7 +427,7 @@ func (c *Client) history(s session) ([]agent.HistoryTurn, string, error) {
 			offsets[entry.Message.ID] += len(blocks)
 		}
 	}
-	return turns, digest(raw), nil
+	return turns, hash, nil
 }
 
 func (c *Client) sessionCopy(id string) (session, error) {

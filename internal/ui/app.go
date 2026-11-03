@@ -158,14 +158,14 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
-	return a.canSubmitTask() && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
+	return a.edit == nil && a.canSubmitTask() && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
 }
 
 func (a *App) canSubmitTask() bool {
 	if a.State.PendingSubmission() != nil && (a.snapshotPending || a.State.NeedsSnapshot || a.State.Incomplete) {
 		return false
 	}
-	return a.open && a.sessionBackend() != nil && !a.releasing && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
+	return a.open && a.sessionBackend() != nil && !a.releasing && !a.editPreparing && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		!a.imagesImporting && a.State.Cwd != ""
 }
 
@@ -199,7 +199,13 @@ func (a *App) send() {
 	if (len(a.State.DraftImages) == 0 || a.isClearCommand(text)) && a.runSlashCommand(text) {
 		return
 	}
-	images := slices.Clone(a.State.DraftImages)
+	a.sendInput(text, slices.Clone(a.State.DraftImages), false)
+}
+
+func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
+	if !a.canSubmitTask() || strings.TrimSpace(text) == "" && len(images) == 0 {
+		return
+	}
 	if len(images) > 0 {
 		if _, ok := a.sessionBackend().(imageSender); !ok {
 			a.State.Error = "当前连接不支持图片输入"
@@ -219,7 +225,19 @@ func (a *App) send() {
 	}
 	selectedModel := a.selectedModel
 	skills := a.draftSkills(text)
+	draft, draftImages := a.State.Draft, a.State.DraftImages
+	if edited {
+		a.removeEditPlaceholder()
+	}
+	a.State.DraftImages = images
 	a.State.Begin(text)
+	if edited {
+		a.State.Draft, a.State.DraftImages = draft, draftImages
+		message := a.State.Messages[len(a.State.Messages)-1]
+		message.Edited = true
+		a.edit.ID, a.edit.Submitted = message.ID, true
+		a.editSending = true
+	}
 	if err := a.persist(); err != nil {
 		a.abortBeforeTurn(text, err)
 		return
@@ -246,7 +264,8 @@ func (a *App) send() {
 						if errors.Is(err, context.Canceled) {
 							a.State.Error, a.State.Phase = "", "已取消"
 						}
-						if a.State.Draft == "" && len(a.State.DraftImages) == 0 {
+						a.editSendFailed()
+						if !edited && a.State.Draft == "" && len(a.State.DraftImages) == 0 {
 							a.State.Draft = text
 						}
 						a.restoreSubmittedImages(text)
@@ -315,6 +334,13 @@ func (a *App) send() {
 		a.update(func() {
 			if a.State.Sequence == sequence {
 				a.submitCancel = nil
+				if edited && a.edit != nil {
+					a.edit.SubmittedTurnID = turn.ID
+					if a.kind.Normalized() == agent.Claude {
+						a.edit = nil
+						a.editSending = false
+					}
+				}
 				if a.kind.Normalized() == agent.Claude {
 					a.rememberClaudeModel(model)
 				}
@@ -341,7 +367,8 @@ func (a *App) abortBeforeTurn(text string, err error) {
 	a.State.Busy = false
 	a.State.RejectSubmission()
 	a.State.Error, a.State.Phase = "会话状态未能保存，本次未发送："+err.Error(), "未发送"
-	if a.State.Draft == "" && len(a.State.DraftImages) == 0 {
+	a.editSendFailed()
+	if !a.lastMessageEdited() && a.State.Draft == "" && len(a.State.DraftImages) == 0 {
 		a.State.Draft = text
 	}
 	a.restoreSubmittedImages(text)
@@ -378,7 +405,8 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 		a.State.Error, a.State.Phase = "请求结果未确认，请重新启动 Fuyu 并核验原生记录："+err.Error(), "请求待核验"
 		a.State.Disconnected = true
 	}
-	if a.State.Draft == "" && len(a.State.DraftImages) == 0 {
+	a.editSendFailed()
+	if !a.lastMessageEdited() && a.State.Draft == "" && len(a.State.DraftImages) == 0 {
 		a.State.Draft = text
 	}
 	a.restoreSubmittedImages(text)
@@ -386,6 +414,9 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 
 func (a *App) stop() {
 	a = a.forSession(a.session)
+	if !a.State.Busy || a.State.Stopping() && !a.submitStop || a.sessionBackend() == nil || a.State.TurnID == "" && a.submitCancel == nil {
+		return
+	}
 	a.State.BeginStop()
 	threadID, turnID := a.State.ThreadID, a.State.TurnID
 	if turnID == "" && a.submitCancel != nil {
@@ -500,6 +531,7 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		}
 		wasBusy := a.State.Busy
 		a.State.Apply(e)
+		a.finishMessageEdit()
 		if e.Method == "turn/completed" && wasBusy && !a.State.Busy && !a.State.Disconnected {
 			delete(a.application().quitTargets, a.session.id)
 			a.notifyCompletion(e)
@@ -599,6 +631,7 @@ func (a *App) reconcileIfNeeded() {
 				a.State.Incomplete = true
 				a.State.Notice = fmt.Sprintf("原生记录无法校准：%v；结果可能不完整。", err)
 			}
+			a.finishMessageEdit()
 		})
 	}()
 }

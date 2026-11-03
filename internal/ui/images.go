@@ -191,6 +191,9 @@ func (a *App) restoreSubmittedImages(text string) {
 	}
 	for i := len(a.State.Messages) - 1; i >= 0; i-- {
 		if m := a.State.Messages[i]; m.Role == "user" {
+			if m.Edited {
+				return
+			}
 			a.State.DraftImages = slices.Clone(m.Images)
 			return
 		}

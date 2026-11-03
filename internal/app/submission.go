@@ -21,6 +21,10 @@ func (s *State) RejectSubmission() {
 		return
 	}
 	message.Delivery = "unsent"
+	if message.Edited {
+		s.Notice = "修改内容未发送，可在原消息处重试。"
+		return
+	}
 	if s.Draft == "" && len(s.DraftImages) == 0 {
 		s.Draft = message.Text
 		s.DraftImages = slices.Clone(message.Images)
