@@ -58,6 +58,7 @@ type gitDiffState struct {
 	gitConflict                           *gitConflictState
 	gitReview                             *gitview.Review
 	gitHunk                               int
+	gitInitialCenter                      [2]bool
 	gitSplit                              bool
 	gitLeft, gitRight                     *native.TextBuffer
 	gitLeftScroll                         native.ScrollState
@@ -410,6 +411,7 @@ func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo, path ...string
 		review := gitview.ParsePatch(text)
 		if err == nil && len(entries) > 0 {
 			gitview.ReadReviewBase(ctx, d.root, info.Hash+"^:", entries[selected], &review)
+			review.Entry = entries[selected]
 		}
 		a.update(func() {
 			if a.files[d.id] != d || d.readContext != ctx {
@@ -433,6 +435,10 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	d.err = ""
 	previous := d.gitReview
 	d.gitReview = review
+	if review != nil && (!d.loaded || previous == nil || previous.Entry.Path != review.Entry.Path) {
+		d.gitHunk = 0
+		d.gitInitialCenter = [2]bool{len(review.Hunks) > 0, len(review.Hunks) > 0}
+	}
 	rows, pairs := diffCodeRows(review)
 	d.gitRows, d.gitPairs = rows, pairs
 	if len(rows) > 0 {

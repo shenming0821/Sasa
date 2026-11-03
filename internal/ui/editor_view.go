@@ -522,6 +522,11 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			return
 		}
 		snap := d.buffer.Snapshot()
+		d.centerInitialDiff(false, d.scroll.Bounds(c).H)
+		viewY = d.scroll.Y
+		if d.gitInitialCenter[0] {
+			c.AnimationFrame()
+		}
 		d.resolveFileLocation(d.scroll.Bounds(c).H)
 		if d.pendingLocation != nil {
 			c.AnimationFrame()

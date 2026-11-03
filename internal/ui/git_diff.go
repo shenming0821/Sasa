@@ -183,6 +183,35 @@ func splitPatch(review gitview.Review) (string, string) {
 	return diffPairText(pairs)
 }
 
+func (d *filePage) centerInitialDiff(split bool, viewportHeight float32) {
+	layout := 0
+	if split {
+		layout = 1
+	}
+	if !d.gitInitialCenter[layout] || viewportHeight <= 0 {
+		return
+	}
+	row, count, padding := diffHunkRow(d.gitRows, 0), len(d.gitRows), float32(8)
+	if split {
+		count, padding = len(d.gitPairs), 6
+		for index, pair := range d.gitPairs {
+			if pair.left.kind == '-' || pair.right.kind == '+' {
+				row = index
+				break
+			}
+		}
+	}
+	maxScroll := max(0, float32(count)*20+padding*2-viewportHeight)
+	offset := min(maxScroll, max(0, padding+float32(row)*20+10-viewportHeight/2))
+	if split {
+		d.gitSplitY, d.gitLeftScroll.Y, d.gitRightScroll.Y = offset, offset, offset
+	} else {
+		d.scroll.Y = offset
+		d.pinFrame = 0
+	}
+	d.gitInitialCenter[layout] = false
+}
+
 func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 	t := c.Theme()
 	palette := githubEditorPalette(t.Dark)
@@ -193,6 +222,10 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 		}
 		left, right := diffPairText(d.gitPairs)
 		d.gitLeft, d.gitRight = native.NewTextBuffer(left), native.NewTextBuffer(right)
+	}
+	d.centerInitialDiff(true, d.gitLeftScroll.Bounds(c).H)
+	if d.gitInitialCenter[1] {
+		c.AnimationFrame()
 	}
 	// Both buffers contain the same number of aligned rows.
 	y := d.gitSplitY
