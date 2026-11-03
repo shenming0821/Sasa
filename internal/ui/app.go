@@ -115,6 +115,9 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 }
 
 func (a *App) Run() error {
+	if a.store != nil {
+		mygo.App.SetPath(mygo.PathUserData, a.store.Directory())
+	}
 	a.powerController = power.New()
 	defer a.powerController.Close()
 	if err := a.powerController.Set(a.preferences.KeepAwake); err != nil {
@@ -129,7 +132,8 @@ func (a *App) Run() error {
 		a.applySystemTheme()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: "Fuyu", Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
-			Content: native.View(a.view),
+			StateKey: "main",
+			Content:  native.View(a.view),
 		})
 		a.installLifecycle()
 		a.installSettingsMenu()
