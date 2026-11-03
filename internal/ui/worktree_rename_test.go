@@ -24,7 +24,7 @@ func TestWorktreeRenameMenuSaveCancelAndSearch(t *testing.T) {
 		if err := tt.RightClick("打开工作区 " + path); err != nil {
 			t.Fatal(err)
 		}
-		if got := tt.Menu(); !slices.Equal(got, []string{"重命名"}) {
+		if got := tt.Menu(); !slices.Equal(got, []string{"在Finder中打开", "重命名"}) {
 			t.Fatalf("worktree menu = %v", got)
 		}
 		if err := tt.ChooseMenuItem("重命名"); err != nil {

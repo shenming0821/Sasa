@@ -1,8 +1,12 @@
 package ui
 
 import (
+	"fmt"
+	"os"
 	"slices"
+	"strings"
 
+	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/project"
 )
@@ -156,9 +160,28 @@ func (a *App) projectHeadingActions(c *native.Context, row, header native.Elemen
 		a.moveProject(source.ID, id, after)
 	}
 	menu := func(m *native.Menu) {
+		if path, plain := strings.CutPrefix(id, "dir:"); plain {
+			a.projectFinderMenu(m, path)
+		}
 		if m.Item("移除项目").Chosen() {
 			a.removeProject(id)
 		}
 	}
 	header.ContextMenu(menu)
+}
+
+func (a *App) projectFinderMenu(menu *native.Menu, path string) {
+	if menu.Item("在Finder中打开").Chosen() {
+		info, err := os.Stat(path)
+		if err == nil && !info.IsDir() {
+			err = fmt.Errorf("路径不是文件夹：%s", path)
+		}
+		if err == nil {
+			err = mygo.Shell.OpenPath(path)
+		}
+		if err != nil {
+			a.beginFileAction(path, path, "错误")
+			a.fileAction.err = "在Finder中打开失败：" + err.Error()
+		}
+	}
 }

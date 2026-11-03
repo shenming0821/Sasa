@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,7 +79,7 @@ func TestProjectMenuAndFilteredOrder(t *testing.T) {
 	if err := tt.RightClick("展开项目 /alpha"); err != nil {
 		t.Fatal(err)
 	}
-	if got := tt.Menu(); !slices.Equal(got, []string{"移除项目"}) {
+	if got := tt.Menu(); !slices.Equal(got, []string{"在Finder中打开", "移除项目"}) {
 		t.Fatalf("project context menu = %v", got)
 	}
 	tt.Key(0, native.KeyEscape)
@@ -102,6 +103,33 @@ func TestProjectMenuAndFilteredOrder(t *testing.T) {
 	}
 	if len(a.sessions) != 3 || len(a.repositories) != 1 {
 		t.Fatal("removal deleted catalog or sessions")
+	}
+}
+
+func TestProjectFinderReportsMissingClickedDirectory(t *testing.T) {
+	for _, target := range []struct {
+		label string
+		path  string
+	}{
+		{"展开项目 /alpha", "/alpha"},
+		{"打开工作区 /repo", "/repo"},
+		{"打开工作区 /feature", "/feature"},
+	} {
+		t.Run(target.path, func(t *testing.T) {
+			desktop := projectOrderFixture()
+			desktop.repositories[0].Worktrees = append(desktop.repositories[0].Worktrees, project.Worktree{Path: "/feature", Branch: "feature"})
+			tester := native.NewTester(desktop.view, 1000, 760)
+			if err := tester.RightClick(target.label); err != nil {
+				t.Fatal(err)
+			}
+			if err := tester.ChooseMenuItem("在Finder中打开"); err != nil {
+				t.Fatal(err)
+			}
+			if !desktop.fileAction.open || desktop.fileAction.path != target.path || !strings.Contains(desktop.fileAction.err, "在Finder中打开失败") {
+				t.Fatalf("missing directory error = %+v", desktop.fileAction)
+			}
+			assertProjectOrder(t, desktop, "repo:/repo/.git", "dir:/alpha", "dir:/beta")
+		})
 	}
 }
 
@@ -238,7 +266,11 @@ func TestProjectHeadingUsesOneHoverBackground(t *testing.T) {
 			if err := tt.RightClick(pair[0]); err != nil {
 				t.Fatal(err)
 			}
-			if got := tt.Menu(); !slices.Equal(got, []string{"移除项目"}) {
+			want := []string{"移除项目"}
+			if pair[0] == "展开项目 /alpha" {
+				want = []string{"在Finder中打开", "移除项目"}
+			}
+			if got := tt.Menu(); !slices.Equal(got, want) {
 				t.Fatalf("project context menu = %v", got)
 			}
 		})

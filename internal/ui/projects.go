@@ -336,6 +336,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 				card.Children(func() {
 					b := native.ButtonBase(wc).Label("打开工作区 "+w.Path).FillWidth().MinWidth(0).Radius(10).Padding(10, 16, 10, 29).Disabled(!w.Available())
 					b.ContextMenu(func(menu *native.Menu) {
+						a.projectFinderMenu(menu, w.Path)
 						if menu.Item("重命名").Chosen() {
 							a.beginWorktreeRename(w.Path)
 						}
