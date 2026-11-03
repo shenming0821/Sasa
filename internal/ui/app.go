@@ -25,6 +25,7 @@ import (
 type Backend = agent.Backend
 
 type App struct {
+	taskErrorState
 	startupState
 	maintenanceState
 	completionCatalogState
@@ -157,11 +158,15 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
+	return a.canSubmitTask() && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
+}
+
+func (a *App) canSubmitTask() bool {
 	if a.State.PendingSubmission() != nil && (a.snapshotPending || a.State.NeedsSnapshot || a.State.Incomplete) {
 		return false
 	}
 	return a.open && a.sessionBackend() != nil && !a.releasing && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
-		!a.imagesImporting && a.State.Cwd != "" && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
+		!a.imagesImporting && a.State.Cwd != ""
 }
 
 func (a *App) chooseDirectory(owner *session, defaultPath string) {

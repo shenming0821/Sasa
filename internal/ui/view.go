@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -181,7 +180,9 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 						a.State.Notice = "已确认历史，可输入下一项任务；未自动重发上次请求。"
 					}
 				}
-				if a.State.Error != "" {
+				if a.State.Phase == "执行失败" && a.State.Error != "" {
+					a.taskFailureCard(c)
+				} else if a.State.Error != "" {
 					native.Scroll(c).FillWidth().MaxHeight(54).Children(func() {
 						native.Text(c, a.State.Error).Selectable().FontSize(12).TextColor(t.Danger).Padding(0, 4, 8, 4)
 					})
@@ -195,18 +196,6 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 					if actionButton(c, "重新核验结果").Disabled(a.snapshotPending).Clicked() {
 						a.State.NeedsSnapshot = true
 						a.reconcileIfNeeded()
-					}
-				}
-				if a.State.Phase == "执行失败" && !a.State.Disconnected && !a.State.Busy {
-					if actionButton(c, "重试本次任务").Clicked() {
-						for i := len(a.State.Messages) - 1; i >= 0; i-- {
-							if a.State.Messages[i].Role == "user" {
-								a.State.Draft = a.State.Messages[i].Text
-								a.State.DraftImages = slices.Clone(a.State.Messages[i].Images)
-								a.submit()
-								break
-							}
-						}
 					}
 				}
 				a.composer(c)
