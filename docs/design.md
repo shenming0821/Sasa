@@ -55,7 +55,7 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提�
 |---|---|---|
 | 流式聊天如何实现 | MyGo `examples/markdown-chat/main.go` | 使用原生消息列表、流式 Markdown 与完成态 Markdown |
 | 后台事件如何更新 UI | MyGo `docs/ui/views.md`；Murmur `app.go` | 协议读取放在后台，界面状态通过 `Window.Update` 更新 |
-| 滚动如何保持 | MyGo `docs/ui/list.md`；Murmur `view.go` | 稳定消息 ID；跟随末尾，用户向上滚动后保持当前位置 |
+| 滚动如何保持 | MyGo `docs/ui/list.md`；Murmur `view.go` | 稳定消息 ID；主输入框发送新消息后滚到底部并恢复跟随，用户向上滚动后保持当前位置；历史编辑沿用原位定位 |
 | Session 与 Run 如何区分 | Codex `v2/thread.rs`、`v2/turn.rs` | Session 对应 thread，Run 对应 turn，连接状态独立保存 |
 | 是否只有批准/拒绝 | Codex `common.rs`、`v2/item.rs` | 审批与用户提问分别建模，保留原生请求 ID |
 | 恢复运行中任务是否可行 | Codex `thread_resume.rs` 相关测试 | 原进程仍存活时核验并重新接入；进程已结束时恢复历史 |

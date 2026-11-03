@@ -242,6 +242,12 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 		a.abortBeforeTurn(text, err)
 		return
 	}
+	if !edited {
+		a.processScrollHold = false
+		a.editScrollHold = 0
+		a.list.FollowEnd = true
+		a.list.ScrollToEnd()
+	}
 	sequence, cwd, threadID := a.State.Sequence, a.State.Cwd, a.State.ThreadID
 	ctx, cancel := agent.RequestContext()
 	a.submitCancel = cancel
