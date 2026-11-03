@@ -96,6 +96,7 @@ func (a *App) view(c *native.Context) {
 	a.imageViewer(c)
 	a.settingsView(c)
 	a.worktreeRenameView(c)
+	a.worktreeCreateView(c)
 	a.sessionRenameView(c)
 	a.fileActionView(c)
 	if a.terminalError != "" {

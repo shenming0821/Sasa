@@ -92,9 +92,13 @@ func (b *limited) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 func run(ctx context.Context, root string, args ...string) ([]byte, error) {
+	return runWithEnvironment(ctx, root, os.Environ(), args...)
+}
+
+func runWithEnvironment(ctx context.Context, root string, environment []string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"--no-optional-locks", "--literal-pathspecs", "-C", root, "-c", "core.fsmonitor=false"}, args...)...)
 	configureGitCommand(cmd)
-	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_EXTERNAL_DIFF=", "GIT_PAGER=cat")
+	cmd.Env = append(environment, "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_EXTERNAL_DIFF=", "GIT_PAGER=cat")
 	var out, stderr limited
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr

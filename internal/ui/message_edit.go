@@ -449,7 +449,7 @@ func taskSendButton(c *native.Context, stopping, disabled bool, hint string) nat
 
 func (a *App) composerEscape() bool {
 	root := a.application()
-	if a.edit != nil && !a.editSending || a.detailsOpen || a.modelMenuOpen || root.settingsOpen || root.viewerOpen || root.quitDialog || root.fileAction.open || root.worktreeRenameOpen || root.sessionRenameOpen {
+	if a.edit != nil && !a.editSending || a.detailsOpen || a.modelMenuOpen || root.settingsOpen || root.viewerOpen || root.quitDialog || root.fileAction.open || root.worktreeRenameOpen || root.sessionRenameOpen || root.worktreeCreate != nil {
 		return false
 	}
 	if a.State.Busy {

@@ -162,6 +162,15 @@ func (a *App) projectHeadingActions(c *native.Context, row, header native.Elemen
 	menu := func(m *native.Menu) {
 		if path, plain := strings.CutPrefix(id, "dir:"); plain {
 			a.projectFinderMenu(m, path)
+		} else if common, ok := strings.CutPrefix(id, "repo:"); ok {
+			if m.Item("新建 Worktree").Chosen() {
+				for _, repo := range a.repositories {
+					if repo.CommonDir == common {
+						a.beginWorktreeCreate(repo)
+						break
+					}
+				}
+			}
 		}
 		if m.Item("移除项目").Chosen() {
 			a.removeProject(id)

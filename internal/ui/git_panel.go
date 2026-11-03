@@ -90,6 +90,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 			}
 		}
 		if gitIconButton(c.Key("refresh"), "刷新 Git", refreshProjectIcon, disabled).Clicked() && !busy {
+			a.invalidateBranchCatalog(w.root)
 			a.refreshGit(w)
 		}
 	})

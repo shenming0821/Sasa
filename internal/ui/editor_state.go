@@ -893,19 +893,18 @@ func (a *App) refreshGit(w *workspacePage) {
 	}
 	w.gitLoading = true
 	w.gitRefreshPending = false
+	a.refreshBranchCatalog(w.root)
 	ctx, cancel := a.projectContext(5 * time.Second)
 	w.gitContext, w.gitCancel = ctx, cancel
 	a.runGitTaskContext(ctx, func() {
 		defer cancel()
 		var s gitview.Status
-		var branches []gitview.Branch
 		var remotes []string
 		var operation string
 		err := ctx.Err()
 		if err == nil {
 			s, err = gitview.Read(ctx, w.root)
 			if err == nil {
-				branches, _ = gitview.Branches(ctx, w.root)
 				remotes, _ = gitview.Remotes(ctx, w.root)
 				operation = gitview.InProgress(ctx, w.root)
 			}
@@ -932,7 +931,7 @@ func (a *App) refreshGit(w *workspacePage) {
 				}
 				return
 			}
-			w.gitBranches, w.gitRemotes, w.gitOperation = branches, remotes, operation
+			w.gitRemotes, w.gitOperation = remotes, operation
 			a.applyGitStatus(w, s)
 		})
 	})
@@ -944,6 +943,7 @@ func (a *App) applyGitStatus(w *workspacePage, status gitview.Status) {
 	w.gitFingerprint = fmt.Sprintf("%+v", status)
 	w.gitStatsFingerprint = ""
 	w.git = status
+	a.applyCurrentBranch(w)
 	if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" && d.turnReview == nil && !strings.HasPrefix(d.compare, "提交 ") {
 		rel, _ := filepath.Rel(w.root, d.path)
 		found := false

@@ -42,6 +42,10 @@ macOS 的 NSAlert 会根据默认操作安排按钮位置，仅交换 `Buttons` 
 
 连续工具组首次展开时，折叠进度仍为 0，但目标已变为展开；仅在进度介于 0 与 1 时暂停底部跟随，会在起始帧提前解除保护。工具组或详情切换时，从触发点击或进度与目标不一致开始暂停跟随，保留到过渡稳定。受控 UI 回归 `TestMixedToolGroupAtEndKeepsReadingPosition`、`TestMixedToolGroupKeepsReadingPosition` 覆盖底部首次展开、逐项详情、减少动态效果及返回末尾后继续跟随。见[工具合并验证](docs/verification/2026-11-03-tool-groups.md)。
 
+## 2026-11-03：大量基础分支导致选择器卡顿
+
+Worktree 基础分支列表使用普通 Scroll 包裹全量按钮，order 仓库的 9,646 条引用在展开时全部构建，输入和每帧更新重复处理所有候选。实测 Git 三条读取命令总计约 47 毫秒，主要问题在 UI 全量构建。可滚动候选达到大量条目时，使用原生虚拟列表仅构建可见行，并在查询变化时更新过滤结果；通过万条候选覆盖尾项滚动、搜索和精确选择，不能仅使用小仓库验收。受控单帧基准从 19.812 毫秒、30,018 次分配降低到 0.286 毫秒、58 次分配。证据：`TestWorktreeSourcePickerLargeRepositoryScrollSearchAndSelection`、`BenchmarkWorktreeSourcePicker`，见[新增 Worktree 验证](docs/verification/2026-11-03-worktree-create.md)。
+
 ## 新案例格式
 
 ```text

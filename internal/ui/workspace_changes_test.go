@@ -95,6 +95,8 @@ func TestWorkspaceBatchQueuesOneGitRefreshAndKeepsCatalogInvalidation(t *testing
 
 func TestWorkspaceGitRefreshReplaysEventsArrivingAfterSnapshotRead(t *testing.T) {
 	application, jobs, root, _ := gitWorkflowApp(t)
+	application.branchCatalog(root).loaded = true
+	application.branchCatalog(root).checked = time.Now()
 	workspace := application.workspace(root)
 	workspace.expanded = nil
 	application.refreshGit(workspace)

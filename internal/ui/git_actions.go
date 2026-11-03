@@ -35,6 +35,7 @@ type gitWorkflow struct {
 	gitRemote                                      string
 	gitOperation                                   string
 	gitBranchPicker                                bool
+	gitBranchError                                 string
 	gitBranchName                                  string
 	gitBranchBase                                  string
 	gitHistory                                     []gitview.CommitInfo
@@ -150,6 +151,7 @@ func (a *App) gitAction(w *workspacePage, label string, fn func(context.Context)
 			}
 			w.gitHistoryLoaded = false
 			w.gitStatsFingerprint = ""
+			a.invalidateBranchCatalog(w.root)
 			a.refreshGit(w)
 			for _, d := range a.files {
 				if d.root == w.root && d.kind == "file" && d.loaded {
@@ -502,6 +504,9 @@ func (a *App) gitRefreshStats(w *workspacePage) {
 }
 
 func (a *App) hasGitWrites() bool {
+	if a.worktreeCreate != nil && a.worktreeCreate.busy {
+		return true
+	}
 	for _, w := range a.workspaces {
 		if w.gitBusy != "" || w.gitPreparing {
 			return true

@@ -21,6 +21,12 @@ func workspacePathChanged(paths map[string]bool, path string) bool {
 }
 
 func (a *App) applyWorkspaceChanges(w *workspacePage, paths map[string]bool) {
+	if a.branchMetadataChanged(w.root, paths) {
+		a.invalidateBranchCatalog(w.root)
+		if a.worktreeCreate != nil && a.branchCatalogKey(a.worktreeCreate.root) == a.branchCatalogKey(w.root) {
+			a.refreshBranchCatalog(w.root)
+		}
+	}
 	directories := make(map[string]bool)
 	for path := range paths {
 		if path != "" {

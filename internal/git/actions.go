@@ -77,18 +77,34 @@ func Commit(ctx context.Context, root, message string) (string, error) {
 type Branch struct {
 	Name, Hash, Upstream, Worktree string
 	Current                        bool
+	Ref                            string
+	Remote                         bool
 }
 
 func Branches(ctx context.Context, root string) ([]Branch, error) {
-	out, err := run(ctx, root, "for-each-ref", "--format=%(refname:short)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)%00", "refs/heads/")
+	branches, err := RepositoryBranches(ctx, root)
+	var local []Branch
+	for _, branch := range branches {
+		if !branch.Remote {
+			local = append(local, branch)
+		}
+	}
+	return local, err
+}
+
+func RepositoryBranches(ctx context.Context, root string) ([]Branch, error) {
+	out, err := worktreeRun(ctx, root, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)%00%(symref)%00", "refs/heads/", "refs/remotes/")
 	if err != nil {
 		return nil, err
 	}
 	var result []Branch
 	fields := strings.Split(string(out), "\x00")
-	for len(fields) >= 5 {
-		result = append(result, Branch{strings.TrimPrefix(fields[0], "\n"), fields[1], fields[2], fields[3], fields[4] == "*"})
-		fields = fields[5:]
+	for len(fields) >= 6 {
+		ref := strings.TrimPrefix(fields[0], "\n")
+		if fields[5] == "" {
+			result = append(result, Branch{Name: strings.TrimPrefix(strings.TrimPrefix(ref, "refs/heads/"), "refs/remotes/"), Hash: fields[1], Upstream: fields[2], Worktree: fields[3], Current: fields[4] == "*", Ref: ref, Remote: strings.HasPrefix(ref, "refs/remotes/")})
+		}
+		fields = fields[6:]
 	}
 	return result, nil
 }

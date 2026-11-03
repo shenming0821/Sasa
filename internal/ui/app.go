@@ -32,6 +32,8 @@ type App struct {
 	settingsState
 	terminalState
 	worktreeRenameState
+	branchCatalogState
+	worktreeCreate *worktreeCreation
 	sessionRenameState
 	imageCache         map[string]*imagePreview
 	imageLoading       bool

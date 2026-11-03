@@ -46,7 +46,7 @@ type terminalLayout struct {
 
 func (a *App) hideInactiveTerminals() {
 	for _, page := range a.terminals {
-		if page.connection != nil && (a.activeTab != page.id || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open) {
+		if page.connection != nil && (a.activeTab != page.id || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil) {
 			page.connection.Hide()
 			if a.activeTab == page.id {
 				page.focus = true
@@ -157,7 +157,7 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 			c.AnimationFrame()
 			return
 		}
-		if a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open {
+		if a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil {
 			return
 		}
 		if err := page.connection.Present(a.win.NativeHandle(), bounds, c.Theme().Dark, page.focus); err != nil {

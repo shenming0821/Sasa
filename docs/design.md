@@ -39,7 +39,7 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提�
 | 能力 | 安排 |
 |---|---|
 | Claude Code 与 Agent 抽象 | P6.1～P6.3 已实现，P6.0/P6.4 完整验收按实施计划推进；OpenCode 另行规划 |
-| Repository / Worktree 自动发现和管理 | 已实现本地导入、发现与会话导航；创建和删除另行确认 |
+| Repository / Worktree 自动发现和管理 | 已实现本地导入、发现、会话导航及右键新建分支工作区；删除另行确认 |
 | 文件树、轻量文件编辑、Git 状态与只读 Diff | 按 [P4 设计](p4-editor-design.md)实现中；组件验收通过，原生交互待验收 |
 | 暂存、提交、远程、历史 Diff、分支与冲突 | 用户于 2026-10-26 授权扩展，约定及验收见 [Git 工作流](git-workflow-design.md) |
 | Commit Graph、Blame、PR 管理 | 后续范围，尚未实现 |

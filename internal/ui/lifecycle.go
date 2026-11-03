@@ -13,6 +13,10 @@ func (a *App) closeCurrentPage() {
 		return
 	}
 	switch {
+	case a.worktreeCreate != nil:
+		if !a.worktreeCreate.busy {
+			a.worktreeCreate = nil
+		}
 	case a.fileAction.open:
 		a.fileAction.open = false
 	case a.worktreeRenameOpen:

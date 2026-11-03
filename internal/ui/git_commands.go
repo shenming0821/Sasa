@@ -56,6 +56,9 @@ func (a *App) gitBranchPickerView(c *native.Context, w *workspacePage) {
 	native.Column(c).FillWidth().Padding(2, 12, 6, 12).Children(func() {
 		native.Column(c).Label("Git 分支面板").FillWidth().Padding(8).Gap(8).Radius(8).
 			Background(t.Surface).Border(1, t.Border).Children(func() {
+			if w.gitBranchError != "" {
+				native.Text(c, w.gitBranchError).FontSize(11).TextColor(t.Danger).FillWidth().MaxLines(3)
+			}
 			native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
 				native.Text(c, "基于分支").FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(0)
 				bases := []string{}

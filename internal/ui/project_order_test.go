@@ -266,7 +266,7 @@ func TestProjectHeadingUsesOneHoverBackground(t *testing.T) {
 			if err := tt.RightClick(pair[0]); err != nil {
 				t.Fatal(err)
 			}
-			want := []string{"移除项目"}
+			want := []string{"新建 Worktree", "移除项目"}
 			if pair[0] == "展开项目 /alpha" {
 				want = []string{"在Finder中打开", "移除项目"}
 			}
