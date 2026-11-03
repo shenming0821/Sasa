@@ -54,6 +54,7 @@ type session struct {
 	expandedProcesses    map[string]bool
 	processProgress      map[string]float32
 	processScrollHold    bool
+	disclosureMoving     bool
 	changeSummaries      map[string]cachedChangeSummary
 	completion           inputCompletion
 	readingContext       *native.Context

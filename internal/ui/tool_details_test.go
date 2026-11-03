@@ -158,7 +158,14 @@ func TestProcessRecordsShareHierarchyAndCompactSpacing(t *testing.T) {
 				tt.SetDark(dark)
 				tt.SetPreferences(native.Preferences{ReduceMotion: true})
 				tt.Frame()
-				labels := []string{"命令组 before", "检查界面", "核验结果", "命令组 after"}
+				if tt.HasText("检查界面") || len(a.conversationRows()) != 2 {
+					t.Fatal("mixed tools were not folded into one group")
+				}
+				if err := tt.Click("命令组 before"); err != nil {
+					t.Fatal(err)
+				}
+				tt.Advance(300 * time.Millisecond)
+				labels := []string{"命令详情 before", "检查界面", "核验结果", "命令详情 after"}
 				var previous native.Rect
 				for i, label := range labels {
 					r, ok := tt.Find(label)
@@ -166,14 +173,13 @@ func TestProcessRecordsShareHierarchyAndCompactSpacing(t *testing.T) {
 						t.Fatal("missing record", label, tt.Texts())
 					}
 					distance := r.Y + r.H/2 - previous.Y - previous.H/2
-					if i > 0 && (distance < 33 || distance > 35) {
+					if i > 0 && (distance < 29 || distance > 31) {
 						t.Fatal("records too far apart", previous, r)
 					}
-					// Tool and command captions start after the same 16 DIP icon and gap.
 					if i == 1 || i == 2 {
-						group, _ := tt.Find("命令组 before")
-						if r.X != group.X+24 {
-							t.Fatal("tool caption indented", r, group)
+						command, _ := tt.Find("命令详情 before")
+						if r.X != command.X {
+							t.Fatal("tool caption indented", r, command)
 						}
 					}
 					previous = r

@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
@@ -10,6 +11,12 @@ import (
 )
 
 func toolCaption(t *app.Tool) string {
+	if caption := toolOperationCaption(t); caption != "" {
+		if t.ParentToolID != "" {
+			return "子任务 · " + caption
+		}
+		return caption
+	}
 	caption := ""
 	var args struct {
 		Title string `json:"title"`
@@ -25,6 +32,55 @@ func toolCaption(t *app.Tool) string {
 		return "子任务 · " + caption
 	}
 	return caption
+}
+
+func toolOperationCaption(tool *app.Tool) string {
+	name := tool.Name
+	if tool.Kind == "commandExecution" {
+		if name == "" {
+			name = "Bash"
+		}
+		if tool.Command != "" {
+			return name + " " + strconv.Quote(strings.Join(strings.Fields(tool.Command), " "))
+		}
+	}
+	var keys []string
+	switch strings.ToLower(name) {
+	case "read", "edit", "write":
+		keys = []string{"file_path", "path", "filePath"}
+	case "bash":
+		keys = []string{"command"}
+	case "toolsearch", "websearch", "search":
+		keys = []string{"query", "search_term"}
+	case "grep":
+		keys = []string{"pattern"}
+	case "glob":
+		keys = []string{"pattern"}
+	case "webfetch":
+		keys = []string{"url"}
+	default:
+		return ""
+	}
+	var input map[string]json.RawMessage
+	if json.Unmarshal([]byte(tool.Input), &input) == nil {
+		for _, key := range keys {
+			var value string
+			if json.Unmarshal(input[key], &value) == nil && strings.TrimSpace(value) != "" {
+				return name + " " + strconv.Quote(value)
+			}
+		}
+	}
+	return name
+}
+
+func toolResultFailed(tool *app.Tool) bool {
+	if tool.Kind != "mcpToolCall" && tool.Kind != "dynamicToolCall" {
+		return false
+	}
+	var result struct {
+		IsError bool `json:"isError"`
+	}
+	return json.Unmarshal([]byte(tool.Output), &result) == nil && result.IsError
 }
 
 // Only unwrap recognized text envelopes. Unknown fields and non-text blocks
@@ -89,16 +145,14 @@ func toolInput(raw string) (code, parameters string) {
 var toolIcon = icon(`<rect x="3" y="3" width="7" height="7" rx="1.3"/><rect x="14" y="3" width="7" height="7" rx="1.3"/><rect x="3" y="14" width="7" height="7" rx="1.3"/><rect x="14" y="14" width="7" height="7" rx="1.3"/>`)
 
 func (a *App) toolDisclosure(c *native.Context, tool *app.Tool) {
+	a.toolDisclosureWithIcon(c, tool, toolIcon)
+}
+
+func (a *App) toolDisclosureWithIcon(c *native.Context, tool *app.Tool, glyph *native.SVG) {
 	theme := c.Theme()
 	failed := commandFailed(tool)
-	var result struct {
-		IsError bool `json:"isError"`
-	}
-	if json.Unmarshal([]byte(tool.Output), &result) == nil && result.IsError {
-		failed = true
-	}
 	native.Column(c).FillWidth().MinWidth(0).Children(func() {
-		processDisclosure(c, "工具记录 "+tool.Name, toolCaption(tool), &tool.Expanded, toolIcon, func() {
+		a.processDisclosure(c, "工具记录 "+tool.Name, toolCaption(tool), &tool.Expanded, glyph, func() {
 			if tool.Status == "inProgress" {
 				native.Spinner(c).Size(12, 12).Shrink(0)
 				native.Text(c, tool.StatusLabel()).FontSize(11).SingleLine().Shrink(0).TextColor(theme.TextMuted)

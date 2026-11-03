@@ -38,6 +38,10 @@ Git 文件行通过共享按钮注册默认提示后，再调用 `Tooltip` 设�
 
 macOS 的 NSAlert 会根据默认操作安排按钮位置，仅交换 `Buttons` 数组不能保证最终左右顺序。在要求“取消”位于左侧、“删除会话”位于右侧时，将删除配置为确认操作，取消配置为 Escape，并同步核对返回索引；通过真实窗口截图确认按钮位置，再验证取消保持原数据。当前删除弹窗使用 `Buttons=[删除会话,取消]`、`DefaultButton=0`、`CancelButton=1`。证据：[删除验证](docs/verification/2026-10-28-session-delete.md)的同日交互调整。
 
+## 2026-11-03：折叠动画起点的底部跟随
+
+连续工具组首次展开时，折叠进度仍为 0，但目标已变为展开；仅在进度介于 0 与 1 时暂停底部跟随，会在起始帧提前解除保护。工具组或详情切换时，从触发点击或进度与目标不一致开始暂停跟随，保留到过渡稳定。受控 UI 回归 `TestMixedToolGroupAtEndKeepsReadingPosition`、`TestMixedToolGroupKeepsReadingPosition` 覆盖底部首次展开、逐项详情、减少动态效果及返回末尾后继续跟随。见[工具合并验证](docs/verification/2026-11-03-tool-groups.md)。
+
 ## 新案例格式
 
 ```text

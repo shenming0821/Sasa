@@ -83,6 +83,7 @@ func (a *App) releaseClosedSession(s *session, now time.Time) {
 				s.expandedProcesses = nil
 				s.processProgress = nil
 				s.processScrollHold = false
+				s.disclosureMoving = false
 				s.readingContext = nil
 				s.list, s.scroll = native.ListState{}, native.ScrollState{}
 			}

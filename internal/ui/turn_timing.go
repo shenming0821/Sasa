@@ -12,7 +12,8 @@ const turnProcessAnimationDuration = 200 * time.Millisecond
 
 func (s *session) animateProcesses(c *native.Context) {
 	progress := make(map[string]float32)
-	moving := false
+	moving := s.disclosureMoving
+	s.disclosureMoving = false
 	for _, message := range s.State.Messages {
 		if message.Role != "user" || message.Timing == nil {
 			continue

@@ -155,12 +155,11 @@ func TestTimingLayoutBelowQuestionBeforeCommands(t *testing.T) {
 						question, questionVisible := tester.Find("提交并推送")
 						timing, timingVisible := tester.Find(label)
 						firstCommand, firstVisible := tester.Find("命令组 first-command")
-						lastCommand, lastVisible := tester.Find("命令组 last-command")
-						if !questionVisible || !timingVisible || !firstVisible || !lastVisible {
+						if !questionVisible || !timingVisible || !firstVisible || tester.HasText("命令组 last-command") {
 							t.Fatalf("missing question/timing/commands: %v", tester.Texts())
 						}
-						if timing.Y < question.Y+question.H || timing.Y+timing.H > firstCommand.Y || firstCommand.Y >= lastCommand.Y {
-							t.Fatalf("want question, duration, commands; got question=%+v timing=%+v first=%+v last=%+v", question, timing, firstCommand, lastCommand)
+						if timing.Y < question.Y+question.H || timing.Y+timing.H > firstCommand.Y {
+							t.Fatalf("want question, duration, commands; got question=%+v timing=%+v first=%+v", question, timing, firstCommand)
 						}
 						if gap := firstCommand.Y - timing.Y - timing.H; gap > 24 {
 							t.Fatalf("duration divider leaves too much space before the next record: %g", gap)

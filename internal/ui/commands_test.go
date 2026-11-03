@@ -77,7 +77,7 @@ func TestCommandHoverAndAnimatedDisclosure(t *testing.T) {
 			if full.Y <= initial.Y || (!reduced && (middle.Y <= initial.Y || middle.Y >= full.Y)) {
 				t.Fatalf("no height animation: %v %v %v", initial, middle, full)
 			}
-			if !tt.HasText("已运行 git status --short") || !tt.HasText("正在运行 git status --short") {
+			if !tt.HasText(`Bash "git status --short"`) || !tt.HasText(`正在运行 Bash "git status --short"`) {
 				t.Fatal("individual statuses lost")
 			}
 			tt.Move(590, 390)
@@ -186,7 +186,7 @@ func TestCommandSummaryKeepsFailureAndAwaitingFinalVisible(t *testing.T) {
 	exit := 1
 	one.Tool.ExitCode = &exit
 	text, failed := commandSummary([]*app.Message{one, two})
-	if !failed || !strings.HasPrefix(text, "正在运行 ") {
+	if !failed || text != "正在运行命令 · 存在失败" {
 		t.Fatalf("lost mixed state: %s %v", text, failed)
 	}
 	two.Tool.Status = "completed"

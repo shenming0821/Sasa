@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/app"
@@ -76,7 +75,10 @@ func (s *session) conversationRows() []conversationRow {
 			changes = append(changes, m)
 			continue
 		}
-		command := m.Role == "tool" && m.Interaction == nil && m.Tool != nil && m.Tool.Kind == "commandExecution"
+		command := groupableTool(m)
+		if command {
+			flush()
+		}
 		if command && len(rows) > 0 {
 			last := &rows[len(rows)-1]
 			if len(last.commands) > 0 && last.message.TurnID == m.TurnID && last.message.Tool.ParentToolID == m.Tool.ParentToolID {
@@ -121,6 +123,17 @@ func (s *session) conversationRows() []conversationRow {
 	return rows
 }
 
+func groupableTool(message *app.Message) bool {
+	if message.Role != "tool" || message.Interaction != nil || message.Tool == nil {
+		return false
+	}
+	switch message.Tool.Kind {
+	case "commandExecution", "mcpToolCall", "dynamicToolCall", "webSearch":
+		return true
+	}
+	return false
+}
+
 func (s *session) commandGroupOpen(id string) *bool {
 	key := "command-group:" + id
 	if s.commandGroups == nil {
@@ -134,7 +147,7 @@ func (s *session) commandGroupOpen(id string) *bool {
 }
 
 func commandFailed(t *app.Tool) bool {
-	return t.Status == "failed" || (t.ExitCode != nil && *t.ExitCode != 0)
+	return t.Status == "failed" || (t.ExitCode != nil && *t.ExitCode != 0) || toolResultFailed(t)
 }
 
 func commandSummary(commands []*app.Message) (string, bool) {
@@ -152,9 +165,12 @@ func commandSummary(commands []*app.Message) (string, bool) {
 	}
 	if active != nil {
 		if active.AwaitingFinal {
-			return "等待确认 " + strings.Join(strings.Fields(active.Command), " "), failed
+			return "等待确认 " + toolCaption(active), failed
 		}
-		return "正在运行 " + strings.Join(strings.Fields(active.Command), " "), failed
+		if failed {
+			return "正在运行命令 · 存在失败", true
+		}
+		return "正在运行命令", false
 	}
 	if failed {
 		return "命令运行失败", true
@@ -166,7 +182,7 @@ func commandSummary(commands []*app.Message) (string, bool) {
 }
 
 // Process records share the same hierarchy, hover affordance and keyboard disclosure.
-func processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, suffix, content func()) {
+func (a *App) processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, suffix, content func()) {
 	theme := c.Theme()
 	if content == nil {
 		native.Row(c).Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).Children(func() {
@@ -201,18 +217,27 @@ func processDisclosure(c *native.Context, label, text string, open *bool, glyph 
 				suffix()
 			}
 		})
+		target := float32(0)
+		if *open {
+			target = 1
+		}
+		if trigger.Clicked() || parts.Progress() != target {
+			a.disclosureMoving = true
+			a.processScrollHold = true
+			a.list.FollowEnd = false
+		}
 		parts.Panel(func() {
 			native.Column(c).FillWidth().MinWidth(0).TextColor(theme.TextMuted).Opacity(parts.Progress()).Padding(4, 0, 4, 24).Children(content)
 		})
 	})
 }
 
-func commandDisclosure(c *native.Context, label, text string, open *bool, group bool, content func()) {
+func (a *App) commandDisclosure(c *native.Context, label, text string, open *bool, group bool, content func()) {
 	var glyph *native.SVG
 	if group {
 		glyph = terminalIcon
 	}
-	processDisclosure(c, label, text, open, glyph, nil, content)
+	a.processDisclosure(c, label, text, open, glyph, nil, content)
 }
 
 func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
@@ -220,11 +245,15 @@ func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
 	if commands[0].Tool.ParentToolID != "" {
 		text = "子任务 · " + text
 	}
-	commandDisclosure(c, "命令组 "+commands[0].ID, text, a.commandGroupOpen(commands[0].ID), true, func() {
+	a.commandDisclosure(c, "命令组 "+commands[0].ID, text, a.commandGroupOpen(commands[0].ID), true, func() {
 		for _, m := range commands {
 			tool := m.Tool
 			ctx := c.Key(m.ID)
-			label := "已运行 "
+			if tool.Kind != "commandExecution" {
+				a.toolDisclosureWithIcon(ctx, tool, nil)
+				continue
+			}
+			label := ""
 			switch {
 			case tool.AwaitingFinal:
 				label = "等待确认 "
@@ -235,7 +264,7 @@ func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
 			case tool.Status == "declined":
 				label = "已拒绝 "
 			}
-			commandDisclosure(ctx, "命令详情 "+m.ID, label+strings.Join(strings.Fields(tool.Command), " "), &tool.Expanded, false, func() {
+			a.commandDisclosure(ctx, "命令详情 "+m.ID, label+toolOperationCaption(tool), &tool.Expanded, false, func() {
 				native.Scroll(ctx).Label("命令输出 " + m.ID).FillWidth().MaxHeight(180).Children(func() {
 					native.Column(ctx).FillWidth().Gap(6).Padding(8).Background(ctx.Theme().Surface).Radius(8).Clip().Children(func() {
 						detailText(ctx, "工作目录", tool.Cwd)
