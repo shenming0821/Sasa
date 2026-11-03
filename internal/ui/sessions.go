@@ -45,6 +45,7 @@ type session struct {
 	imageError           string
 	id                   int
 	open                 bool
+	stopOnClose          bool
 	State                app.State
 	list                 native.ListState
 	scroll               native.ScrollState
@@ -126,6 +127,7 @@ func (a *App) newSessionForAgent(cwd string, kind agent.AgentKind, runtime strin
 
 func (a *App) selectSession(s *session) {
 	s.open = true
+	s.stopOnClose = false
 	a.session = s
 	a.activeTab = sessionTabID(s.id)
 	a.selectWorkspace(a.workspaceRoot(s.State.Cwd))
@@ -168,17 +170,24 @@ func (a *App) clearConversation() {
 	_ = root.persist()
 }
 
-// Closing a tab leaves its draft and live protocol owner available in history.
 func (a *App) closeSession(s *session) {
+	if !s.open {
+		return
+	}
+	a.closeSessionTab(s)
+	s.stopOnClose = true
+	s.releaseAfter = time.Now()
+	a.releaseClosedSessions(s.releaseAfter)
+}
+
+func (a *App) closeSessionTab(s *session) {
 	if !s.open {
 		return
 	}
 	id := sessionTabID(s.id)
 	a.removeWorkspaceTab(id)
 	s.open = false
-	s.releaseAfter = time.Now().Add(closedSessionRetention)
 	s.completion.focus = false
-	// Retain the protocol owner without opening or creating a replacement tab.
 }
 
 func (a *App) recoverSelectedSession() {

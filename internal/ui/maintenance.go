@@ -100,6 +100,9 @@ func (a *App) maintenanceDelay(now time.Time) time.Duration {
 		}
 	}
 	for _, s := range a.sessions {
+		if s.stopOnClose && !s.open && s.State.Busy {
+			delay = min(delay, time.Second)
+		}
 		if s.canReleaseRuntime() {
 			if _, ok := a.forSession(s).sessionBackend().(agent.IdleThreadReleaser); ok {
 				delay = min(delay, max(100*time.Millisecond, s.releaseAfter.Sub(now)))

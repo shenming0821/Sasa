@@ -457,6 +457,7 @@ func (a *App) applyBatch(batch []agent.Event) {
 	for _, s := range a.sessions {
 		a.forSession(s).applySessionBatch(batch)
 	}
+	a.releaseClosedSessions(time.Now())
 	for _, event := range batch {
 		if event.Method == "turn/completed" || event.Method == "fuyu/disconnected" {
 			a.persist()

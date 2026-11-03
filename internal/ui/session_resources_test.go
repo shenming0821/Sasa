@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -15,6 +16,89 @@ type resourceBackend struct {
 	recoveryBackend
 	requests chan string
 	results  chan bool
+	stops    chan string
+	stopErr  error
+}
+
+func (b *resourceBackend) Interrupt(_ context.Context, thread, turn string) error {
+	b.stops <- thread + "/" + turn
+	return b.stopErr
+}
+
+func TestCloseRunningSessionStopsItsOwnerAndReleasesAfterTerminal(t *testing.T) {
+	for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+		t.Run(string(kind), func(t *testing.T) {
+			a, backend, queue := resourceApp(t, kind)
+			target := a.session
+			target.State.Begin("running task")
+			target.State.TurnID = "running-turn"
+			target.State.BindTiming("running-turn")
+			target.State.Draft = "keep draft"
+			target.State.Messages[0].Role = "tool"
+			target.State.Messages[0].TurnID = "running-turn"
+			target.State.Messages[0].Tool.Status = "inProgress"
+			a.applyBatch([]agent.Event{{
+				Method: "item/started", Session: agent.SessionKey{Agent: kind, Runtime: target.runtimeKey, SessionID: "native"},
+				Params: json.RawMessage(`{"threadId":"native","turnId":"running-turn","item":{"id":"user","type":"userMessage"}}`),
+			}})
+			a.newSessionForAgent("/second", target.kind, target.runtimeKey)
+			a.State.Begin("other task")
+			a.State.ThreadID, a.State.TurnID = "other", "other-turn"
+			a.closeSession(target)
+			select {
+			case stopped := <-backend.stops:
+				if stopped != "native/running-turn" {
+					t.Fatal("close stopped a different owner", stopped)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("close did not immediately interrupt the task")
+			}
+			if target.open || !target.State.Busy || target.State.Phase != "正在停止" || target.releasing {
+				t.Fatal("close did not wait for the native terminal state")
+			}
+			a.releaseClosedSessions(time.Now())
+			if len(backend.stops) != 0 || len(backend.requests) != 0 || !a.State.Busy {
+				t.Fatal("close duplicated interruption, released early, or stopped another task")
+			}
+			a.applyBatch([]agent.Event{{
+				Method: "turn/completed", Session: agent.SessionKey{Agent: kind, Runtime: target.runtimeKey, SessionID: "native"},
+				Params: json.RawMessage(`{"threadId":"native","turn":{"id":"running-turn","status":"interrupted"}}`),
+			}})
+			if target.State.Busy || !target.releasing || target.navigationStatus() == "正在执行" || !a.State.Busy {
+				t.Fatalf("terminal event did not immediately start release: busy=%v releasing=%v status=%q otherBusy=%v snapshot=%v pending=%v", target.State.Busy, target.releasing, target.navigationStatus(), a.State.Busy, target.State.NeedsSnapshot, target.snapshotPending)
+			}
+			backend.results <- true
+			pumpUpdate(t, queue)
+			if target.loaded || len(target.State.Messages) != 0 || target.State.Draft != "keep draft" {
+				t.Fatal("closed owner retained resources or lost its draft")
+			}
+		})
+	}
+}
+
+func TestCloseSessionPreservesUnconfirmedStop(t *testing.T) {
+	a, backend, queue := resourceApp(t)
+	backend.stopErr = errors.New("transport unavailable")
+	a.State.Begin("running task")
+	a.State.TurnID = "running-turn"
+	a.closeSession(a.session)
+	pumpUpdate(t, queue)
+	a.releaseClosedSessions(time.Now())
+	if !a.State.Busy || a.State.Phase != "停止待确认" || a.releasing || len(backend.requests) != 0 {
+		t.Fatal("failed interruption was treated as a stopped and releasable session")
+	}
+}
+
+func TestCloseSessionCancelsPendingSubmission(t *testing.T) {
+	a, backend, _ := resourceApp(t)
+	a.State.Begin("pending task")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a.submitCancel = cancel
+	a.closeSession(a.session)
+	if ctx.Err() != context.Canceled || !a.submitStop || !a.State.Stopping() || a.releasing || len(backend.stops) != 0 {
+		t.Fatal("close did not cancel submission before the native turn was known")
+	}
 }
 
 func (b *resourceBackend) ReleaseIdleThread(ctx context.Context, id string) (bool, error) {
@@ -35,6 +119,7 @@ func resourceApp(t *testing.T, kinds ...agent.AgentKind) (*App, *resourceBackend
 	backend := &resourceBackend{
 		recoveryBackend: *recoveredBackend("completed"),
 		requests:        make(chan string, 8), results: make(chan bool, 8),
+		stops: make(chan string, 8),
 	}
 	a := New(backend, "test", "/first", nil)
 	if len(kinds) > 0 && kinds[0] == agent.Claude {
@@ -75,20 +160,8 @@ func testClosedSessionReleaseRetainsDraftAndResumesOnReopen(t *testing.T, kind a
 	a, backend, queue := resourceApp(t, kind)
 	s := a.session
 	a.closeSession(s)
-	due := s.releaseAfter
-	a.releaseClosedSessions(due.Add(-time.Millisecond))
-	if s.releasing || len(backend.requests) != 0 {
-		t.Fatal("quick tab close discarded its warm runtime")
-	}
-	a.selectSession(s)
-	a.releaseClosedSessions(due.Add(time.Minute))
-	if s.releasing {
-		t.Fatal("reopened tab was released")
-	}
-	a.closeSession(s)
-	a.releaseClosedSessions(s.releaseAfter)
 	if !s.releasing {
-		t.Fatal("closed idle session was never released")
+		t.Fatal("closed idle session was not released immediately")
 	}
 	backend.results <- true
 	pumpUpdate(t, queue)
@@ -157,8 +230,8 @@ func TestClosedSessionReleaseGuardsTasksAndRetriesNativeCheck(t *testing.T) {
 			for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
 				t.Run(string(kind), func(t *testing.T) {
 					a, backend, _ := resourceApp(t, kind)
-					a.closeSession(a.session)
 					scenario.set(a.session)
+					a.closeSession(a.session)
 					a.releaseClosedSessions(a.releaseAfter)
 					if a.releasing || len(backend.requests) != 0 {
 						t.Fatal("release touched a protected session")
@@ -190,8 +263,8 @@ func TestClosedSessionReleaseGuardsTasksAndRetriesNativeCheck(t *testing.T) {
 func TestReleaseRequiresSavedStateAndDeletionDoesNotResurrectSession(t *testing.T) {
 	t.Run("save failure", func(t *testing.T) {
 		a, backend, _ := resourceApp(t)
-		a.closeSession(a.session)
 		a.store.Close()
+		a.closeSession(a.session)
 		a.releaseClosedSessions(a.releaseAfter)
 		if a.releasing || len(backend.requests) != 0 || a.storageError == "" {
 			t.Fatal("release lost the live owner when its state could not be saved")

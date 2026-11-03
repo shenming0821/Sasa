@@ -3,6 +3,7 @@ package ui
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
@@ -29,10 +30,12 @@ func closeMenuItem(t *testing.T, a *App) *mygo.MenuItem {
 }
 
 func TestCloseMenuClosesSelectedSessionAndKeepsBackgroundTask(t *testing.T) {
-	a := New(stubBackend{}, "test", t.TempDir(), nil)
+	backend := &quitBackend{stops: make(chan string, 2)}
+	a := New(backend, "test", t.TempDir(), nil)
 	a.dispatch = func(work func()) { work() }
 	first := a.session
 	first.State.Draft, first.State.Busy = "keep draft", true
+	first.State.ThreadID, first.State.TurnID = "first", "turn"
 	a.newSession(first.State.Cwd)
 	second := a.session
 	item := closeMenuItem(t, a)
@@ -42,8 +45,16 @@ func TestCloseMenuClosesSelectedSessionAndKeepsBackgroundTask(t *testing.T) {
 	}
 	item.Click(item, nil)
 	item.Click(item, nil)
-	if a.open || len(a.tabs) != 0 || a.quitting || !first.State.Busy {
-		t.Fatal("closing the last tab or empty workspace quit the app or stopped its task")
+	if a.open || len(a.tabs) != 0 || a.quitting || !first.State.Busy || !first.State.Stopping() {
+		t.Fatal("closing the last tab did not keep the window and await interruption")
+	}
+	select {
+	case stopped := <-backend.stops:
+		if stopped != "first/turn" {
+			t.Fatal("close stopped a different task", stopped)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("close menu did not interrupt its running session")
 	}
 }
 

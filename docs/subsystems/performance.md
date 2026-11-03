@@ -46,11 +46,13 @@ Claude 的模型、默认模型和技能读取进一步共享同一个按目录�
 
 ## 长会话与文件事件
 
-`internal/ui/session_resources.go` 在关闭 Codex 或 Claude 会话标签后保留 30 秒的复用窗口，随后由后台维护检查并回收。活动任务、待处理交互、恢复/分页/发送中的会话、未确认状态、外部写入者及未结束工具继续保留。回收前保存草稿、阅读位置、展开状态和会话标题；保存失败保留原 Runtime，并在 1 分钟后重试。原生状态不是 idle 或存在后台终端时保留资源，1 分钟后重新检查。
+`internal/ui/session_resources.go` 在关闭 Codex 或 Claude 会话标签时立即处理该会话：运行中先中断并等待原生终态，空闲时直接开始回收，终态事件到达后再次检查回收。关闭后的活动会话以最多 1 秒维护间隔推进恢复完成后的停止与后续回收；切换所选会话不改变后台回收的归属。待处理交互、恢复/分页/发送中的会话、未确认状态、外部写入者及未结束工具继续保护，停止失败保留“停止待确认”和资源。回收前保存草稿、阅读位置、展开状态和会话标题；保存失败保留原 Runtime，并在 1 分钟后重试。原生状态不是 idle 或存在后台终端时保留资源，1 分钟后重新检查。
 
-`internal/codex/idle.go` 先通过 `thread/read` 核对原生 idle，按 `thread/loaded/list` 与 `parentThreadId` 检查子孙会话，再用 `thread/backgroundTerminals/list` 确认没有后台终端，最后发送 `thread/unsubscribe`。子孙会话处于活动/未知状态或有后台终端时，保留父会话；尚未取得 turn ID 的会话也继续保留，避免卸载尚未产生可恢复 rollout 的新会话。Fuyu 自有 App Server 的启动参数设置 `thread_unload_delay_secs=0`，将取消订阅后的原生卸载等待设为 0 秒；用户的全局配置文件保持原值。应用自己的 30 秒复用窗口继续生效。其他连接仍持有订阅时，由 Runtime 处理资源归属。
+`internal/codex/idle.go` 先通过 `thread/read` 核对原生 idle，按 `thread/loaded/list` 与 `parentThreadId` 检查子孙会话，再用 `thread/backgroundTerminals/list` 确认没有后台终端，最后发送 `thread/unsubscribe`。子孙会话处于活动/未知状态或有后台终端时，保留父会话；尚未取得 turn ID 的会话也继续保留，避免卸载尚未产生可恢复 rollout 的新会话。Fuyu 自有 App Server 的启动参数设置 `thread_unload_delay_secs=0`，将取消订阅后的原生卸载等待设为 0 秒。关闭会话的应用层复用等待现为 0 秒；其他连接仍持有订阅时，由 Runtime 处理资源归属。
 
 确认原生资源释放后，关闭会话释放消息投影、行句柄、列表和滚动缓存；本地会话、草稿、图片引用、模型选择与已保存的阅读信息继续保留。重开时恢复原生历史，恢复完成前暂停发送。卸载期间重开保留已有内容，等待卸载结果后恢复，避免 `resume`/`send` 与卸载并发。取消订阅响应不确定时先要求重新恢复，保留已有显示；原生检查失败时保留连接并在 1 分钟后重试。删除本地会话时也尝试回收其空闲 Runtime，取消订阅不归档或删除 CLI 原始历史。
+
+关闭请求得到“已中断”原生终态后，遗留的工具卡片 `inProgress / AwaitingFinal` 允许进入后端回收检查，由原生 idle、后台终端和子任务核验决定能否释放，避免丢失工具结束通知时永久保留缓存。普通未结束工具仍受 UI 前置检查保护。Codex 的中断不保证所有 unified exec 后台命令立即退出；本次真实等待命令的边界见[关闭验证](../verification/2026-11-03-close-session.md)。
 
 Claude 后端的 `ReleaseIdleThread` 仅在任务终态明确时关闭自有空闲进程并等待退出，核对原生历史可恢复和进程代次后允许 UI 清理缓存；空闲进程已经过期时仍能清理。打开的会话继续使用自身 2 分钟空闲超时、最多 4 个空闲进程的回收机制。Claude 的受控验证及边界见[Claude 内存回收](../verification/2026-11-02-claude-memory.md)。真实 Codex 0.165.0 的隔离 MCP 进程回收及覆盖边界见[内存验证](../verification/2026-10-30-memory.md)。
 

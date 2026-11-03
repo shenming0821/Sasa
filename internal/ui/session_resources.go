@@ -7,8 +7,6 @@ import (
 	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
-const closedSessionRetention = 30 * time.Second
-
 func (s *session) canReleaseRuntime() bool {
 	if s.open || !s.loaded || s.releasing ||
 		s.State.ThreadID == "" || s.State.TurnID == "" || s.State.Busy || s.State.Disconnected ||
@@ -19,7 +17,8 @@ func (s *session) canReleaseRuntime() bool {
 		return false
 	}
 	for _, message := range s.State.Messages {
-		if tool := message.Tool; tool != nil && (tool.Status == "inProgress" || tool.AwaitingFinal) {
+		if tool := message.Tool; tool != nil && (tool.Status == "inProgress" || tool.AwaitingFinal) &&
+			!(s.stopOnClose && s.State.Phase == "已中断") {
 			return false
 		}
 	}
@@ -31,6 +30,10 @@ func (a *App) releaseClosedSessions(now time.Time) {
 		return
 	}
 	for _, s := range a.sessions {
+		if s.stopOnClose && !s.open && s.loaded && !s.recovering && !s.writerOccupied &&
+			s.State.Busy && !s.State.Disconnected && !s.State.Stopping() {
+			a.forSession(s).stop()
+		}
 		if !now.Before(s.releaseAfter) {
 			a.releaseClosedSession(s, now)
 		}

@@ -115,7 +115,7 @@ func (a *App) deleteSession(target *session) {
 	}
 	a.deletedThreads = snapshot.DeletedThreads
 	a.sessionDeleteError = ""
-	a.closeSession(target)
+	a.closeSessionTab(target)
 	a.sessions = slices.DeleteFunc(a.sessions, func(item *session) bool { return item == target })
 	if a.session == target {
 		if len(a.sessions) > 0 {
