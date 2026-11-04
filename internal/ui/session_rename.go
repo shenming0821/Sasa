@@ -7,7 +7,6 @@ import (
 	"unicode"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
 type sessionRenameState struct {
@@ -56,7 +55,6 @@ func (a *App) saveSessionName(target *session, name string) error {
 	if imported {
 		a.nextSession++
 		target.id = a.nextSession
-		target.historyCacheKey = agent.CacheKey{Agent: target.kind.Normalized(), Runtime: target.runtimeKey, Cwd: target.State.Cwd}
 		target.recoveryBlocked = true
 		target.saved.Active = target.State.Busy
 		a.sessions = append(a.sessions, target)

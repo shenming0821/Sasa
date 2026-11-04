@@ -9,8 +9,8 @@ import (
 
 func TestDebugHistoryRender(t *testing.T) {
 	a := New(stubBackend{}, "test", "/project", nil)
-	a.nativeThreads = []codex.ThreadMeta{{ID: "one", Cwd: "/project", Preview: "历史任务"}}
-	t.Logf("kind=%q runtimeKey=%q cwd=%q scope=%d threads=%d", a.kind, a.runtimeKey, a.State.Cwd, a.historyScope, len(a.nativeThreads))
+	a.threadList.threads = []codex.ThreadMeta{{ID: "one", Cwd: "/project", Preview: "历史任务"}}
+	t.Logf("kind=%q runtimeKey=%q cwd=%q scope=%d threads=%d", a.kind, a.runtimeKey, a.State.Cwd, a.historyScope, len(a.threadList.threads))
 	tt := native.NewTester(a.view, 1400, 800)
 	if err := tt.Click("切换右侧边栏"); err != nil {
 		t.Fatal(err)

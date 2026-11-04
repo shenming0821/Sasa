@@ -100,10 +100,8 @@ func (a *App) installRuntime(result RuntimeConnection) {
 		s.State.Disconnected, s.State.Error = false, ""
 		s.modelsError, s.modelError = "", ""
 	}
-	for _, s := range a.sessions {
-		if s.threadsLoading {
-			s.threadsReload = true
-		}
+	if a.threadList.loading {
+		a.threadList.reload = true
 	}
 	a.recoverSelectedSession()
 	if a.historyOpen {

@@ -9,83 +9,96 @@ import (
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
-func TestOpenHistoryCarriesOnlyMatchingCache(t *testing.T) {
-	for _, mismatch := range []string{"none", "agent", "runtime", "cwd"} {
-		t.Run(mismatch, func(t *testing.T) {
-			a := New(stubBackend{}, "test", "/project", nil)
-			source := a.session
-			source.kind, source.runtimeKey = agent.Claude, "/claude"
-			source.historyCacheKey = agent.CacheKey{Agent: agent.Claude, Runtime: "/claude", Cwd: "/project"}
-			switch mismatch {
-			case "agent":
-				source.historyCacheKey.Agent = agent.Codex
-			case "runtime":
-				source.historyCacheKey.Runtime = "/other"
-			case "cwd":
-				source.historyCacheKey.Cwd = "/other"
-			}
-			cursor := "next"
-			source.nativeThreads = []agent.ThreadMeta{{ID: "one", Cwd: "/project", Preview: "history"}}
-			source.threadsCursor, source.threadsError = &cursor, "retry"
-			a.historyOpen = true
-			tt := native.NewTester(a.view, 1400, 800)
-			if err := tt.Click("打开历史 one"); err != nil {
-				t.Fatal(err)
-			}
-			if a.session == source || a.kind != agent.Claude || a.runtimeKey != "/claude" ||
-				a.historyCacheKey != (agent.CacheKey{Agent: agent.Claude, Runtime: "/claude", Cwd: "/project"}) {
-				t.Fatal("opening history lost session or cache ownership")
-			}
-			if mismatch == "none" {
-				if len(a.nativeThreads) != 1 || a.threadsCursor == nil || *a.threadsCursor != cursor || a.threadsError != "retry" {
-					t.Fatal("matching history cache was lost")
-				}
-				a.nativeThreads[0].Preview = "changed"
-				if source.nativeThreads[0].Preview != "history" {
-					t.Fatal("history sessions share mutable list storage")
-				}
-			} else if len(a.nativeThreads) != 0 || a.threadsCursor != nil || a.threadsError != "" {
-				t.Fatal("history cache crossed Agent/runtime/cwd boundary")
-			}
-		})
+func TestOpenHistoryReusesTheSharedListAcrossAgents(t *testing.T) {
+	backend := &threadPagesBackend{
+		recoveryBackend: *recoveredBackend("completed"),
+		threadPages:     []agent.ThreadsPage{{Data: []agent.ThreadMeta{{ID: "native", Cwd: "/first", Preview: "history"}}}},
+	}
+	a := New(backend, "test", "/source", nil)
+	source := a.session
+	a.threadList.threads = []agent.ThreadMeta{{Agent: agent.Claude, Runtime: "/claude", ID: "native", Cwd: "/first", Preview: "history"}}
+	a.threadList.sources = map[backendKey]threadSource{{kind: agent.Claude, runtime: "/claude"}: {loaded: true}}
+	a.historyScope, a.historyOpen = 1, true
+	tt := native.NewTester(a.view, 1400, 800)
+	if err := tt.Click("打开历史 native"); err != nil {
+		t.Fatal(err)
+	}
+	if a.session == source || a.kind != agent.Claude || a.runtimeKey != "/claude" || a.State.Cwd != "/first" {
+		t.Fatal("opening history lost the row's agent, runtime or directory")
+	}
+	if len(backend.cursors) != 0 {
+		t.Fatal("opening history issued another catalog request")
+	}
+	if len(a.threadList.threads) != 1 || len(a.threadList.sources) != 1 {
+		t.Fatal("opening history discarded the shared catalog")
+	}
+	a.selectSession(source)
+	if len(a.threadList.threads) != 1 || len(backend.cursors) != 0 {
+		t.Fatal("switching back reloaded or discarded the shared catalog")
 	}
 }
 
-func TestOpenHistoryLoadsTargetWhenCacheDirectoryChanges(t *testing.T) {
-	for _, existing := range []bool{false, true} {
-		t.Run(map[bool]string{false: "new", true: "existing"}[existing], func(t *testing.T) {
-			backend := &threadPagesBackend{
-				recoveryBackend: *recoveredBackend("completed"),
-				threadPages: []agent.ThreadsPage{{Data: []agent.ThreadMeta{
-					{ID: "native", Cwd: "/first", Preview: "history"},
-				}}},
-			}
-			a := New(backend, "test", "/source", nil)
-			source := a.session
-			if existing {
-				a.newSession("/first")
-				a.State.ThreadID = "native"
-				a.selectSession(source)
-			}
-			source.nativeThreads = []agent.ThreadMeta{{ID: "native", Cwd: "/first", Preview: "history"}}
-			a.historyScope, a.historyOpen = 1, true
-			queue := make(chan func(), 4)
-			a.dispatch = func(fn func()) { queue <- fn }
-			tester := native.NewTester(a.view, 1400, 800)
-			if err := tester.Click("打开历史 native"); err != nil {
-				t.Fatal(err)
-			}
-			pumpUpdate(t, queue)
-			if !existing {
-				pumpUpdate(t, queue)
-			}
-			if a.session == source || a.State.Cwd != "/first" || len(a.nativeThreads) != 1 || len(backend.cursors) != 1 {
-				t.Fatal("target session did not load its own history list")
-			}
-			if source.State.Cwd != "/source" || len(source.nativeThreads) != 1 {
-				t.Fatal("target history loading changed the source session")
-			}
-		})
+func TestSwitchingProjectsNeverReloadsTheSharedHistory(t *testing.T) {
+	backend := &threadPagesBackend{
+		recoveryBackend: *recoveredBackend("completed"),
+		threadPages: []agent.ThreadsPage{{Data: []agent.ThreadMeta{
+			{ID: "one", Cwd: "/first", Preview: "first task"},
+			{ID: "two", Cwd: "/second", Preview: "second task"},
+		}}},
+	}
+	a := New(backend, "test", "/first", nil)
+	first := a.session
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.loadThreadList()
+	pumpUpdate(t, queue)
+	a.newSession("/second")
+	second := a.session
+	a.historyOpen = true
+	tt := native.NewTester(a.view, 1400, 800)
+	if !tt.HasText("second task") || tt.HasText("first task") {
+		t.Fatal("current-project filter did not limit shared history")
+	}
+	a.selectSession(first)
+	tt.Frame()
+	if !tt.HasText("first task") || tt.HasText("second task") || tt.HasText("已加载的历史中没有匹配会话") {
+		t.Fatal("switching projects emptied or mislabeled shared history")
+	}
+	a.selectSession(second)
+	tt.Frame()
+	if !tt.HasText("second task") || tt.HasText("已加载的历史中没有匹配会话") || len(backend.cursors) != 1 {
+		t.Fatal("switching projects reloaded or emptied shared history")
+	}
+}
+
+func TestInFlightThreadListSurvivesSessionSwitch(t *testing.T) {
+	backend := &threadPagesBackend{
+		recoveryBackend: *recoveredBackend("completed"),
+		threadPages:     []agent.ThreadsPage{{Data: []agent.ThreadMeta{{ID: "one", Cwd: "/first", Preview: "history"}}}},
+	}
+	a := New(backend, "test", "/first", nil)
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.loadThreadList()
+	a.newSession("/second")
+	pumpUpdate(t, queue)
+	if len(a.threadList.threads) != 1 || a.threadList.threads[0].ID != "one" || len(backend.cursors) != 1 {
+		t.Fatal("session switch dropped or restarted the in-flight catalog load")
+	}
+}
+
+func TestCompletedThreadJoinsTheSharedHistory(t *testing.T) {
+	a := New(stubBackend{}, "test", "/project", nil)
+	a.State.ThreadID = "new-codex"
+	a.recordThreadHistory()
+	if len(a.threadList.threads) != 0 {
+		t.Fatal("unread source recorded a session")
+	}
+	a.threadList.sources = map[backendKey]threadSource{{kind: agent.Codex}: {loaded: true}}
+	a.recordThreadHistory()
+	a.recordThreadHistory()
+	if len(a.threadList.threads) != 1 || a.threadList.threads[0].ID != "new-codex" || a.threadList.threads[0].Agent != agent.Codex {
+		t.Fatal("completed session missing or duplicated in shared history")
 	}
 }
 

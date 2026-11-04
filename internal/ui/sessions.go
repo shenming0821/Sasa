@@ -18,14 +18,6 @@ type session struct {
 	messageEditing
 	conversationCache
 	conversationNavigation
-	nativeThreads        []agent.ThreadMeta
-	threadsCursor        *string
-	threadsLoading       bool
-	threadsReload        bool
-	threadsLayoutPending bool
-	threadsError         string
-	threadSources        map[backendKey]threadSource
-	historyCacheKey      agent.CacheKey
 	kind                 agent.AgentKind
 	runtimeKey           string
 	generation           agent.ProcessGeneration
@@ -111,7 +103,6 @@ func (a *App) newSessionForAgent(cwd string, kind agent.AgentKind, runtime strin
 	s := &session{
 		modelsCwd: cwd, id: a.nextSession, State: app.New(cwd), loaded: true,
 		kind: kind, runtimeKey: runtime,
-		historyCacheKey: agent.CacheKey{Agent: kind.Normalized(), Runtime: runtime, Cwd: cwd},
 	}
 	if kind.Normalized() == agent.Claude {
 		s.selectedModel = a.lastClaudeModels[s.runtimeKey]
@@ -166,7 +157,7 @@ func (a *App) clearConversation() {
 		id: root.nextSession, kind: previous.kind, runtimeKey: previous.runtimeKey,
 		State: app.New(previous.State.Cwd), loaded: true, selectedModel: previous.selectedModel,
 		selectedEffort: previous.selectedEffort, selectedTier: previous.selectedTier,
-		modelsCwd: previous.State.Cwd, historyCacheKey: previous.historyCacheKey,
+		modelsCwd: previous.State.Cwd,
 	}
 	fresh.State.Agent = previous.kind
 	fresh.completion.focus = true

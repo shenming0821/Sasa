@@ -75,6 +75,7 @@ type App struct {
 	collapsedProjects  map[string]bool
 	historyQuery       string
 	historyScope       int
+	threadList         threadList
 	root               *App
 	store              *storage.Store
 	lastSaved          []byte
@@ -147,7 +148,7 @@ func (a *App) Run() error {
 		if a.backend != nil {
 			go a.receive()
 			if a.historyOpen {
-				a.loadThreadList()
+				a.openThreadList()
 			}
 		}
 		for key, backend := range a.backends {
@@ -550,9 +551,7 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		if e.Method == "turn/completed" && wasBusy && !a.State.Busy && !a.State.Disconnected {
 			delete(a.application().quitTargets, a.session.id)
 			a.notifyCompletion(e)
-			if a.kind.Normalized() == agent.Claude {
-				a.recordClaudeHistory()
-			}
+			a.recordThreadHistory()
 		}
 		if e.Method == "serverRequest/resolved" {
 			var p struct {

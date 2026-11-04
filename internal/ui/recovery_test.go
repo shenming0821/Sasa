@@ -458,17 +458,17 @@ func TestThreadHistoryMergesPagesByIDAndStopsAtEnd(t *testing.T) {
 	a.loadThreadList()
 	a.loadThreadList()
 	pumpUpdate(t, queue)
-	if len(a.nativeThreads) != 2 || a.nativeThreads[0].Preview != "updated title" || len(b.cursors) != 1 {
-		t.Fatal("same-page duplicates or concurrent loads were retained", a.nativeThreads)
+	if len(a.threadList.threads) != 2 || a.threadList.threads[0].Preview != "updated title" || len(b.cursors) != 1 {
+		t.Fatal("same-page duplicates or concurrent loads were retained", a.threadList.threads)
 	}
 	a.loadThreadList()
 	pumpUpdate(t, queue)
-	if len(a.nativeThreads) != 3 || a.nativeThreads[0].ID != "one" || a.nativeThreads[0].Preview != "latest title" ||
-		a.nativeThreads[1].ID != "two" || a.nativeThreads[2].ID != "three" || b.cursors[1] != cursor {
-		t.Fatal("overlapping page duplicated IDs, changed order or merged distinct same-title threads", a.nativeThreads)
+	if len(a.threadList.threads) != 3 || a.threadList.threads[0].ID != "one" || a.threadList.threads[0].Preview != "latest title" ||
+		a.threadList.threads[1].ID != "two" || a.threadList.threads[2].ID != "three" || b.cursors[1] != cursor {
+		t.Fatal("overlapping page duplicated IDs, changed order or merged distinct same-title threads", a.threadList.threads)
 	}
 	a.loadThreadList()
-	if a.threadsLoading || a.threadsCursor != nil {
+	if a.threadList.loading || a.threadList.cursor != nil {
 		t.Fatal("exhausted history started over at the first page")
 	}
 	tt := native.NewTester(func(c *native.Context) {
@@ -493,13 +493,13 @@ func TestThreadHistoryLoadsOnScrollAndFillsFilteredViewport(t *testing.T) {
 			cursor := "next-page"
 			b := &threadPagesBackend{threadPages: []codex.ThreadsPage{{Data: []codex.ThreadMeta{{ID: "next", Cwd: "/first", Preview: "next title"}}}}}
 			a := New(b, "test", "/first", nil)
-			a.threadsCursor = &cursor
+			a.threadList.cursor = &cursor
 			for i := 0; i < 20; i++ {
 				cwd := "/first"
 				if filtered {
 					cwd = "/other"
 				}
-				a.nativeThreads = append(a.nativeThreads, codex.ThreadMeta{ID: fmt.Sprint(i), Cwd: cwd, Preview: fmt.Sprintf("title %d", i)})
+				a.threadList.threads = append(a.threadList.threads, codex.ThreadMeta{ID: fmt.Sprint(i), Cwd: cwd, Preview: fmt.Sprintf("title %d", i)})
 			}
 			queue := make(chan func(), 4)
 			a.dispatch = func(fn func()) { queue <- fn }
@@ -511,18 +511,18 @@ func TestThreadHistoryLoadsOnScrollAndFillsFilteredViewport(t *testing.T) {
 			}
 			w := a.workspace(a.workspaceRoot(a.workspaceCwd()))
 			if !filtered {
-				if a.threadsLoading {
+				if a.threadList.loading {
 					t.Fatal("loaded a page before scrolling near the bottom")
 				}
 				tt.Scroll(180, 150, 0, 100000)
 			}
-			if !a.threadsLoading {
+			if !a.threadList.loading {
 				t.Fatal("bottom or empty filtered viewport did not request next page")
 			}
 			before := w.historyScroll.Y
 			pumpUpdate(t, queue)
 			tt.Frame()
-			if a.threadsLoading || a.threadsCursor != nil || len(b.cursors) != 1 || b.cursors[0] != cursor {
+			if a.threadList.loading || a.threadList.cursor != nil || len(b.cursors) != 1 || b.cursors[0] != cursor {
 				t.Fatal("pagination did not finish exactly once")
 			}
 			if !filtered && math.Abs(float64(w.historyScroll.Y-before)) > 2 {
@@ -539,7 +539,7 @@ func TestThreadHistoryLoadsFilteredPagesWithoutLoadingText(t *testing.T) {
 		{Data: []codex.ThreadMeta{{ID: "match", Cwd: "/first", Preview: "matching thread"}}},
 	}}
 	a := New(b, "test", "/first", nil)
-	a.threadsCursor = &first
+	a.threadList.cursor = &first
 	queue := make(chan func(), 4)
 	a.dispatch = func(fn func()) { queue <- fn }
 	a.loadThreadList()
@@ -551,12 +551,12 @@ func TestThreadHistoryLoadsFilteredPagesWithoutLoadingText(t *testing.T) {
 	}
 	pumpUpdate(t, queue)
 	tt.Frame()
-	if !a.threadsLoading || tt.HasText("正在加载…") {
+	if !a.threadList.loading || tt.HasText("正在加载…") {
 		t.Fatal("filtered pagination stopped or displayed loading text")
 	}
 	pumpUpdate(t, queue)
 	tt.Frame()
-	if a.threadsLoading || tt.HasText("正在加载…") || !tt.HasText("matching thread") {
+	if a.threadList.loading || tt.HasText("正在加载…") || !tt.HasText("matching thread") {
 		t.Fatal("final page did not replace loading status with results")
 	}
 	if len(b.cursors) != 2 || b.cursors[0] != first || b.cursors[1] != second {

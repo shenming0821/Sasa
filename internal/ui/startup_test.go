@@ -78,7 +78,7 @@ func TestStartupAddsHistorySourceDuringInflightList(t *testing.T) {
 	a.installRuntime(RuntimeConnection{Kind: agent.Claude, Runtime: "/claude", Backend: second})
 	pumpUpdate(t, jobs)
 	pumpUpdate(t, jobs)
-	if len(a.nativeThreads) != 2 || len(first.cursors) != 1 || len(second.cursors) != 1 {
+	if len(a.threadList.threads) != 2 || len(first.cursors) != 1 || len(second.cursors) != 1 {
 		t.Fatal("late Agent history missing or existing history reread")
 	}
 }

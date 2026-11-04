@@ -151,7 +151,7 @@ func (a *App) runSlashCommand(text string) bool {
 		a.State.Draft = ""
 		root := a.application()
 		root.historyOpen = true
-		root.loadThreadList()
+		root.openThreadList()
 	case "/status":
 		a.State.Draft = ""
 		a.detailsOpen = true

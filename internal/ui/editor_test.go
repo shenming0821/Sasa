@@ -130,7 +130,7 @@ func TestP4BackgroundApprovalKeepsFileWorkspaceForSaveHistoryAndNewChat(t *testi
 	if err := os.WriteFile(path, []byte("workspace B\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	a.nativeThreads = []codex.ThreadMeta{
+	a.threadList.threads = []codex.ThreadMeta{
 		{ID: "history-A", Cwd: rootA, Preview: "history in A"},
 		{ID: "history-B", Cwd: rootB, Preview: "history in B"},
 	}

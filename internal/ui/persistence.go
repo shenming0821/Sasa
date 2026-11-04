@@ -74,7 +74,6 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 			kind: saved.Agent.Normalized(), runtimeKey: saved.Runtime,
 			modelsCwd: saved.Cwd, modelsRuntime: saved.Runtime,
 			id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == "",
-			historyCacheKey: agent.CacheKey{Agent: saved.Agent.Normalized(), Runtime: saved.Runtime, Cwd: saved.Cwd},
 		}
 		s.State.Agent = s.kind
 		s.open = slices.Contains(snapshot.OpenTabs, saved.ID)

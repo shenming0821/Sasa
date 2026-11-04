@@ -40,13 +40,13 @@ func TestHistoryCombinesAgentsWithIndependentPagination(t *testing.T) {
 	application.loadThreadList()
 	application.loadThreadList()
 	pumpUpdate(t, queue)
-	if len(application.nativeThreads) != 2 || len(codex.cursors) != 1 || len(claude.cursors) != 1 {
+	if len(application.threadList.threads) != 2 || len(codex.cursors) != 1 || len(claude.cursors) != 1 {
 		t.Fatal("both Agents were not loaded once or shared IDs were merged")
 	}
 	application.loadThreadList()
 	pumpUpdate(t, queue)
 	application.loadThreadList()
-	if len(application.nativeThreads) != 3 || len(claude.cursors) != 1 || len(codex.cursors) != 2 || codex.cursors[1] != cursor || application.threadsCursor != nil {
+	if len(application.threadList.threads) != 3 || len(claude.cursors) != 1 || len(codex.cursors) != 2 || codex.cursors[1] != cursor || application.threadList.cursor != nil {
 		t.Fatal("source cursors or exhausted pagination were lost")
 	}
 	application.historyOpen = true
@@ -98,13 +98,13 @@ func TestHistoryKeepsSuccessfulSourceAndRetriesFailure(t *testing.T) {
 	application.dispatch = func(update func()) { queue <- update }
 	application.loadThreadList()
 	pumpUpdate(t, queue)
-	if len(application.nativeThreads) != 1 || application.nativeThreads[0].Agent != agent.Codex || application.threadsError == "" {
+	if len(application.threadList.threads) != 1 || application.threadList.threads[0].Agent != agent.Codex || application.threadList.err == "" {
 		t.Fatal("failed source hid available history or lost its error")
 	}
 	claude.failure = nil
 	application.loadThreadList()
 	pumpUpdate(t, queue)
-	if len(application.nativeThreads) != 2 || len(codex.cursors) != 1 || application.threadsError != "" {
+	if len(application.threadList.threads) != 2 || len(codex.cursors) != 1 || application.threadList.err != "" {
 		t.Fatal("retry reloaded the exhausted source or lost history")
 	}
 }
@@ -120,7 +120,7 @@ func TestHistoryOpensTheRowAgentInsteadOfDefault(t *testing.T) {
 			if kind == agent.Claude {
 				runtime = "/claude"
 			}
-			application.nativeThreads = []agent.ThreadMeta{{Agent: kind, Runtime: runtime, ID: "target", Cwd: "/project", Preview: "History target"}}
+			application.threadList.threads = []agent.ThreadMeta{{Agent: kind, Runtime: runtime, ID: "target", Cwd: "/project", Preview: "History target"}}
 			application.historyOpen = true
 			tester := native.NewTester(application.view, 1400, 800)
 			if err := tester.RightClick("打开历史 target"); err != nil {
@@ -167,7 +167,46 @@ func TestHistoryEmptySourcesAreNotReloaded(t *testing.T) {
 	application.loadThreadList()
 	pumpUpdate(t, queue)
 	application.loadThreadList()
-	if application.threadsLoading || len(codex.cursors) != 1 || len(claude.cursors) != 1 {
+	if application.threadList.loading || len(codex.cursors) != 1 || len(claude.cursors) != 1 {
 		t.Fatal("empty sources restarted at the first page")
+	}
+}
+
+func TestHistoryHeadRefreshPrependsAndKeepsPagination(t *testing.T) {
+	next := "next"
+	codex := &threadPagesBackend{threadPages: []agent.ThreadsPage{
+		{Data: []agent.ThreadMeta{{ID: "one", Cwd: "/project", Preview: "one old"}}, NextCursor: &next},
+		{Data: []agent.ThreadMeta{{ID: "two", Cwd: "/project", Preview: "two"}}},
+	}}
+	application := New(codex, "test", "/project", nil)
+	queue := make(chan func(), 4)
+	application.dispatch = func(update func()) { queue <- update }
+	application.loadThreadList()
+	pumpUpdate(t, queue)
+	application.loadThreadList()
+	pumpUpdate(t, queue)
+	if len(application.threadList.threads) != 2 || application.threadList.cursor != nil {
+		t.Fatal("fixture did not load both pages")
+	}
+	// The head page gains a new thread and a renamed one; the older page stays.
+	codex.threadPages[0].Data = []agent.ThreadMeta{
+		{ID: "new", Cwd: "/project", Preview: "brand new"},
+		{ID: "one", Cwd: "/project", Preview: "one new"},
+	}
+	codex.cursors = nil
+	application.openThreadList()
+	if !application.threadList.loading || len(application.threadList.threads) != 2 {
+		t.Fatal("head refresh hid or moved the loaded list")
+	}
+	pumpUpdate(t, queue)
+	threads := application.threadList.threads
+	if len(threads) != 3 || threads[0].ID != "new" || threads[1].ID != "one" || threads[1].Preview != "one new" || threads[2].ID != "two" {
+		t.Fatal("head refresh did not prepend new rows or update in place", threads)
+	}
+	if len(codex.cursors) != 1 || codex.cursors[0] != "" || application.threadList.cursor != nil {
+		t.Fatal("head refresh paginated or restarted the catalog")
+	}
+	if state := application.threadList.sources[backendKey{kind: agent.Codex}]; !state.loaded || state.cursor != nil {
+		t.Fatal("head refresh rewrote source pagination state")
 	}
 }

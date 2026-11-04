@@ -84,10 +84,9 @@ func TestSessionRenameHistorySearchAndIdentity(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			a := New(stubBackend{}, "test", "/project", nil)
 			a.kind, a.runtimeKey = kind, "runtime-a"
-			a.historyCacheKey = agent.CacheKey{Agent: kind, Runtime: "runtime-a", Cwd: "/project"}
 			store := imageStore(t, a)
 			original := a.session
-			a.nativeThreads = []agent.ThreadMeta{{ID: "history", Cwd: "/project", Preview: "原历史标题"}}
+			a.threadList.threads = []agent.ThreadMeta{{Agent: kind, Runtime: "runtime-a", ID: "history", Cwd: "/project", Preview: "原历史标题"}}
 			a.historyOpen = true
 			a.rightTab = "history"
 			tt := native.NewTester(a.view, 1400, 800)
@@ -101,36 +100,36 @@ func TestSessionRenameHistorySearchAndIdentity(t *testing.T) {
 			if err := tt.Click("保存标题"); err != nil {
 				t.Fatal(err)
 			}
-			target := a.historySession(a.nativeThreads[0])
+			target := a.historySession(a.threadList.threads[0])
 			if a.sessionRenameOpen || target.id == 0 || target.open || a.session != original || len(a.sessions) != 2 {
 				t.Fatal("rename opened or duplicated history", a.sessionRenameError)
 			}
-			a.nativeThreads[0].Preview = "刷新后的原生标题"
+			a.threadList.threads[0].Preview = "刷新后的原生标题"
 			a.historyQuery = "重命名历史"
 			tt.Frame()
 			if !tt.HasText("重命名历史") {
 				t.Fatal("refresh or search lost custom title")
 			}
-			a.runtimeKey = "runtime-b"
-			if a.historySession(a.nativeThreads[0]).saved.CustomTitle != "" {
+			other := a.threadList.threads[0]
+			other.Runtime = "runtime-b"
+			if a.historySession(other).saved.CustomTitle != "" {
 				t.Fatal("title crossed runtime identity")
 			}
-			a.runtimeKey = "runtime-a"
+			other = a.threadList.threads[0]
 			if kind == agent.Codex {
-				a.kind = agent.Claude
+				other.Agent = agent.Claude
 			} else {
-				a.kind = agent.Codex
+				other.Agent = agent.Codex
 			}
-			if a.historySession(a.nativeThreads[0]).saved.CustomTitle != "" {
+			if a.historySession(other).saved.CustomTitle != "" {
 				t.Fatal("title crossed agent identity")
 			}
-			a.kind = kind
 			restored := New(stubBackend{}, "test", "/project", nil)
 			if err := restored.AttachStore(store); err != nil {
 				t.Fatal(err)
 			}
 			restored.kind, restored.runtimeKey = kind, "runtime-a"
-			if restored.historySession(a.nativeThreads[0]).title() != "重命名历史" {
+			if restored.historySession(a.threadList.threads[0]).title() != "重命名历史" {
 				t.Fatal("restart lost unopened history title")
 			}
 			if err := tt.Click("打开历史 history"); err != nil {

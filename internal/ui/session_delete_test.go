@@ -182,7 +182,7 @@ func TestDeleteSessionFailureKeepsOriginalState(t *testing.T) {
 
 func TestDeleteHistoryMenusFilterAndLateOpen(t *testing.T) {
 	a := New(stubBackend{}, "test", "/project", nil)
-	a.nativeThreads = []agent.ThreadMeta{{ID: "delete", Cwd: "/project", Preview: "删除历史"}, {ID: "keep", Cwd: "/project", Preview: "保留历史"}}
+	a.threadList.threads = []agent.ThreadMeta{{ID: "delete", Cwd: "/project", Preview: "删除历史"}, {ID: "keep", Cwd: "/project", Preview: "保留历史"}}
 	a.historyOpen = true
 	tt := native.NewTester(a.view, 1400, 800)
 	if tt.HasText("历史会话操作 delete") || tt.HasText("历史会话操作 keep") {
@@ -195,7 +195,7 @@ func TestDeleteHistoryMenusFilterAndLateOpen(t *testing.T) {
 		t.Fatal("history delete menu missing", tt.Menu())
 	}
 	tt.Key(0, native.KeyEscape)
-	target := a.historySession(a.nativeThreads[0])
+	target := a.historySession(a.threadList.threads[0])
 	a.newSession("/project")
 	opened := a.session
 	opened.State.ThreadID = "delete"

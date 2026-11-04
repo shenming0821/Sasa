@@ -225,8 +225,7 @@ func TestNewClaudeSessionDoesNotInheritCodexFailure(t *testing.T) {
 
 func TestCompletedClaudeAppearsInMatchingHistory(t *testing.T) {
 	a := New(stubBackend{}, "test", "/project", nil)
-	codex := a.session
-	codex.State.ThreadID = "original-codex"
+	a.session.State.ThreadID = "original-codex"
 	if err := a.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
 		t.Fatal(err)
 	}
@@ -234,12 +233,14 @@ func TestCompletedClaudeAppearsInMatchingHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.State.ThreadID = "new-claude"
-	a.recordClaudeHistory()
-	a.recordClaudeHistory()
-	if len(a.nativeThreads) != 1 || a.nativeThreads[0].ID != "new-claude" {
-		t.Fatal("completed session missing or duplicated")
+	a.recordThreadHistory()
+	if len(a.threadList.threads) != 0 {
+		t.Fatal("unread source recorded a session")
 	}
-	if codex != a.session && len(codex.nativeThreads) != 0 {
-		t.Fatal("Claude history crossed into Codex")
+	a.threadList.sources = map[backendKey]threadSource{{kind: agent.Claude, runtime: "/claude"}: {loaded: true}}
+	a.recordThreadHistory()
+	a.recordThreadHistory()
+	if len(a.threadList.threads) != 1 || a.threadList.threads[0].ID != "new-claude" {
+		t.Fatal("completed session missing or duplicated")
 	}
 }

@@ -302,7 +302,7 @@ func (a *App) toggleHistory() {
 		}
 	}
 	if a.historyOpen && a.rightTab == "history" {
-		a.loadThreadList()
+		a.openThreadList()
 	}
 }
 

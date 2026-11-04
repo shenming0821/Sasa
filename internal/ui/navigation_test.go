@@ -58,7 +58,7 @@ func TestProjectNavigationSearchCollapseAndTabs(t *testing.T) {
 
 func TestResponsivePanelsPreserveComposerAndNavigation(t *testing.T) {
 	a := New(stubBackend{}, "test", "/project", nil)
-	a.nativeThreads = []codex.ThreadMeta{{ID: "one", Cwd: "/project", Preview: "历史任务"}}
+	a.threadList.threads = []codex.ThreadMeta{{ID: "one", Cwd: "/project", Preview: "历史任务"}}
 	tt := native.NewTester(a.view, 1400, 800)
 	if err := tt.Click("切换右侧边栏"); err != nil {
 		t.Fatal(err)
@@ -129,7 +129,7 @@ func TestHistoryScopeSearchAndExistingSession(t *testing.T) {
 	a := New(stubBackend{}, "test", "/one", nil)
 	first := a.session
 	first.State.ThreadID, first.State.Draft = "one", "保留草稿"
-	a.nativeThreads = []codex.ThreadMeta{
+	a.threadList.threads = []codex.ThreadMeta{
 		{ID: "one", Cwd: "/one", Preview: "输入修复"},
 		{ID: "two", Cwd: "/two", Preview: "布局修复"},
 	}
@@ -205,7 +205,7 @@ func TestNavigationSettingsRestoreAndOldDefaults(t *testing.T) {
 func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
 	a := New(stubBackend{}, "test", "/one", nil)
 	a.historyOpen = true
-	a.nativeThreads = []codex.ThreadMeta{{ID: "one", Cwd: "/one"}}
+	a.threadList.threads = []codex.ThreadMeta{{ID: "one", Cwd: "/one"}}
 	tt := native.NewTester(a.view, 1400, 760)
 	toggle := func() native.Rect {
 		t.Helper()
@@ -296,7 +296,7 @@ func TestSidebarTogglesMoveBetweenPanelHeadersAndConversation(t *testing.T) {
 	for _, width := range []int{640, 1000, 1400} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			a := New(stubBackend{}, "test", "/one", nil)
-			a.nativeThreads = []codex.ThreadMeta{{ID: "one", Cwd: "/one", Preview: "历史"}}
+			a.threadList.threads = []codex.ThreadMeta{{ID: "one", Cwd: "/one", Preview: "历史"}}
 			tt := native.NewTester(a.view, width, 760)
 			check := func() {
 				t.Helper()

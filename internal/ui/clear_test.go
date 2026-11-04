@@ -19,7 +19,6 @@ func clearTestApp(t *testing.T) *App {
 	}
 	application.kind, application.runtimeKey = agent.Claude, "/claude"
 	application.State.Agent = agent.Claude
-	application.historyCacheKey = agent.CacheKey{Agent: agent.Claude, Runtime: "/claude", Cwd: "/claude-work"}
 	application.completion.cwd, application.completion.loaded = "/claude-work", true
 	application.completion.cacheKey, application.completion.checked = application.completionCacheKey(), time.Now()
 	application.selectedModel = "test-model"

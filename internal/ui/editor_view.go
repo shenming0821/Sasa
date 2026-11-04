@@ -37,7 +37,7 @@ func (a *App) rightPanel(c *native.Context) {
 						}
 					}
 					if tab.id == "history" {
-						a.loadThreadList()
+						a.openThreadList()
 					}
 				}
 			}
