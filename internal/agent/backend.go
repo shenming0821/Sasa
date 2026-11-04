@@ -35,6 +35,18 @@ type ModelSender interface {
 	DefaultModel(context.Context, string) (string, error)
 }
 
+// TurnOptions carries per-send overrides the user picked in the model menu.
+// Empty fields inherit the runtime's own defaults.
+type TurnOptions struct {
+	Model       string
+	Effort      string
+	ServiceTier string
+}
+
+type OptionSender interface {
+	SendWithOptions(context.Context, string, string, []Skill, []attachment.Image, TurnOptions) (Turn, error)
+}
+
 type SkillCatalog interface {
 	ListSkills(context.Context, string) ([]SkillsEntry, error)
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
 )
 
@@ -33,6 +34,17 @@ func TestModelCatalogDefaultAndMixedInput(t *testing.T) {
 	cycle := fixture(t, "models-cycle")
 	if _, err = cycle.ListModels(ctx); err == nil {
 		t.Fatal("repeated cursor was accepted")
+	}
+}
+
+func TestSendOptionsPassEffortAndServiceTier(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c := fixture(t, "options")
+	turn, err := c.SendWithOptions(ctx, "thread", "task", nil, nil,
+		agent.TurnOptions{Model: "wire-model", Effort: "high", ServiceTier: "priority"})
+	if err != nil || turn.ID != "option-turn" {
+		t.Fatal(turn, err)
 	}
 }
 

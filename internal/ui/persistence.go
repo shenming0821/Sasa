@@ -87,6 +87,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		}
 		if saved.ModelAgent == "" || saved.ModelAgent.Normalized() == s.kind {
 			s.selectedModel = saved.SelectedModel
+			s.selectedEffort, s.selectedTier = saved.SelectedEffort, saved.SelectedTier
 		}
 		s.completion.cwd = saved.Cwd
 		s.completion.chosen = make(map[string]agent.Skill)
@@ -191,6 +192,7 @@ func (a *App) snapshot() storage.Snapshot {
 		item.Draft, item.Title = s.State.Draft, s.title()
 		item.DraftImages = slices.Clone(s.State.DraftImages)
 		item.SelectedModel = s.selectedModel
+		item.SelectedEffort, item.SelectedTier = s.selectedEffort, s.selectedTier
 		item.Agent, item.Runtime, item.ModelAgent = s.kind.Normalized(), s.runtimeKey, s.kind.Normalized()
 		item.DraftSkills = make(map[string]string)
 		for _, skill := range s.draftSkills(s.State.Draft) {

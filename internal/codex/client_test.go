@@ -89,6 +89,20 @@ func TestProtocolHelper(t *testing.T) {
 			}
 			enc.Encode(map[string]any{"id": m.ID, "result": result})
 			continue
+		case "options":
+			var params struct {
+				Model  string                                    `json:"model"`
+				Effort string                                    `json:"effort"`
+				Tier   string                                    `json:"serviceTierForTurn"`
+				Thread string                                    `json:"threadId"`
+				Input  []struct{ Type, Text, Name, Path string } `json:"input"`
+			}
+			if m.Method != "turn/start" || json.Unmarshal(m.Params, &params) != nil || params.Thread != "thread" || params.Model != "wire-model" ||
+				params.Effort != "high" || params.Tier != "priority" || len(params.Input) != 1 || params.Input[0].Text != "task" {
+				os.Exit(9)
+			}
+			enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]any{"id": "option-turn", "status": "inProgress"}}})
+			continue
 		case "images":
 			var params struct {
 				Thread string                                         `json:"threadId"`

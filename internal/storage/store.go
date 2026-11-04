@@ -28,6 +28,8 @@ type Session struct {
 	Runtime         string
 	ModelAgent      agent.AgentKind
 	SelectedModel   string
+	SelectedEffort  string
+	SelectedTier    string
 	DraftImages     []attachment.Image
 	ID              int
 	ThreadID        string

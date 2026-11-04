@@ -6,6 +6,8 @@
 
 ## 1. 当前接续点
 
+2026-11-04 模型推理强度与速度选项：模型菜单按所选模型的 `supportedReasoningEfforts`/`serviceTiers` 渲染“推理强度”与“速度”选项；选择按会话持久化、切换模型时重置，`turn/start` 以 `effort` 和 `serviceTierForTurn` 透传，未选择沿用原生配置。字段由本机 0.166.0 `generate-ts` schema 与真实 `model/list` 核验；全量 test/vet、相关 race、构建、差异检查与内存渲染截图通过；真实模型下的实际生效与原生窗口观感待用户验收。验证见[模型选项验证](verification/2026-11-04-model-options.md)。
+
 2026-11-04 Cmd+W 关闭空聚焦面板：多面板时 `⌘W` 仍先关当前页签，聚焦面板最多只剩一个页签则沿用面板关闭流程，关闭页签后移除该面板并聚焦相邻面板，单面板不移除。UI 整包 test、vet、构建和差异检查通过；原生快捷键验收待补。验证见[分屏验证](verification/2026-11-03-split-panes.md#2026-11-04-cmdw-关闭空聚焦面板)。
 
 2026-11-04 单面板隐藏关闭窗口：仅剩一个面板时菜单不再显示“关闭窗口”及分隔线，多分屏面板保持原入口；`closePane` 行为不变。UI 整包 test、vet、构建和差异检查通过；验证见[分屏验证](verification/2026-11-03-split-panes.md#2026-11-04-最后一个面板隐藏关闭入口)。

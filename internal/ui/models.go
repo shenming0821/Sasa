@@ -12,6 +12,8 @@ import (
 
 type modelSender = agent.ModelSender
 
+type optionSender = agent.OptionSender
+
 type modelCatalog = agent.ModelCatalog
 
 type modelCatalogEntry struct {
@@ -255,11 +257,16 @@ func (a *App) modelMenu(c *native.Context) {
 			})
 			if b.Clicked() {
 				previous := a.selectedModel
+				previousEffort, previousTier := a.selectedEffort, a.selectedTier
 				previousLast := a.application().lastClaudeModels[a.runtimeKey]
 				a.selectedModel, a.modelError = value, ""
+				if value != previous {
+					a.selectedEffort, a.selectedTier = "", ""
+				}
 				a.rememberClaudeModel(value)
 				if err := a.persist(); err != nil {
 					a.selectedModel = previous
+					a.selectedEffort, a.selectedTier = previousEffort, previousTier
 					if a.kind.Normalized() == agent.Claude {
 						a.application().lastClaudeModels[a.runtimeKey] = previousLast
 					}
@@ -288,6 +295,7 @@ func (a *App) modelMenu(c *native.Context) {
 				}
 			})
 		})
+		a.turnOptionsMenu(c, disabled)
 		if root.modelsLoading && !root.modelsLoaded {
 			native.Text(c, "读取模型列表…").FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 8)
 		}
@@ -316,6 +324,140 @@ func (a *App) modelMenu(c *native.Context) {
 			a.modelMenuOpen, a.detailsOpen = false, true
 		}
 	})
+}
+
+func modelHasEffort(m *agent.Model, effort string) bool {
+	for _, option := range m.SupportedReasoningEfforts {
+		if option.ReasoningEffort == effort {
+			return true
+		}
+	}
+	return false
+}
+
+func modelHasTier(m *agent.Model, tier string) bool {
+	if tier == "default" {
+		return true
+	}
+	for _, service := range m.ServiceTiers {
+		if service.ID == tier {
+			return true
+		}
+	}
+	return false
+}
+
+// sendTurnOptions drops stored choices the loaded catalog no longer offers for
+// the selected model; without catalog evidence the stored value is sent as-is.
+func (a *App) sendTurnOptions() (effort, tier string) {
+	effort, tier = a.selectedEffort, a.selectedTier
+	if !a.modelsLoaded {
+		return effort, tier
+	}
+	for i := range a.models {
+		if a.models[i].Model != a.selectedModel {
+			continue
+		}
+		if effort != "" && !modelHasEffort(&a.models[i], effort) {
+			effort = ""
+		}
+		if tier != "" && !modelHasTier(&a.models[i], tier) {
+			tier = ""
+		}
+		break
+	}
+	return effort, tier
+}
+
+var effortLabels = map[string]string{
+	"low": "低", "medium": "中", "high": "高",
+	"xhigh": "极高", "max": "最大", "ultra": "极致",
+}
+
+func effortLabel(effort string) string {
+	if label, ok := effortLabels[effort]; ok {
+		return label
+	}
+	return effort
+}
+
+// turnOptionsMenu renders per-model effort and service tier choices reported by
+// the catalog. Picks apply to every send of this session; unset inherits the
+// runtime default.
+func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
+	if _, ok := a.sessionBackend().(optionSender); !ok {
+		return
+	}
+	var current *agent.Model
+	for i := range a.session.models {
+		if a.session.models[i].Model == a.selectedModel {
+			current = &a.session.models[i]
+			break
+		}
+	}
+	if current == nil || len(current.SupportedReasoningEfforts) == 0 && len(current.ServiceTiers) == 0 {
+		return
+	}
+	t := c.Theme()
+	native.Box(c).FillWidth().Height(1).Background(t.Border)
+	choose := func(dst *string, value, what string) {
+		previous := *dst
+		*dst = value
+		if err := a.persist(); err != nil {
+			*dst = previous
+			a.modelError = "保存" + what + "失败：" + err.Error()
+			return
+		}
+		a.modelError = ""
+	}
+	chip := func(key, access, text, tip string, selected bool, pick func()) {
+		b := native.ButtonBase(c.Key(key)).Label(access).Radius(6).Padding(2, 6).FontSize(11).
+			TextColor(t.TextMuted).Disabled(disabled)
+		if tip != "" {
+			b.Tooltip(tip)
+		}
+		selectedButtonFace(c, b, selected, 6, 0)
+		b.Children(func() { native.Text(c, text).FontSize(11).SingleLine() })
+		if b.Clicked() {
+			pick()
+		}
+	}
+	optionRow := func(label string, build func()) {
+		native.Row(c).FillWidth().AlignItems(native.Center).Gap(4).Padding(3, 8).Children(func() {
+			native.Text(c, label).FontSize(11).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine()
+			build()
+		})
+	}
+	if len(current.SupportedReasoningEfforts) > 0 {
+		effort := a.selectedEffort
+		if effort == "" {
+			effort = current.DefaultReasoningEffort
+		}
+		optionRow("推理强度", func() {
+			for _, option := range current.SupportedReasoningEfforts {
+				value := option.ReasoningEffort
+				chip("effort-"+value, "推理强度 "+effortLabel(value), effortLabel(value), option.Description, value == effort,
+					func() { choose(&a.selectedEffort, value, "推理强度") })
+			}
+		})
+	}
+	if len(current.ServiceTiers) > 0 {
+		tier := a.selectedTier
+		if tier == "" {
+			tier = current.DefaultServiceTier
+		}
+		if tier == "" {
+			tier = "default"
+		}
+		optionRow("速度", func() {
+			chip("tier-default", "速度 标准", "标准", "", tier == "default",
+				func() { choose(&a.selectedTier, "default", "速度") })
+			for _, service := range current.ServiceTiers {
+				chip("tier-"+service.ID, "速度 "+service.Name, service.Name, service.Description, service.ID == tier,
+					func() { choose(&a.selectedTier, service.ID, "速度") })
+			}
+		})
+	}
 }
 
 func readablePolicy(raw string) string {

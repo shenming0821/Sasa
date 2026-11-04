@@ -21,9 +21,10 @@ type modelCaptureBackend struct {
 	request    chan modelRequest
 }
 type modelRequest struct {
-	model  string
-	skills []codex.Skill
-	images []attachment.Image
+	model   string
+	options agent.TurnOptions
+	skills  []codex.Skill
+	images  []attachment.Image
 }
 
 func (b *modelCaptureBackend) ListModels(context.Context) ([]codex.Model, error) {
@@ -32,8 +33,11 @@ func (b *modelCaptureBackend) ListModels(context.Context) ([]codex.Model, error)
 func (b *modelCaptureBackend) DefaultModel(context.Context, string) (string, error) {
 	return "provider/default", b.defaultErr
 }
-func (b *modelCaptureBackend) SendWithModel(_ context.Context, _, _ string, skills []codex.Skill, images []attachment.Image, model string) (codex.Turn, error) {
-	b.request <- modelRequest{model, skills, images}
+func (b *modelCaptureBackend) SendWithModel(ctx context.Context, threadID, text string, skills []codex.Skill, images []attachment.Image, model string) (codex.Turn, error) {
+	return b.SendWithOptions(ctx, threadID, text, skills, images, agent.TurnOptions{Model: model})
+}
+func (b *modelCaptureBackend) SendWithOptions(_ context.Context, _, _ string, skills []codex.Skill, images []attachment.Image, options agent.TurnOptions) (codex.Turn, error) {
+	b.request <- modelRequest{options.Model, options, skills, images}
 	return codex.Turn{ID: "model-turn"}, nil
 }
 
@@ -331,6 +335,123 @@ func TestModelMenuNarrowLayoutAndEscape(t *testing.T) {
 		if a.modelMenuOpen || a.selectedModel != "" {
 			t.Fatal("Escape changed selection or left menu open")
 		}
+	}
+}
+
+func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
+	b := &modelCaptureBackend{request: make(chan modelRequest, 1)}
+	a := New(b, "test", "/workspace", nil)
+	store := imageStore(t, a)
+	a.models = []codex.Model{
+		{Model: "provider/one", DisplayName: "Model One",
+			SupportedReasoningEfforts: []agent.ReasoningEffortOption{
+				{ReasoningEffort: "low"}, {ReasoningEffort: "medium"}, {ReasoningEffort: "high"}},
+			DefaultReasoningEffort: "medium",
+			ServiceTiers:           []agent.ModelServiceTier{{ID: "priority", Name: "Fast"}}},
+		{Model: "provider/two", DisplayName: "Model Two"},
+	}
+	a.modelsLoaded = true
+	a.selectedModel = "provider/one"
+	tt := native.NewTester(a.view, 1000, 760)
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"低", "中", "高", "标准", "Fast"} {
+		if !tt.HasText(label) {
+			t.Fatal("missing turn option", label)
+		}
+	}
+	if err := tt.Click("推理强度 高"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("速度 Fast"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selectedEffort != "high" || a.selectedTier != "priority" || !a.modelMenuOpen {
+		t.Fatal("option choice lost or menu closed", a.selectedEffort, a.selectedTier, a.modelMenuOpen)
+	}
+	restored := New(b, "test", "/workspace", nil)
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if restored.selectedEffort != "high" || restored.selectedTier != "priority" {
+		t.Fatal("options not persisted", restored.selectedEffort, restored.selectedTier)
+	}
+	if err := tt.Click("选择模型 Model Two"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selectedEffort != "" || a.selectedTier != "" {
+		t.Fatal("options survived a model change", a.selectedEffort, a.selectedTier)
+	}
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"低", "标准", "Fast"} {
+		if tt.HasText(label) {
+			t.Fatal("options rendered for a model without catalog entries", label)
+		}
+	}
+	if err := tt.Click("选择模型 Model One"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("推理强度 高"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("速度 Fast"); err != nil {
+		t.Fatal(err)
+	}
+	if output := os.Getenv("FUYU_OPTIONS_SCREENSHOT"); output != "" {
+		tt.Frame()
+		f, err := os.Create(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := png.Encode(f, tt.Image()); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+	}
+	tt.Key(0, native.KeyEscape)
+	a.State.ThreadID = "native"
+	a.State.Draft = "task"
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.send()
+	pumpUpdate(t, queue)
+	req := <-b.request
+	if req.options.Model != "provider/one" || req.options.Effort != "high" || req.options.ServiceTier != "priority" {
+		t.Fatal("turn options not sent", req.options)
+	}
+}
+
+func TestStaleTurnOptionsFallBackToModelCapabilities(t *testing.T) {
+	a := New(&modelCaptureBackend{}, "test", "/workspace", nil)
+	a.selectedModel = "provider/one"
+	a.selectedEffort, a.selectedTier = "ultra", "flex"
+	if effort, tier := a.sendTurnOptions(); effort != "ultra" || tier != "flex" {
+		t.Fatal("unloaded catalog should not rewrite choices", effort, tier)
+	}
+	a.modelsLoaded = true
+	a.models = []codex.Model{{
+		Model: "provider/one",
+		SupportedReasoningEfforts: []agent.ReasoningEffortOption{
+			{ReasoningEffort: "low"}, {ReasoningEffort: "high"}},
+		ServiceTiers: []agent.ModelServiceTier{{ID: "priority"}},
+	}}
+	if effort, tier := a.sendTurnOptions(); effort != "" || tier != "" {
+		t.Fatal("unsupported choices were sent", effort, tier)
+	}
+	a.selectedEffort, a.selectedTier = "high", "default"
+	if effort, tier := a.sendTurnOptions(); effort != "high" || tier != "default" {
+		t.Fatal("supported choices were dropped", effort, tier)
+	}
+	a.selectedEffort, a.selectedTier = "ultra", "flex"
+	a.selectedModel = "provider/removed"
+	if effort, tier := a.sendTurnOptions(); effort != "ultra" || tier != "flex" {
+		t.Fatal("missing catalog entry rewrote choices", effort, tier)
 	}
 }
 

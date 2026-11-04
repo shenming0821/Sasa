@@ -36,6 +36,8 @@ type session struct {
 	modelsCwd            string
 	modelsRuntime        string
 	selectedModel        string
+	selectedEffort       string
+	selectedTier         string
 	modelResolving       bool
 	modelResolvedCwd     string
 	modelMenuOpen        bool
@@ -163,6 +165,7 @@ func (a *App) clearConversation() {
 	fresh := &session{
 		id: root.nextSession, kind: previous.kind, runtimeKey: previous.runtimeKey,
 		State: app.New(previous.State.Cwd), loaded: true, selectedModel: previous.selectedModel,
+		selectedEffort: previous.selectedEffort, selectedTier: previous.selectedTier,
 		modelsCwd: previous.State.Cwd, historyCacheKey: previous.historyCacheKey,
 	}
 	fresh.State.Agent = previous.kind

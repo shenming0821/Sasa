@@ -227,6 +227,7 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 		return
 	}
 	selectedModel := a.selectedModel
+	selectedEffort, selectedTier := a.sendTurnOptions()
 	skills := a.draftSkills(text)
 	draft, draftImages := a.State.Draft, a.State.DraftImages
 	if edited {
@@ -326,7 +327,12 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 		var turn agent.Turn
 		var err error
 		if supportsModels {
-			turn, err = modelBackend.SendWithModel(ctx, threadID, text, skills, images, model)
+			if sender, ok := modelBackend.(optionSender); ok {
+				turn, err = sender.SendWithOptions(ctx, threadID, text, skills, images,
+					agent.TurnOptions{Model: model, Effort: selectedEffort, ServiceTier: selectedTier})
+			} else {
+				turn, err = modelBackend.SendWithModel(ctx, threadID, text, skills, images, model)
+			}
 		} else if sender, ok := a.sessionBackend().(imageSender); ok && len(images) > 0 {
 			turn, err = sender.SendWithImages(ctx, threadID, text, skills, images)
 		} else if sender, ok := a.sessionBackend().(interface {

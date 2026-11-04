@@ -36,6 +36,10 @@ func (c *Client) SendWithImages(ctx context.Context, threadID, text string, skil
 }
 
 func (c *Client) SendWithModel(ctx context.Context, threadID, text string, skills []Skill, images []attachment.Image, model string) (Turn, error) {
+	return c.SendWithOptions(ctx, threadID, text, skills, images, agent.TurnOptions{Model: model})
+}
+
+func (c *Client) SendWithOptions(ctx context.Context, threadID, text string, skills []Skill, images []attachment.Image, options agent.TurnOptions) (Turn, error) {
 	input := []any{map[string]any{"type": "text", "text": text, "textElements": []any{}}}
 	for _, skill := range skills {
 		input = append(input, map[string]any{"type": "skill", "name": skill.Name, "path": skill.Path})
@@ -51,8 +55,14 @@ func (c *Client) SendWithModel(ctx context.Context, threadID, text string, skill
 		Turn Turn `json:"turn"`
 	}
 	params := map[string]any{"threadId": threadID, "input": input}
-	if model != "" {
-		params["model"] = model
+	if options.Model != "" {
+		params["model"] = options.Model
+	}
+	if options.Effort != "" {
+		params["effort"] = options.Effort
+	}
+	if options.ServiceTier != "" {
+		params["serviceTierForTurn"] = options.ServiceTier
 	}
 	err := c.Call(ctx, "turn/start", params, &result)
 	return result.Turn, err
