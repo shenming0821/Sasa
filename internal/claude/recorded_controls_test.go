@@ -47,6 +47,9 @@ func TestRecordedControlResponsesMatchAdapter(t *testing.T) {
 				if model.Model == "default" || strings.HasSuffix(model.Model, "[1m]") || !strings.Contains(model.DisplayName, "/") {
 					t.Fatal("non-concrete model entry", model)
 				}
+				if len(model.SupportedReasoningEfforts) == 0 {
+					t.Fatal("recorded effort levels lost", model)
+				}
 			}
 			thread, err := client.StartThread(ctx, cwd)
 			if err != nil {

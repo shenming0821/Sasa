@@ -11,8 +11,21 @@ import (
 	"github.com/shenming0821/Fuyu/internal/terminal"
 )
 
+type powerSettings interface {
+	Set(string) error
+	CurrentState() (power.State, error)
+	RestoreState(power.State) error
+	Sync() (string, error)
+	Err() error
+	PendingBaseline() (power.Baseline, bool)
+	ConfirmBaseline()
+	RestoreBaseline(power.Baseline)
+	Close() error
+}
+
 type settingsState struct {
-	powerController    *power.Controller
+	powerController    powerSettings
+	awakeSaving        bool
 	awakePicker        bool
 	terminalPicker     bool
 	preferences        storage.Preferences
@@ -89,6 +102,16 @@ func (a *App) openSettings() {
 	if a.settingsSection == "" {
 		a.settingsSection = "通用"
 	}
+	if a.powerController != nil && !a.awakeSaving {
+		if mode, err := a.powerController.Sync(); err != nil {
+			a.settingsError = "读取系统电源配置失败：" + err.Error()
+		} else if mode != a.preferences.KeepAwake {
+			a.preferences.KeepAwake = mode
+			if err := a.persist(); err != nil {
+				a.settingsError = "设置未保存：" + err.Error()
+			}
+		}
+	}
 	if a.fontFamilies == nil {
 		for _, f := range native.FontFamilies() {
 			a.fontFamilies = append(a.fontFamilies, f.Name)
@@ -97,22 +120,16 @@ func (a *App) openSettings() {
 }
 
 func (a *App) savePreferences(previous storage.Preferences) {
-	awakeChanged := a.powerController != nil && (previous.KeepAwake != a.preferences.KeepAwake || a.powerController.Err() != nil)
+	awakeChanged := a.powerController != nil && previous.KeepAwake != a.preferences.KeepAwake
 	if awakeChanged {
-		if err := a.powerController.Set(a.preferences.KeepAwake); err != nil {
-			a.preferences = previous
-			a.settingsError = "保持唤醒未生效：" + err.Error()
-			return
-		}
+		mode := a.preferences.KeepAwake
+		a.preferences.KeepAwake = previous.KeepAwake
+		a.saveKeepAwake(mode)
+		return
 	}
 	if err := a.persist(); err != nil {
 		a.preferences = previous
 		a.settingsError = "设置未保存：" + err.Error()
-		if awakeChanged {
-			if rollbackErr := a.powerController.Set(previous.KeepAwake); rollbackErr != nil {
-				a.settingsError += "；恢复保持唤醒失败：" + rollbackErr.Error()
-			}
-		}
 		return
 	}
 	a.settingsError = ""
@@ -127,6 +144,50 @@ func (a *App) savePreferences(previous storage.Preferences) {
 			d.contentWidth, d.gitLeftWidth, d.gitRightWidth = 0, 0, 0
 		}
 	}
+}
+
+func (a *App) saveKeepAwake(mode string) {
+	if a.awakeSaving || !a.canAsync() {
+		return
+	}
+	a.awakeSaving = true
+	previous := a.preferences.KeepAwake
+	controller := a.powerController
+	go func() {
+		original, err := controller.CurrentState()
+		if err == nil {
+			err = controller.Set(mode)
+		}
+		a.update(func() {
+			if err != nil {
+				a.awakeSaving = false
+				a.settingsError = "保持唤醒未生效：" + err.Error()
+				return
+			}
+			oldBaseline := a.preferences.KeepAwakeBaseline
+			a.preferences.KeepAwake = mode
+			if baseline, ok := controller.PendingBaseline(); ok {
+				a.preferences.KeepAwakeBaseline = &storage.SleepBaseline{AC: baseline.AC, Battery: baseline.Battery}
+			}
+			if err := a.persist(); err != nil {
+				a.preferences.KeepAwake, a.preferences.KeepAwakeBaseline = previous, oldBaseline
+				a.settingsError = "设置未保存：" + err.Error()
+				go func() {
+					rollbackErr := controller.RestoreState(original)
+					a.update(func() {
+						a.awakeSaving = false
+						if rollbackErr != nil {
+							a.settingsError += "；恢复保持唤醒失败：" + rollbackErr.Error()
+						}
+					})
+				}()
+				return
+			}
+			controller.ConfirmBaseline()
+			a.awakeSaving = false
+			a.settingsError = ""
+		})
+	}()
 }
 
 func (a *App) installSettingsMenu() {

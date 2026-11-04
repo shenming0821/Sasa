@@ -18,6 +18,7 @@ type modelCaptureBackend struct {
 	imageCaptureBackend
 	catalogErr error
 	defaultErr error
+	effortPin  string
 	request    chan modelRequest
 }
 type modelRequest struct {
@@ -40,6 +41,7 @@ func (b *modelCaptureBackend) SendWithOptions(_ context.Context, _, _ string, sk
 	b.request <- modelRequest{options.Model, options, skills, images}
 	return codex.Turn{ID: "model-turn"}, nil
 }
+func (b *modelCaptureBackend) PinnedEffort(string) string { return b.effortPin }
 
 func TestModelMenuDisplayNameKeepsNativeAlias(t *testing.T) {
 	backend := &modelCaptureBackend{}
@@ -361,6 +363,9 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 			t.Fatal("missing turn option", label)
 		}
 	}
+	if !tt.HasText("one·中") {
+		t.Fatal("default effort not shown on the model button")
+	}
 	if err := tt.Click("推理强度 高"); err != nil {
 		t.Fatal(err)
 	}
@@ -369,6 +374,9 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	}
 	if a.selectedEffort != "high" || a.selectedTier != "priority" || !a.modelMenuOpen {
 		t.Fatal("option choice lost or menu closed", a.selectedEffort, a.selectedTier, a.modelMenuOpen)
+	}
+	if !tt.HasText("one·高") {
+		t.Fatal("chosen effort not shown on the model button")
 	}
 	restored := New(b, "test", "/workspace", nil)
 	if err := restored.AttachStore(store); err != nil {
@@ -382,6 +390,9 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	}
 	if a.selectedEffort != "" || a.selectedTier != "" {
 		t.Fatal("options survived a model change", a.selectedEffort, a.selectedTier)
+	}
+	if tt.HasText("two·") {
+		t.Fatal("effort shown for a model without catalog entries")
 	}
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
@@ -452,6 +463,76 @@ func TestStaleTurnOptionsFallBackToModelCapabilities(t *testing.T) {
 	a.selectedModel = "provider/removed"
 	if effort, tier := a.sendTurnOptions(); effort != "ultra" || tier != "flex" {
 		t.Fatal("missing catalog entry rewrote choices", effort, tier)
+	}
+}
+
+func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
+	claude := &modelCaptureBackend{effortPin: "high", request: make(chan modelRequest, 1)}
+	a := New(&modelCaptureBackend{}, "test", "/workspace", nil)
+	if err := a.RegisterBackend(agent.Claude, "/claude", claude); err != nil {
+		t.Fatal(err)
+	}
+	store := imageStore(t, a)
+	if err := a.newAgentSession(agent.Claude); err != nil {
+		t.Fatal(err)
+	}
+	a.models = []agent.Model{
+		{Model: "opus", DisplayName: "fixture/model",
+			SupportedReasoningEfforts: []agent.ReasoningEffortOption{
+				{ReasoningEffort: "low"}, {ReasoningEffort: "medium"}, {ReasoningEffort: "high"},
+				{ReasoningEffort: "xhigh"}, {ReasoningEffort: "max"}}},
+		{Model: "sonnet", DisplayName: "zhipu/glm-5.3"},
+	}
+	a.modelsCwd, a.modelsRuntime = a.State.Cwd, a.runtimeKey
+	a.modelsLoaded = true
+	a.selectedModel = "opus"
+	tt := native.NewTester(a.view, 1000, 760)
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"低", "中", "高", "极高", "最大"} {
+		if !tt.HasText(label) {
+			t.Fatal("missing effort option", label)
+		}
+	}
+	if tt.HasText("速度") {
+		t.Fatal("service tier row rendered without catalog tiers")
+	}
+	if tt.HasText("model·") {
+		t.Fatal("effort shown before any pick or catalog default")
+	}
+	if !tt.HasText("选择不会生效") {
+		t.Fatal("effort pin warning not shown")
+	}
+	if err := tt.Click("推理强度 高"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selectedEffort != "high" || !a.modelMenuOpen {
+		t.Fatal("effort choice lost or menu closed", a.selectedEffort)
+	}
+	if !tt.HasText("model·高") {
+		t.Fatal("chosen effort not shown on the model button")
+	}
+	restored := New(&modelCaptureBackend{}, "test", "/workspace", nil)
+	if err := restored.RegisterBackend(agent.Claude, "/claude", claude); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if restored.selectedEffort != "high" {
+		t.Fatal("effort was not persisted", restored.selectedEffort)
+	}
+	tt.Key(0, native.KeyEscape)
+	a.State.ThreadID = "native"
+	a.State.Draft = "task"
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.send()
+	pumpUpdate(t, queue)
+	req := <-claude.request
+	if req.options.Model != "opus" || req.options.Effort != "high" || req.options.ServiceTier != "" {
+		t.Fatal("turn options not sent to Claude", req.options)
 	}
 }
 

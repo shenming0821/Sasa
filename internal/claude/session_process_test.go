@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/shenming0821/Fuyu/internal/agent"
 )
 
 func persistentFixture(t *testing.T) (*Client, string) {
@@ -222,6 +224,69 @@ func TestSessionChangesModelAndConfigurationRestartProcess(t *testing.T) {
 				t.Fatal("obsolete process was reused")
 			}
 		})
+	}
+}
+
+func TestPinnedEffortReadsConfigAndEnvironment(t *testing.T) {
+	t.Setenv("CLAUDE_CODE_EFFORT_LEVEL", "")
+	client, cwd := persistentFixture(t)
+	if pin := client.PinnedEffort(cwd); pin != "" {
+		t.Fatal("unexpected effort pin", pin)
+	}
+	if err := os.WriteFile(filepath.Join(client.home, "settings.json"), []byte(`{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"high"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if pin := client.PinnedEffort(cwd); pin != "high" {
+		t.Fatal("config root pin not detected", pin)
+	}
+	project := filepath.Join(cwd, ".claude")
+	if err := os.MkdirAll(project, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "settings.local.json"), []byte(`{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"low"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if pin := client.PinnedEffort(cwd); pin != "low" {
+		t.Fatal("project pin did not take precedence", pin)
+	}
+	t.Setenv("CLAUDE_CODE_EFFORT_LEVEL", "xhigh")
+	if pin := client.PinnedEffort(cwd); pin != "xhigh" {
+		t.Fatal("environment pin not detected", pin)
+	}
+}
+
+func TestSendWithOptionsPassesEffortAndKeysProcessReuse(t *testing.T) {
+	client, cwd := persistentFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	thread, _ := client.StartThread(ctx, cwd)
+	if _, err := client.Send(ctx, thread.Thread.ID, "first"); err != nil {
+		t.Fatal(err)
+	}
+	waitTerminal(t, client, thread.Thread.ID)
+	plain := idleExecution(t, client, thread.Thread.ID)
+	if _, err := client.SendWithOptions(ctx, thread.Thread.ID, "second", nil, nil, agent.TurnOptions{Effort: "high"}); err != nil {
+		t.Fatal(err)
+	}
+	waitTerminal(t, client, thread.Thread.ID)
+	high := idleExecution(t, client, thread.Thread.ID)
+	if high.process == plain.process {
+		t.Fatal("effort change reused the process started without it")
+	}
+	if _, err := client.SendWithOptions(ctx, thread.Thread.ID, "third", nil, nil, agent.TurnOptions{Effort: "high"}); err != nil {
+		t.Fatal(err)
+	}
+	waitTerminal(t, client, thread.Thread.ID)
+	if idleExecution(t, client, thread.Thread.ID).process != high.process {
+		t.Fatal("same effort did not reuse the idle process")
+	}
+	raw, err := os.ReadFile(filepath.Join(cwd, "spawn-args"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if len(lines) != 2 || strings.Contains(lines[0], "--effort") || !strings.Contains(lines[1], "--effort high") {
+		t.Fatal("effort was not passed to the spawned CLI", lines)
 	}
 }
 

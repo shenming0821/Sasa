@@ -18,7 +18,7 @@ func (c *Client) startCatalog(ctx context.Context, cwd string) (*execution, json
 			return nil, nil, err
 		}
 	}
-	return c.spawn(ctx, &session{Cwd: cwd}, agent.TurnIdentity{}, "")
+	return c.spawn(ctx, &session{Cwd: cwd}, agent.TurnIdentity{}, "", "")
 }
 
 func (c *Client) catalog(ctx context.Context, cwd string) (json.RawMessage, error) {
@@ -53,9 +53,10 @@ func (c *Client) models(ctx context.Context, cwd string, force bool) ([]agent.Mo
 func catalogModels(raw json.RawMessage) ([]agent.Model, error) {
 	var response struct {
 		Models []struct {
-			Value    string `json:"value"`
-			Name     string `json:"displayName"`
-			Resolved string `json:"resolvedModel"`
+			Value    string   `json:"value"`
+			Name     string   `json:"displayName"`
+			Resolved string   `json:"resolvedModel"`
+			Efforts  []string `json:"supportedEffortLevels"`
 		} `json:"models"`
 	}
 	if err := json.Unmarshal(raw, &response); err != nil {
@@ -78,7 +79,11 @@ func catalogModels(raw json.RawMessage) ([]agent.Model, error) {
 			continue
 		}
 		seen[name] = true
-		models = append(models, agent.Model{ID: model.Value, Model: model.Value, DisplayName: name})
+		entry := agent.Model{ID: model.Value, Model: model.Value, DisplayName: name}
+		for _, level := range model.Efforts {
+			entry.SupportedReasoningEfforts = append(entry.SupportedReasoningEfforts, agent.ReasoningEffortOption{ReasoningEffort: level})
+		}
+		models = append(models, entry)
 	}
 	return models, nil
 }

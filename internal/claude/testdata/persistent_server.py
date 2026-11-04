@@ -20,6 +20,8 @@ if transcript.exists():
     parent = records[-1]["uuid"]
 with open("process-starts", "a") as file:
     file.write(str(os.getpid()) + "\n")
+with open("spawn-args", "a") as file:
+    file.write(" ".join(args) + "\n")
 prompt = None
 user_id = None
 

@@ -160,6 +160,14 @@ func (a *App) installLifecycle() {
 		if a.quitting {
 			return
 		}
+		if a.awakeSaving {
+			e.PreventDefault()
+			a.settingsOpen = true
+			a.settingsError = "请先完成或取消系统电源授权，再退出 Fuyu。"
+			a.win.Show()
+			a.win.Invalidate()
+			return
+		}
 		if a.hasGitWrites() {
 			e.PreventDefault()
 			a.gitQuitPending = true

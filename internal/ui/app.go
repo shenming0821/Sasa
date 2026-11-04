@@ -125,8 +125,13 @@ func (a *App) Run() error {
 	}
 	a.powerController = power.New()
 	defer a.powerController.Close()
-	if err := a.powerController.Set(a.preferences.KeepAwake); err != nil {
-		a.settingsError = "保持唤醒未生效：" + err.Error()
+	if baseline := a.preferences.KeepAwakeBaseline; baseline != nil {
+		a.powerController.RestoreBaseline(power.Baseline{AC: baseline.AC, Battery: baseline.Battery})
+	}
+	if mode, err := a.powerController.Sync(); err != nil {
+		a.settingsError = "读取系统电源配置失败：" + err.Error()
+	} else {
+		a.preferences.KeepAwake = mode
 	}
 	defer a.catalogWrites.Wait()
 	stopStartup := func() {}

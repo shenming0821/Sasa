@@ -214,7 +214,9 @@ func (a *App) gitStage(w *workspacePage, entries []gitview.Entry, staged bool) {
 	}
 	paths := gitPaths(entries, staged)
 	if staged {
-		a.gitAction(w, "取消暂存", func(ctx context.Context) error { return gitview.Unstage(ctx, w.root, paths) }, nil)
+		a.gitAction(w, "取消暂存", func(ctx context.Context) error { return gitview.Unstage(ctx, w.root, paths) }, func() {
+			gitMoveStats(w.gitStats, entries, true)
+		})
 		return
 	}
 	a.gitWithSavedFiles(w, paths, func() {
@@ -227,8 +229,38 @@ func (a *App) gitStage(w *workspacePage, entries []gitview.Entry, staged bool) {
 				}
 			}
 			return gitview.Stage(ctx, w.root, paths)
-		}, nil)
+		}, func() {
+			gitMoveStats(w.gitStats, entries, false)
+		})
 	})
+}
+
+// gitMoveStats carries line counts across an index-only action so they stay
+// visible until the async recount lands. A count moves only when the displayed
+// diff is provably unchanged: staging a file without staged changes turns its
+// worktree diff into the index diff, and unstaging a file without unstaged
+// changes turns its index diff into the worktree diff. Anything else drops
+// the stale key and lets the recount fill it in.
+func gitMoveStats(stats map[string]gitview.Review, entries []gitview.Entry, unstage bool) {
+	if stats == nil {
+		return
+	}
+	for _, e := range entries {
+		from, to, same := "false", "true", !e.Staged()
+		if unstage {
+			from, to, same = "true", "false", !e.Unstaged()
+		}
+		if e.Original != "" {
+			same = false
+		}
+		fromKey, toKey := gitKey(from, e.Path), gitKey(to, e.Path)
+		if stat, ok := stats[fromKey]; ok && same {
+			stats[toKey] = stat
+		} else {
+			delete(stats, toKey)
+		}
+		delete(stats, fromKey)
+	}
 }
 
 func (a *App) gitCommitChanges(w *workspacePage, all bool) {

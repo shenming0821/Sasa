@@ -140,3 +140,66 @@ func TestGitBulkStageAlternatesWithReadySnapshot(t *testing.T) {
 		}
 	}
 }
+
+func TestGitMoveStatsCarriesOnlyUnchangedDiffs(t *testing.T) {
+	stats := map[string]gitview.Review{
+		gitKey("false", "modified.go"):  {Added: 3, Deleted: 1},
+		gitKey("false", "untracked.go"): {Added: 5},
+		gitKey("false", "partial.go"):   {Added: 2},
+		gitKey("true", "partial.go"):    {Added: 1},
+		gitKey("true", "staged.go"):     {Added: 4, Deleted: 2},
+		gitKey("true", "rename.go"):     {Added: 7},
+	}
+	gitMoveStats(stats, []gitview.Entry{
+		{Path: "modified.go", XY: ".M"},
+		{Path: "untracked.go", XY: "??"},
+		{Path: "partial.go", XY: "MM"},
+	}, false)
+	if got := stats[gitKey("true", "modified.go")]; got.Added != 3 || got.Deleted != 1 {
+		t.Fatal("staging did not carry the worktree count", got)
+	}
+	if got := stats[gitKey("true", "untracked.go")]; got.Added != 5 {
+		t.Fatal("staging an untracked file did not carry its count", got)
+	}
+	if _, ok := stats[gitKey("false", "modified.go")]; ok {
+		t.Fatal("staged file kept a worktree count")
+	}
+	if _, ok := stats[gitKey("true", "partial.go")]; ok || stats[gitKey("false", "partial.go")].Added != 0 {
+		t.Fatal("partially staged file kept stale counts")
+	}
+	gitMoveStats(stats, []gitview.Entry{
+		{Path: "staged.go", XY: "M."},
+		{Path: "rename.go", XY: "R.", Original: "old.go"},
+	}, true)
+	if got := stats[gitKey("false", "staged.go")]; got.Added != 4 || got.Deleted != 2 {
+		t.Fatal("unstaging did not carry the index count", got)
+	}
+	if _, ok := stats[gitKey("false", "rename.go")]; ok {
+		t.Fatal("unstaging a rename kept a stale count")
+	}
+}
+
+func TestGitStageKeepsLineCountsVisible(t *testing.T) {
+	a, q, root, _ := gitWorkflowApp(t)
+	os.WriteFile(filepath.Join(root, "README.md"), []byte("extra line\n"), 0600)
+	w := a.workspace(root)
+	tester := native.NewTester(a.view, 1280, 800)
+	p4Wait(t, tester, q, func() bool { return !w.gitLoading && len(w.git.Entries) == 1 })
+	source := gitKey("false", "README.md")
+	p4Wait(t, tester, q, func() bool {
+		_, ok := w.gitStats[source]
+		return ok
+	})
+	before := w.gitStats[source]
+	a.gitStage(w, gitEntries(w, "更改"), false)
+	p4Wait(t, tester, q, func() bool { return w.gitBusy == "" && len(gitEntries(w, "已暂存的更改")) == 1 })
+	moved, ok := w.gitStats[gitKey("true", "README.md")]
+	if !ok || moved.Added != before.Added || moved.Deleted != before.Deleted {
+		t.Fatal("staged row lost its line counts", w.gitStats)
+	}
+	a.gitStage(w, gitEntries(w, "已暂存的更改"), true)
+	p4Wait(t, tester, q, func() bool { return w.gitBusy == "" && len(gitEntries(w, "更改")) == 1 })
+	if _, ok := w.gitStats[source]; !ok {
+		t.Fatal("unstaged row lost its line counts", w.gitStats)
+	}
+}

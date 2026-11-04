@@ -103,8 +103,14 @@ type DeletedThread struct {
 	ThreadID string
 }
 
+type SleepBaseline struct {
+	AC      int
+	Battery int
+}
+
 type Preferences struct {
 	KeepAwake              string
+	KeepAwakeBaseline      *SleepBaseline
 	Terminal               string
 	Theme                  string
 	EnglishFont            string

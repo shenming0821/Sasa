@@ -1,127 +1,319 @@
 package power
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 type fakeBackend struct {
-	connected                        bool
-	active                           bool
-	acquires, releases               int
-	queryErr, acquireErr, releaseErr error
+	state             State
+	readErr, writeErr error
+	writes            []State
 }
 
-func (driver *fakeBackend) onAC() (bool, error) { return driver.connected, driver.queryErr }
-func (driver *fakeBackend) acquire() error {
-	if driver.acquireErr != nil {
-		return driver.acquireErr
+func (driver *fakeBackend) read() (State, error) { return driver.state, driver.readErr }
+
+func (driver *fakeBackend) write(_ context.Context, target State) error {
+	if driver.writeErr != nil {
+		return driver.writeErr
 	}
-	driver.acquires++
-	driver.active = true
-	return nil
-}
-func (driver *fakeBackend) release() error {
-	if driver.releaseErr != nil {
-		return driver.releaseErr
-	}
-	driver.releases++
-	driver.active = false
+	driver.writes = append(driver.writes, target)
+	driver.state.AC, driver.state.Battery = target.AC, target.Battery
 	return nil
 }
 
-func TestModesPowerTransitionsAndCleanup(t *testing.T) {
-	driver := &fakeBackend{}
-	controller := newController(driver)
-	t.Cleanup(func() { controller.Close() })
-	for _, step := range []struct {
-		mode              string
-		connected, active bool
-	}{
-		{Never, false, false}, {Always, false, true}, {Always, true, true},
-		{ACOnly, true, true}, {ACOnly, false, false}, {ACOnly, true, true},
-		{Never, true, false}, {"unknown", true, false}, {Always, false, true},
-	} {
-		driver.connected = step.connected
-		if err := controller.Set(step.mode); err != nil {
-			t.Fatal(err)
-		}
-		if driver.active != step.active {
-			t.Fatalf("%+v: active=%v", step, driver.active)
-		}
-	}
-	if driver.acquires != 3 || driver.releases != 2 {
-		t.Fatal("duplicate or missing assertion", driver)
-	}
-	if err := controller.Close(); err != nil {
+const sampleCustom = `Battery Power:
+ Sleep On Power Button 1
+ standby              1
+ displaysleep         0
+ sleep                5
+AC Power:
+ Sleep On Power Button 1
+ displaysleep         10
+ sleep                0 (sleep prevented by powerd)
+`
+
+func TestParseCustom(t *testing.T) {
+	state, err := parseCustom(sampleCustom)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if driver.active || driver.releases != 3 {
-		t.Fatal("assertion leaked")
+	if state.AC != 0 || state.Battery != 5 || !state.HasBattery {
+		t.Fatalf("%+v", state)
 	}
-	if err := controller.Set(Always); err == nil {
-		t.Fatal("closed controller accepted update")
+	desktop := `AC Power:
+ sleep                10
+`
+	state, err = parseCustom(desktop)
+	if err != nil || state.AC != 10 || state.HasBattery {
+		t.Fatalf("%+v %v", state, err)
+	}
+	if _, err = parseCustom("garbage"); err == nil {
+		t.Fatal("accepted output without AC profile")
 	}
 }
 
-func TestACRefreshAndFailures(t *testing.T) {
-	driver := &fakeBackend{connected: true}
+func TestModeOf(t *testing.T) {
+	for _, step := range []struct {
+		state State
+		mode  string
+	}{
+		{State{AC: 0, Battery: 0, HasBattery: true}, Always},
+		{State{AC: 0, Battery: 5, HasBattery: true}, ACOnly},
+		{State{AC: 0, Battery: 30, HasBattery: true}, ACOnly},
+		{State{AC: 10, Battery: 0, HasBattery: true}, Never},
+		{State{AC: 10, Battery: 5, HasBattery: true}, Never},
+		{State{AC: 0, HasBattery: false}, Always},
+		{State{AC: 10, HasBattery: false}, Never},
+	} {
+		if mode := modeOf(step.state); mode != step.mode {
+			t.Fatalf("%+v: got %s want %s", step.state, mode, step.mode)
+		}
+	}
+}
+
+func TestSetRecordsBaselineAndWrites(t *testing.T) {
+	driver := &fakeBackend{state: State{AC: 10, Battery: 5, HasBattery: true}}
 	controller := newController(driver)
-	t.Cleanup(func() { controller.Close() })
+	defer controller.Close()
 	if err := controller.Set(ACOnly); err != nil {
 		t.Fatal(err)
 	}
-	driver.connected = false
-	controller.refresh()
-	if driver.active {
-		t.Fatal("battery kept awake")
+	baseline, ok := controller.PendingBaseline()
+	if !ok || baseline != (Baseline{AC: 10, Battery: 5}) {
+		t.Fatal("baseline not recorded", baseline, ok)
 	}
-	driver.acquireErr = errors.New("acquire failed")
-	driver.connected = true
-	controller.refresh()
-	if controller.Err() == nil || driver.active {
-		t.Fatal("acquire failure hidden")
+	controller.ConfirmBaseline()
+	if _, ok = controller.PendingBaseline(); ok {
+		t.Fatal("baseline consumed twice")
 	}
-	driver.acquireErr = nil
-	controller.refresh()
-	if controller.Err() != nil || !driver.active {
-		t.Fatal("retry failed")
+	if len(driver.writes) != 1 || driver.writes[0] != (State{AC: 0, Battery: 5, HasBattery: true}) {
+		t.Fatalf("%+v", driver.writes)
 	}
-	driver.queryErr = errors.New("unknown power source")
-	controller.refresh()
-	if driver.active || controller.Err() == nil {
-		t.Fatal("unknown power retained assertion")
-	}
-	driver.queryErr = nil
 	if err := controller.Set(Always); err != nil {
 		t.Fatal(err)
 	}
-	driver.queryErr = errors.New("query failed")
-	if err := controller.Set(ACOnly); err == nil {
-		t.Fatal("missing query failure")
+	if len(driver.writes) != 2 || driver.writes[1].Battery != 0 {
+		t.Fatalf("%+v", driver.writes)
 	}
-	if controller.mode != Always || !driver.active {
-		t.Fatal("previous policy not restored")
+	if err := controller.Set(Never); err != nil {
+		t.Fatal(err)
 	}
-	driver.releaseErr = errors.New("release failed")
-	if err := controller.Set(Never); err == nil || !driver.active {
-		t.Fatal("release failure hidden")
+	if last := driver.writes[len(driver.writes)-1]; last.AC != 10 || last.Battery != 5 {
+		t.Fatal("never did not restore baseline", last)
 	}
-	driver.releaseErr = nil
+}
+
+func TestSetSkipsUnchangedProfile(t *testing.T) {
+	driver := &fakeBackend{state: State{AC: 0, Battery: 5, HasBattery: true}}
+	controller := newController(driver)
+	defer controller.Close()
+	if err := controller.Set(ACOnly); err != nil {
+		t.Fatal(err)
+	}
+	if len(driver.writes) != 0 {
+		t.Fatal("wrote unchanged profile", driver.writes)
+	}
+	if controller.mode != ACOnly {
+		t.Fatal("mode not updated")
+	}
+}
+
+func TestModesWithZeroSleepBaseline(t *testing.T) {
+	for _, initial := range []State{
+		{AC: 0, Battery: 5, HasBattery: true},
+		{AC: 0, Battery: 0, HasBattery: true},
+		{AC: 12, Battery: 0, HasBattery: true},
+	} {
+		t.Run(fmt.Sprintf("%d/%d", initial.AC, initial.Battery), func(t *testing.T) {
+			driver := &fakeBackend{state: initial}
+			controller := newController(driver)
+			defer controller.Close()
+			for _, want := range []string{Always, Never, ACOnly, Never} {
+				if err := controller.Set(want); err != nil {
+					t.Fatal(err)
+				}
+				if got, err := controller.Sync(); err != nil || got != want {
+					t.Fatalf("selected=%s readback=%s state=%+v err=%v", want, got, driver.state, err)
+				}
+				if want == Never && (driver.state.AC <= 0 || driver.state.Battery <= 0) {
+					t.Fatal("never must allow idle sleep on both power sources", driver.state)
+				}
+				if want != Always && initial.Battery > 0 && driver.state.Battery != initial.Battery {
+					t.Fatal("positive battery baseline changed", driver.state)
+				}
+				if want == Never && initial.AC > 0 && driver.state.AC != initial.AC {
+					t.Fatal("positive AC baseline changed", driver.state)
+				}
+			}
+		})
+	}
+}
+
+func TestSetFailureKeepsMode(t *testing.T) {
+	driver := &fakeBackend{state: State{AC: 10, Battery: 5, HasBattery: true}}
+	controller := newController(driver)
+	defer controller.Close()
+	driver.writeErr = errors.New("denied")
+	if err := controller.Set(Always); err == nil || controller.Err() == nil {
+		t.Fatal("write failure hidden")
+	}
+	if controller.mode != Never || driver.state.AC != 10 {
+		t.Fatal("mode or system mutated on failure")
+	}
+	driver.writeErr = nil
+	if err := controller.Set(Always); err != nil {
+		t.Fatal(err)
+	}
+	if controller.Err() != nil || controller.mode != Always {
+		t.Fatal("retry did not recover")
+	}
+	driver.readErr = errors.New("pmset missing")
+	if err := controller.Set(Never); err == nil {
+		t.Fatal("missing read failure")
+	}
+	if controller.mode != Always {
+		t.Fatal("mode mutated on read failure")
+	}
+}
+
+func TestSyncMapsSystemState(t *testing.T) {
+	driver := &fakeBackend{state: State{AC: 0, Battery: 30, HasBattery: true}}
+	controller := newController(driver)
+	defer controller.Close()
+	mode, err := controller.Sync()
+	if err != nil || mode != ACOnly {
+		t.Fatalf("%s %v", mode, err)
+	}
+	driver.state = State{AC: 0, Battery: 0, HasBattery: true}
+	if mode, err = controller.Sync(); err != nil || mode != Always {
+		t.Fatalf("%s %v", mode, err)
+	}
+	driver.readErr = errors.New("unavailable")
+	if mode, err = controller.Sync(); err == nil || mode != Always {
+		t.Fatal("read failure changed mode")
+	}
+}
+
+func TestRestoredBaselineDrivesNever(t *testing.T) {
+	driver := &fakeBackend{state: State{AC: 0, Battery: 0, HasBattery: true}}
+	controller := newController(driver)
+	defer controller.Close()
+	controller.RestoreBaseline(Baseline{AC: 12, Battery: 3})
+	if err := controller.Set(Never); err != nil {
+		t.Fatal(err)
+	}
+	if last := driver.writes[len(driver.writes)-1]; last.AC != 12 || last.Battery != 3 {
+		t.Fatal("restored baseline ignored", last)
+	}
+	if _, ok := controller.PendingBaseline(); ok {
+		t.Fatal("restored baseline reported as new")
+	}
+	controller.RestoreBaseline(Baseline{AC: 1, Battery: 1})
+	if err := controller.Set(Never); err != nil {
+		t.Fatal(err)
+	}
+	if driver.writes[len(driver.writes)-1].AC != 12 {
+		t.Fatal("second restore overwrote baseline")
+	}
+}
+
+func TestBaselineRemainsPendingUntilPersistenceConfirmed(t *testing.T) {
+	driver := &fakeBackend{state: State{AC: 12, Battery: 3, HasBattery: true}}
+	controller := newController(driver)
+	defer controller.Close()
+	for _, mode := range []string{Always, Never, Always} {
+		if err := controller.Set(mode); err != nil {
+			t.Fatal(err)
+		}
+		// Reading for a failed save, rolling back, then retrying must all
+		// expose the original values until the save is acknowledged.
+		for range 2 {
+			baseline, pending := controller.PendingBaseline()
+			if !pending || baseline != (Baseline{AC: 12, Battery: 3}) {
+				t.Fatal("baseline lost before persistence confirmation", baseline, pending)
+			}
+		}
+	}
+	controller.ConfirmBaseline()
+	if _, pending := controller.PendingBaseline(); pending {
+		t.Fatal("persisted baseline still pending")
+	}
+}
+
+func TestRollbackRestoresExactZeroTimers(t *testing.T) {
+	original := State{AC: 12, Battery: 0, HasBattery: true}
+	driver := &fakeBackend{state: original}
+	controller := newController(driver)
+	defer controller.Close()
+	state, err := controller.CurrentState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = controller.Set(ACOnly); err != nil {
+		t.Fatal(err)
+	}
+	if err = controller.RestoreState(state); err != nil || driver.state != original {
+		t.Fatal("rollback changed the original timer", driver.state, err)
+	}
+}
+
+type waitingBackend struct {
+	fakeBackend
+	started chan struct{}
+}
+
+func (driver *waitingBackend) write(ctx context.Context, _ State) error {
+	close(driver.started)
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestAuthorizationDoesNotBlockStatusAndCloseCancels(t *testing.T) {
+	driver := &waitingBackend{
+		fakeBackend: fakeBackend{state: State{AC: 12, Battery: 3, HasBattery: true}},
+		started:     make(chan struct{}),
+	}
+	controller := newController(driver)
+	defer controller.Close()
+	done := make(chan error, 1)
+	go func() { done <- controller.Set(Always) }()
+	<-driver.started
+	status := make(chan error, 1)
+	go func() { status <- controller.Err() }()
+	select {
+	case err := <-status:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("status read blocked behind administrator authorization")
+	}
+	controller.Close()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal("close did not cancel authorization", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("authorization worker did not exit")
+	}
 }
 
 func TestConcurrentUpdatesAndClose(t *testing.T) {
-	controller := newController(&fakeBackend{connected: true})
+	controller := newController(&fakeBackend{state: State{AC: 10, Battery: 5, HasBattery: true}})
 	var workers sync.WaitGroup
 	for range 10 {
 		workers.Go(func() {
 			for range 20 {
 				controller.Set(Always)
 				controller.Set(ACOnly)
+				controller.Sync()
 				controller.Err()
 			}
 		})
@@ -129,43 +321,24 @@ func TestConcurrentUpdatesAndClose(t *testing.T) {
 	workers.Go(func() { controller.Close() })
 	workers.Wait()
 	controller.Close()
+	if err := controller.Set(Always); err == nil {
+		t.Fatal("closed controller accepted update")
+	}
 }
 
-func TestLiveMacAssertion(t *testing.T) {
+func TestLiveRead(t *testing.T) {
 	if os.Getenv("FUYU_LIVE_POWER") != "1" {
 		t.Skip("requires explicit native power verification")
 	}
 	controller := New()
-	t.Cleanup(func() { controller.Close() })
-	driver := controller.backend.(*systemBackend)
-	connected, err := driver.onAC()
+	defer controller.Close()
+	mode, err := controller.Sync()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("AC connected: %v", connected)
-	for _, mode := range []string{Always, ACOnly, Never} {
-		if err := controller.Set(mode); err != nil {
-			t.Fatal(err)
-		}
-		output, err := exec.Command("/usr/bin/pmset", "-g", "assertions").Output()
-		if err != nil {
-			t.Fatal(err)
-		}
-		found := strings.Contains(string(output), "Fuyu: keep Mac awake")
-		want := mode == Always || mode == ACOnly && connected
-		if found != want {
-			t.Fatalf("mode %s: assertion=%v, want=%v", mode, found, want)
-		}
-		t.Logf("mode=%s: native assertion=%v", mode, found)
-	}
-	if err := controller.Set(Always); err != nil {
+	state, err := controller.backend.read()
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := controller.Close(); err != nil {
-		t.Fatal(err)
-	}
-	output, err := exec.Command("/usr/bin/pmset", "-g", "assertions").Output()
-	if err != nil || strings.Contains(string(output), "Fuyu: keep Mac awake") {
-		t.Fatal("native assertion survived close", err)
-	}
+	t.Logf("system sleep: ac=%d battery=%d hasBattery=%v mode=%s", state.AC, state.Battery, state.HasBattery, mode)
 }

@@ -35,6 +35,9 @@ func TestCatalogSharesProbeAndPublishesModelsBeforeSkills(t *testing.T) {
 	if err != nil || len(models) != 1 {
 		t.Fatalf("models waited for blocked skills: %v %v", models, err)
 	}
+	if levels := models[0].SupportedReasoningEfforts; len(levels) != 5 || levels[0].ReasoningEffort != "low" || levels[4].ReasoningEffort != "max" {
+		t.Fatal("effort levels were not parsed", levels)
+	}
 	models[0].Model = "modified"
 	model, err := client.DefaultModel(ctx, cwd)
 	if err != nil || model != "opus" {

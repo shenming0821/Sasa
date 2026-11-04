@@ -24,8 +24,8 @@ type nextExecution struct {
 // One reader and writer belong to the process; every turn gets a new execution
 // so old approvals, interrupt timers and projections keep their original owner.
 type sessionProcess struct {
-	next          chan nextExecution
-	model, config string
+	next                  chan nextExecution
+	model, effort, config string
 }
 
 func (c *Client) ReleaseIdleThread(ctx context.Context, id string) (bool, error) {
@@ -199,6 +199,44 @@ func (c *Client) processConfiguration(cwd string) string {
 		}
 	}
 	return fmt.Sprintf("%x", hash.Sum(nil))
+}
+
+// PinnedEffort reports the CLAUDE_CODE_EFFORT_LEVEL a spawned process would
+// inherit; an env-level value overrides the --effort launch flag, so picks in
+// the model menu silently lose when it returns non-empty. Sources mirror
+// processConfiguration: config-root and project settings env blocks, then the
+// launch environment.
+func (c *Client) PinnedEffort(cwd string) string {
+	pin := ""
+	read := func(path string) {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return
+		}
+		var settings struct {
+			Env map[string]string `json:"env"`
+		}
+		if json.Unmarshal(raw, &settings) == nil {
+			if value := settings.Env["CLAUDE_CODE_EFFORT_LEVEL"]; value != "" {
+				pin = value
+			}
+		}
+	}
+	read(filepath.Join(c.home, "settings.json"))
+	read(filepath.Join(c.home, "settings.local.json"))
+	if cwd != "" {
+		for dir := cwd; ; dir = filepath.Dir(dir) {
+			read(filepath.Join(dir, ".claude", "settings.json"))
+			read(filepath.Join(dir, ".claude", "settings.local.json"))
+			if filepath.Dir(dir) == dir {
+				break
+			}
+		}
+	}
+	if value := os.Getenv("CLAUDE_CODE_EFFORT_LEVEL"); value != "" {
+		pin = value
+	}
+	return pin
 }
 
 func writeConfigurationStamp(hash interface{ Write([]byte) (int, error) }, path string) {

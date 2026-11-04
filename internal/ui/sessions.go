@@ -30,6 +30,7 @@ type session struct {
 	selectedModel        string
 	selectedEffort       string
 	selectedTier         string
+	effortPin            string
 	modelResolving       bool
 	modelResolvedCwd     string
 	modelMenuOpen        bool

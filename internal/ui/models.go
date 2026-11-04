@@ -222,15 +222,35 @@ func (a *App) modelPicker(c *native.Context) {
 			}
 		}
 	}
+	effort := a.selectedEffort
+	if effort == "" {
+		for i := range root.models {
+			if root.models[i].Model == a.selectedModel {
+				effort = root.models[i].DefaultReasoningEffort
+				break
+			}
+		}
+	}
+	label := shortModel(model)
+	if effort != "" {
+		label += "·" + effortLabel(effort)
+	}
 	trigger := quietButton(c, "选择模型").Gap(5).MinWidth(0).Shrink(1)
 	trigger.Children(func() {
-		native.Text(c, shortModel(model)).FontSize(12).SingleLine().Shrink(1).MinWidth(0)
+		native.Text(c, label).FontSize(12).SingleLine().Shrink(1).MinWidth(0)
 		native.Icon(c, chevron).Size(12, 12)
 	})
 	if trigger.Clicked() {
 		a.modelMenuOpen = !a.modelMenuOpen
-		if a.modelMenuOpen && !root.modelsLoaded {
-			a.loadModels()
+		if a.modelMenuOpen {
+			if !root.modelsLoaded {
+				a.loadModels()
+			}
+			if pinner, ok := a.sessionBackend().(interface{ PinnedEffort(string) string }); ok {
+				root.effortPin = pinner.PinnedEffort(root.State.Cwd)
+			} else {
+				root.effortPin = ""
+			}
 		}
 	}
 	native.Popover(c.Key("model-menu"), trigger, &a.modelMenuOpen, func() { a.modelMenu(c) })
@@ -440,6 +460,9 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 					func() { choose(&a.selectedEffort, value, "推理强度") })
 			}
 		})
+		if a.session.effortPin != "" {
+			native.Text(c, "已被 CLAUDE_CODE_EFFORT_LEVEL 固定为 "+a.session.effortPin+"，选择不会生效").FontSize(11).TextColor(t.Danger).Padding(0, 8)
+		}
 	}
 	if len(current.ServiceTiers) > 0 {
 		tier := a.selectedTier

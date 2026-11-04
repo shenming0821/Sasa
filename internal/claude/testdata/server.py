@@ -35,7 +35,7 @@ for line in sys.stdin:
             continue
         response = {"type": "control_response", "response": {
             "subtype": "success", "request_id": message["request_id"],
-            "response": {"current_permission_mode": "default", "configHome": os.environ.get("CLAUDE_CONFIG_DIR"), "models": [{"value": "default", "displayName": "Default"}, {"value": "opus", "resolvedModel": "fixture/model", "displayName": "Fixture"}],
+            "response": {"current_permission_mode": "default", "configHome": os.environ.get("CLAUDE_CONFIG_DIR"), "models": [{"value": "default", "displayName": "Default"}, {"value": "opus", "resolvedModel": "fixture/model", "displayName": "Fixture", "supportsEffort": True, "supportedEffortLevels": ["low", "medium", "high", "xhigh", "max"]}],
                          "commands": [{"name": "frontend-design", "description": "Design interfaces", "argumentHint": "[page]"},
                                       {"name": "winning_trace_analysis", "description": "Analyze traces", "argumentHint": ""},
                                       {"name": "disabled-skill", "description": "Disabled skill", "argumentHint": ""},

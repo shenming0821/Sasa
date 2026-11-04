@@ -174,7 +174,7 @@ func (blocks *contentBlocks) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdentity, model string) (*execution, json.RawMessage, error) {
+func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdentity, model, effort string) (*execution, json.RawMessage, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
@@ -190,6 +190,9 @@ func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdent
 	}
 	if model != "" {
 		args = append(args, "--model", model)
+	}
+	if effort != "" {
+		args = append(args, "--effort", effort)
 	}
 	c.mu.Lock()
 	if c.closed || c.failed {
@@ -213,7 +216,7 @@ func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdent
 	run.writeMu = &sync.Mutex{}
 	run.controls = &agent.RequestTable[controlReply]{}
 	run.turnDone = make(chan struct{})
-	run.connection = &sessionProcess{next: make(chan nextExecution), model: model, config: c.processConfiguration(s.Cwd)}
+	run.connection = &sessionProcess{next: make(chan nextExecution), model: model, effort: effort, config: c.processConfiguration(s.Cwd)}
 	run.diagnostics = diagnostics
 	if identity.ID != "" {
 		s.run = run
@@ -452,7 +455,17 @@ func (c *Client) Send(ctx context.Context, id, text string) (agent.Turn, error) 
 	return c.SendWithModel(ctx, id, text, nil, nil, "")
 }
 
-func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, model string) (turn agent.Turn, sendErr error) {
+func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, model string) (agent.Turn, error) {
+	return c.send(ctx, id, text, skills, images, model, "")
+}
+
+// SendWithOptions passes the per-send model and effort picks to the CLI.
+// Claude reports no service tiers, so TurnOptions.ServiceTier is ignored.
+func (c *Client) SendWithOptions(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, options agent.TurnOptions) (agent.Turn, error) {
+	return c.send(ctx, id, text, skills, images, options.Model, options.Effort)
+}
+
+func (c *Client) send(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, model, effort string) (turn agent.Turn, sendErr error) {
 	attempted := false
 	defer func() {
 		if sendErr != nil && !attempted {
@@ -543,14 +556,14 @@ func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []ag
 	}
 	var run *execution
 	if idle != nil {
-		if idle.connection.model == model && idle.connection.config == c.processConfiguration(s.Cwd) {
+		if idle.connection.model == model && idle.connection.effort == effort && idle.connection.config == c.processConfiguration(s.Cwd) {
 			run, err = idle.continueWith(ctx, identity)
 		} else {
 			idle.stopProcess()
 		}
 	}
 	if run == nil && err == nil {
-		run, _, err = c.spawn(ctx, s, identity, model)
+		run, _, err = c.spawn(ctx, s, identity, model, effort)
 	}
 	if err == nil && ctx.Err() != nil {
 		run.stopProcess()
