@@ -153,10 +153,12 @@ func commandFailed(t *app.Tool) bool {
 // continuing marks the trailing group of a turn that has not reached a final
 // state yet, so the header reads as running even between individual commands.
 func commandSummary(commands []*app.Message, continuing bool) (text string, failed, running bool) {
-	declined := 0
+	declined, failures := 0, 0
 	var active *app.Tool
 	for _, m := range commands {
-		failed = failed || commandFailed(m.Tool)
+		if commandFailed(m.Tool) {
+			failures++
+		}
 		if m.Tool.Status == "declined" {
 			declined++
 		}
@@ -164,17 +166,21 @@ func commandSummary(commands []*app.Message, continuing bool) (text string, fail
 			active = m.Tool
 		}
 	}
+	failed = failures > 0
 	if active != nil && active.AwaitingFinal {
 		return "等待确认 " + toolCaption(active), failed, false
 	}
 	if active != nil || continuing {
 		if failed {
-			return "正在执行命令 · 存在失败", true, true
+			return fmt.Sprintf("正在执行命令 · %d失败", failures), true, true
 		}
 		return "正在执行命令", false, true
 	}
 	if failed {
-		return "命令执行失败", true, false
+		if failures == len(commands) {
+			return "命令执行失败", true, false
+		}
+		return fmt.Sprintf("执行了命令 · %d失败", failures), true, false
 	}
 	if declined == len(commands) {
 		return "命令已拒绝", false, false

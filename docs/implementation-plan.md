@@ -6,6 +6,12 @@
 
 ## 1. 当前接续点
 
+2026-11-04 再次审核终端关闭与命令组提示：当前改动未发现新的功能缺陷；补强终端关闭回归的非空窗口条件，确认旧确认分支会使测试失败、当前直关实现通过。全量 test/vet、相关定向 race、构建与差异检查通过；旧版正常退出后直接启动新版 PID 25310，原生验证新建终端运行 `sleep 120` 后 ⌘W 无确认直关，login/fish/sleep 三个进程均退出，恢复原会话 192。页签按钮、面板关闭与应用退出确认由自动化及调用链覆盖，命令组真实任务观感待用户验收，见[关闭终端验证](verification/2026-11-04-terminal-close.md)。
+
+2026-11-04 关闭终端不再二次确认：按用户要求，⌘W、页签关闭按钮与面板“关闭窗口”关闭终端时直接结束 shell 和任务，`closeTerminalWithResult` 移除“关闭终端并结束其中的 shell 和任务？”确认分支及仅服务该弹窗的 `terminalError` 提示条；已在关闭中的页签保留 `done(false)` 防重入，应用退出确认流程不变。`TestPaneCloseTerminalClosesShellWithoutPrompt`（原取消/确认测试）改为断言 `quitPrompt` 不触发；UI 整包 test、定向 race、整仓 vet、`git diff --check` 与构建通过，`go fmt` 顺带校正上轮 `sessions.go` 字段对齐（纯空白）。旧版正常退出，`open` 启动新版 PID 17997；终端直关的原生观感待用户验收。见[关闭终端验证](verification/2026-11-04-terminal-close.md)。
+
+2026-11-04 命令组失败计数与运行提示边界：按用户反馈，组内失败改为计数文案——运行中显示“正在执行命令 · N失败”，终态部分失败显示“执行了命令 · N失败”，仅全部失败保留“命令执行失败”；同时最后一个命令组仅在其后尚无新内容时保持运行提示，后续正文等输出出现后恢复终态文案。UI 整包 test、vet、`git diff --check` 与构建通过，旧版 Cmd+Q 退出后 `open` 启动新版 PID 12813；真实任务观感待用户验收。见[工具合并验证](verification/2026-11-03-tool-groups.md#2026-11-04-失败计数文案)。
+
 2026-11-04 保持唤醒审核修复：确认并修复零值基线导致三档选择失真、管理员授权同步阻塞 UI，以及保存失败后基线提前消费的问题。允许睡眠的档位保留正数基线，无有效正数时回退 10 分钟；授权及回滚后台执行，等待时保留原选择并拦截重复操作，保存成功后确认基线，失败重试保留原值，保存失败恢复修改前的精确计时。新增档位往返、授权等待交互、关闭取消与真实临时 SQLite 保存失败重试回归；全量 test/vet、相关定向 race、构建与差异检查通过。旧版正常退出，系统 open 启动阻塞后直接启动新版 PID 92249，原生窗口恢复，设置页“仅接电”与实际 AC=0/电池=5 一致；真实授权写入及启动阻塞根因仍未核验，见[保持唤醒验证](verification/2026-11-04-keep-awake-pmset.md#审核问题复现与修复验证)。
 
 2026-11-04 Claude 推理强度选项：Claude 会话模型菜单复用“推理强度”行，候选项取 initialize 逐模型 `supportedEffortLevels`；选择按会话持久化、切换模型时重置，`SendWithOptions` 以 `--effort` 启动参数透传并并入空闲进程复用键，无“速度”行，未选择沿用 CLI 原生默认；模型按钮以 `·` 后缀显示当前档位（已选值或目录默认档，Claude 未选择时不显示）。字段经本机 2.1.307 `claude --help` 与真实 initialize 录制核验；真实 api-request 确认 `--effort` 生效、但 env 级 `CLAUDE_CODE_EFFORT_LEVEL` 锁定会覆盖 flag，菜单按 `PinnedEffort` 检测提示；本机锁定项已删除、`effortLevel: high` 保留为默认。Codex 侧经 `TestLiveEffortReachesTurnContext` 真实 Runtime 核验：两轮 `turn/start` 后 rollout `turn_context` 记录 `effort=[low max]`。目录解析、argv 夹具、进程复用键、UI 菜单与发送测试、整包 test/vet 通过；`serviceTierForTurn` 生效与原生观感待用户验收。验证见[模型选项验证](verification/2026-11-04-model-options.md#claude-推理强度)。

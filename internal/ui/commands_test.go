@@ -186,7 +186,7 @@ func TestCommandSummaryKeepsFailureAndAwaitingFinalVisible(t *testing.T) {
 	exit := 1
 	one.Tool.ExitCode = &exit
 	text, failed, running := commandSummary([]*app.Message{one, two}, false)
-	if !failed || !running || text != "正在执行命令 · 存在失败" {
+	if !failed || !running || text != "正在执行命令 · 1失败" {
 		t.Fatalf("lost mixed state: %s %v", text, failed)
 	}
 	two.Tool.Status = "completed"
@@ -197,9 +197,17 @@ func TestCommandSummaryKeepsFailureAndAwaitingFinalVisible(t *testing.T) {
 	}
 	two.Tool.AwaitingFinal = false
 	text, failed, _ = commandSummary([]*app.Message{one, two}, false)
-	if text != "命令执行失败" || !failed {
+	if text != "执行了命令 · 1失败" || !failed {
 		t.Fatal("failure disappeared")
 	}
+	one.Tool.Status = "failed"
+	two.Tool.Status = "failed"
+	text, failed, _ = commandSummary([]*app.Message{one, two}, false)
+	if text != "命令执行失败" || !failed {
+		t.Fatal("all-failed group lost failure summary")
+	}
+	one.Tool.Status = "completed"
+	two.Tool.Status = "completed"
 	one.Tool.ExitCode = nil
 	one.Tool.Status, two.Tool.Status = "declined", "declined"
 	text, _, _ = commandSummary([]*app.Message{one, two}, false)
@@ -224,6 +232,12 @@ func TestBusyTurnKeepsLatestCommandGroupRunning(t *testing.T) {
 			if !tt.HasText("正在执行命令") || !tt.HasText("执行了命令") {
 				t.Fatalf("busy turn did not keep the latest group running: %v", tt.Texts())
 			}
+			a.State.Messages = append(a.State.Messages, &app.Message{ID: "conclusion", Role: "assistant", Text: "follow-up", Done: true})
+			tt.Frame()
+			if tt.HasText("正在执行命令") {
+				t.Fatal("follow-up output kept the running header", tt.Texts())
+			}
+			a.State.Messages = a.State.Messages[:len(a.State.Messages)-1]
 			a.State.Busy = false
 			tt.Frame()
 			if tt.HasText("正在执行命令") {

@@ -490,33 +490,25 @@ func TestPaneCloseNestedLayoutRestoresRemainingPanes(t *testing.T) {
 	}
 }
 
-func TestPaneCloseTerminalCancelAndConfirm(t *testing.T) {
-	a, queue, root := p4App(t)
+func TestPaneCloseTerminalClosesShellWithoutPrompt(t *testing.T) {
+	a, _, root := p4App(t)
 	pane := a.splitPane(root, focusedPane(a.layoutFor(root)), "vertical")
 	connection := &testTerminal{}
 	a.terminalFactory = func(string) (terminalConnection, error) { return connection, nil }
 	a.newTerminal()
 	page := a.currentTerminal()
-	tester := native.NewTester(func(*native.Context) {}, 1200, 760)
+	// A non-nil window exercises the native-app branch that previously
+	// displayed the confirmation; a headless test already skipped it.
 	a.win = &mygo.Window{}
+	t.Cleanup(func() { a.win = nil })
 	a.quitPrompt = func(mygo.MessageOptions) (mygo.MessageResult, error) {
-		return mygo.MessageResult{Button: 0}, nil
+		return mygo.MessageResult{}, fmt.Errorf("terminal close must not prompt")
 	}
 	a.closePane(root, pane)
-	p4Wait(t, tester, queue, func() bool { return !a.quitDialog })
-	if connection.Exited() || a.terminals[page.id] != page || len(paneLeaves(a.layoutFor(root).Root)) != 2 {
-		t.Fatal("cancel closed terminal or removed pane")
-	}
-	a.quitPrompt = func(mygo.MessageOptions) (mygo.MessageResult, error) {
-		return mygo.MessageResult{Button: 1}, nil
-	}
-	a.closePane(root, pane)
-	p4Wait(t, tester, queue, func() bool { return !a.quitDialog })
 	a.terminalWorkers.Wait()
-	if !connection.Exited() || a.terminals[page.id] != nil || len(paneLeaves(a.layoutFor(root).Root)) != 1 {
-		t.Fatal("confirmation did not close shell and pane")
+	if !connection.Exited() || a.terminals[page.id] != nil || len(paneLeaves(a.layoutFor(root).Root)) != 1 || a.quitDialog {
+		t.Fatal("terminal close did not finish shell and pane directly")
 	}
-	a.win = nil
 }
 
 func TestPaneTerminalVisibilityAndRestart(t *testing.T) {

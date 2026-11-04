@@ -118,7 +118,7 @@ func TestMixedToolGroupDetailsAndStates(t *testing.T) {
 		t.Fatal("completion reset group")
 	}
 	read.Tool.Output = `{"isError":true,"content":[{"type":"text","text":"missing file"}]}`
-	if summary, failed, _ := commandSummary(messages, false); summary != "命令执行失败" || !failed {
+	if summary, failed, _ := commandSummary(messages, false); summary != "执行了命令 · 1失败" || !failed {
 		t.Fatal("tool result error hidden", summary)
 	}
 	command.Tool.AwaitingFinal = true

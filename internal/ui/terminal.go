@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/storage"
 	"github.com/shenming0821/Fuyu/internal/terminal"
@@ -25,7 +24,6 @@ type terminalConnection interface {
 type terminalState struct {
 	terminals       map[string]*terminalPage
 	terminalSerial  int
-	terminalError   string
 	terminalFactory func(string) (terminalConnection, error)
 	terminalWorkers sync.WaitGroup
 }
@@ -190,30 +188,12 @@ func (a *App) closeTerminal(page *terminalPage) {
 }
 
 func (a *App) closeTerminalWithResult(page *terminalPage, done func(bool)) {
-	if page.closing || a.quitDialog {
+	if page.closing {
 		done(false)
 		return
 	}
-	if page.connection == nil || page.connection.Exited() || a.win == nil {
-		a.finishCloseTerminal(page)
-		done(true)
-		return
-	}
-	a.quitDialog = true
-	go func() {
-		result, err := a.quitPrompt(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning, Title: "关闭终端", Message: "关闭终端并结束其中的 shell 和任务？", Detail: page.root, Buttons: []string{"取消", "关闭终端"}, DefaultButton: 0, CancelButton: 0})
-		a.update(func() {
-			a.quitDialog = false
-			if err != nil {
-				a.terminalError = err.Error()
-			} else if result.Button == 1 {
-				a.finishCloseTerminal(page)
-				done(true)
-				return
-			}
-			done(false)
-		})
-	}()
+	a.finishCloseTerminal(page)
+	done(true)
 }
 
 func (a *App) finishCloseTerminal(page *terminalPage) {
