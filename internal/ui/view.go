@@ -228,6 +228,12 @@ func (a *App) conversation(c *native.Context) {
 	}
 	thinking := a.thinking()
 	timings := a.conversationTimings(rows)
+	lastCommands := -1
+	for i := range rows {
+		if len(rows[i].commands) > 0 {
+			lastCommands = i
+		}
+	}
 	count := len(messages)
 	if thinking {
 		count++
@@ -255,7 +261,8 @@ func (a *App) conversation(c *native.Context) {
 						if len(rows[i].changes) > 0 {
 							readingColumn(c, func() { a.changeCard(c.Key(messages[i].ID), rows[i].changes) })
 						} else if len(rows[i].commands) > 0 {
-							readingColumn(c, func() { a.commandGroup(c.Key(messages[i].ID), rows[i].commands) })
+							continuing := i == lastCommands && a.State.Busy && !a.State.Stopping()
+							readingColumn(c, func() { a.commandGroup(c.Key(messages[i].ID), rows[i].commands, continuing) })
 						} else {
 							a.message(c, messages[i])
 						}

@@ -51,7 +51,7 @@ func TestCommandHoverAndAnimatedDisclosure(t *testing.T) {
 			a := New(nil, "test", "/tmp", nil)
 			commands := []*app.Message{commandMessage("one", "completed"), commandMessage("two", "inProgress")}
 			tt := native.NewTester(func(c *native.Context) {
-				native.Column(c).Fill().Background(c.Theme().Background).Children(func() { a.commandGroup(c, commands); native.Text(c, "after").Label("after") })
+				native.Column(c).Fill().Background(c.Theme().Background).Children(func() { a.commandGroup(c, commands, false); native.Text(c, "after").Label("after") })
 			}, 600, 400)
 			tt.SetPreferences(native.Preferences{ReduceMotion: reduced})
 			tt.Move(590, 390)
@@ -77,7 +77,7 @@ func TestCommandHoverAndAnimatedDisclosure(t *testing.T) {
 			if full.Y <= initial.Y || (!reduced && (middle.Y <= initial.Y || middle.Y >= full.Y)) {
 				t.Fatalf("no height animation: %v %v %v", initial, middle, full)
 			}
-			if !tt.HasText(`Bash "git status --short"`) || !tt.HasText(`正在运行 Bash "git status --short"`) {
+			if !tt.HasText(`Bash "git status --short"`) || !tt.HasText(`正在执行 Bash "git status --short"`) {
 				t.Fatal("individual statuses lost")
 			}
 			tt.Move(590, 390)
@@ -100,7 +100,7 @@ func TestCommandHoverAndAnimatedDisclosure(t *testing.T) {
 			commands[1].Tool.Status = "completed"
 			commands = append(commands, commandMessage("three", "completed"))
 			tt.Frame()
-			if *a.commandGroupOpen("one") || !tt.HasText("运行了命令") {
+			if *a.commandGroupOpen("one") || !tt.HasText("执行了命令") {
 				t.Fatal("updates overrode manual choice")
 			}
 			tt.Key(0, native.KeySpace)
@@ -128,7 +128,7 @@ func TestCommandGroupLongContentIsClippedAndDetailsScrollable(t *testing.T) {
 				*a.commandGroupOpen("long") = true
 				tt := native.NewTester(func(c *native.Context) {
 					native.Column(c).Fill().Gap(12).Background(c.Theme().Background).Children(func() {
-						a.commandGroup(c, []*app.Message{m})
+						a.commandGroup(c, []*app.Message{m}, false)
 						native.Text(c, "following message").Label("following message")
 					})
 				}, width, 720)
@@ -185,26 +185,51 @@ func TestCommandSummaryKeepsFailureAndAwaitingFinalVisible(t *testing.T) {
 	one, two := commandMessage("one", "completed"), commandMessage("two", "inProgress")
 	exit := 1
 	one.Tool.ExitCode = &exit
-	text, failed := commandSummary([]*app.Message{one, two})
-	if !failed || text != "正在运行命令 · 存在失败" {
+	text, failed, running := commandSummary([]*app.Message{one, two}, false)
+	if !failed || !running || text != "正在执行命令 · 存在失败" {
 		t.Fatalf("lost mixed state: %s %v", text, failed)
 	}
 	two.Tool.Status = "completed"
 	two.Tool.AwaitingFinal = true
-	text, _ = commandSummary([]*app.Message{one, two})
+	text, _, _ = commandSummary([]*app.Message{one, two}, false)
 	if !strings.HasPrefix(text, "等待确认 ") {
 		t.Fatal(text)
 	}
 	two.Tool.AwaitingFinal = false
-	text, failed = commandSummary([]*app.Message{one, two})
-	if text != "命令运行失败" || !failed {
+	text, failed, _ = commandSummary([]*app.Message{one, two}, false)
+	if text != "命令执行失败" || !failed {
 		t.Fatal("failure disappeared")
 	}
 	one.Tool.ExitCode = nil
 	one.Tool.Status, two.Tool.Status = "declined", "declined"
-	text, _ = commandSummary([]*app.Message{one, two})
+	text, _, _ = commandSummary([]*app.Message{one, two}, false)
 	if text != "命令已拒绝" {
 		t.Fatal("declined commands reported as executed")
+	}
+}
+
+func TestBusyTurnKeepsLatestCommandGroupRunning(t *testing.T) {
+	for _, reduced := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reduced=%v", reduced), func(t *testing.T) {
+			a := New(nil, "test", "/tmp", nil)
+			a.State.Busy = true
+			a.State.Messages = []*app.Message{
+				{ID: "q", Role: "user", Text: "run"},
+				commandMessage("one", "completed"),
+				{ID: "note", Role: "assistant", Text: "partial reply", Done: true},
+				commandMessage("two", "completed"),
+			}
+			tt := native.NewTester(a.view, 600, 600)
+			tt.SetPreferences(native.Preferences{ReduceMotion: reduced})
+			if !tt.HasText("正在执行命令") || !tt.HasText("执行了命令") {
+				t.Fatalf("busy turn did not keep the latest group running: %v", tt.Texts())
+			}
+			a.State.Busy = false
+			tt.Frame()
+			if tt.HasText("正在执行命令") {
+				t.Fatal("finished turn kept the running header", tt.Texts())
+			}
+		})
 	}
 }
 
@@ -233,9 +258,9 @@ func TestCommandGroupTitleKeepsContentWidthAndAdjacentArrow(t *testing.T) {
 			a := New(nil, "test", "/tmp", nil)
 			command := commandMessage("title", "completed")
 			tt := native.NewTester(func(c *native.Context) {
-				native.Column(c).Fill().Children(func() { a.commandGroup(c, []*app.Message{command}) })
+				native.Column(c).Fill().Children(func() { a.commandGroup(c, []*app.Message{command}, false) })
 			}, width, 240)
-			caption, ok := tt.Find("运行了命令")
+			caption, ok := tt.Find("执行了命令")
 			arrow, _ := tt.Find("命令组 title箭头")
 			if !ok || caption.W < 60 {
 				t.Fatalf("short title has no content width: %+v", caption)
@@ -252,7 +277,7 @@ func TestCommandGroupTitleKeepsContentWidthAndAdjacentArrow(t *testing.T) {
 			}
 			command.Tool.Status = "completed"
 			tt.Frame()
-			caption, _ = tt.Find("运行了命令")
+			caption, _ = tt.Find("执行了命令")
 			if caption.W < 60 {
 				t.Fatalf("completed title remained compressed: %+v", caption)
 			}

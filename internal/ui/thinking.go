@@ -29,24 +29,28 @@ func (a *App) thinking() bool {
 }
 
 func thinkingIndicator(c *native.Context) {
-	const label = "正在思考"
+	shimmerText(c, "正在思考", 15).AlignSelf(native.Start)
+}
+
+// shimmerText gives running process labels the same moving highlight as the
+// waiting indicator; reduce motion keeps the plain muted text.
+func shimmerText(c *native.Context, label string, size float32) native.Element {
 	t := c.Theme()
 	base := t.Background.Mix(t.TextMuted, 0.65)
 	highlight := t.Background.Mix(t.TextMuted, 0.82)
 	if c.Preferences().ReduceMotion {
-		native.Text(c, label).FontSize(15).TextColor(base).AlignSelf(native.Start)
-		return
+		return native.Text(c, label).FontSize(size).TextColor(base)
 	}
-	indicator := native.Box(c).AlignSelf(native.Start)
-	phase := indicator.Loop("thinking-shimmer", 1800*time.Millisecond, native.Linear)
+	indicator := native.Box(c)
+	phase := indicator.Loop("shimmer", 1800*time.Millisecond, native.Linear)
 	const halfWidth float32 = 18
-	width, _ := c.MeasureText(0, native.Span{Text: label, Size: 15})
+	width, _ := c.MeasureText(0, native.Span{Text: label, Size: size})
 	center := phase*(width+4*halfWidth) - 2*halfWidth
 	var spans []native.Span
 	var x float32
 	for _, character := range label {
 		glyph := string(character)
-		advance, _ := c.MeasureText(0, native.Span{Text: glyph, Size: 15})
+		advance, _ := c.MeasureText(0, native.Span{Text: glyph, Size: size})
 		distance := float64((x + advance/2 - center) / halfWidth)
 		strength := float32(0)
 		if math.Abs(distance) < 1 {
@@ -56,5 +60,6 @@ func thinkingIndicator(c *native.Context) {
 		x += advance
 	}
 	// One shaped text run keeps the animation on the theme's glyphs and baseline.
-	indicator.Children(func() { native.RichText(c, spans...).FontSize(15).TextColor(base) })
+	indicator.Children(func() { native.RichText(c, spans...).FontSize(size).TextColor(base) })
+	return indicator
 }

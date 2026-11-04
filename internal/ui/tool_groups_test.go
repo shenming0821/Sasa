@@ -94,8 +94,8 @@ func TestMixedToolGroupDetailsAndStates(t *testing.T) {
 	desktop := New(nil, "test", "/tmp", nil)
 	command, read := commandMessage("bash", "inProgress"), readMessage("read")
 	messages := []*app.Message{command, read}
-	tester := native.NewTester(func(c *native.Context) { desktop.commandGroup(c, messages) }, 650, 650)
-	if !tester.HasText("正在运行命令") || tester.HasText(`Read "/tmp/mayoi102/test.yml"`) {
+	tester := native.NewTester(func(c *native.Context) { desktop.commandGroup(c, messages, false) }, 650, 650)
+	if !tester.HasText("正在执行命令") || tester.HasText(`Read "/tmp/mayoi102/test.yml"`) {
 		t.Fatal("group did not start folded", tester.Texts())
 	}
 	if err := tester.Click("命令组 bash"); err != nil {
@@ -114,15 +114,15 @@ func TestMixedToolGroupDetailsAndStates(t *testing.T) {
 	}
 	command.Tool.Status = "completed"
 	tester.Frame()
-	if !tester.HasText("运行了命令") || !*desktop.commandGroupOpen("bash") {
+	if !tester.HasText("执行了命令") || !*desktop.commandGroupOpen("bash") {
 		t.Fatal("completion reset group")
 	}
 	read.Tool.Output = `{"isError":true,"content":[{"type":"text","text":"missing file"}]}`
-	if summary, failed := commandSummary(messages); summary != "命令运行失败" || !failed {
+	if summary, failed, _ := commandSummary(messages, false); summary != "命令执行失败" || !failed {
 		t.Fatal("tool result error hidden", summary)
 	}
 	command.Tool.AwaitingFinal = true
-	if summary, _ := commandSummary(messages); !strings.HasPrefix(summary, "等待确认 Bash") {
+	if summary, _, _ := commandSummary(messages, false); !strings.HasPrefix(summary, "等待确认 Bash") {
 		t.Fatal("verification hidden", summary)
 	}
 }
@@ -206,7 +206,7 @@ func TestLongReadCaptionStaysOnOneLine(t *testing.T) {
 			*desktop.commandGroupOpen("long") = true
 			tester := native.NewTester(func(c *native.Context) {
 				native.Column(c).Fill().Children(func() {
-					desktop.commandGroup(c, []*app.Message{read})
+					desktop.commandGroup(c, []*app.Message{read}, false)
 					native.Text(c, "after").Label("after")
 				})
 			}, width, 500)

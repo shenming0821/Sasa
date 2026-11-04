@@ -150,8 +150,9 @@ func commandFailed(t *app.Tool) bool {
 	return t.Status == "failed" || (t.ExitCode != nil && *t.ExitCode != 0) || toolResultFailed(t)
 }
 
-func commandSummary(commands []*app.Message) (string, bool) {
-	failed := false
+// continuing marks the trailing group of a turn that has not reached a final
+// state yet, so the header reads as running even between individual commands.
+func commandSummary(commands []*app.Message, continuing bool) (text string, failed, running bool) {
 	declined := 0
 	var active *app.Tool
 	for _, m := range commands {
@@ -163,33 +164,39 @@ func commandSummary(commands []*app.Message) (string, bool) {
 			active = m.Tool
 		}
 	}
-	if active != nil {
-		if active.AwaitingFinal {
-			return "等待确认 " + toolCaption(active), failed
-		}
+	if active != nil && active.AwaitingFinal {
+		return "等待确认 " + toolCaption(active), failed, false
+	}
+	if active != nil || continuing {
 		if failed {
-			return "正在运行命令 · 存在失败", true
+			return "正在执行命令 · 存在失败", true, true
 		}
-		return "正在运行命令", false
+		return "正在执行命令", false, true
 	}
 	if failed {
-		return "命令运行失败", true
+		return "命令执行失败", true, false
 	}
 	if declined == len(commands) {
-		return "命令已拒绝", false
+		return "命令已拒绝", false, false
 	}
-	return "运行了命令", false
+	return "执行了命令", false, false
 }
 
 // Process records share the same hierarchy, hover affordance and keyboard disclosure.
-func (a *App) processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, suffix, content func()) {
+func (a *App) processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, live bool, suffix, content func()) {
 	theme := c.Theme()
+	caption := func() native.Element {
+		if live {
+			return shimmerText(c, text, 13)
+		}
+		return native.Text(c, text).FontSize(13).TextColor(theme.TextMuted)
+	}
 	if content == nil {
 		native.Row(c).Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).Children(func() {
 			if glyph != nil {
 				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
 			}
-			native.Text(c, text).FontSize(13).SingleLine().MinWidth(0).Shrink(1).TextColor(theme.TextMuted)
+			caption().SingleLine().MinWidth(0).Shrink(1)
 			if suffix != nil {
 				native.Spacer(c)
 				suffix()
@@ -205,7 +212,7 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 			if glyph != nil {
 				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
 			}
-			native.Text(c, text).FontSize(13).SingleLine().MinWidth(0).Shrink(1).TextColor(theme.TextMuted)
+			caption().SingleLine().MinWidth(0).Shrink(1)
 			opacity := float32(0)
 			if hover {
 				opacity = 1
@@ -232,20 +239,20 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 	})
 }
 
-func (a *App) commandDisclosure(c *native.Context, label, text string, open *bool, group bool, content func()) {
+func (a *App) commandDisclosure(c *native.Context, label, text string, open *bool, group, live bool, content func()) {
 	var glyph *native.SVG
 	if group {
 		glyph = terminalIcon
 	}
-	a.processDisclosure(c, label, text, open, glyph, nil, content)
+	a.processDisclosure(c, label, text, open, glyph, live, nil, content)
 }
 
-func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
-	text, _ := commandSummary(commands)
+func (a *App) commandGroup(c *native.Context, commands []*app.Message, continuing bool) {
+	text, _, running := commandSummary(commands, continuing)
 	if commands[0].Tool.ParentToolID != "" {
 		text = "子任务 · " + text
 	}
-	a.commandDisclosure(c, "命令组 "+commands[0].ID, text, a.commandGroupOpen(commands[0].ID), true, func() {
+	a.commandDisclosure(c, "命令组 "+commands[0].ID, text, a.commandGroupOpen(commands[0].ID), true, running, func() {
 		for _, m := range commands {
 			tool := m.Tool
 			ctx := c.Key(m.ID)
@@ -258,13 +265,13 @@ func (a *App) commandGroup(c *native.Context, commands []*app.Message) {
 			case tool.AwaitingFinal:
 				label = "等待确认 "
 			case tool.Status == "inProgress":
-				label = "正在运行 "
+				label = "正在执行 "
 			case commandFailed(tool):
-				label = "运行失败 "
+				label = "执行失败 "
 			case tool.Status == "declined":
 				label = "已拒绝 "
 			}
-			a.commandDisclosure(ctx, "命令详情 "+m.ID, label+toolOperationCaption(tool), &tool.Expanded, false, func() {
+			a.commandDisclosure(ctx, "命令详情 "+m.ID, label+toolOperationCaption(tool), &tool.Expanded, false, false, func() {
 				native.Scroll(ctx).Label("命令输出 " + m.ID).FillWidth().MaxHeight(180).Children(func() {
 					native.Column(ctx).FillWidth().Gap(6).Padding(8).Background(ctx.Theme().Surface).Radius(8).Clip().Children(func() {
 						detailText(ctx, "工作目录", tool.Cwd)

@@ -152,7 +152,7 @@ func (a *App) toolDisclosureWithIcon(c *native.Context, tool *app.Tool, glyph *n
 	theme := c.Theme()
 	failed := commandFailed(tool)
 	native.Column(c).FillWidth().MinWidth(0).Children(func() {
-		a.processDisclosure(c, "工具记录 "+tool.Name, toolCaption(tool), &tool.Expanded, glyph, func() {
+		a.processDisclosure(c, "工具记录 "+tool.Name, toolCaption(tool), &tool.Expanded, glyph, tool.Status == "inProgress", func() {
 			if tool.Status == "inProgress" {
 				native.Spinner(c).Size(12, 12).Shrink(0)
 				native.Text(c, tool.StatusLabel()).FontSize(11).SingleLine().Shrink(0).TextColor(theme.TextMuted)

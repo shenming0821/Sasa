@@ -21,7 +21,7 @@ func TestSubagentCommandsKeepTheirParentGroups(t *testing.T) {
 	}
 	tester := native.NewTester(desktop.view, 1000, 760)
 	tester.Frame()
-	if !tester.HasText("子任务 · 运行了命令") {
+	if !tester.HasText("子任务 · 执行了命令") {
 		t.Fatal("child command ownership was not visible")
 	}
 	if caption := toolCaption(&app.Tool{Kind: "dynamicToolCall", Name: "Read", ParentToolID: "parent-a"}); caption != "子任务 · Read" {
