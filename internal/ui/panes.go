@@ -267,6 +267,9 @@ func (a *App) paneMenu(root string, pane *storage.PaneNode) func(*native.Menu) {
 		if menu.Item("上下分屏").Disabled(bounds.H < 440 || bounds.W < 320).Chosen() {
 			a.splitPane(root, pane, "vertical")
 		}
+		if len(paneLeaves(a.layoutFor(root).Root)) == 1 {
+			return
+		}
 		menu.Separator()
 		if menu.Item("关闭窗口").Chosen() {
 			a.paneClosePending = &paneCloseRequest{root: root, pane: pane}

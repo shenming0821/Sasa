@@ -412,6 +412,25 @@ func TestPaneCloseStopsOnlyItsSession(t *testing.T) {
 	}
 }
 
+func TestPaneMenuOmitsCloseForLastPane(t *testing.T) {
+	a := New(stubBackend{}, "test", "/project", nil)
+	tester := native.NewTester(a.view, 1000, 760)
+	if err := tester.RightClick("会话面板 " + focusedPane(a.layoutFor("/project")).ID); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(tester.Menu(), "关闭窗口") {
+		t.Fatal("last pane still offers the no-op close item")
+	}
+	pane := a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+	tester.Frame()
+	if err := tester.RightClick("会话面板 " + pane.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(tester.Menu(), "关闭窗口") {
+		t.Fatal("split pane lost its close item")
+	}
+}
+
 func TestPaneCloseDirtyFileCancelAndSave(t *testing.T) {
 	a, queue, root := p4App(t)
 	left := focusedPane(a.layoutFor(root))
