@@ -28,6 +28,11 @@ func (a *App) closeCurrentPage() {
 	case a.application().viewerOpen:
 		a.application().viewerOpen = false
 	default:
+		layout := a.layoutFor(a.activeWorkspace)
+		if pane := focusedPane(layout); pane != nil && len(paneLeaves(layout.Root)) > 1 && len(pane.Tabs) <= 1 {
+			a.paneClosePending = &paneCloseRequest{root: a.activeWorkspace, pane: pane}
+			return
+		}
 		if page := a.currentTerminal(); page != nil {
 			a.closeTerminal(page)
 		} else if page := a.currentFile(); page != nil {

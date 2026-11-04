@@ -80,3 +80,10 @@
 
 - 新增 `TestPaneMenuOmitsCloseForLastPane`：单面板菜单不含“关闭窗口”，分屏后目标面板恢复该入口。
 - `./scripts/go test ./internal/ui -count=1`、`./scripts/go vet ./...`、`./scripts/build`、`git diff --check` 通过。
+
+## 2026-11-04 Cmd+W 关闭空聚焦面板
+
+按用户要求，多面板布局下 `⌘W` 保持先关闭聚焦面板当前页签；当聚焦面板最多只剩一个页签（含已无页签的选择面板）时，`⌘W` 沿用与菜单“关闭窗口”一致的面板关闭流程，关闭页签后移除该面板并聚焦相邻面板。仅剩一个面板时不移除，维持原空工作区行为。
+
+- 新增 `TestCloseShortcutRemovesEmptyFocusedPane`：空聚焦面板 `⌘W` 移除并保留会话面板，单面板 `⌘W` 回退关闭页签，最后一个空面板不移除；`TestCloseShortcutClosesSingleTabPane`：两页签面板 `⌘W` 只关当前页签，剩一页签时 `⌘W` 同时关闭页签与面板。
+- `./scripts/go test ./internal/ui -count=1`、`./scripts/go vet ./...`、`./scripts/build`、`git diff --check` 通过；原生快捷键验收待用户核对。

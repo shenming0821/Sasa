@@ -112,6 +112,56 @@ func TestCloseMenuPreservesUnsavedFileOnCancel(t *testing.T) {
 	}
 }
 
+func TestCloseShortcutRemovesEmptyFocusedPane(t *testing.T) {
+	a := New(stubBackend{}, "test", "/project", nil)
+	a.dispatch = func(work func()) { work() }
+	a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+	tester := native.NewTester(a.view, 1200, 760)
+	if a.activeTab != "" {
+		t.Fatal("new split pane unexpectedly owns a tab")
+	}
+	tester.Key(native.Cmd, native.KeyW)
+	tester.Frame()
+	if len(paneLeaves(a.layoutFor("/project").Root)) != 1 || !a.session.open {
+		t.Fatal("Cmd+W did not remove the empty focused pane")
+	}
+	tester.Key(native.Cmd, native.KeyW)
+	tester.Frame()
+	if len(paneLeaves(a.layoutFor("/project").Root)) != 1 || len(a.folderTabs("/project")) != 0 || a.session.open {
+		t.Fatal("single-pane Cmd+W did not fall back to closing its tab")
+	}
+	tester.Key(native.Cmd, native.KeyW)
+	tester.Frame()
+	if len(paneLeaves(a.layoutFor("/project").Root)) != 1 {
+		t.Fatal("Cmd+W removed the last pane")
+	}
+}
+
+func TestCloseShortcutClosesSingleTabPane(t *testing.T) {
+	a := New(stubBackend{}, "test", "/project", nil)
+	a.dispatch = func(work func()) { work() }
+	first := a.session
+	a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+	a.newSession("/project")
+	second := a.session
+	a.newSession("/project")
+	third := a.session
+	tester := native.NewTester(a.view, 1200, 760)
+	if len(focusedPane(a.layoutFor("/project")).Tabs) != 2 {
+		t.Fatal("fixture did not give the focused pane two tabs")
+	}
+	tester.Key(native.Cmd, native.KeyW)
+	tester.Frame()
+	if len(paneLeaves(a.layoutFor("/project").Root)) != 2 || third.open || !second.open {
+		t.Fatal("multi-tab pane closed more than its current tab")
+	}
+	tester.Key(native.Cmd, native.KeyW)
+	tester.Frame()
+	if len(paneLeaves(a.layoutFor("/project").Root)) != 1 || second.open || !first.open || a.session != first {
+		t.Fatal("single-tab pane did not close tab and pane together")
+	}
+}
+
 func TestCloseShortcutAndMenuCloseTerminalTabs(t *testing.T) {
 	for _, useMenu := range []bool{false, true} {
 		t.Run(map[bool]string{false: "keyboard", true: "menu"}[useMenu], func(t *testing.T) {
