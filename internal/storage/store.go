@@ -54,6 +54,7 @@ type MessageEdit struct {
 }
 
 type Snapshot struct {
+	WorkspaceLayouts   map[string]WorkspaceLayout
 	DeletedThreads     []DeletedThread
 	LastClaudeModels   map[string]string
 	DefaultAgent       agent.AgentKind
@@ -77,6 +78,21 @@ type Snapshot struct {
 	HistoryOpen        bool
 	CollapsedProjects  map[string]bool
 	Sessions           []Session
+}
+
+type WorkspaceLayout struct {
+	Root    *PaneNode
+	Focused string
+}
+
+type PaneNode struct {
+	ID     string
+	Axis   string
+	Ratio  float32
+	First  *PaneNode
+	Second *PaneNode
+	Tabs   []string
+	Active string
 }
 
 type DeletedThread struct {

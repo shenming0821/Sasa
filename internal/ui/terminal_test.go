@@ -157,7 +157,7 @@ func TestEmbeddedTerminalStartupErrorAndRetry(t *testing.T) {
 		return nil, errors.New("shell unavailable")
 	}
 	tester := native.NewTester(app.view, 1000, 760)
-	if err := tester.Click("打开终端"); err != nil {
+	if err := tester.Click("新建终端"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("启动终端失败：shell unavailable") {

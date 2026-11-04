@@ -43,6 +43,8 @@ func (a *App) view(c *native.Context) {
 	defer a.scheduleSave()
 	a.applyAppearance(c)
 	defer a.hideInactiveTerminals()
+	a.syncActivePane()
+	a.focusVisiblePane(c)
 	if c.Shortcut(native.Cmd, native.KeyComma) {
 		a.openSettings()
 	}
@@ -59,15 +61,7 @@ func (a *App) view(c *native.Context) {
 	native.Box(c).Fill().Children(func() {
 		center := func() {
 			main := func() {
-				if page := a.currentTerminal(); page != nil {
-					a.terminalView(c.Key(page.id), page, leftShown, rightShown)
-				} else if d := a.currentFile(); d != nil {
-					a.fileView(c.Key(d.id), d, leftShown, rightShown)
-				} else if a.open && a.activeTab != "" {
-					a.sessionView(c.Key(a.session.id), leftShown, rightShown)
-				} else {
-					a.emptyWorkspace(c.Key("empty-workspace"), leftShown, rightShown)
-				}
+				a.workspacePanes(c, leftShown, rightShown)
 			}
 			if rightShown {
 				available := width
@@ -125,6 +119,7 @@ func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
 			native.Text(c, a.modelError).FontSize(12).TextColor(t.Danger).Padding(12, 16)
 		}
 		a.fileExitNotice(c)
+		a.emptyPane(c)
 	})
 }
 
@@ -309,11 +304,12 @@ func (a *App) composer(c *native.Context) {
 		a.draftImageStrip(c)
 		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
 			Placeholder("与 "+a.kind.String()+" 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
-		if a.completion.focus {
+		a.focusPressedPane(composer)
+		if a.completion.focus && a.paneIsFocused() {
 			composer.Focus().SetTextSelection(a.completion.caret, a.completion.caret)
 			a.completion.focus = false
 		}
-		composer.OnPaste(func(_ string) bool { return a.pasteImages() })
+		composer.OnPaste(a.panePaste(func(_ string) bool { return a.pasteImages() }))
 		composing := composer.Composing()
 		// Element handles are valid during build; key callbacks use the captured caret.
 		anchor, caret := composer.TextAnchorCaret()
@@ -337,7 +333,7 @@ func (a *App) composer(c *native.Context) {
 			a.completion.key = ""
 		}
 
-		composer.OnTextKey(func(k native.TextKey) bool {
+		composer.OnTextKey(a.paneTextKey(func(k native.TextKey) bool {
 			if composing {
 				return false
 			}
@@ -379,7 +375,7 @@ func (a *App) composer(c *native.Context) {
 				return true
 			}
 			return false
-		})
+		}))
 		native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
 			a.imagePickerButton(c)
 			a.modelPicker(c)

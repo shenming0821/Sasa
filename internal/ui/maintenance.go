@@ -76,7 +76,7 @@ func (a *App) maintain(now time.Time) time.Duration {
 	if storageError != a.storageError && a.win != nil {
 		a.win.Invalidate()
 	}
-	if a.State.Busy && a.win != nil {
+	if a.anyBusy() && a.win != nil {
 		a.win.Invalidate()
 	}
 	return a.maintenanceDelay(now)
@@ -84,7 +84,7 @@ func (a *App) maintain(now time.Time) time.Duration {
 
 func (a *App) maintenanceDelay(now time.Time) time.Duration {
 	delay := 30 * time.Second
-	if a.State.Busy {
+	if a.anyBusy() {
 		delay = time.Second
 	}
 	if a.savePending {

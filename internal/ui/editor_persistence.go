@@ -17,6 +17,9 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 	a.terminals = map[string]*terminalPage{}
 	a.activeTab = ""
 	a.activeWorkspace = a.workspaceRoot(snapshot.ActiveWorkspace)
+	for _, tab := range snapshot.WorkspaceTabs {
+		a.workspaceRoot(tab.Workspace)
+	}
 	a.folderSelectedTabs = map[string]string{}
 	a.rightTab = snapshot.RightTab
 	if a.rightTab == "" {
@@ -154,9 +157,11 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 		}
 	}
 	a.rememberFolderTab()
+	a.restorePaneLayouts(snapshot.WorkspaceLayouts)
 	return nil
 }
 func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
+	a.syncActivePane()
 	s.WorkspaceTabs = []storage.Tab{}
 	s.ActiveTabID = a.activeTab
 	s.ActiveWorkspace = a.activeWorkspace
@@ -165,6 +170,12 @@ func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
 	s.GitDrafts = map[string]string{}
 	s.FolderSelectedTabs = map[string]string{}
 	a.rememberFolderTab()
+	s.WorkspaceLayouts = map[string]storage.WorkspaceLayout{}
+	for root := range a.layouts {
+		layout := a.layoutFor(root)
+		layout.Root = validPaneCopy(layout.Root, map[string]bool{}, 0)
+		s.WorkspaceLayouts[root] = layout
+	}
 	for _, tab := range a.tabs {
 		if tab.Kind == "session" {
 			valid := false

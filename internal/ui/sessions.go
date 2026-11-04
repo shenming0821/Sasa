@@ -134,6 +134,7 @@ func (a *App) selectSession(s *session) {
 	a.activeTab = sessionTabID(s.id)
 	a.selectWorkspace(a.workspaceRoot(s.State.Cwd))
 	a.ensureSessionTab(s)
+	a.activatePaneTab(a.activeTab, a.activeWorkspace, false)
 	a.rememberFolderTab()
 	a.compactSidebar = false
 	s.detailsOpen = false
@@ -193,8 +194,13 @@ func (a *App) closeSessionTab(s *session) {
 }
 
 func (a *App) recoverSelectedSession() {
-	if a.activeTab != "" && a.currentFile() == nil && a.currentTerminal() == nil && a.open && !a.loaded {
-		a.recoverSession(a.session)
+	layout := a.layoutFor(a.activeWorkspace)
+	for _, pane := range paneLeaves(layout.Root) {
+		for _, target := range a.sessions {
+			if pane.Active == sessionTabID(target.id) && target.open && !target.loaded && !target.recovering && !target.releasing {
+				a.recoverSession(target)
+			}
+		}
 	}
 }
 

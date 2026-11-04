@@ -40,13 +40,18 @@ type terminalPage struct {
 }
 
 type terminalLayout struct {
+	bounds                        native.Rect
 	width, height, sidebar, right float32
 	left, history, settings       bool
 }
 
 func (a *App) hideInactiveTerminals() {
 	for _, page := range a.terminals {
-		if page.connection != nil && (a.activeTab != page.id || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil) {
+		visible := a.activeTab == page.id
+		if a.visibleTerms != nil {
+			visible = a.visibleTerms[page.id]
+		}
+		if page.connection != nil && (!visible || a.paneTabDragging || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil) {
 			page.connection.Hide()
 			if a.activeTab == page.id {
 				page.focus = true
@@ -86,6 +91,7 @@ func (a *App) newTerminal() {
 func (a *App) selectTerminal(page *terminalPage) {
 	a.activeTab = page.id
 	a.selectWorkspace(page.root)
+	a.activatePaneTab(page.id, a.activeWorkspace, false)
 	page.focus = true
 	a.compactSidebar = false
 }
@@ -106,10 +112,14 @@ func (a *App) startTerminal(page *terminalPage) {
 	page.connection, page.err = connection, ""
 	connection.SetShortcut(func(key string) {
 		a.update(func() {
-			if a.currentTerminal() != page || a.terminals[page.id] != page {
+			if a.terminals[page.id] != page || key == "exit" || a.visibleTerms != nil && !a.visibleTerms[page.id] {
 				return
 			}
+			a.selectTerminal(page)
 			switch strings.ToLower(key) {
+			case "focus":
+				page.focus = false
+				a.paneNativeFocus = page.id
 			case "w":
 				a.closeCurrentPage()
 			case ",":
@@ -147,7 +157,7 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 		}
 		host := native.Box(c.Key("native-terminal")).Label("工作区终端 " + page.root).Grow(1).FillWidth().MinHeight(0)
 		width, height := c.Size()
-		layout := terminalLayout{width, height, a.sidebarWidth, a.rightPanelWidth, leftShown, rightShown, a.settingsOpen}
+		layout := terminalLayout{host.Bounds(), width, height, a.sidebarWidth, a.rightPanelWidth, leftShown, rightShown, a.settingsOpen}
 		if layout != page.layout {
 			page.layout = layout
 			c.AnimationFrame()
@@ -157,10 +167,14 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 			c.AnimationFrame()
 			return
 		}
-		if a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil {
+		if a.paneTabDragging || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil {
 			return
 		}
-		if err := page.connection.Present(a.win.NativeHandle(), bounds, c.Theme().Dark, page.focus); err != nil {
+		focus := page.focus && a.paneIsFocused()
+		if focus {
+			a.paneNativeFocus = page.id
+		}
+		if err := page.connection.Present(a.win.NativeHandle(), bounds, c.Theme().Dark, focus); err != nil {
 			page.err = "无法显示终端：" + err.Error()
 			page.connection.Close()
 			page.connection = nil
@@ -172,11 +186,17 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 }
 
 func (a *App) closeTerminal(page *terminalPage) {
+	a.closeTerminalWithResult(page, func(bool) {})
+}
+
+func (a *App) closeTerminalWithResult(page *terminalPage, done func(bool)) {
 	if page.closing || a.quitDialog {
+		done(false)
 		return
 	}
 	if page.connection == nil || page.connection.Exited() || a.win == nil {
 		a.finishCloseTerminal(page)
+		done(true)
 		return
 	}
 	a.quitDialog = true
@@ -188,7 +208,10 @@ func (a *App) closeTerminal(page *terminalPage) {
 				a.terminalError = err.Error()
 			} else if result.Button == 1 {
 				a.finishCloseTerminal(page)
+				done(true)
+				return
 			}
+			done(false)
 		})
 	}()
 }

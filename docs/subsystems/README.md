@@ -9,6 +9,7 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 | 项目管理 | 本地仓库导入、Git worktree 发现、分支和会话导航 | `internal/project/`、`internal/ui/projects.go` | [项目管理](projects.md) |
 | 文件与编辑器 | 文件树、编辑保存、草稿恢复、Git 差异和显式工作流操作 | `internal/editor/`、`internal/workspace/`、`internal/git/`、`internal/ui/editor_*.go`、`internal/ui/git_*.go` | [文件、编辑器与 Git](editor.md)、[Git 工作流](../git-workflow-design.md) |
 | 原生 UI | 会话侧栏、消息、输入、状态和交互入口；会话绑定的异步派发 | `internal/ui/` | [会话管理](sessions.md)、[本轮文件变更](turn-changes.md)、[实施计划](../implementation-plan.md) |
+| 主窗口分屏 | 按目录保存的嵌套布局、面板页签、焦点与终端可见性 | `internal/ui/panes.go`、`internal/ui/panes_view.go` | [会话管理](sessions.md#主内容区分屏)、[分屏验证](../verification/2026-11-03-split-panes.md) |
 | 图片附件 | 图片导入、私有副本、草稿、发送、历史恢复及预览 | `internal/attachment/`、`internal/ui/images.go` | [图片附件](attachments.md) |
 | 应用状态 | thread/turn 投影、活动会话与用户动作协调 | `internal/app/` | [设计](../design.md) |
 | Agent 抽象 | 会话身份、能力、应用事件、审批意图和任务映射；当前 Codex 兼容接入 | `internal/agent/`、`internal/ui/agents.go` | [Agent 抽象层](agent.md) |

@@ -50,6 +50,12 @@ func (a *App) refreshFolderSelection() {
 }
 
 func (a *App) restoreFolderTab(root string) bool {
+	if layout, exists := a.layouts[root]; exists && len(paneLeaves(layout.Root)) > 1 {
+		a.selectWorkspace(root)
+		layout = a.layoutFor(root)
+		a.setPaneSelection(focusedPane(layout))
+		return true
+	}
 	tabs := a.folderTabs(root)
 	for _, tab := range tabs {
 		if tab.ID == a.folderSelectedTabs[root] {

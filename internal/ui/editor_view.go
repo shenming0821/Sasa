@@ -536,6 +536,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
 			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
 			area.ContextMenu(a.fileMenu(d.root, d.path, true))
+			a.focusPressedPane(area)
 			if d.pendingSelection != nil {
 				area.SetTextSelection(d.pendingSelection[0], d.pendingSelection[1])
 				d.pendingSelection = nil
@@ -554,7 +555,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					d.gitHunk = d.gitRows[line].hunk
 				}
 			}
-			if d.focus {
+			if d.focus && a.paneIsFocused() {
 				if d.focusOwner == nil || d.focusOwner.Focused(c) {
 					area.Focus()
 				}
@@ -584,7 +585,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 				return false
 			})
-			area.OnTextKey(func(k native.TextKey) bool {
+			area.OnTextKey(a.paneTextKey(func(k native.TextKey) bool {
 				if composing {
 					return false
 				}
@@ -608,7 +609,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					return true
 				}
 				return false
-			})
+			}))
 			if d.kind == "diff" {
 				area.Draw(func(p *native.Painter, r native.Rect) {
 					first := max(0, int(d.scroll.Y/20))
@@ -807,11 +808,22 @@ func (a *App) closeFile(d *filePage) {
 		d.closeAfterCheckpoint = true
 		return
 	}
+	a.closeFileWithResult(d, func(bool) {})
+}
+
+func (a *App) closeFileWithResult(d *filePage, done func(bool)) {
+	if d.saving || d.checkpointBusy {
+		d.err = "文件正在保存，请完成后再次关闭窗口"
+		done(false)
+		return
+	}
 	if !d.dirty() {
 		a.finishCloseFile(d)
+		done(a.files[d.id] == nil)
 		return
 	}
 	if a.quitDialog {
+		done(false)
 		return
 	}
 	a.quitDialog = true
@@ -821,18 +833,23 @@ func (a *App) closeFile(d *filePage) {
 			a.quitDialog = false
 			if err != nil {
 				d.err = err.Error()
+				done(false)
 				return
 			}
 			if r.Button == 1 {
 				if a.clearRecovery(d) {
 					a.finishCloseFile(d)
 				}
+				done(a.files[d.id] == nil)
 			} else if r.Button == 2 {
 				a.saveFile(d, false, false, func(ok bool) {
 					if ok && !d.dirty() {
 						a.finishCloseFile(d)
 					}
+					done(a.files[d.id] == nil)
 				})
+			} else {
+				done(false)
 			}
 		})
 	}()

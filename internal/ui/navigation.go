@@ -33,7 +33,7 @@ func (a *App) projectGroupsFor(query string) []projectGroup {
 		if !matchesQuery(query, s.title(), s.State.Cwd) {
 			continue
 		}
-		path := s.State.Cwd
+		path := a.workspaceRoot(s.State.Cwd)
 		if path != "" {
 			path = filepath.Clean(path)
 		}
@@ -139,13 +139,19 @@ var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	renderedActive := a.activeTab
-	native.Row(c).FillWidth().Height(38).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(.5)).Children(func() {
+	tabs := a.paneTabs()
+	empty := a.renderingPane != nil && len(tabs) == 0
+	row := native.Row(c).FillWidth().Height(38).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(.5))
+	if a.renderingPane != nil {
+		row.ContextMenu(a.paneMenu(a.activeWorkspace, a.renderingPane))
+	}
+	row.Children(func() {
 		if !leftShown {
 			a.sidebarToggle(c, true)
 		}
 		native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
-			native.Row(c).FillHeight().Children(func() {
-				for _, tab := range a.folderTabs(a.activeWorkspace) {
+			native.Row(c).FillHeight().AlignItems(native.Center).Children(func() {
+				for _, tab := range tabs {
 					if tab.Kind == "session" {
 						valid := false
 						for _, s := range a.sessions {
@@ -176,6 +182,12 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 							closeLabel = "关闭终端标签 " + tab.ID
 						}
 						b := native.ButtonBase(tc).Label(label).Tooltip(a.tabTitle(tab)).Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
+						if pane := a.renderingPane; pane != nil {
+							b.Drag(paneTabDrag{Workspace: a.activeWorkspace, Pane: pane.ID, Tab: tab.ID})
+							if b.Dragging() {
+								a.paneTabDragging = true
+							}
+						}
 						if tab.Kind == "file" || tab.Kind == "diff" {
 							b.ContextMenu(a.fileMenu(tab.Workspace, tab.Path, false))
 						}
@@ -246,7 +258,14 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 				}
 			})
 		})
-		a.agentSessionButtons(c)
+		if !empty {
+			a.agentSessionButtons(c)
+		}
+		if pane := a.renderingPane; pane != nil {
+			button := quietIconButton(c, "面板操作").Size(28, 28).Tooltip("分屏与面板操作")
+			button.Children(func() { native.Icon(c, paneMenuIcon).Size(16, 16) })
+			button.Menu(a.paneMenu(a.activeWorkspace, pane))
+		}
 		if !rightShown {
 			a.sidebarToggle(c, false)
 		}

@@ -1,5 +1,7 @@
 # Fuyu 参考项目核验记录
 
+2026-11-03 分屏只读参考：本地 Mayoi 快照 `/tmp/fuyu-mayoi-diff-20261030`，固定提交 `cd08688ade5ece3411d9bb812228c7d30492526a`，核对 `cmd/mayoi/columns.go` 与 `tabs.go` 的列页签、分割、资源归属与空列收敛；其该快照主要为左右列，不据此宣称具备 Fuyu 的上下嵌套布局。Orca 使用本机已解包的 `/tmp/orca-asar/app/out/shared/rpc-contract/workspace-layout-params.js` 和 `workspace-layout-terminal-tab-params.js`，参考 `splitPane`、`movePane`、`splitGroup` 与布局比例的命令职责；未核定该解包产物的版本。Fuyu 自行实现按目录保存的二叉分屏树和面板焦点，复用固定 MyGo 的 `SplitPercent` / `SplitVerticalPercent`；未移植参考项目源码，验收以 Fuyu 自身测试和[原生记录](verification/2026-11-03-split-panes.md)为准。
+
 > 核验日期：2026-10-22  
 > 用途：补全设计缺口，并为 Codex UI 的逐步实现提供可追溯依据。  
 > 设计入口：[Fuyu 设计文档](design.md)

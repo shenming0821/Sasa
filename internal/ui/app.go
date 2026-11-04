@@ -25,6 +25,7 @@ import (
 type Backend = agent.Backend
 
 type App struct {
+	paneState
 	taskErrorState
 	startupState
 	maintenanceState

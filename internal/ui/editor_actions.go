@@ -215,6 +215,18 @@ func (a *App) renameEditorPath(root, path, name string) error {
 		page.id = "file-" + editor.RecoveryID(page.root, page.path)
 		delete(a.files, oldID)
 		a.files[page.id] = page
+		for _, layout := range a.layouts {
+			for _, pane := range paneLeaves(layout.Root) {
+				for index, id := range pane.Tabs {
+					if id == oldID {
+						pane.Tabs[index] = page.id
+					}
+				}
+				if pane.Active == oldID {
+					pane.Active = page.id
+				}
+			}
+		}
 		if a.activeTab == oldID {
 			a.activeTab = page.id
 		}

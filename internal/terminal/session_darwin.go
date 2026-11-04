@@ -90,5 +90,7 @@ func fuyuTerminalEvent(token C.uintptr_t, event C.int) {
 		session.notify(",")
 	case 3:
 		session.notify("t")
+	case 4:
+		session.notify("focus")
 	}
 }

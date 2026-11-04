@@ -431,6 +431,7 @@ void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
 - (void)otherMouseDragged:(NSEvent *)event { [self mouseMoved:event]; }
 - (void)mouseDown:(NSEvent *)event {
     [self.window makeFirstResponder:self];
+    if (self.token) fuyuTerminalEvent(self.token, 4);
     [self mouseMoved:event];
     if (self.surface) gt_surface_mouse_button(self.surface, GHOSTTY_MOUSE_PRESS, (ghostty_input_mouse_button_e)(event.buttonNumber + 1), modifiers(event.modifierFlags));
 }

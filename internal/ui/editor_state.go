@@ -130,13 +130,30 @@ type filePage struct {
 
 func sessionTabID(id int) string { return fmt.Sprintf("session-%d", id) }
 func (a *App) workspaceRoot(cwd string) string {
+	a = a.application()
 	if cwd == "" {
 		return ""
 	}
 	if w := a.worktreeFor(cwd); w != nil {
 		return w.Path
 	}
-	return filepath.Clean(cwd)
+	cwd = filepath.Clean(cwd)
+	if root := a.workspaceAliases[cwd]; root != "" {
+		return root
+	}
+	resolved, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		return cwd
+	}
+	if a.workspaceAliases == nil {
+		a.workspaceAliases = map[string]string{}
+	}
+	root := a.workspaceAliases[resolved]
+	if root == "" {
+		root = cwd
+	}
+	a.workspaceAliases[cwd], a.workspaceAliases[resolved] = root, root
+	return root
 }
 func (a *App) ensureSessionTab(s *session) {
 	id := sessionTabID(s.id)
@@ -150,6 +167,27 @@ func (a *App) ensureSessionTab(s *session) {
 }
 func (a *App) removeWorkspaceTab(id string) {
 	previous := a.folderTabs(a.activeWorkspace)
+	if a.layouts != nil {
+		for _, layout := range a.layouts {
+			for _, pane := range paneLeaves(layout.Root) {
+				if slices.Contains(pane.Tabs, id) {
+					previous = nil
+					for _, other := range pane.Tabs {
+						for _, tab := range a.tabs {
+							if tab.ID == other {
+								previous = append(previous, tab)
+							}
+						}
+					}
+					pane.Tabs = slices.DeleteFunc(pane.Tabs, func(other string) bool { return other == id })
+					if pane.Active == id {
+						pane.Active = ""
+					}
+					break
+				}
+			}
+		}
+	}
 	a.tabs = slices.DeleteFunc(a.tabs, func(t storage.Tab) bool { return t.ID == id })
 	a.selectAfterTabClose(id, previous)
 }
@@ -208,6 +246,9 @@ func (a *App) selectWorkspace(root string) {
 	a.activeWorkspace = root
 	w := a.workspace(root)
 	a.historyQuery, a.historyScope = w.historyQuery, w.historyScope
+	if a.canAsync() {
+		a.recoverSelectedSession()
+	}
 }
 func (a *App) canAsync() bool { return a.win != nil || a.dispatch != nil }
 func (a *App) openFile(root, path string) {
@@ -252,6 +293,7 @@ func (a *App) selectFile(d *filePage) {
 	d.lastVisited = time.Now()
 	a.activeTab = d.id
 	a.selectWorkspace(d.root)
+	a.activatePaneTab(d.id, a.activeWorkspace, true)
 	d.focus = true
 	d.focusOwner = nil
 	d.resync = true

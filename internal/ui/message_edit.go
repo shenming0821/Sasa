@@ -398,12 +398,13 @@ func (a *App) messageEditBox(c *native.Context, message *app.Message) {
 		}
 		input := native.TextAreaBase(c, &edit.Text).Label("编辑消息内容").FontSize(15).LineHeight(1.6).FillWidth().Lines(3, 12).Padding(0).
 			Disabled(a.editPreparing || a.editSending)
-		if a.editFocus {
+		a.focusPressedPane(input)
+		if a.editFocus && a.paneIsFocused() {
 			input.Focus()
 			a.editFocus = false
 		}
 		composing := input.Composing()
-		input.OnTextKey(func(key native.TextKey) bool {
+		input.OnTextKey(a.paneTextKey(func(key native.TextKey) bool {
 			if composing || key.Mods != 0 {
 				return false
 			}
@@ -417,7 +418,7 @@ func (a *App) messageEditBox(c *native.Context, message *app.Message) {
 				return true
 			}
 			return false
-		})
+		}))
 		if a.editError != "" {
 			native.Text(c, a.editError).FillWidth().MinWidth(0).FontSize(12).TextColor(theme.Danger).Selectable()
 		}
