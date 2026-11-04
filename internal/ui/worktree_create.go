@@ -167,7 +167,7 @@ func (a *App) finishWorktreeCreate(draft *worktreeCreation) {
 			a.sessionQuery = ""
 			a.worktreeCreate = nil
 			a.refreshFolderSelection()
-			a.newSession(draft.target)
+			a.openWorkspacePicker(draft.target)
 			a.persist()
 		})
 	}()

@@ -64,6 +64,12 @@ func TestRepositoryImportGroupsBranchesAndSessions(t *testing.T) {
 	if err := tt.Click("打开工作区 " + repo.Worktrees[1].Path); err != nil {
 		t.Fatal(err)
 	}
+	if a.session != first || a.activeWorkspace != repo.Worktrees[1].Path || !tt.HasText("选择面板内容") {
+		t.Fatal("worktree click did not show the picker")
+	}
+	if err := tt.Click("新建 Codex 会话"); err != nil {
+		t.Fatal(err)
+	}
 	second := a.session
 	if second == first || a.State.Cwd != repo.Worktrees[1].Path {
 		t.Fatal("worktree selection did not bind session cwd")
@@ -267,6 +273,7 @@ func TestLiveProjectWorktreesReadOnly(t *testing.T) {
 		if err := tt.Click("打开工作区 " + w.Path); err != nil {
 			t.Fatal(err)
 		}
+		a.newSession(w.Path)
 		if a.State.Cwd != w.Path {
 			t.Fatalf("wrong cwd: %s want %s", a.State.Cwd, w.Path)
 		}

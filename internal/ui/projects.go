@@ -208,7 +208,7 @@ func (a *App) openWorktree(w project.Worktree) {
 	if a.restoreFolderTab(w.Path) {
 		return
 	}
-	a.newSession(w.Path)
+	a.openWorkspacePicker(w.Path)
 }
 
 func (s *session) hasProjectConversation() bool {

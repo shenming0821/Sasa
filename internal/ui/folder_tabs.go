@@ -49,11 +49,16 @@ func (a *App) refreshFolderSelection() {
 	a.selectWorkspace(a.activeWorkspace)
 }
 
+// openWorkspacePicker selects the folder without choosing a tab, so a pane
+// with no tabs keeps its content picker instead of the last-used agent.
+func (a *App) openWorkspacePicker(root string) {
+	a.selectWorkspace(root)
+	a.setPaneSelection(focusedPane(a.layoutFor(a.activeWorkspace)))
+}
+
 func (a *App) restoreFolderTab(root string) bool {
 	if layout, exists := a.layouts[root]; exists && len(paneLeaves(layout.Root)) > 1 {
-		a.selectWorkspace(root)
-		layout = a.layoutFor(root)
-		a.setPaneSelection(focusedPane(layout))
+		a.openWorkspacePicker(root)
 		return true
 	}
 	tabs := a.folderTabs(root)

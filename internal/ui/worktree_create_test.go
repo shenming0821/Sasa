@@ -160,8 +160,8 @@ func TestWorktreeCreationMenuFormAndNavigation(t *testing.T) {
 	if a.worktreeCreate != nil {
 		t.Fatal("creation failed", draft.errors)
 	}
-	if a.State.Cwd != draft.target || a.activeWorkspace != draft.target || a.State.ThreadID != "" || original.State.Draft != "keep draft" {
-		t.Fatal("wrong navigation or source draft changed", a.State.Cwd, a.activeWorkspace, a.State.ThreadID)
+	if a.activeWorkspace != draft.target || a.session != original || len(a.sessions) != 1 || original.State.Draft != "keep draft" || !tester.HasText("选择面板内容") {
+		t.Fatal("creation did not open the new worktree picker", a.activeWorkspace, len(a.sessions))
 	}
 	rediscovered, err := project.Discover(context.Background(), repo.Path)
 	if err != nil || len(rediscovered.Worktrees) != len(repo.Worktrees)+1 {
@@ -242,7 +242,7 @@ func TestWorktreeCreationRefreshFailureRetriesOnlyDiscovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	p4Wait(t, tester, queue, func() bool { return a.worktreeCreate == nil })
-	if a.State.Cwd != draft.target {
-		t.Fatal("retry did not open created worktree")
+	if a.activeWorkspace != draft.target || len(a.sessions) != 1 || !tester.HasText("选择面板内容") {
+		t.Fatal("retry did not open the created worktree picker")
 	}
 }

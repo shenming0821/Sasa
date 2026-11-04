@@ -85,7 +85,7 @@ func TestFolderTabsCloseUsesSameFolderNeighbors(t *testing.T) {
 	}
 }
 
-func TestFolderClickCreatesSessionAfterLastTabClosed(t *testing.T) {
+func TestFolderClickShowsPickerWithoutOpenTabs(t *testing.T) {
 	for _, conversation := range []bool{false, true} {
 		t.Run(fmt.Sprintf("conversation=%t", conversation), func(t *testing.T) {
 			a := New(stubBackend{}, "test", "/repo", nil)
@@ -103,12 +103,21 @@ func TestFolderClickCreatesSessionAfterLastTabClosed(t *testing.T) {
 			if err := tester.Click("打开工作区 /repo"); err != nil {
 				t.Fatal(err)
 			}
-			fresh := a.session
-			if fresh == closed || closed.open || len(a.sessions) != 2 || fresh.State.Cwd != tree.Path || !fresh.open || fresh.State.ThreadID != "" || fresh.State.Draft != "" {
-				t.Fatal("folder click restored closed session instead of creating a fresh session")
+			if len(a.sessions) != 1 || a.activeTab != "" || a.activeWorkspace != tree.Path || closed.open {
+				t.Fatal("folder click created a session instead of showing the picker")
+			}
+			if !tester.HasText("选择面板内容") {
+				t.Fatal("folder click did not show the pane picker")
 			}
 			if closed.State.Draft != "preserved draft" {
 				t.Fatal("closing session discarded its draft")
+			}
+			if err := tester.Click("新建 Codex 会话"); err != nil {
+				t.Fatal(err)
+			}
+			fresh := a.session
+			if fresh == closed || closed.open || len(a.sessions) != 2 || fresh.State.Cwd != tree.Path || !fresh.open || fresh.State.ThreadID != "" || fresh.State.Draft != "" {
+				t.Fatal("picker did not create a fresh session in the folder")
 			}
 			if err := tester.Click("打开工作区 /repo"); err != nil {
 				t.Fatal(err)
