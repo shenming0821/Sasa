@@ -12,6 +12,7 @@ import (
 type paneState struct {
 	layouts          map[string]storage.WorkspaceLayout
 	paneSerial       int
+	emptyTabSerial   int
 	renderingPane    *storage.PaneNode
 	paneHandles      map[string]*native.Handle
 	paneBounds       map[string]native.Rect

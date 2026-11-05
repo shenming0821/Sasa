@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
 type projectGroup struct {
@@ -136,6 +137,13 @@ var refreshProjectIcon = icon(`<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l
 
 var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 
+func activeTabFace(c *native.Context, row native.Element) {
+	theme := c.Theme()
+	row.Background(theme.Surface).DrawOver(func(painter *native.Painter, bounds native.Rect) {
+		painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, theme.TextMuted, 0)
+	})
+}
+
 func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	renderedActive := a.activeTab
@@ -149,28 +157,17 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 		if !leftShown {
 			a.sidebarToggle(c, true)
 		}
-		native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
-			native.Row(c).FillHeight().AlignItems(native.Center).Children(func() {
+		scroll := native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0)
+		scroll.Children(func() {
+			native.Row(c).MinWidth(scroll.Bounds().W).Shrink(0).FillHeight().AlignItems(native.Center).Children(func() {
 				if empty {
-					pane, root := a.renderingPane, a.activeWorkspace
-					native.Row(c.Key("new-tab")).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center).
-						Background(t.Surface).BorderWidth(0, 0, 2, 0).BorderColor(t.TextMuted).Children(func() {
-						button := native.ButtonBase(c).Label("新标签页").Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
-						button.Children(func() {
-							native.Text(c, "新标签页").FontSize(12).TextColor(t.Text).SingleLine()
-						})
-						if button.Clicked() {
-							a.focusPane(root, pane)
-						}
-						close := native.ButtonBase(c).Label("关闭新标签页").Size(24, 24).Radius(8).Padding(6)
-						close.Children(func() { native.Icon(c, tabCloseIcon).Size(13, 13).TextColor(t.TextMuted) })
-						if close.Clicked() {
-							a.focusPane(root, pane)
-							a.closeCurrentPage()
-						}
-					})
+					a.emptyTab(c.Key("new-tab"), storage.Tab{Kind: "empty"})
 				}
 				for _, tab := range tabs {
+					if tab.Kind == "empty" {
+						a.emptyTab(c.Key(tab.ID), tab)
+						continue
+					}
 					if tab.Kind == "session" {
 						valid := false
 						for _, s := range a.sessions {
@@ -185,7 +182,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 					tc := c.Key(tab.ID)
 					row := native.Row(tc).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
 					if tab.ID == a.activeTab {
-						row.Background(t.Surface).BorderWidth(0, 0, 2, 0).BorderColor(t.TextMuted)
+						activeTabFace(c, row)
 						if a.tabsSelected != a.activeTab {
 							row.ScrollIntoView()
 						}
@@ -274,6 +271,13 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 							}
 						}
 					})
+				}
+				if pane := a.renderingPane; pane != nil {
+					blank := native.Box(c.Key("tab-blank")).Label("新建标签页空白处 " + pane.ID).Grow(1).FillHeight()
+					if blank.DoubleClicked() {
+						a.newEmptyTab(a.activeWorkspace, pane)
+						c.AnimationFrame()
+					}
 				}
 			})
 		})

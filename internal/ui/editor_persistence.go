@@ -70,6 +70,11 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 						}
 					}
 				}
+			case "empty":
+				if tab.Workspace != "" && !filepath.IsAbs(tab.Workspace) {
+					return fmt.Errorf("新标签页路径损坏，保留原设置")
+				}
+				a.tabs = append(a.tabs, tab)
 			case "terminal":
 				if !filepath.IsAbs(tab.Workspace) {
 					return fmt.Errorf("终端标签路径损坏，保留原设置")

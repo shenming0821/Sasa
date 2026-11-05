@@ -987,7 +987,12 @@ func (a *App) finishCloseFile(d *filePage) {
 	a.removeWorkspaceTab(d.id)
 }
 func (a *App) selectWorkspaceTab(tab storage.Tab) {
-	if tab.Kind == "terminal" {
+	if tab.Kind == "empty" {
+		a.selectWorkspace(tab.Workspace)
+		a.activatePaneTab(tab.ID, a.activeWorkspace, false)
+		a.activeTab = tab.ID
+		a.rememberFolderTab()
+	} else if tab.Kind == "terminal" {
 		if page := a.terminals[tab.ID]; page != nil {
 			a.selectTerminal(page)
 		}

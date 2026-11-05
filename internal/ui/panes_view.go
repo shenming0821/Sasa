@@ -66,7 +66,7 @@ func (a *App) workspacePanes(c *native.Context, leftShown, rightShown bool) {
 					a.terminalView(pc.Key(page.id), page, leftShown, rightShown)
 				} else if document := a.currentFile(); document != nil {
 					a.fileView(pc.Key(document.id), document, leftShown, rightShown)
-				} else if a.open && node.Active != "" {
+				} else if a.open && node.Active != "" && !a.isEmptyTab(node.Active) {
 					a.sessionView(pc.Key(a.session.id), leftShown, rightShown)
 				} else {
 					a.emptyWorkspace(pc.Key("empty-workspace"), leftShown, rightShown)
@@ -117,7 +117,12 @@ func (a *App) emptyPane(c *native.Context) {
 					}
 					if emptyPaneAction(c.Key(string(kind)), label, glyph, color).Clicked() {
 						a.focusPane(root, pane)
-						if err := a.newAgentSession(kind); err != nil {
+						emptyID := a.activeTab
+						err := a.newAgentSession(kind)
+						if a.activeTab != emptyID && a.isEmptyTab(emptyID) {
+							a.removeWorkspaceTab(emptyID)
+						}
+						if err != nil {
 							a.paneErrors[pane.ID] = err.Error()
 						} else {
 							delete(a.paneErrors, pane.ID)
@@ -127,7 +132,11 @@ func (a *App) emptyPane(c *native.Context) {
 				native.Box(c).FillWidth().Height(1).Background(theme.Border).Margin(0, 16, 0, 58)
 				if emptyPaneAction(c.Key("terminal"), "新建终端", launchTerminalIcon, theme.TextMuted).Clicked() {
 					a.focusPane(root, pane)
+					emptyID := a.activeTab
 					a.newTerminal()
+					if a.isEmptyTab(emptyID) {
+						a.removeWorkspaceTab(emptyID)
+					}
 					delete(a.paneErrors, pane.ID)
 				}
 			})

@@ -198,6 +198,9 @@ func (a *App) loadDiskComparison(source, d *filePage) {
 	})
 }
 func (a *App) tabTitle(tab storage.Tab) string {
+	if tab.Kind == "empty" {
+		return "新标签页"
+	}
 	if tab.Kind == "terminal" {
 		return a.terminalTitle(tab)
 	}
@@ -214,7 +217,7 @@ func (a *App) tabTitle(tab storage.Tab) string {
 	parts := strings.Split(rel, string(filepath.Separator))
 	needed := 1
 	for _, other := range a.tabs {
-		if other.ID == tab.ID || other.Kind == "session" || other.Kind == "terminal" || other.Path == tab.Path && other.Workspace == tab.Workspace {
+		if other.ID == tab.ID || other.Kind == "session" || other.Kind == "terminal" || other.Kind == "empty" || other.Path == tab.Path && other.Workspace == tab.Workspace {
 			continue
 		}
 		otherRel, _ := filepath.Rel(other.Workspace, other.Path)

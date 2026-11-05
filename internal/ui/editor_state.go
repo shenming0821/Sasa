@@ -201,7 +201,7 @@ func (a *App) workspaceCwd() string {
 	if page := a.currentTerminal(); page != nil {
 		return page.root
 	}
-	if a.currentFile() != nil || !a.open || a.activeTab == "" {
+	if a.currentFile() != nil || a.isEmptyTab(a.activeTab) || !a.open || a.activeTab == "" {
 		if a.activeWorkspace != "" {
 			return a.activeWorkspace
 		}

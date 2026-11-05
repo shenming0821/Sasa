@@ -36,7 +36,9 @@ func (a *App) closeCurrentPage() {
 				return
 			}
 		}
-		if page := a.currentTerminal(); page != nil {
+		if a.isEmptyTab(a.activeTab) {
+			a.removeWorkspaceTab(a.activeTab)
+		} else if page := a.currentTerminal(); page != nil {
 			a.closeTerminal(page)
 		} else if page := a.currentFile(); page != nil {
 			a.closeFile(page)
