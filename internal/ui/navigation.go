@@ -151,6 +151,25 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 		}
 		native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).Children(func() {
 			native.Row(c).FillHeight().AlignItems(native.Center).Children(func() {
+				if empty {
+					pane, root := a.renderingPane, a.activeWorkspace
+					native.Row(c.Key("new-tab")).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center).
+						Background(t.Surface).BorderWidth(0, 0, 2, 0).BorderColor(t.TextMuted).Children(func() {
+						button := native.ButtonBase(c).Label("新标签页").Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
+						button.Children(func() {
+							native.Text(c, "新标签页").FontSize(12).TextColor(t.Text).SingleLine()
+						})
+						if button.Clicked() {
+							a.focusPane(root, pane)
+						}
+						close := native.ButtonBase(c).Label("关闭新标签页").Size(24, 24).Radius(8).Padding(6)
+						close.Children(func() { native.Icon(c, tabCloseIcon).Size(13, 13).TextColor(t.TextMuted) })
+						if close.Clicked() {
+							a.focusPane(root, pane)
+							a.closeCurrentPage()
+						}
+					})
+				}
 				for _, tab := range tabs {
 					if tab.Kind == "session" {
 						valid := false

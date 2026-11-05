@@ -51,7 +51,11 @@ func (a *App) workspacePanes(c *native.Context, leftShown, rightShown bool) {
 		if source, ok := native.Drop[paneTabDrag](box); ok {
 			dropped, destination = source, node
 		}
-		if box.FocusWithin() && a.paneNativeFocus == "" || box.Clicked() {
+		clicked := box.Clicked()
+		if clicked {
+			box.Focus()
+		}
+		if box.FocusWithin() && a.paneNativeFocus == "" || clicked {
 			a.focusPane(root, node)
 		}
 		a.paneBounds[node.ID] = box.Bounds()

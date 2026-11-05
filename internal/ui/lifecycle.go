@@ -29,9 +29,12 @@ func (a *App) closeCurrentPage() {
 		a.application().viewerOpen = false
 	default:
 		layout := a.layoutFor(a.activeWorkspace)
-		if pane := focusedPane(layout); pane != nil && len(paneLeaves(layout.Root)) > 1 && len(pane.Tabs) <= 1 {
-			a.paneClosePending = &paneCloseRequest{root: a.activeWorkspace, pane: pane}
-			return
+		if pane := focusedPane(layout); pane != nil {
+			a.setPaneSelection(pane)
+			if len(paneLeaves(layout.Root)) > 1 && len(pane.Tabs) <= 1 {
+				a.paneClosePending = &paneCloseRequest{root: a.activeWorkspace, pane: pane}
+				return
+			}
 		}
 		if page := a.currentTerminal(); page != nil {
 			a.closeTerminal(page)

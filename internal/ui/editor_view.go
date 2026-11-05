@@ -436,26 +436,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 	}
 	t := c.Theme()
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
-		native.Row(c).Height(46).FillWidth().Padding(0, 12).Gap(8).AlignItems(native.Center).Children(func() {
-			if !left {
-				a.sidebarToggle(c, true)
-			}
-			native.Text(c, projectName(d.root)).FontSize(13).Bold()
-			native.Spacer(c)
-			for _, s := range a.sessions {
-				if len(s.State.PendingInteractions()) > 0 {
-					b := actionButton(c, "返回待处理会话")
-					if b.Clicked() {
-						a.selectSession(s)
-					}
-					break
-				}
-			}
-			if !right {
-				a.sidebarToggle(c, false)
-			}
-		})
-		a.sessionTabs(c, true, true)
+		a.sessionTabs(c, left, right)
 		a.fileExitNotice(c)
 		if d.kind == "diff" && d.compare != "外部更改" {
 			a.gitDiffToolbar(c.Key("git-diff-toolbar"), d)
@@ -499,6 +480,14 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					native.Text(c, rel).FontSize(11).TextColor(t.TextMuted).SingleLine()
 				})
 			})
+			for _, s := range a.sessions {
+				if len(s.State.PendingInteractions()) > 0 {
+					if actionButton(c, "返回待处理会话").Clicked() {
+						a.selectSession(s)
+					}
+					break
+				}
+			}
 			copyPath := quietIconButton(c, "复制完整路径").Size(24, 24)
 			copyPath.Children(func() { native.Icon(c, copyIcon).Size(12, 12) })
 			if copyPath.Clicked() && a.win != nil {

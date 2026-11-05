@@ -316,6 +316,9 @@ func TestPaneEmptyContentLayout(t *testing.T) {
 				tester := native.NewTester(a.view, width, 760)
 				tester.SetDark(dark)
 				bounds := a.paneBounds[pane.ID]
+				if !tester.HasText("新标签页") {
+					t.Fatal("empty pane is missing its new tab")
+				}
 				var first native.Rect
 				for index, label := range []string{"新建 Codex 会话", "新建 Claude 会话", "新建终端"} {
 					button, found := tester.Find(label)
@@ -340,6 +343,89 @@ func TestPaneEmptyContentLayout(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestPaneCloseShortcutFollowsBlankAreaFocus(t *testing.T) {
+	for _, useMenu := range []bool{false, true} {
+		t.Run(fmt.Sprintf("menu=%t", useMenu), func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/project", nil)
+			a.dispatch = func(work func()) { work() }
+			leftSession := a.session
+			right := a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+			a.newSession("/project")
+			rightSession := a.session
+			tester := native.NewTester(a.view, 1600, 1000)
+			tester.Frame()
+			leaves := paneLeaves(a.layouts["/project"].Root)
+			leftBounds := a.paneBounds[leaves[0].ID]
+			rightBounds := a.paneBounds[right.ID]
+			tester.ClickAt(leftBounds.X+20, leftBounds.Y+100)
+			tester.Frame()
+			if a.layouts["/project"].Focused != leaves[0].ID {
+				t.Fatalf("left click did not focus pane: left=%+v right=%+v", leftBounds, rightBounds)
+			}
+			tester.ClickAt(rightBounds.X+20, rightBounds.Y+100)
+			tester.Frame()
+			if a.layouts["/project"].Focused != right.ID {
+				t.Fatal("clicking right pane blank area did not retain its focus")
+			}
+			if !tester.Focused("会话面板 " + right.ID) {
+				t.Fatal("blank area click did not move keyboard focus to the right pane")
+			}
+			if useMenu {
+				item := closeMenuItem(t, a)
+				item.Click(item, nil)
+				tester.Frame()
+			} else {
+				tester.Key(native.Cmd, native.KeyW)
+			}
+			if rightSession.open || !leftSession.open || len(paneLeaves(a.layouts["/project"].Root)) != 1 {
+				t.Fatal("close action did not close only the focused right pane")
+			}
+		})
+	}
+}
+
+func TestPaneCloseUsesFocusedTabSelection(t *testing.T) {
+	a := New(stubBackend{}, "test", "/project", nil)
+	leftSession := a.session
+	right := a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+	a.newSession("/project")
+	firstRight := a.session
+	a.newSession("/project")
+	secondRight := a.session
+	a.activeTab, a.session = sessionTabID(leftSession.id), leftSession
+	a.closeCurrentPage()
+	if !leftSession.open || !firstRight.open || secondRight.open || right.Active != sessionTabID(firstRight.id) {
+		t.Fatal("close action used a stale rendered tab instead of the focused pane selection")
+	}
+}
+
+func TestPaneEmptyTabCloseAndContentReplacement(t *testing.T) {
+	a := New(stubBackend{}, "test", "/project", nil)
+	leftSession := a.session
+	a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+	tester := native.NewTester(a.view, 1600, 1000)
+	if err := tester.Click("关闭新标签页"); err != nil {
+		t.Fatal(err)
+	}
+	if len(paneLeaves(a.layouts["/project"].Root)) != 1 || !leftSession.open {
+		t.Fatal("closing empty tab did not preserve the neighboring pane")
+	}
+	a.closeSession(leftSession)
+	tester.Frame()
+	if err := tester.Click("关闭新标签页"); err != nil {
+		t.Fatal(err)
+	}
+	if !tester.HasText("新标签页") || len(paneLeaves(a.layouts["/project"].Root)) != 1 {
+		t.Fatal("closing the final empty tab lost the content picker")
+	}
+	if err := tester.Click("新建 Codex 会话"); err != nil {
+		t.Fatal(err)
+	}
+	if tester.HasText("新标签页") || !a.session.open {
+		t.Fatal("creating content did not replace the empty tab")
 	}
 }
 
