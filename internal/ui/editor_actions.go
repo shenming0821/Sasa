@@ -66,22 +66,43 @@ func (a *App) fileMenu(root, path string, editing, dir bool) func(*native.Menu) 
 	}
 }
 
-// searchInFolder opens the files panel content search scoped to path. The
-// folder is already inside the shown workspace (the tree only offers the item
-// on its own rows).
+// searchInFolder opens the files panel content search with the folder as its
+// include pattern. The folder is already inside the shown workspace (the tree
+// only offers the item on its own rows).
 func (a *App) searchInFolder(root, path string) {
 	w := a.workspace(a.workspaceRoot(root))
 	if !workspace.Contains(w.root, path) {
 		return
 	}
 	w.searchContent = true
-	w.searchScope = ""
-	if path != w.root {
-		w.searchScope = path
+	w.searchInclude = ""
+	if rel, err := filepath.Rel(w.root, path); err == nil && rel != "." {
+		w.searchInclude = "./" + filepath.ToSlash(rel)
 	}
 	w.searchFocus = true
 	a.rightTab = "files"
 	a.historyOpen = true
+}
+
+// renamedSearchInclude keeps a single folder include, as searchInFolder
+// writes it, pointing at the folder after a rename and drops it on delete.
+func renamedSearchInclude(root, include, path, target string) string {
+	rel, ok := strings.CutPrefix(include, "./")
+	if !ok || strings.ContainsAny(rel, "*?[{,") {
+		return include
+	}
+	folder := filepath.Join(root, filepath.FromSlash(rel))
+	if !workspace.Contains(path, folder) {
+		return include
+	}
+	if target == "" {
+		return ""
+	}
+	moved, err := filepath.Rel(root, renamedEditorPath(folder, path, target))
+	if err != nil {
+		return include
+	}
+	return "./" + filepath.ToSlash(moved)
 }
 
 func (a *App) beginFileAction(root, path, kind string) {
@@ -353,12 +374,7 @@ func (a *App) refreshEditorPath(path, target string) {
 		if state.searchCancel != nil {
 			state.searchCancel()
 		}
-		if workspace.Contains(path, state.searchScope) {
-			state.searchScope = ""
-			if target != "" {
-				state.searchScope = renamedEditorPath(state.searchScope, path, target)
-			}
-		}
+		state.searchInclude = renamedSearchInclude(state.root, state.searchInclude, path, target)
 		state.generation++
 		state.searchLoading = false
 		state.searchQuery = ""

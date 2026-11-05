@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -48,50 +49,123 @@ func TestContentSearchScopeSkipsAndTruncates(t *testing.T) {
 	write("node_modules/pkg/x.go", "needle hidden\n")
 	write("binary.bin", "needle\x00inside\n")
 	var many strings.Builder
-	for range 60 {
+	for range 120 {
 		many.WriteString("needle line\n")
 	}
 	write("many.txt", many.String())
 
-	result, err := SearchContent(context.Background(), root, root, "needle")
+	result, err := SearchContent(context.Background(), root, ContentQuery{Text: "needle"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Matches) != 52 || !result.Truncated {
-		t.Fatal("expected 50 capped lines plus 2 note matches and truncation", len(result.Matches), result.Truncated)
+	if len(result.Matches) != 102 || !result.Truncated {
+		t.Fatal("expected 100 capped lines plus 2 note matches and truncation", len(result.Matches), result.Truncated)
 	}
 	byPath := map[string][]ContentMatch{}
 	for _, m := range result.Matches {
 		byPath[m.Path] = append(byPath[m.Path], m)
 	}
-	if len(byPath[filepath.Join(root, "many.txt")]) != 50 || len(byPath[filepath.Join(root, "sub", "note.md")]) != 2 {
+	if len(byPath[filepath.Join(root, "many.txt")]) != 100 || len(byPath[filepath.Join(root, "sub", "note.md")]) != 2 {
 		t.Fatal("matches grouped by path wrong", byPath)
 	}
 	if len(byPath[filepath.Join(root, "binary.bin")]) != 0 || len(byPath[filepath.Join(root, "node_modules", "pkg", "x.go")]) != 0 {
 		t.Fatal("binary or skipped directory leaked matches")
 	}
 	second := byPath[filepath.Join(root, "sub", "note.md")][1]
-	if second.Line != 2 || second.Col != 1 || !strings.Contains(second.Text, "needle 你好 second") {
+	if second.Line != 2 || second.Col != 1 || !strings.Contains(second.Text, "needle 你好 second") || !slices.Equal(second.Ranges, []MatchRange{{0, 6}}) {
 		t.Fatal("match location or preview wrong", second)
 	}
 
-	cjk, err := SearchContent(context.Background(), root, root, "fuyu")
+	cjk, err := SearchContent(context.Background(), root, ContentQuery{Text: "fuyu"})
 	if err != nil || len(cjk.Matches) != 1 {
 		t.Fatal(cjk, err)
 	}
-	if hit := cjk.Matches[0]; hit.Line != 2 || hit.Col != 7 {
+	if hit := cjk.Matches[0]; hit.Line != 2 || hit.Col != 7 || !slices.Equal(hit.Ranges, []MatchRange{{6, 10}}) {
 		t.Fatal("CJK column misaligned", hit)
 	}
 
-	scoped, err := SearchContent(context.Background(), root, filepath.Join(root, "sub"), "needle")
+	scoped, err := SearchContent(context.Background(), root, ContentQuery{Text: "needle", Include: "./sub"})
 	if err != nil || len(scoped.Matches) != 2 || scoped.Truncated {
 		t.Fatal("scoped search wrong", scoped, err)
 	}
-	if _, err := SearchContent(context.Background(), root, filepath.Dir(root), "needle"); err == nil {
-		t.Fatal("search escaped workspace root")
+	if escaped, err := SearchContent(context.Background(), root, ContentQuery{Text: "needle", Include: "./../"}); err != nil || len(escaped.Matches) != 0 {
+		t.Fatal("search escaped workspace root", escaped, err)
 	}
 	if names, err := Search(context.Background(), filepath.Join(root, "sub"), "note"); err != nil || len(names.Entries) != 1 {
 		t.Fatal("scoped filename search wrong", names, err)
+	}
+}
+
+func TestContentSearchOptionsAndGlobs(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel, text string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(text), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("internal/ui/view.go", "Mode mode modeline\n\tx := 0o111 // 111\n")
+	write("internal/ui/view_test.go", "mode\n")
+	write("internal/testdata/fixture.go", "mode\n")
+	write("cmd/main.go", "mode\n")
+	write("README.md", "mode\n")
+	write("node_modules/pkg/index.js", "mode\n")
+	search := func(q ContentQuery) []string {
+		t.Helper()
+		result, err := SearchContent(context.Background(), root, q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		var hits []string
+		for _, m := range result.Matches {
+			hits = append(hits, fmt.Sprintf("%s:%d:%d:%d", filepath.ToSlash(strings.TrimPrefix(m.Path, root+string(filepath.Separator))), m.Line, m.Col, m.Count()))
+		}
+		return hits
+	}
+	want := func(name string, got []string, expected ...string) {
+		t.Helper()
+		if !slices.Equal(got, expected) {
+			t.Fatalf("%s: got %q want %q", name, got, expected)
+		}
+	}
+	want("case insensitive", search(ContentQuery{Text: "mode", Include: "./internal/ui"}), "internal/ui/view.go:1:1:3", "internal/ui/view_test.go:1:1:1")
+	want("match case", search(ContentQuery{Text: "Mode", MatchCase: true, Include: "./internal/ui"}), "internal/ui/view.go:1:1:1")
+	want("whole word", search(ContentQuery{Text: "mode", WholeWord: true, Include: "view.go"}), "internal/ui/view.go:1:1:2")
+	want("regex", search(ContentQuery{Text: `0o?1{3}`, Regex: true, Include: "*.go", Exclude: "*_test.go"}), "internal/ui/view.go:2:7:1")
+	want("unanchored folder glob", search(ContentQuery{Text: "mode", Include: "cmd"}), "cmd/main.go:1:1:1")
+	want("braces and double star", search(ContentQuery{Text: "mode", Include: "./internal/**/*.go", Exclude: "{testdata,ui}"}))
+	want("exclude folder", search(ContentQuery{Text: "mode", Include: "./internal", Exclude: "**/testdata, *_test.go"}), "internal/ui/view.go:1:1:3")
+	want("default skips dependencies", search(ContentQuery{Text: "mode", Include: "*.js"}))
+	want("search ignored", search(ContentQuery{Text: "mode", Include: "*.js", SearchIgnored: true}), "node_modules/pkg/index.js:1:1:1")
+	want("anchored file", search(ContentQuery{Text: "mode", Include: "./README.md"}), "README.md:1:1:1")
+	if _, err := SearchContent(context.Background(), root, ContentQuery{Text: "(", Regex: true}); err == nil || !strings.Contains(err.Error(), "正则表达式无效") {
+		t.Fatal("invalid regex accepted", err)
+	}
+	if _, err := SearchContent(context.Background(), root, ContentQuery{Text: "x", Include: "{a,b"}); err == nil || !strings.Contains(err.Error(), "文件模式无效") {
+		t.Fatal("invalid glob accepted", err)
+	}
+}
+
+func TestMatchPreviewRangesOnLongLines(t *testing.T) {
+	line := "    " + strings.Repeat("中", 300) + "needle" + strings.Repeat("x", 300)
+	start := strings.Index(line, "needle")
+	text, ranges := matchPreview(line, [][]int{{start, start + len("needle")}})
+	runes := []rune(text)
+	if len(ranges) != 1 || string(runes[ranges[0].Start:ranges[0].End]) != "needle" || !strings.HasPrefix(text, "…") || !strings.HasSuffix(text, "…") {
+		t.Fatal("long line preview lost the match", ranges, text)
+	}
+	line = "\t// " + strings.Repeat("word ", 12) + "needle tail"
+	start = strings.Index(line, "needle")
+	text, ranges = matchPreview(line, [][]int{{start, start + len("needle")}})
+	if len(ranges) != 1 || ranges[0].Start != 1+contentSearchPreviewLeadIn || !strings.HasPrefix(text, "…") || !strings.HasSuffix(text, "needle tail") {
+		t.Fatal("narrow panel preview should start shortly before the match", ranges, text)
+	}
+	text, ranges = matchPreview("  short needle", [][]int{{8, 14}})
+	if text != "short needle" || ranges[0] != (MatchRange{6, 12}) {
+		t.Fatal("short line preview changed", ranges, text)
 	}
 }
 

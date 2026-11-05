@@ -105,56 +105,62 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			}
 		}
 	})
-	native.Column(c).FillWidth().Padding(4, 12, 10, 12).Gap(4).Children(func() {
-		native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-			label := "查找文件"
-			if w.searchContent {
-				label = "搜索文件内容"
-			}
-			input := native.TextInput(c, &w.query).Label(label).Placeholder(label).Grow(1).MinWidth(0).FontSize(12)
-			if w.searchFocus {
-				input.Focus()
-				w.searchFocus = false
-			}
-			composing := input.Composing()
-			input.OnTextKey(func(k native.TextKey) bool {
-				if composing {
-					return false
-				}
-				if k.Key == native.KeyEscape {
-					w.query = ""
-					k.SetText("")
-					return true
-				}
-				count := len(w.search.Entries)
+	native.Column(c).FillWidth().Padding(4, 12, 10, 12).Gap(6).Children(func() {
+		native.Row(c).FillWidth().Gap(4).AlignItems(native.Center).Children(func() {
+			searchField(c).Grow(1).Children(func() {
+				label := "查找文件"
 				if w.searchContent {
-					count = len(w.contentSearch.Matches)
+					label = "搜索文件内容"
 				}
-				if k.Key == native.KeyEnter && !w.searchLoading && w.searchKey() == w.searchQuery && count > 0 {
-					index := min(w.searchIndex, count-1)
+				input := native.TextInputBase(c, &w.query).Label(label).Placeholder(label).Grow(1).MinWidth(0).FontSize(12).Padding(4)
+				if w.searchFocus {
+					input.Focus()
+					w.searchFocus = false
+				}
+				composing := input.Composing()
+				input.OnTextKey(func(k native.TextKey) bool {
+					if composing {
+						return false
+					}
+					if k.Key == native.KeyEscape {
+						w.query = ""
+						k.SetText("")
+						return true
+					}
+					count := len(w.search.Entries)
 					if w.searchContent {
-						a.openSearchMatch(w, w.contentSearch.Matches[index])
-					} else {
-						a.openFile(w.root, w.search.Entries[index].Path)
+						count = len(w.contentSearch.Matches)
 					}
-					return true
+					if k.Key == native.KeyEnter && !w.searchLoading && w.searchKey() == w.searchQuery && count > 0 {
+						index := min(w.searchIndex, count-1)
+						if w.searchContent {
+							a.openSearchMatch(w, w.contentSearch.Matches[index])
+						} else {
+							a.openFile(w.root, w.search.Entries[index].Path)
+						}
+						return true
+					}
+					if count > 0 && (k.Key == native.KeyDown || k.Key == native.KeyUp) {
+						delta := 1
+						if k.Key == native.KeyUp {
+							delta = -1
+						}
+						w.searchIndex = (w.searchIndex + delta + count) % count
+						if w.searchContent {
+							revealSearchMatch(w, w.searchIndex)
+						} else {
+							w.selected = w.search.Entries[w.searchIndex].Path
+							w.searchList.ScrollTo(w.searchIndex, native.Center)
+						}
+						return true
+					}
+					return false
+				})
+				if w.searchContent {
+					searchOptionButton(c, "区分大小写", "Aa", &w.searchCase)
+					searchOptionButton(c, "全字匹配", "ab", &w.searchWord)
+					searchOptionButton(c, "使用正则表达式", ".*", &w.searchRegex)
 				}
-				if count > 0 && (k.Key == native.KeyDown || k.Key == native.KeyUp) {
-					delta := 1
-					if k.Key == native.KeyUp {
-						delta = -1
-					}
-					w.searchIndex = (w.searchIndex + delta + count) % count
-					if w.searchContent {
-						w.selected = w.contentSearch.Matches[w.searchIndex].Path
-						w.contentList.ScrollTo(w.searchIndex, native.Center)
-					} else {
-						w.selected = w.search.Entries[w.searchIndex].Path
-						w.searchList.ScrollTo(w.searchIndex, native.Center)
-					}
-					return true
-				}
-				return false
 			})
 			toggle := native.ButtonBase(c).Label("全文搜索").Tooltip("在文件内容中查找").Size(34, 26).Radius(8).TextColor(t.TextMuted)
 			selectedButtonFace(c, toggle, w.searchContent, 8, 0)
@@ -163,27 +169,27 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 				w.searchContent = !w.searchContent
 			}
 		})
-		if w.searchScope != "" {
-			if rel, err := filepath.Rel(w.root, w.searchScope); err == nil && rel != "." {
-				native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-					native.Text(c, "范围："+rel).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
-					clear := quietIconButton(c, "清除搜索范围").Size(18, 18)
-					clear.Children(func() { native.Icon(c, tabCloseIcon).Size(10, 10) })
-					if clear.Clicked() {
-						w.searchScope = ""
-					}
-				})
-			} else {
-				w.searchScope = ""
-			}
+		if w.searchContent {
+			searchField(c).Children(func() {
+				native.TextInputBase(c, &w.searchInclude).Label("包含的文件").Placeholder("包含的文件").
+					Grow(1).MinWidth(0).FontSize(12).Padding(4)
+			})
+			searchField(c).Children(func() {
+				native.TextInputBase(c, &w.searchExclude).Label("排除的文件").Placeholder("排除的文件").
+					Grow(1).MinWidth(0).FontSize(12).Padding(4)
+				label := "使用排除设置和忽略文件"
+				b := native.ButtonBase(c).Label(label).Tooltip(label).Size(20, 20).Radius(4).TextColor(t.TextMuted)
+				selectedButtonFace(c, b, !w.searchIgnored, 4, 0)
+				b.Children(func() { native.Icon(c, searchIgnoreIcon).Size(13, 13) })
+				if b.Clicked() {
+					w.searchIgnored = !w.searchIgnored
+				}
+			})
 		}
 	})
 	a.searchFiles(w)
 	if w.error != "" {
 		native.Text(c, w.error).FontSize(11).TextColor(t.Danger).MaxLines(3).Padding(8, 12)
-	}
-	if w.searchLoading {
-		native.Text(c, "正在查找…").FontSize(11).TextColor(t.TextMuted).Padding(8, 14)
 	}
 	if w.directoryProgress == nil {
 		w.directoryProgress = map[string]float32{}
@@ -206,6 +212,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 	}
 	rows := a.flattenTree(w)
 	var matches []workspace.ContentMatch
+	var resultRows []searchRow
 	list := &w.list
 	listContext := c.Key("file-tree-list")
 	searching := strings.TrimSpace(w.query) != ""
@@ -215,8 +222,11 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			list = &w.contentList
 			listContext = c.Key("file-content-search-list")
 			matches = w.contentSearch.Matches
+			resultRows = contentSearchRows(matches, w.searchCollapsed)
 			if !w.searchLoading && len(matches) == 0 {
 				native.Text(c, "没有匹配的内容").FontSize(12).TextColor(t.TextMuted).Padding(16)
+			} else if len(matches) > 0 {
+				contentSearchSummary(c, w, matches)
 			}
 		} else {
 			list = &w.searchList
@@ -228,7 +238,11 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 				native.Text(c, "没有匹配的文件").FontSize(12).TextColor(t.TextMuted).Padding(16)
 			}
 		}
-		if w.search.Truncated || w.contentSearch.Truncated {
+		truncated := w.search.Truncated
+		if w.searchContent {
+			truncated = w.contentSearch.Truncated
+		}
+		if truncated {
 			native.Text(c, "结果不完整，请缩小搜索范围").FontSize(11).TextColor(t.TextMuted).Padding(8, 12)
 		}
 	}
@@ -247,18 +261,26 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 	}
 	count := len(rows)
 	if searching && w.searchContent {
-		count = len(matches)
+		count = len(resultRows)
 	}
 	list.Key = func(i int) any {
 		if searching && w.searchContent {
-			m := matches[i]
+			r := resultRows[i]
+			if r.match < 0 {
+				return "file\x00" + r.path
+			}
+			m := matches[r.match]
 			return m.Path + "\x00" + fmt.Sprint(m.Line)
 		}
 		return rows[i].Path
 	}
 	native.List(listContext, list, count, func(i int) {
 		if searching && w.searchContent {
-			a.contentMatchRow(c, w, matches[i], i)
+			if r := resultRows[i]; r.match < 0 {
+				a.searchFileRow(c, w, r)
+			} else {
+				a.contentMatchRow(c, w, matches[r.match], r.match)
+			}
 			return
 		}
 		row := rows[i]
@@ -357,7 +379,7 @@ func (a *App) contentMatchRow(c *native.Context, w *workspacePage, m workspace.C
 	t := c.Theme()
 	key := m.Path + "\x00" + fmt.Sprint(m.Line)
 	rc := c.Key(key)
-	b := treeButton(rc, fmt.Sprintf("搜索结果 %s:%d", m.Path, m.Line)).FillWidth().Height(44).Radius(5).Padding(0, 10, 0, 12)
+	b := treeButton(rc, fmt.Sprintf("搜索结果 %s:%d", m.Path, m.Line)).FillWidth().Height(24).Radius(5).Padding(0, 10, 0, 34)
 	if w.rowHandles[key] == nil {
 		w.rowHandles[key] = &native.Handle{}
 	}
@@ -379,25 +401,32 @@ func (a *App) contentMatchRow(c *native.Context, w *workspacePage, m workspace.C
 		default:
 			return false
 		}
-		w.selected, w.searchIndex = w.contentSearch.Matches[next].Path, next
-		w.contentList.ScrollTo(next, native.Center)
+		w.searchIndex = next
+		revealSearchMatch(w, next)
 		return true
 	})
 	if w.searchIndex == i && w.selected == m.Path {
 		b.Background(t.SurfacePressed)
 	}
 	b.Children(func() {
-		rel, _ := filepath.Rel(w.root, m.Path)
-		dir, name := filepath.Split(rel)
-		native.Column(rc).Fill().Justify(native.Center).Gap(2).Children(func() {
-			native.Row(rc).FillWidth().Gap(5).AlignItems(native.Center).Children(func() {
-				native.Text(rc, name).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
-				native.Text(rc, fmt.Sprintf(":%d", m.Line)).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(0)
-				if dir = strings.TrimSuffix(dir, string(filepath.Separator)); dir != "" {
-					native.Text(rc, dir).FontSize(10).TextColor(t.TextMuted.Alpha(.8)).SingleLine().Grow(1).MinWidth(0)
-				}
-			})
-			native.Text(rc, m.Text).FontSize(11).TextColor(t.TextMuted).SingleLine()
+		runes := []rune(m.Text)
+		var spans []native.Span
+		at := 0
+		for _, r := range m.Ranges {
+			if r.Start < at || r.End > len(runes) {
+				continue
+			}
+			if r.Start > at {
+				spans = append(spans, native.Span{Text: string(runes[at:r.Start]), Color: t.TextMuted})
+			}
+			spans = append(spans, native.Span{Text: string(runes[r.Start:r.End]), Color: t.Text, Background: t.Accent.Alpha(.25), Radius: 2})
+			at = r.End
+		}
+		if at < len(runes) {
+			spans = append(spans, native.Span{Text: string(runes[at:]), Color: t.TextMuted})
+		}
+		native.Row(rc).Fill().AlignItems(native.Center).Children(func() {
+			native.RichText(rc, spans...).FontSize(11).SingleLine().Grow(1).MinWidth(0)
 		})
 	})
 	if b.Clicked() {
@@ -408,6 +437,149 @@ func (a *App) contentMatchRow(c *native.Context, w *workspacePage, m workspace.C
 		}
 	}
 }
+
+var searchIgnoreIcon = icon(`<path d="M4 5h16l-6 7.5V18l-4 2v-7.5z"/>`)
+
+// searchRow is one row of the grouped content results: a file heading
+// (match < 0) carrying the file's match count, or a matching line.
+type searchRow struct {
+	path  string
+	match int
+	count int
+}
+
+func contentSearchRows(matches []workspace.ContentMatch, collapsed map[string]bool) []searchRow {
+	var rows []searchRow
+	heading := -1
+	for i, m := range matches {
+		if heading < 0 || rows[heading].path != m.Path {
+			heading = len(rows)
+			rows = append(rows, searchRow{path: m.Path, match: -1})
+		}
+		rows[heading].count += m.Count()
+		if !collapsed[m.Path] {
+			rows = append(rows, searchRow{path: m.Path, match: i})
+		}
+	}
+	return rows
+}
+
+// revealSearchMatch selects match i, expanding its file and scrolling to it.
+func revealSearchMatch(w *workspacePage, i int) {
+	m := w.contentSearch.Matches[i]
+	delete(w.searchCollapsed, m.Path)
+	w.selected = m.Path
+	for row, r := range contentSearchRows(w.contentSearch.Matches, w.searchCollapsed) {
+		if r.match == i {
+			w.contentList.ScrollTo(row, native.Center)
+			break
+		}
+	}
+}
+
+// searchField paints a text-input face around its children so small
+// controls can sit inside the field, like a search box's match toggles.
+func searchField(c *native.Context) native.Element {
+	t := c.Theme()
+	e := native.Row(c).FillWidth().MinWidth(0).Gap(2).AlignItems(native.Center).
+		Padding(2, 4).Radius(t.Radius).Clip().Background(t.Surface)
+	border := t.Border
+	switch {
+	case e.FocusWithin():
+		border = t.Accent
+	case e.Hovered():
+		border = t.Border.Mix(t.Text, 0.25)
+	}
+	e.Border(1, border)
+	return e
+}
+
+func searchOptionButton(c *native.Context, label, glyph string, on *bool) {
+	b := native.ButtonBase(c.Key(label)).Label(label).Tooltip(label).Size(20, 20).Radius(4).TextColor(c.Theme().TextMuted)
+	selectedButtonFace(c, b, *on, 4, 0)
+	b.Children(func() { native.Text(c, glyph).FontSize(11) })
+	if b.Clicked() {
+		*on = !*on
+	}
+}
+
+func contentSearchSummary(c *native.Context, w *workspacePage, matches []workspace.ContentMatch) {
+	t := c.Theme()
+	total, files := 0, 0
+	for i, m := range matches {
+		total += m.Count()
+		if i == 0 || matches[i-1].Path != m.Path {
+			files++
+		}
+	}
+	allCollapsed := len(w.searchCollapsed) > 0
+	for _, m := range matches {
+		if !w.searchCollapsed[m.Path] {
+			allCollapsed = false
+			break
+		}
+	}
+	native.Row(c.Key("content-search-summary")).FillWidth().Height(24).Padding(0, 8, 0, 14).Gap(4).AlignItems(native.Center).Children(func() {
+		native.Text(c, fmt.Sprintf("%d 个结果，位于 %d 个文件", total, files)).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+		label := "全部折叠结果"
+		if allCollapsed {
+			label = "全部展开结果"
+		}
+		b := quietIconButton(c, label).Size(22, 22)
+		b.Children(func() {
+			g := native.Icon(c, chevron).Size(12, 12)
+			if allCollapsed {
+				g.Rotate(-90)
+			}
+		})
+		if b.Clicked() {
+			w.searchCollapsed = nil
+			if !allCollapsed {
+				w.searchCollapsed = map[string]bool{}
+				for _, m := range matches {
+					w.searchCollapsed[m.Path] = true
+				}
+			}
+		}
+	})
+}
+
+func (a *App) searchFileRow(c *native.Context, w *workspacePage, r searchRow) {
+	t := c.Theme()
+	rc := c.Key("file\x00" + r.path)
+	rel, _ := filepath.Rel(w.root, r.path)
+	dir, name := filepath.Split(rel)
+	dir = strings.TrimSuffix(dir, string(filepath.Separator))
+	collapsed := w.searchCollapsed[r.path]
+	label := "折叠 " + rel
+	if collapsed {
+		label = "展开 " + rel
+	}
+	b := treeButton(rc, label).FillWidth().Height(26).Radius(5).Padding(0, 8)
+	b.ContextMenu(a.fileMenu(w.root, r.path, false, false))
+	b.Children(func() {
+		native.Row(rc).Fill().Gap(5).AlignItems(native.Center).Children(func() {
+			g := native.Icon(rc, chevron).Size(12, 12)
+			if collapsed {
+				g.Rotate(-90)
+			}
+			native.Icon(rc, fileIcon).Size(14, 14).TextColor(t.TextMuted)
+			native.Text(rc, name).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+			native.Text(rc, dir).FontSize(10).TextColor(t.TextMuted.Alpha(.8)).SingleLine().Grow(1).MinWidth(0)
+			native.Box(rc.Key("count")).MinWidth(22).Height(18).Padding(0, 5).Radius(9).Background(t.TextMuted.Alpha(.1)).
+				AlignItems(native.Center).Justify(native.Center).Children(func() {
+				native.Text(rc, fmt.Sprint(r.count)).FontSize(10).TextColor(t.TextMuted).SingleLine()
+			})
+		})
+	})
+	if b.Clicked() {
+		if w.searchCollapsed == nil {
+			w.searchCollapsed = map[string]bool{}
+		}
+		w.searchCollapsed[r.path] = !collapsed
+	}
+}
+
 func (a *App) openSearchMatch(w *workspacePage, m workspace.ContentMatch) {
 	a.openFile(w.root, m.Path)
 	if d := a.currentFile(); d != nil && d.root == w.root && d.path == m.Path {

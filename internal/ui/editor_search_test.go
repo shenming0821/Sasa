@@ -24,11 +24,8 @@ func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
 	if err := tt.ChooseMenuItem("在文件夹中搜索"); err != nil {
 		t.Fatal(err)
 	}
-	if !w.searchContent || w.searchScope != dir || !a.historyOpen || a.rightTab != "files" {
-		t.Fatal("folder search did not arm content mode", w.searchContent, w.searchScope)
-	}
-	if !tt.HasText("范围：internal") {
-		t.Fatal("scope chip missing")
+	if !w.searchContent || w.searchInclude != "./internal" || !a.historyOpen || a.rightTab != "files" {
+		t.Fatal("folder search did not arm content mode", w.searchContent, w.searchInclude)
 	}
 	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
@@ -39,8 +36,8 @@ func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
 	if m.Path != filepath.Join(dir, "main.go") || m.Line != 4 || m.Col != 14 {
 		t.Fatal("unexpected match", m)
 	}
-	if !tt.HasText("println(\"你好 Fuyu\")") {
-		t.Fatal("match preview missing")
+	if !tt.HasText("println(\"你好 Fuyu\")") || !tt.HasText("1 个结果，位于 1 个文件") {
+		t.Fatal("match preview or summary missing")
 	}
 	tt.Key(0, native.KeyEnter)
 	p4Wait(t, tt, q, func() bool {
@@ -51,13 +48,8 @@ func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
 	if line := d.buffer.Snapshot().LineAt(d.caret); line != 3 {
 		t.Fatal("match open did not land on the matched line", line)
 	}
-	if err := tt.Click("清除搜索范围"); err != nil {
-		t.Fatal(err)
-	}
+	w.searchInclude = ""
 	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
-	if w.searchScope != "" {
-		t.Fatal("scope clear kept folder restriction")
-	}
 	if err := tt.Click("全文搜索"); err != nil {
 		t.Fatal(err)
 	}
@@ -114,5 +106,87 @@ func TestP4ContentSearchKeyboardAndModeToggle(t *testing.T) {
 	second := w.contentSearch.Matches[1]
 	if a.currentFile().path != second.Path {
 		t.Fatal("Enter opened the wrong match", a.currentFile().path, second.Path)
+	}
+}
+
+func TestP4ContentSearchOptionsGroupsAndCollapse(t *testing.T) {
+	a, q, root := p4App(t)
+	a.historyOpen, a.rightTab = true, "files"
+	w := a.workspace(root)
+	w.searchContent = true
+	tt := native.NewTester(a.view, 1100, 760)
+	p4Wait(t, tt, q, func() bool { return len(w.children[root]) > 0 })
+	if err := tt.Click("搜索文件内容"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("fuyu")
+	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
+	readme := filepath.Join(root, "README.md")
+	if !tt.HasText("2 个结果，位于 2 个文件") || len(contentSearchRows(w.contentSearch.Matches, nil)) != 4 {
+		t.Fatal("grouped results or summary missing")
+	}
+	if err := tt.Click("折叠 README.md"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !w.searchCollapsed[readme] || tt.HasText("# Fuyu") {
+		t.Fatal("file heading did not collapse its matches")
+	}
+	if err := tt.Click("搜索文件内容"); err != nil {
+		t.Fatal(err)
+	}
+	for w.contentSearch.Matches[w.searchIndex].Path != readme {
+		tt.Key(0, native.KeyDown)
+	}
+	if w.searchCollapsed[readme] {
+		t.Fatal("keyboard selection did not expand the collapsed file")
+	}
+	if err := tt.Click("全部折叠结果"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if !tt.HasText("全部展开结果") && !w.searchCollapsed[readme] {
+		t.Fatal("collapse all did not collapse")
+	}
+	if err := tt.Click("区分大小写"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return !w.searchLoading && w.searchQuery == w.searchKey() })
+	if len(w.contentSearch.Matches) != 0 || w.searchCollapsed != nil {
+		t.Fatal("match case did not rerun the search", w.contentSearch.Matches)
+	}
+	w.searchCase = false
+	if err := tt.Click("使用正则表达式"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
+	if err := tt.Click("排除的文件"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("*.md")
+	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 1 })
+	if w.contentSearch.Matches[0].Path != filepath.Join(root, "internal", "main.go") {
+		t.Fatal("exclude pattern kept README", w.contentSearch.Matches)
+	}
+	w.query = "("
+	p4Wait(t, tt, q, func() bool { return !w.searchLoading && w.error != "" })
+	if !tt.HasText("正则表达式无效") {
+		t.Fatal("invalid regex error not shown", w.error)
+	}
+}
+
+func TestRenamedSearchIncludeFollowsFolder(t *testing.T) {
+	root := "/w"
+	if got := renamedSearchInclude(root, "./a/b", "/w/a", "/w/c"); got != "./c/b" {
+		t.Fatal(got)
+	}
+	if got := renamedSearchInclude(root, "./a", "/w/a", ""); got != "" {
+		t.Fatal(got)
+	}
+	if got := renamedSearchInclude(root, "*.go, ./a", "/w/a", "/w/c"); got != "*.go, ./a" {
+		t.Fatal(got)
+	}
+	if got := renamedSearchInclude(root, "./other", "/w/a", "/w/c"); got != "./other" {
+		t.Fatal(got)
 	}
 }

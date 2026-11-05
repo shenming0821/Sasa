@@ -51,7 +51,10 @@ type workspacePage struct {
 	searchQuery                  string
 	searchLoading                bool
 	searchContent                bool
-	searchScope                  string
+	searchInclude, searchExclude string
+	searchCase, searchWord       bool
+	searchRegex, searchIgnored   bool
+	searchCollapsed              map[string]bool
 	searchFocus                  bool
 	searchIndex                  int
 	searchCancel                 context.CancelFunc
@@ -1105,18 +1108,20 @@ func treeAnimationSize(w *workspacePage, path string) int {
 	return count
 }
 
-// searchKey is the identity of the currently wanted search: mode, scope
-// directory (workspace root when unset) and query text.
+func (w *workspacePage) contentQuery() workspace.ContentQuery {
+	return workspace.ContentQuery{
+		Text: w.query, MatchCase: w.searchCase, WholeWord: w.searchWord, Regex: w.searchRegex,
+		Include: w.searchInclude, Exclude: w.searchExclude, SearchIgnored: w.searchIgnored,
+	}
+}
+
+// searchKey is the identity of the currently wanted search: mode, query text
+// and, for content search, its options and file patterns.
 func (w *workspacePage) searchKey() string {
-	scope := w.searchScope
-	if scope == "" {
-		scope = w.root
+	if !w.searchContent {
+		return "files\x00" + w.query
 	}
-	mode := "files"
-	if w.searchContent {
-		mode = "content"
-	}
-	return mode + "\x00" + scope + "\x00" + w.query
+	return fmt.Sprintf("content\x00%#v", w.contentQuery())
 }
 
 func (a *App) searchFiles(w *workspacePage) {
@@ -1124,33 +1129,25 @@ func (a *App) searchFiles(w *workspacePage) {
 	if key == w.searchQuery || !a.canAsync() {
 		return
 	}
-	if scope := w.searchScope; scope != "" {
-		if info, err := os.Lstat(scope); err != nil || !info.IsDir() {
-			w.searchScope = ""
-			key = w.searchKey()
-		}
-	}
 	w.searchQuery = key
 	if w.searchCancel != nil {
 		w.searchCancel()
 		w.searchCancel = nil
 	}
-	w.search = workspace.SearchResult{}
-	w.contentSearch = workspace.ContentSearchResult{}
-	w.searchIndex = 0
 	w.error = ""
 	w.generation++
 	generation := w.generation
 	if strings.TrimSpace(w.query) == "" {
+		w.search = workspace.SearchResult{}
+		w.contentSearch = workspace.ContentSearchResult{}
+		w.searchCollapsed = nil
+		w.searchIndex = 0
 		w.searchLoading = false
 		w.reveal = false
 		return
 	}
 	w.searchLoading = true
-	query, content, scope := w.query, w.searchContent, w.searchScope
-	if scope == "" {
-		scope = w.root
-	}
+	query, content, options := w.query, w.searchContent, w.contentQuery()
 	ctx, cancel := a.projectContext(5 * time.Second)
 	w.searchCancel = cancel
 	a.runBackgroundFileTaskContext(ctx, func() {
@@ -1160,9 +1157,9 @@ func (a *App) searchFiles(w *workspacePage) {
 		err := ctx.Err()
 		if err == nil {
 			if content {
-				matches, err = workspace.SearchContent(ctx, w.root, scope, query)
+				matches, err = workspace.SearchContent(ctx, w.root, options)
 			} else {
-				names, err = workspace.Search(ctx, scope, query)
+				names, err = workspace.Search(ctx, w.root, query)
 			}
 		}
 		a.update(func() {
@@ -1173,6 +1170,8 @@ func (a *App) searchFiles(w *workspacePage) {
 			w.searchCancel = nil
 			w.search = names
 			w.contentSearch = matches
+			w.searchCollapsed = nil
+			w.searchIndex = 0
 			if err != nil {
 				w.error = err.Error()
 			}

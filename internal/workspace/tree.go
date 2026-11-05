@@ -2,7 +2,6 @@
 package workspace
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -12,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"unicode/utf8"
 )
 
 type Entry struct {
@@ -144,11 +142,12 @@ var searchSkipDirs = map[string]bool{"node_modules": true, ".next": true, ".cach
 
 var errSearchLimit = errors.New("workspace search result limit")
 
-// walkEntries visits the entries under dir in tree order, marking ignore state
-// and applying the shared traversal bounds. visit reports whether a directory
-// should be descended into; returning errSearchLimit stops the walk and marks
-// the result truncated.
-func walkEntries(ctx context.Context, root, dir string, visit func(Entry) (bool, error)) (bool, error) {
+// walkEntries visits the entries under dir in tree order, applying the shared
+// traversal bounds. With respectIgnore, Git-ignored entries and common
+// dependency directories are skipped. visit reports whether a directory should
+// be descended into; returning errSearchLimit stops the walk and marks the
+// result truncated.
+func walkEntries(ctx context.Context, root, dir string, respectIgnore bool, visit func(Entry) (bool, error)) (bool, error) {
 	count, bytes := 0, 0
 	truncated := false
 	var walk func(string) error
@@ -157,7 +156,9 @@ func walkEntries(ctx context.Context, root, dir string, visit func(Entry) (bool,
 		if err != nil {
 			return err
 		}
-		MarkIgnored(ctx, root, entries)
+		if respectIgnore {
+			MarkIgnored(ctx, root, entries)
+		}
 		for _, v := range entries {
 			count++
 			bytes += len(v.Path)
@@ -176,7 +177,7 @@ func walkEntries(ctx context.Context, root, dir string, visit func(Entry) (bool,
 				}
 				return err
 			}
-			if v.Dir && descend && !searchSkipDirs[v.Name] {
+			if v.Dir && descend && (!respectIgnore || !searchSkipDirs[v.Name]) {
 				if e := walk(v.Path); e != nil {
 					return e
 				}
@@ -194,7 +195,7 @@ func walkEntries(ctx context.Context, root, dir string, visit func(Entry) (bool,
 func Search(ctx context.Context, root, query string) (SearchResult, error) {
 	var result SearchResult
 	query = strings.ToLower(query)
-	truncated, err := walkEntries(ctx, root, root, func(v Entry) (bool, error) {
+	truncated, err := walkEntries(ctx, root, root, true, func(v Entry) (bool, error) {
 		if v.Dir {
 			return true, nil
 		}
@@ -209,113 +210,4 @@ func Search(ctx context.Context, root, query string) (SearchResult, error) {
 	})
 	result.Truncated = truncated
 	return result, err
-}
-
-const (
-	contentSearchMaxFileBytes  = 4 << 20
-	contentSearchMaxMatches    = 200
-	contentSearchMaxFileMatch  = 50
-	contentSearchPreviewRunes  = 240
-	contentSearchPreviewLeadIn = 60
-)
-
-type ContentMatch struct {
-	Path      string
-	Line, Col int
-	Text      string
-}
-
-type ContentSearchResult struct {
-	Matches   []ContentMatch
-	Truncated bool
-}
-
-// SearchContent scans regular text files under dir for lines containing query
-// (case-insensitive). dir must stay inside root so ignore rules and the tree
-// boundary still apply. Binary files and unsupported encodings are skipped the
-// same way the editor refuses them; oversized or unreadable files mark the
-// result truncated.
-func SearchContent(ctx context.Context, root, dir, query string) (ContentSearchResult, error) {
-	var result ContentSearchResult
-	if !Contains(root, dir) {
-		return result, fmt.Errorf("目录不属于当前工作区")
-	}
-	needle := strings.ToLower(query)
-	truncated, err := walkEntries(ctx, root, dir, func(v Entry) (bool, error) {
-		if v.Dir {
-			return true, nil
-		}
-		if len(result.Matches) >= contentSearchMaxMatches {
-			return false, errSearchLimit
-		}
-		if err := ctx.Err(); err != nil {
-			return false, err
-		}
-		matches, incomplete := searchFileContent(v.Path, needle, min(contentSearchMaxFileMatch, contentSearchMaxMatches-len(result.Matches)))
-		result.Matches = append(result.Matches, matches...)
-		if incomplete {
-			result.Truncated = true
-		}
-		return false, nil
-	})
-	result.Truncated = result.Truncated || truncated
-	return result, err
-}
-
-func searchFileContent(path, needle string, limit int) ([]ContentMatch, bool) {
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() {
-		return nil, err != nil
-	}
-	if info.Size() > contentSearchMaxFileBytes {
-		return nil, true
-	}
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) > contentSearchMaxFileBytes {
-		return nil, true
-	}
-	if bytes.IndexByte(data, 0) >= 0 || !utf8.Valid(data) {
-		return nil, false
-	}
-	var matches []ContentMatch
-	truncated := false
-	lines := strings.Split(string(data), "\n")
-	lowered := strings.Split(strings.ToLower(string(data)), "\n")
-	for i, raw := range lines {
-		offset := strings.Index(lowered[i], needle)
-		if offset < 0 {
-			continue
-		}
-		if len(matches) >= limit {
-			truncated = true
-			break
-		}
-		col := utf8.RuneCountInString(lowered[i][:offset]) + 1
-		matches = append(matches, ContentMatch{Path: path, Line: i + 1, Col: col, Text: matchPreview(raw, col)})
-	}
-	return matches, truncated
-}
-
-// matchPreview keeps the matched line readable: trimmed, capped, and centered
-// on the match when the line is longer than the preview budget.
-func matchPreview(raw string, col int) string {
-	runes := []rune(strings.TrimSpace(raw))
-	if len(runes) <= contentSearchPreviewRunes {
-		return string(runes)
-	}
-	lead := len([]rune(raw)) - len([]rune(strings.TrimLeft(raw, " \t")))
-	match := max(0, col-1-lead)
-	start := max(0, match-contentSearchPreviewLeadIn)
-	if start+contentSearchPreviewRunes > len(runes) {
-		start = len(runes) - contentSearchPreviewRunes
-	}
-	end := min(len(runes), start+contentSearchPreviewRunes)
-	text := string(runes[start:end])
-	if start > 0 {
-		text = "…" + text
-	}
-	if end < len(runes) {
-		text += "…"
-	}
-	return text
 }

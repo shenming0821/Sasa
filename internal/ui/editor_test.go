@@ -950,8 +950,8 @@ func TestP4SearchPreservesTreeScrollAndRejectsOldRows(t *testing.T) {
 	tt.Frame()
 	w.query = "different-query"
 	a.searchFiles(w)
-	if len(w.search.Entries) != 0 || !w.searchLoading {
-		t.Fatal("old search result remains actionable")
+	if len(w.search.Entries) != 1 || !w.searchLoading {
+		t.Fatal("issuing a search did not keep the previous results visible")
 	}
 	if err := tt.Click("查找文件"); err != nil {
 		t.Fatal(err)
