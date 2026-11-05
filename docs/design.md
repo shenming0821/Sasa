@@ -4,7 +4,6 @@
 > 当前交付目标：Codex / Claude Code 原生 UI 交互
 > 原始方案：`/Users/shenming/Downloads/Fuyu 设计文档v2.0.md`  
 > 参考源码与核验边界：[参考项目核验](reference-verification.md)  
-> 实施顺序、验收与接续状态：[实施计划](implementation-plan.md)
 
 ## 1. 当前产品范围
 
@@ -12,7 +11,7 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提�
 
 本机提供正式版与 Preview 两个渠道，使用独立应用标识、应用数据及 Agent 历史根。日常构建生成带构建 ID 的 Preview 候选，验收后从该候选晋升正式版，保留正式版自己的会话、草稿与设置。替换前正常退出、备份应用与应用数据；启动失败时恢复升级前状态。当前通过本机脚本完成发布，渠道边界、回退规则与验收见[双渠道与发布](subsystems/releases.md)。
 
-当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)推进，原有验收边界保留。当前入口注册独立的 Codex/Claude 后端，使用 P6.1 应用 Agent 契约路由。Claude adapter 和 Agent 入口已实现，完整验收状态见实施计划；协议差异及恢复边界见 [Claude 运行时](subsystems/claude-runtime.md)。
+当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)推进，原有验收边界保留。当前入口注册独立的 Codex/Claude 后端，使用 P6.1 应用 Agent 契约路由。Claude adapter 和 Agent 入口已实现，验收记录见 [P6 验证](verification/2026-10-28-p6-agent.md)；协议差异及恢复边界见 [Claude 运行时](subsystems/claude-runtime.md)。
 
 会话视图使用单行标签栏，行尾并排提供 Codex 和 Claude Code 新建图标，替代通用新会话按钮；上方目录工具栏已移除。新建图标为 16 px，会话页签标题前显示所属 Agent 的 12 px 图标，以图标替代 Claude 文字前缀；文件与差异页签保留自身图标。悬停新建图标提示对应动作。点击任一图标均在当前目录创建对应 Agent 的独立空白会话，并聚焦输入框；即使选择与当前相同的 Agent，也创建新会话。原会话的文字/图片草稿、模型、上下文与运行中任务保留。输入区保留模型选择。连接不可用时显示具体错误并保留当前会话。新建会话记住最近选择，历史使用自身保存的 Agent，后台完成不改变当前焦点。运行详情展示原生确认的实际模型、版本和权限。
 
@@ -40,7 +39,7 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提�
 
 | 能力 | 安排 |
 |---|---|
-| Claude Code 与 Agent 抽象 | P6.1～P6.3 已实现，P6.0/P6.4 完整验收按实施计划推进；OpenCode 另行规划 |
+| Claude Code 与 Agent 抽象 | P6.1～P6.3 已实现，验收覆盖见 [P6 验证](verification/2026-10-28-p6-agent.md)；OpenCode 另行规划 |
 | Repository / Worktree 自动发现和管理 | 已实现本地导入、发现、会话导航及右键新建分支工作区；删除另行确认 |
 | 文件树、轻量文件编辑、Git 状态与只读 Diff | 按 [P4 设计](p4-editor-design.md)实现中；组件验收通过，原生交互待验收 |
 | 暂存、提交、远程、历史 Diff、分支与冲突 | 用户于 2026-10-26 授权扩展，约定及验收见 [Git 工作流](git-workflow-design.md) |
@@ -273,7 +272,7 @@ P3 后按用户确认参考 Orca 整理导航层级。沿用现有 MyGo 原生�
 
 每次完成一个步骤的实际验收和问题修复，再推进下一步。P1 把原生窗口和真实 Runtime 尽早连起来；P3 完成后形成 Codex 日常使用版本。后续开发范围待用户重新确认；Repository / Worktree 导航、完整文件浏览与 Commit Graph 在明确范围后另行规划。
 
-具体待办、证据要求和中断接续入口统一维护在[实施计划](implementation-plan.md)，本节只保留阶段概览。P1 已完成当前环境的任务闭环与原生交互验收；P2 已实现工具状态、命令输出、四类原生交互和有界缓存，实际验收覆盖见 [P2 记录](verification/2026-10-22-p2.md)。当前接口、状态、容量与失败处理见[运行时子系统](subsystems/codex-runtime.md)。
+本节保留阶段概览，任务范围以用户当前要求为准，实际验收见对应验证记录。P1 已完成当前环境的任务闭环与原生交互验收；P2 已实现工具状态、命令输出、四类原生交互和有界缓存，实际验收覆盖见 [P2 记录](verification/2026-10-22-p2.md)。当前接口、状态、容量与失败处理见[运行时子系统](subsystems/codex-runtime.md)。
 
 2026-10-22 用户确认参考其提供的 ChatGPT 窗口截图，P1 界面按以下约定实现：
 
@@ -315,7 +314,6 @@ internal/storage/       # P3 引入
 docs/
   README.md
   design.md
-  implementation-plan.md
   reference-verification.md
 ```
 

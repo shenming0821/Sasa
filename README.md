@@ -2,7 +2,7 @@
 
 Fuyu 是面向编程 Agent 的原生桌面工作台，采用 Go + MyGo Native UI，优先支持 macOS。
 
-在桌面窗口中选择工作目录与 Agent、连续对话、查看执行过程、处理交互并审查代码修改，复用各 Agent 的原生 Runtime。当前工作区正在完成 Claude Code 接入，已实现 Codex / Claude Code 会话入口，验收状态见实施计划。
+在桌面窗口中选择工作目录与 Agent、连续对话、查看执行过程、处理交互并审查代码修改，复用各 Agent 的原生 Runtime。当前工作区正在完成 Claude Code 接入，已实现 Codex / Claude Code 会话入口，验收与支持边界见相关子系统说明及验证记录。
 
 ## 项目状态
 
@@ -28,7 +28,6 @@ bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 ## 文档
 
 - [文档入口](docs/README.md)：设计与实施资料索引。
-- [实施计划](docs/implementation-plan.md)：当前进度、阶段验收与接续点。
 - [开发指南](docs/development.md)：环境准备、验证要求和命令状态。
 - [贡献指南](CONTRIBUTING.md)：变更范围、审核和提交约定。
 - [Agent 工作指南](AGENTS.md)：编码 Agent 的仓库入口。

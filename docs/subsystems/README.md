@@ -8,7 +8,7 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 |---|---|---|---|
 | 项目管理 | 本地仓库导入、Git worktree 发现、分支和会话导航 | `internal/project/`、`internal/ui/projects.go` | [项目管理](projects.md) |
 | 文件与编辑器 | 文件树、编辑保存、草稿恢复、Git 差异和显式工作流操作 | `internal/editor/`、`internal/workspace/`、`internal/git/`、`internal/ui/editor_*.go`、`internal/ui/git_*.go` | [文件、编辑器与 Git](editor.md)、[Git 工作流](../git-workflow-design.md) |
-| 原生 UI | 会话侧栏、消息、输入、状态和交互入口；会话绑定的异步派发 | `internal/ui/` | [会话管理](sessions.md)、[本轮文件变更](turn-changes.md)、[实施计划](../implementation-plan.md) |
+| 原生 UI | 会话侧栏、消息、输入、状态和交互入口；会话绑定的异步派发 | `internal/ui/` | [会话管理](sessions.md)、[本轮文件变更](turn-changes.md) |
 | 主窗口分屏 | 按目录保存的嵌套布局、面板页签、焦点与终端可见性 | `internal/ui/panes.go`、`internal/ui/panes_view.go` | [会话管理](sessions.md#主内容区分屏)、[分屏验证](../verification/2026-11-03-split-panes.md) |
 | 图片附件 | 图片导入、私有副本、草稿、发送、历史恢复及预览 | `internal/attachment/`、`internal/ui/images.go` | [图片附件](attachments.md) |
 | 应用状态 | thread/turn 投影、活动会话与用户动作协调 | `internal/app/` | [设计](../design.md) |
@@ -17,7 +17,7 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 | Claude 客户端 | stream-json 控制协议、单轮进程、审批、问答与自有会话恢复 | `internal/claude/` | [Claude 运行时](claude-runtime.md) |
 | 进程管理 | 自有 App Server 启停、cwd、退出检测与取消 | `internal/runtime/` | [生命周期设计](../design.md) |
 | 原生终端 | 当前工作区终端标签、Ghostty AppKit/Metal 视图、本机配置、PTY 与进程生命周期 | `internal/terminal/`、`internal/ui/terminal.go`、`scripts/prepare-ghostty.py` | [设计](../design.md)、[终端验证](../verification/2026-11-01-terminal.md) |
-| 存储与恢复 | 应用索引、界面状态与原生历史核验，P3 引入 | `internal/storage/` | [存储与恢复](storage.md)、[P3 计划](../implementation-plan.md) |
+| 存储与恢复 | 应用索引、界面状态与原生历史核验，P3 引入 | `internal/storage/` | [存储与恢复](storage.md) |
 | 双渠道与发布 | Preview 候选构建、渠道数据隔离、正式版晋升和恢复 | `internal/release/`、`scripts/release.py` | [双渠道与发布](releases.md) |
 
 ## 何时建立专项文档
@@ -33,7 +33,7 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 
 技能目录共享缓存、延迟保存、自适应后台维护、消息投影和文件事件合并见[使用性能与后台维护](performance.md)。
 
-计划中的变化放在实施计划或设计方案，当前行为根据实际实现维护。
+计划中的变化放在对应设计方案，当前行为根据实际实现维护。
 
 ## 修改与审核
 
@@ -43,4 +43,4 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 
 应用级外观、字体与完成通知见[设置与完成通知](settings.md)。
 
-P6.1 抽象、Claude adapter 与 Agent 选择入口已实现于工作区；完整 race、真实双 Agent 并行、子代理/后台工具和前后台 Bash 停止已通过。用户重新授权后的原生文件审批、拒绝反馈、多选问答、模型选择、Agent 切换、手动压缩续聊和停止已取得证据；流式停止后的历史中断标记修复见 P6 验证记录。当前状态与覆盖边界以实施计划接续点和 P6 验证记录为准。
+P6.1 抽象、Claude adapter 与 Agent 选择入口已实现于工作区；完整 race、真实双 Agent 并行、子代理/后台工具和前后台 Bash 停止已通过。用户重新授权后的原生文件审批、拒绝反馈、多选问答、模型选择、Agent 切换、手动压缩续聊和停止已取得证据；流式停止后的历史中断标记修复见 P6 验证记录。覆盖边界见 [P6 验证记录](../verification/2026-10-28-p6-agent.md)。
