@@ -1,4 +1,5 @@
 import importlib.util
+from contextlib import closing
 from pathlib import Path
 import plistlib
 import sqlite3
@@ -75,6 +76,26 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
         with (self.app / 'Contents/Info.plist').open('rb') as handle:
             self.assertEqual(plistlib.load(handle)['CFBundleIdentifier'], 'com.shenming.fuyu')
+
+    def test_snapshot_checkpointed_wal_without_sidecars(self):
+        data = self.root / 'closed-wal-data'
+        data.mkdir()
+        path = data / 'fuyu.db'
+        with closing(sqlite3.connect(path)) as connection:
+            connection.execute('PRAGMA journal_mode=WAL')
+            connection.execute('CREATE TABLE sample(value TEXT)')
+            connection.execute('INSERT INTO sample VALUES("checkpointed")')
+            connection.commit()
+            connection.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+        for suffix in ['-wal', '-shm']:
+            sidecar = Path(str(path) + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        backup = self.root / 'closed-wal-backup'
+        release.snapshot_data(data, backup)
+        with closing(sqlite3.connect(backup / 'fuyu.db')) as connection:
+            self.assertEqual(connection.execute('PRAGMA quick_check').fetchone()[0], 'ok')
+            self.assertEqual(connection.execute('SELECT value FROM sample').fetchone()[0], 'checkpointed')
 
     def test_changed_candidate_is_rejected_before_stopping_stable(self):
         (self.source / release.EXECUTABLE).write_bytes(b'untested')

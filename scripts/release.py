@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import argparse
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 import ctypes
 from datetime import datetime, timezone
 import fcntl
@@ -285,8 +285,9 @@ def snapshot_data(data, backup):
             shutil.copy2(source, backup / source.name)
     database = data / 'fuyu.db'
     if database.exists():
-        with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as source:
-            with sqlite3.connect(backup / 'fuyu.db') as target:
+        with closing(sqlite3.connect(database.as_uri() + '?mode=rw', uri=True)) as source:
+            source.execute('PRAGMA query_only=ON')
+            with closing(sqlite3.connect(backup / 'fuyu.db')) as target:
                 source.backup(target)
                 if target.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
                     raise RuntimeError('数据库备份校验失败。')
@@ -435,7 +436,8 @@ def rollback(app, data, timeout, restore=False, platform=None):
             versions = []
             for database in [before_db, current_db]:
                 if database.exists():
-                    with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as connection:
+                    with closing(sqlite3.connect(database.as_uri() + '?mode=rw', uri=True)) as connection:
+                        connection.execute('PRAGMA query_only=ON')
                         versions.append(connection.execute('PRAGMA user_version').fetchone()[0])
                 else:
                     versions.append(0)

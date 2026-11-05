@@ -22,7 +22,13 @@
 - 晋升前后移除签名的程序 SHA-256 均为 `6091f24f90b12f19b76c813fcd3ba2ebb993f7773c090cdbb1d9a9a0e0027dfb`，验证未重新编译功能程序。真实恢复资料保留于上述测试目录的 `.Fuyu-releases/`。
 - 原生测试发现旧版不响应 `NSRunningApplication.terminate`，⌘Q 可正常退出。因此新版增加私有 Unix socket 正常退出通道；旧正式版首次迁移可能需要用户先按 ⌘Q，脚本超时保留现场。
 
-## 未验收与后续
+## 2026-11-05：真实数据备份的 WAL 兼容修复
+
+用户授权正式发布时，旧正式版正常退出后的数据库只有已 checkpoint 的 `fuyu.db`，没有 `-wal`/`-shm`。本机 `/usr/bin/python3` 使用的 SQLite 3.54.0 对该状态以 `mode=ro` 查询或备份会报 `unable to open database file`；以 `mode=rw` 打开并设置 `PRAGMA query_only=ON` 可正常读取并校验。与路径空格无关；隔离临时 WAL 数据库同样可复现。
+
+新增 `test_snapshot_checkpointed_wal_without_sidecars`，先提交并截断 WAL、关闭数据库，再移除临时数据库的辅助文件，验证备份内容和 `quick_check`；旧实现失败，修复后通过。备份与回退版本读取改为在已有数据锁内使用 `mode=rw` 加 SQL 只读约束，并明确关闭所有相关连接。`python3 -B -m unittest discover -s scripts -p 'test_release.py'` 的 11 项回归全部通过，包含冷 WAL、备份与失败恢复、两种回退。真实发布使用同一备份路径继续核验。
+
+## 前轮未验收与后续
 
 - 正式版真实用户数据晋升须在 Preview 验收通过后由用户要求发布。
 - Codex/Claude 真实模型请求、钥匙串登录与跨构建局域网权限尚未验收；配置与原生历史隔离的自动检查不替代这些验收。

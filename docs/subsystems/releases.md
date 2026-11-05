@@ -69,6 +69,8 @@ Preview 首次启动从现有环境配置根复制 Codex 的 `config.toml`、`au
 
 ## 验证入口
 
+备份与回退核验数据库时，在应用数据锁内以 `mode=rw` 打开已存在的数据库，并设置 `PRAGMA query_only=ON` 限制 SQL 写入；允许 SQLite 为已退出应用的 WAL 数据库重建所需辅助文件。备份源、目标及版本检查连接在操作结束时明确关闭，避免连接跨恢复步骤持有旧文件。相关冷启动 WAL 回归见[双渠道验证](../verification/2026-11-05-preview-release.md)。
+
 ```sh
 python3 -B -m unittest discover -s scripts -p 'test_release.py'
 ./scripts/go test ./internal/release ./internal/ui
