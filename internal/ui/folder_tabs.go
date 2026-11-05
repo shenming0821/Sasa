@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"slices"
+
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
@@ -49,16 +51,23 @@ func (a *App) refreshFolderSelection() {
 	a.selectWorkspace(a.activeWorkspace)
 }
 
-// openWorkspacePicker selects the folder without choosing a tab, so a pane
-// with no tabs keeps its content picker instead of the last-used agent.
+// openWorkspacePicker selects the folder and opens an empty tab when the
+// focused pane has no tabs, so the pane shows its content picker instead of
+// the last-used agent.
 func (a *App) openWorkspacePicker(root string) {
 	a.selectWorkspace(root)
-	a.setPaneSelection(focusedPane(a.layoutFor(a.activeWorkspace)))
+	pane := focusedPane(a.layoutFor(a.activeWorkspace))
+	if len(pane.Tabs) == 0 {
+		a.newEmptyTab(a.activeWorkspace, pane)
+		return
+	}
+	a.setPaneSelection(pane)
 }
 
 func (a *App) restoreFolderTab(root string) bool {
 	if layout, exists := a.layouts[root]; exists && len(paneLeaves(layout.Root)) > 1 {
-		a.openWorkspacePicker(root)
+		a.selectWorkspace(root)
+		a.setPaneSelection(focusedPane(a.layoutFor(a.activeWorkspace)))
 		return true
 	}
 	tabs := a.folderTabs(root)
@@ -100,7 +109,7 @@ func (a *App) selectAfterTabClose(id string, previous []storage.Tab) {
 }
 
 func (a *App) folderTabIndicator(c *native.Context, root string, left float32) {
-	active := len(a.folderTabs(root)) > 0
+	active := slices.ContainsFunc(a.folderTabs(root), func(tab storage.Tab) bool { return tab.Kind != "empty" })
 	native.Box(c.Key("folder-tabs-indicator")).Absolute().Left(left).Top(0).Bottom(0).Width(8).AlignItems(native.Center).Justify(native.Center).Children(func() {
 		if active {
 			native.Box(c).Label("有打开的页签 "+root).Size(6, 6).Radius(3).Background(c.Theme().Success)

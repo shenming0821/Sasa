@@ -62,7 +62,7 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 			switch tab.Kind {
 			case "session":
 				for _, s := range a.sessions {
-					if s.id == tab.SessionID {
+					if s.id == tab.SessionID && !s.isBlankUnbound() {
 						s.open = true
 						a.tabs = append(a.tabs, tab)
 						if tab.ID == snapshot.ActiveTabID {

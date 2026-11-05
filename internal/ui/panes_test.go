@@ -222,7 +222,7 @@ func TestPaneMenusCreateAgentsAndRouteInput(t *testing.T) {
 			if err := tester.ChooseMenuItem("左右分屏"); err != nil {
 				t.Fatal(err, tester.Menu())
 			}
-			if err := tester.Click("新建 Claude 会话"); err != nil {
+			if err := tester.Click("Claude Code"); err != nil {
 				t.Fatal(err)
 			}
 			rightSession := a.session
@@ -316,11 +316,11 @@ func TestPaneEmptyContentLayout(t *testing.T) {
 				tester := native.NewTester(a.view, width, 760)
 				tester.SetDark(dark)
 				bounds := a.paneBounds[pane.ID]
-				if !tester.HasText("新标签页") {
-					t.Fatal("empty pane is missing its new tab")
+				if !tester.HasText("新标签页") || !tester.HasText("project") {
+					t.Fatal("empty pane is missing its new tab or folder name")
 				}
 				var first native.Rect
-				for index, label := range []string{"新建 Codex 会话", "新建 Claude 会话", "新建终端"} {
+				for index, label := range []string{"Codex", "Claude Code", "终端"} {
 					button, found := tester.Find(label)
 					if !found || button.W < 240 || button.H != 56 || button.X < bounds.X || button.X+button.W > bounds.X+bounds.W {
 						t.Fatalf("%s is missing or clipped: button=%+v pane=%+v", label, button, bounds)
@@ -405,9 +405,9 @@ func TestPaneCloseUsesFocusedTabSelection(t *testing.T) {
 func TestPaneEmptyTabCloseAndContentReplacement(t *testing.T) {
 	a := New(stubBackend{}, "test", "/project", nil)
 	leftSession := a.session
-	a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+	right := a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
 	tester := native.NewTester(a.view, 1600, 1000)
-	if err := tester.Click("关闭新标签页"); err != nil {
+	if err := tester.Click("关闭新标签页 " + right.Active); err != nil {
 		t.Fatal(err)
 	}
 	if len(paneLeaves(a.layouts["/project"].Root)) != 1 || !leftSession.open {
@@ -415,13 +415,22 @@ func TestPaneEmptyTabCloseAndContentReplacement(t *testing.T) {
 	}
 	a.closeSession(leftSession)
 	tester.Frame()
-	if err := tester.Click("关闭新标签页"); err != nil {
+	if tester.HasText("新标签页") || tester.HasText("选择面板内容") || tester.HasText("从一个清晰的任务开始") {
+		t.Fatal("closing the last tab did not leave a blank page")
+	}
+	pane := focusedPane(a.layoutFor("/project"))
+	doubleClickTabBlank(t, tester, pane.ID)
+	if !tester.HasText("新标签页") || !tester.HasText("选择面板内容") {
+		t.Fatal("double click did not open an empty tab")
+	}
+	if err := tester.Click("关闭新标签页 " + a.activeTab); err != nil {
 		t.Fatal(err)
 	}
-	if !tester.HasText("新标签页") || len(paneLeaves(a.layouts["/project"].Root)) != 1 {
-		t.Fatal("closing the final empty tab lost the content picker")
+	if tester.HasText("新标签页") || tester.HasText("选择面板内容") || len(paneLeaves(a.layouts["/project"].Root)) != 1 {
+		t.Fatal("closing the final empty tab did not return to the blank page")
 	}
-	if err := tester.Click("新建 Codex 会话"); err != nil {
+	doubleClickTabBlank(t, tester, pane.ID)
+	if err := tester.Click("Codex"); err != nil {
 		t.Fatal(err)
 	}
 	if tester.HasText("选择面板内容") || a.activeTab != sessionTabID(a.session.id) || !a.session.open {
@@ -433,16 +442,16 @@ func TestPaneEmptyContentCreationFailureAndRetry(t *testing.T) {
 	a := New(stubBackend{}, "test", "/project", nil)
 	pane := a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
 	tester := native.NewTester(a.view, 1200, 760)
-	if err := tester.Click("新建 Claude 会话"); err != nil {
+	if err := tester.Click("Claude Code"); err != nil {
 		t.Fatal(err)
 	}
-	if pane.Active != "" || a.paneErrors[pane.ID] == "" || !tester.HasText(a.paneErrors[pane.ID]) || len(a.sessions) != 1 {
+	if !a.isEmptyTab(pane.Active) || a.paneErrors[pane.ID] == "" || !tester.HasText(a.paneErrors[pane.ID]) || len(a.sessions) != 1 {
 		t.Fatal("creation failure lost the empty pane or error")
 	}
 	if err := a.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("新建 Claude 会话"); err != nil {
+	if err := tester.Click("Claude Code"); err != nil {
 		t.Fatal(err)
 	}
 	if a.session.kind != agent.Claude || a.session.State.Cwd != "/project" || a.paneErrors[pane.ID] != "" || pane.Active != sessionTabID(a.session.id) {
@@ -677,7 +686,16 @@ func TestPaneDividerDragAndKeyboardResize(t *testing.T) {
 	leaves := paneLeaves(layout.Root)
 	leftBounds := a.paneBounds[leaves[0].ID]
 	dividerX, dividerY := leftBounds.X+leftBounds.W+.5, leftBounds.Y+100
+	tester.Move(10, 10)
+	idle := tester.Image().RGBAAt(int(dividerX), int(dividerY))
+	tester.Move(dividerX, dividerY)
+	if tester.Image().RGBAAt(int(dividerX), int(dividerY)) != idle {
+		t.Fatal("pane divider highlighted on hover")
+	}
 	tester.Press(dividerX, dividerY)
+	if tester.Image().RGBAAt(int(dividerX), int(dividerY)) != idle {
+		t.Fatal("pane divider highlighted while held")
+	}
 	tester.Move(dividerX+100, dividerY)
 	tester.Release(dividerX+100, dividerY)
 	tester.Frame()

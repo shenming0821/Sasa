@@ -73,14 +73,10 @@ func TestAgentSessionUnavailablePreservesCurrentSession(t *testing.T) {
 			original := a.session
 			count := len(a.sessions)
 			tester := native.NewTester(a.view, 1000, 760)
-			label := "新建 Codex 会话"
-			if kind == agent.Claude {
-				label = "新建 Claude 会话"
-			}
-			if err := tester.Click(label); err != nil {
+			if err := tester.Click("使用 " + kind.String() + " 新建会话"); err != nil {
 				t.Fatal(err)
 			}
-			if a.session != original || len(a.sessions) != count || a.State.Draft != "preserve draft" || a.paneErrors[a.layouts[a.activeWorkspace].Focused] != "CLI missing" || a.defaultAgent.Normalized() != agent.Codex {
+			if a.session != original || len(a.sessions) != count || a.State.Draft != "preserve draft" || a.modelError != "CLI missing" || a.defaultAgent.Normalized() != agent.Codex {
 				t.Fatal("unavailable Agent changed the session or hid the failure")
 			}
 			if !tester.HasText("CLI missing") {
@@ -101,7 +97,7 @@ func TestAgentSessionButtonsUseEmptyWorkspaceDirectory(t *testing.T) {
 	a.activeWorkspace = t.TempDir()
 	cwd := a.activeWorkspace
 	tester := native.NewTester(a.view, 1000, 760)
-	if err := tester.Click("新建 Claude 会话"); err != nil {
+	if err := tester.Click("使用 Claude Code 新建会话"); err != nil {
 		t.Fatal(err)
 	}
 	if a.session == original || a.State.Cwd != cwd || a.kind != agent.Claude || original.open || original.State.Draft != "closed draft" {

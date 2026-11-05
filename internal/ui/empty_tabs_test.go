@@ -70,9 +70,14 @@ func TestTabBlankDoubleClickPreservesImplicitEmptyTabAndRestores(t *testing.T) {
 	a.closeSession(a.session)
 	pane := focusedPane(a.layoutFor("/project"))
 	tester := native.NewTester(a.view, 1400, 900)
+	tester.Frame()
+	if tester.HasText("新标签页") || tester.HasText("选择面板内容") || tester.HasText("从一个清晰的任务开始") {
+		t.Fatal("closing the last tab did not show a blank page")
+	}
+	doubleClickTabBlank(t, tester, pane.ID)
 	doubleClickTabBlank(t, tester, pane.ID)
 	if len(a.tabs) != 2 || len(pane.Tabs) != 2 || !a.isEmptyTab(pane.Active) {
-		t.Fatal("double click replaced the existing implicit empty tab")
+		t.Fatal("double click did not create and select empty tabs")
 	}
 	selected := a.activeTab
 	if err := a.persist(); err != nil {
@@ -96,7 +101,7 @@ func TestTabBlankDoubleClickPreservesImplicitEmptyTabAndRestores(t *testing.T) {
 }
 
 func TestEmptyTabContentCreationReplacesSelectedTab(t *testing.T) {
-	for _, label := range []string{"新建 Codex 会话", "新建 Claude 会话", "新建终端"} {
+	for _, label := range []string{"Codex", "Claude Code", "终端"} {
 		t.Run(label, func(t *testing.T) {
 			a := New(stubBackend{}, "test", "/background", nil)
 			if err := a.RegisterBackend(agent.Claude, "/claude", &modelCaptureBackend{}); err != nil {
@@ -105,6 +110,7 @@ func TestEmptyTabContentCreationReplacesSelectedTab(t *testing.T) {
 			a.terminalFactory = func(string) (terminalConnection, error) { return &testTerminal{}, nil }
 			t.Cleanup(a.closeWorkspaceResources)
 			pane := focusedPane(a.layoutFor("/project"))
+			a.newEmptyTab("/project", pane)
 			a.newEmptyTab("/project", pane)
 			emptyID := a.activeTab
 			tester := native.NewTester(a.view, 1400, 900)
@@ -143,5 +149,44 @@ func TestTabBlankDoubleClickPreservesFileAndTerminal(t *testing.T) {
 	doubleClickTabBlank(t, tester, pane.ID)
 	if a.files[document.id] != document || a.terminals[terminal.id] != terminal || terminal.connection.Exited() || !slices.Contains(pane.Tabs, document.id) || !slices.Contains(pane.Tabs, terminal.id) {
 		t.Fatal("new empty tab closed a file or terminal")
+	}
+}
+
+func TestClosingLastTabNeverFallsBackToUnboundSessionOrPicker(t *testing.T) {
+	a := New(stubBackend{}, "test", "", nil)
+	store := imageStore(t, a)
+	tester := native.NewTester(a.view, 1200, 800)
+	tester.Frame()
+	if a.open || len(a.tabs) != 0 || tester.HasText("从一个清晰的任务开始") || tester.HasText("选择面板内容") || tester.HasText("新标签页") {
+		t.Fatal("fresh launch without cwd opened an unbound session or picker")
+	}
+	a.newSession("/project")
+	projectSession := a.session
+	tester.Frame()
+	if !projectSession.open || a.activeWorkspace != "/project" || !tester.HasText("从一个清晰的任务开始") {
+		t.Fatal("project session did not open")
+	}
+	a.closeSession(projectSession)
+	tester.Frame()
+	if a.open || a.activeTab != "" || tester.HasText("从一个清晰的任务开始") || tester.HasText("选择面板内容") || tester.HasText("新标签页") {
+		t.Fatal("closing the only tab did not leave a completely blank page")
+	}
+	if err := a.persist(); err != nil {
+		t.Fatal(err)
+	}
+	restored := New(stubBackend{}, "test", "", nil)
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	restoredTester := native.NewTester(restored.view, 1200, 800)
+	restoredTester.Frame()
+	if restored.open || len(restored.tabs) != 0 || restoredTester.HasText("从一个清晰的任务开始") || restoredTester.HasText("选择面板内容") || restoredTester.HasText("新标签页") {
+		t.Fatal("restart reopened an unbound session or picker after the last tab was closed")
+	}
+	restored.newSession("/project")
+	restored.deleteSession(restored.session)
+	restoredTester.Frame()
+	if restored.open || restored.activeTab != "" || restoredTester.HasText("从一个清晰的任务开始") || restoredTester.HasText("选择面板内容") {
+		t.Fatal("deleting the last session opened a replacement session tab")
 	}
 }

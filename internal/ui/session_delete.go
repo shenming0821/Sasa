@@ -132,6 +132,7 @@ func (a *App) deleteSession(target *session) {
 			activeFile := a.currentFile()
 			activeTab := a.activeTab
 			a.newSession(target.State.Cwd)
+			a.closeSessionTab(a.session)
 			if activeFile != nil {
 				for _, tab := range a.tabs {
 					if tab.ID == activeTab {

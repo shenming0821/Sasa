@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
 type projectGroup struct {
@@ -148,7 +147,6 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	renderedActive := a.activeTab
 	tabs := a.paneTabs()
-	empty := a.renderingPane != nil && len(tabs) == 0
 	row := native.Row(c).FillWidth().Height(38).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(.5))
 	if a.renderingPane != nil {
 		row.ContextMenu(a.paneMenu(a.activeWorkspace, a.renderingPane))
@@ -160,9 +158,6 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 		scroll := native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0)
 		scroll.Children(func() {
 			native.Row(c).MinWidth(scroll.Bounds().W).Shrink(0).FillHeight().AlignItems(native.Center).Children(func() {
-				if empty {
-					a.emptyTab(c.Key("new-tab"), storage.Tab{Kind: "empty"})
-				}
 				for _, tab := range tabs {
 					if tab.Kind == "empty" {
 						a.emptyTab(c.Key(tab.ID), tab)
@@ -283,9 +278,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 				}
 			})
 		})
-		if !empty {
-			a.agentSessionButtons(c)
-		}
+		a.agentSessionButtons(c)
 		if pane := a.renderingPane; pane != nil {
 			button := quietIconButton(c, "面板操作").Size(28, 28).Tooltip("分屏与面板操作")
 			button.Children(func() { native.Icon(c, paneMenuIcon).Size(16, 16) })

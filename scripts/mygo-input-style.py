@@ -116,6 +116,10 @@ def main():
         "case st.o.OnLink != nil:",
         'case st.o.OnLink != nil && !strings.HasPrefix(dest, "#"):',
     ))
+    edits["ui/split.go"] = [(
+        "line := t.Border\n\t\t\t\tif held || handle.Hovered() {\n\t\t\t\t\tline = t.Accent\n\t\t\t\t}\n\t\t\t\tp.Fill(r, line, 0)",
+        "p.Fill(r, t.Border, 0)",
+    )]
     # Go forbids overlays inside GOMODCACHE, so patch an isolated project cache.
     revision = hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()[:16]
     cache = root / ".cache" / "mygo-input-style"

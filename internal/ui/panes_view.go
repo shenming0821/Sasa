@@ -102,8 +102,18 @@ func (a *App) emptyPane(c *native.Context) {
 		return
 	}
 	theme := c.Theme()
+	folder := a.worktreeName(root)
+	if root == "" {
+		folder = "未选择项目"
+	}
 	native.Column(c).FillWidth().Grow(1).MinHeight(0).Center().Padding(24).Children(func() {
 		native.Column(c).FillWidth().MaxWidth(360).MinWidth(0).Children(func() {
+			native.Row(c).FillWidth().Justify(native.Center).Margin(0, 0, 10, 0).Children(func() {
+				native.Row(c).MaxWidth(360).MinWidth(0).AlignItems(native.Center).Gap(6).Padding(4, 10).Radius(999).Background(theme.Surface).Border(1, theme.Border).Children(func() {
+					native.Icon(c, folderIcon).Size(13, 13).Shrink(0).TextColor(theme.TextMuted)
+					native.Text(c, folder).FontSize(12).FontWeight(500).TextColor(theme.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+				})
+			})
 			native.Text(c, "选择面板内容").FillWidth().TextAlign(native.Center).FontSize(22).FontWeight(600).TextColor(theme.Text)
 			native.Text(c, "新建会话或终端").FillWidth().TextAlign(native.Center).FontSize(12).TextColor(theme.TextMuted).Margin(8, 0, 24, 0)
 			native.Column(c).FillWidth().Radius(12).Border(1, theme.Border).Clip().Children(func() {
@@ -111,9 +121,9 @@ func (a *App) emptyPane(c *native.Context) {
 					if index > 0 {
 						native.Box(c).FillWidth().Height(1).Background(theme.Border).Margin(0, 16, 0, 58)
 					}
-					label, glyph, color := "新建 Codex 会话", codexAgentIcon, theme.Text
+					label, glyph, color := kind.String(), codexAgentIcon, theme.Text
 					if kind == agent.Claude {
-						label, glyph, color = "新建 Claude 会话", claudeAgentIcon, native.Hex("#D97757")
+						glyph, color = claudeAgentIcon, native.Hex("#D97757")
 					}
 					if emptyPaneAction(c.Key(string(kind)), label, glyph, color).Clicked() {
 						a.focusPane(root, pane)
@@ -130,7 +140,7 @@ func (a *App) emptyPane(c *native.Context) {
 					}
 				}
 				native.Box(c).FillWidth().Height(1).Background(theme.Border).Margin(0, 16, 0, 58)
-				if emptyPaneAction(c.Key("terminal"), "新建终端", launchTerminalIcon, theme.TextMuted).Clicked() {
+				if emptyPaneAction(c.Key("terminal"), "终端", launchTerminalIcon, theme.TextMuted).Clicked() {
 					a.focusPane(root, pane)
 					emptyID := a.activeTab
 					a.newTerminal()

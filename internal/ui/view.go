@@ -111,7 +111,9 @@ func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
 			native.Text(c, a.modelError).FontSize(12).TextColor(t.Danger).Padding(12, 16)
 		}
 		a.fileExitNotice(c)
-		a.emptyPane(c)
+		if a.isEmptyTab(a.activeTab) {
+			a.emptyPane(c)
+		}
 	})
 }
 

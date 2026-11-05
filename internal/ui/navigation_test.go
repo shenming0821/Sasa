@@ -220,14 +220,28 @@ func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
 		r := toggle()
 		width := a.effectiveRightPanelWidth(1159)
 		x, y := 1400-width-1, r.Y+r.H/2
+		tt.Move(10, 10)
+		idle := tt.Image().RGBAAt(int(x), int(y))
 		tt.Move(x, y)
 		if tt.Cursor() != native.CursorResizeEW {
 			t.Fatal("divider has no horizontal resize cursor")
 		}
+		if got := tt.Image().RGBAAt(int(x), int(y)); got != idle {
+			t.Fatalf("divider changed color on hover: idle=%v hover=%v", idle, got)
+		}
 		tt.Press(x, y)
+		if got := tt.Image().RGBAAt(int(x), int(y)); got != idle {
+			t.Fatalf("divider changed color while held: idle=%v held=%v", idle, got)
+		}
 		tt.Move(x+dx, y)
 		tt.Release(x+dx, y)
 		tt.Frame()
+	}
+	tt.Move(10, 10)
+	leftIdle := tt.Image().RGBAAt(int(a.sidebarWidth), 200)
+	tt.Move(a.sidebarWidth, 200)
+	if tt.Cursor() != native.CursorResizeEW || tt.Image().RGBAAt(int(a.sidebarWidth), 200) != leftIdle {
+		t.Fatal("left sidebar divider lost resize cursor or highlighted on hover")
 	}
 	before := toggle().X
 	drag(-80)

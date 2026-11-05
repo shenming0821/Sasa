@@ -100,19 +100,22 @@ func TestFolderClickShowsPickerWithoutOpenTabs(t *testing.T) {
 			tester := native.NewTester(a.view, 1000, 760)
 			a.closeSession(closed)
 			tester.Frame()
+			if tester.HasText("新标签页") || tester.HasText("选择面板内容") || tester.HasText("从一个清晰的任务开始") {
+				t.Fatal("closing the last tab did not leave a completely blank page")
+			}
 			if err := tester.Click("打开工作区 /repo"); err != nil {
 				t.Fatal(err)
 			}
-			if len(a.sessions) != 1 || a.activeTab != "" || a.activeWorkspace != tree.Path || closed.open {
+			if len(a.sessions) != 1 || !a.isEmptyTab(a.activeTab) || a.activeWorkspace != tree.Path || closed.open {
 				t.Fatal("folder click created a session instead of showing the picker")
 			}
-			if !tester.HasText("选择面板内容") {
+			if !tester.HasText("选择面板内容") || tester.HasText("有打开的页签 /repo") {
 				t.Fatal("folder click did not show the pane picker")
 			}
 			if closed.State.Draft != "preserved draft" {
 				t.Fatal("closing session discarded its draft")
 			}
-			if err := tester.Click("新建 Codex 会话"); err != nil {
+			if err := tester.Click("Codex"); err != nil {
 				t.Fatal(err)
 			}
 			fresh := a.session

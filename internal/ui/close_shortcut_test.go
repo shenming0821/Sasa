@@ -117,8 +117,8 @@ func TestCloseShortcutRemovesEmptyFocusedPane(t *testing.T) {
 	a.dispatch = func(work func()) { work() }
 	a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
 	tester := native.NewTester(a.view, 1200, 760)
-	if a.activeTab != "" {
-		t.Fatal("new split pane unexpectedly owns a tab")
+	if !a.isEmptyTab(a.activeTab) {
+		t.Fatal("new split pane did not start with an empty tab")
 	}
 	tester.Key(native.Cmd, native.KeyW)
 	tester.Frame()

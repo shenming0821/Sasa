@@ -206,7 +206,10 @@ func (a *App) workspaceCwd() string {
 			return a.activeWorkspace
 		}
 	}
-	return a.State.Cwd
+	if a.State.Cwd != "" {
+		return a.State.Cwd
+	}
+	return a.activeWorkspace
 }
 func (a *App) workspace(root string) *workspacePage {
 	if a.workspaces == nil {

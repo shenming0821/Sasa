@@ -134,6 +134,15 @@ func (a *App) focusPane(root string, pane *storage.PaneNode) {
 
 func (a *App) activatePaneTab(id, root string, move bool) {
 	a.paneNativeFocus = ""
+	alreadyPlaced := false
+	if existing, ok := a.layouts[root]; ok {
+		for _, pane := range paneLeaves(existing.Root) {
+			if slices.Contains(pane.Tabs, id) {
+				alreadyPlaced = true
+				break
+			}
+		}
+	}
 	layout := a.layoutFor(root)
 	target := focusedPane(layout)
 	if a.renderingPane != nil && slices.Contains(paneLeaves(layout.Root), a.renderingPane) {
@@ -143,7 +152,7 @@ func (a *App) activatePaneTab(id, root string, move bool) {
 		if !slices.Contains(pane.Tabs, id) {
 			continue
 		}
-		if !move {
+		if !move && alreadyPlaced {
 			target = pane
 		} else if pane != target {
 			pane.Tabs = slices.DeleteFunc(pane.Tabs, func(other string) bool { return other == id })
@@ -155,7 +164,21 @@ func (a *App) activatePaneTab(id, root string, move bool) {
 			}
 		}
 	}
-	if !slices.Contains(target.Tabs, id) {
+	if (!alreadyPlaced || move) && !a.isEmptyTab(id) && a.isEmptyTab(target.Active) {
+		emptyID := target.Active
+		target.Tabs = slices.DeleteFunc(target.Tabs, func(other string) bool { return other == id })
+		if index := slices.Index(target.Tabs, emptyID); index >= 0 {
+			target.Tabs[index] = id
+		} else {
+			target.Tabs = append(target.Tabs, id)
+		}
+		a.tabs = slices.DeleteFunc(a.tabs, func(tab storage.Tab) bool { return tab.ID == emptyID })
+		for folder, selected := range a.folderSelectedTabs {
+			if selected == emptyID {
+				delete(a.folderSelectedTabs, folder)
+			}
+		}
+	} else if !slices.Contains(target.Tabs, id) {
 		target.Tabs = append(target.Tabs, id)
 	}
 	target.Active = id
@@ -227,7 +250,7 @@ func (a *App) splitPane(root string, pane *storage.PaneNode, axis string) *stora
 	*pane = storage.PaneNode{ID: branch.ID, Axis: axis, Ratio: 50, First: &first, Second: second}
 	layout.Focused = second.ID
 	a.layouts[root] = layout
-	a.setPaneSelection(second)
+	a.newEmptyTab(root, second)
 	a.paneFocusPending = second.ID
 	return second
 }
@@ -405,7 +428,7 @@ func (a *App) syncActivePane() {
 	for _, tab := range a.tabs {
 		if tab.ID == a.activeTab {
 			if root, valid := a.tabFolder(tab); valid {
-				if root != a.activeWorkspace {
+				if root != a.activeWorkspace && (root != "" || a.activeWorkspace == "") {
 					if previous, exists := a.layouts[a.activeWorkspace]; exists && len(a.folderTabs(a.activeWorkspace)) == 0 && a.layouts[root].Root == nil {
 						a.layouts[root] = previous
 						delete(a.layouts, a.activeWorkspace)

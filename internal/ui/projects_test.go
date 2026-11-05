@@ -67,7 +67,7 @@ func TestRepositoryImportGroupsBranchesAndSessions(t *testing.T) {
 	if a.session != first || a.activeWorkspace != repo.Worktrees[1].Path || !tt.HasText("选择面板内容") {
 		t.Fatal("worktree click did not show the picker")
 	}
-	if err := tt.Click("新建 Codex 会话"); err != nil {
+	if err := tt.Click("Codex"); err != nil {
 		t.Fatal(err)
 	}
 	second := a.session

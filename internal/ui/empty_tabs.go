@@ -13,24 +13,18 @@ func (a *App) isEmptyTab(id string) bool {
 }
 
 func (a *App) newEmptyTab(root string, pane *storage.PaneNode) {
+	root = a.workspaceRoot(root)
 	a.focusPane(root, pane)
-	appendTab := func() storage.Tab {
-		for {
-			a.emptyTabSerial++
-			id := fmt.Sprintf("empty-%d", a.emptyTabSerial)
-			if !slices.ContainsFunc(a.tabs, func(tab storage.Tab) bool { return tab.ID == id }) {
-				tab := storage.Tab{ID: id, Kind: "empty", Workspace: root}
-				a.tabs = append(a.tabs, tab)
-				return tab
-			}
+	for {
+		a.emptyTabSerial++
+		id := fmt.Sprintf("empty-%d", a.emptyTabSerial)
+		if !slices.ContainsFunc(a.tabs, func(tab storage.Tab) bool { return tab.ID == id }) {
+			tab := storage.Tab{ID: id, Kind: "empty", Workspace: root}
+			a.tabs = append(a.tabs, tab)
+			a.selectWorkspaceTab(tab)
+			return
 		}
 	}
-	if len(pane.Tabs) == 0 {
-		tab := appendTab()
-		a.activatePaneTab(tab.ID, root, false)
-	}
-	tab := appendTab()
-	a.selectWorkspaceTab(tab)
 }
 
 func (a *App) emptyTab(c *native.Context, tab storage.Tab) {
@@ -69,7 +63,7 @@ func (a *App) emptyTab(c *native.Context, tab storage.Tab) {
 		close := native.ButtonBase(c).Label(closeLabel).Size(24, 24).Radius(8).Padding(6)
 		close.Children(func() { native.Icon(c, tabCloseIcon).Size(13, 13).TextColor(theme.TextMuted) })
 		if close.Clicked() {
-			if tab.ID == "" || len(pane.Tabs) == 1 {
+			if tab.ID == "" || len(pane.Tabs) == 1 && len(paneLeaves(a.layoutFor(root).Root)) > 1 {
 				a.focusPane(root, pane)
 				a.closeCurrentPage()
 			} else {

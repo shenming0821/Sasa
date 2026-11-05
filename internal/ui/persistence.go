@@ -20,6 +20,17 @@ func (a *App) application() *App {
 	return a
 }
 
+func isBlankUnboundSession(saved storage.Session) bool {
+	return saved.Cwd == "" && saved.ThreadID == "" && saved.Draft == "" && len(saved.DraftImages) == 0 &&
+		saved.EditDraft == nil && !saved.Active && saved.CustomTitle == ""
+}
+
+func (s *session) isBlankUnbound() bool {
+	return s.State.Cwd == "" && s.State.ThreadID == "" && s.State.Draft == "" &&
+		len(s.State.DraftImages) == 0 && len(s.State.Messages) == 0 &&
+		s.edit == nil && !s.State.Busy && !s.saved.Active && s.saved.CustomTitle == ""
+}
+
 func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	snapshot, err := store.Load()
 	if err != nil {
@@ -57,6 +68,9 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	a.hiddenProjects = maps.Clone(snapshot.HiddenProjects)
 	a.worktreeNames = maps.Clone(snapshot.WorktreeNames)
 	if len(snapshot.Sessions) == 0 {
+		if cwd == "" {
+			a.closeSessionTab(a.session)
+		}
 		return a.persist()
 	}
 	startupError, disconnected := a.State.Error, a.State.Disconnected
@@ -76,7 +90,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 			id: saved.ID, State: app.New(saved.Cwd), saved: saved, loaded: saved.ThreadID == "",
 		}
 		s.State.Agent = s.kind
-		s.open = slices.Contains(snapshot.OpenTabs, saved.ID)
+		s.open = slices.Contains(snapshot.OpenTabs, saved.ID) && !isBlankUnboundSession(saved)
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
 		s.State.DraftImages = slices.Clone(saved.DraftImages)
 		if saved.EditDraft != nil {
@@ -115,14 +129,16 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		}
 	}
 	// An explicit empty list records the user's choice to close every tab.
-	if cwd == "" && snapshot.OpenTabs != nil && len(snapshot.OpenTabs) == 0 {
+	hasOpenSession := slices.ContainsFunc(a.sessions, func(s *session) bool { return s.open })
+	if cwd == "" && snapshot.OpenTabs != nil && !hasOpenSession {
 		if !slices.Contains(a.sessions, a.session) {
 			a.session = a.sessions[len(a.sessions)-1]
 		}
+		a.session.open = false
 		return nil
 	}
 	found := a.session != nil && slices.Contains(a.sessions, a.session) &&
-		(snapshot.OpenTabs == nil || a.session.open)
+		(snapshot.OpenTabs == nil && !isBlankUnboundSession(a.session.saved) || a.session.open)
 	if cwd != "" && (!found || a.State.Cwd != cwd) {
 		found = false
 		for i := len(a.sessions) - 1; i >= 0; i-- {
@@ -145,7 +161,9 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 			}
 		}
 	}
-	a.session.open = true
+	if cwd != "" || !isBlankUnboundSession(a.session.saved) {
+		a.session.open = true
+	}
 	return nil
 }
 
