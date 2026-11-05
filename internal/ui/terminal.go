@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -62,7 +61,7 @@ func (a *App) currentTerminal() *terminalPage { return a.terminals[a.activeTab] 
 
 func (a *App) terminalButton(c *native.Context) {
 	button := quietIconButton(c, "打开终端").Size(30, 30).Tooltip("在当前工作区新建终端（" + terminal.Label(a.preferences.Terminal) + "）")
-	button.Children(func() { native.Icon(c, launchTerminalIcon).Size(16, 16) })
+	button.Children(func() { native.Icon(c, launchTerminalIcon).Size(20, 20) })
 	if button.Clicked() {
 		a.newTerminal()
 	}
@@ -210,8 +209,4 @@ func (a *App) finishCloseTerminal(page *terminalPage) {
 			page.connection.Close()
 		}()
 	}
-}
-
-func (a *App) terminalTitle(tab storage.Tab) string {
-	return "终端 · " + filepath.Base(tab.Workspace)
 }

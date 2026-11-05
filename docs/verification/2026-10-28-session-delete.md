@@ -15,7 +15,7 @@
 - `TestDeleteClaudeSessionKeepsOtherAgentAndRuntimeHistory`：相同原生 ID 的 Claude 与 Codex 会话分别归属，隐藏仅影响对应 Runtime。
 - `TestDeleteLastSessionKeepsActiveUnsavedFile`：删除最后一条聊天时，当前编辑文件和未保存状态保留。
 
-针对性普通测试已通过。首次完整 `./scripts/go test -race ./... -count=1` 中，其他包通过，UI 的既有 `TestGitHunkStageConfirmsUnsavedEditorBeforeUsingDisk` 在第 668 行出现 `P4 state did not settle`，与 P6 前轮记录的偶发超时一致。单独复跑及最终验证结果见下方补记。
+针对性普通测试已通过。首次完整 `./scripts/go test -race ./... -count=1` 中，其他包通过，UI 的既有 `TestGitHunkStageConfirmsUnsavedEditorBeforeUsingDisk` 在第 668 行出现 `P4 state did not settle`，与 Claude 接入与双 Agent 支持前轮记录的偶发超时一致。单独复跑及最终验证结果见下方补记。
 
 ## 初版原生窗口
 

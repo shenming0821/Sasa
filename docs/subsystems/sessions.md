@@ -133,7 +133,7 @@ Command+W 与“文件 → 关闭当前页签”共用 `closeCurrentPage`：有�
 
 `sessions_test.go` 覆盖多会话归属、异步切换和后台交互；`recovery_test.go` 覆盖重开、原生历史、草稿、分页、条目内锚点、稳定标题和不确定提交；`lifecycle_test.go` 覆盖多任务中断、等待终态、断线边界和超时选择。
 
-实际原生窗口、受控协议及真实模型分别记录在 [P3 验证](../verification/2026-10-22-p3.md)。
+实际原生窗口、受控协议及真实模型分别记录在 [会话持久化与恢复验证](../verification/2026-10-22-p3.md)。
 
 标签关闭与按需加载回归见 `tabs_test.go`，具体覆盖见[验收记录](../verification/2026-10-23-session-tabs.md)。
 

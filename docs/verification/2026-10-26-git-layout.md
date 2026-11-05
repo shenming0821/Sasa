@@ -15,4 +15,4 @@
 - `./scripts/go test ./...`、`./scripts/go vet ./...`、`./scripts/go fmt ./...`、`./scripts/go test -race ./internal/ui -count=1`（27.81 s）、`./scripts/build`：通过。
 - 原 `bin/Fuyu.app` 正常退出并重开；原生截图确认右侧 Git 面板使用紧凑连续列表，文件名、目录、状态及分组数量均可见，当前显示真实工作区修改。
 
-本轮改动已提交；此项不代表 P4 全部验收完成。
+本轮改动已提交；此项不代表文件编辑与 Git 全部验收完成。

@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLite 索引、原生历史恢复和窗口驻留，当前环境验收已完成。实际协议、状态和生命周期见[Codex 运行时](codex-runtime.md)、[会话管理](sessions.md)与[存储与恢复](storage.md)。
+下列源码包覆盖真实任务、过程交互、多会话、SQLite 索引、原生历史恢复和窗口驻留，当前环境验收已完成。实际协议、状态和生命周期见[Codex 运行时](codex-runtime.md)、[会话管理](sessions.md)与[存储与恢复](storage.md)。
 
 | 子系统 | 责任与边界 | 源码或规划路径 | 当前参考 |
 |---|---|---|---|
@@ -17,7 +17,7 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 | Claude 客户端 | stream-json 控制协议、单轮进程、审批、问答与自有会话恢复 | `internal/claude/` | [Claude 运行时](claude-runtime.md) |
 | 进程管理 | 自有 App Server 启停、cwd、退出检测与取消 | `internal/runtime/` | [生命周期设计](../design.md) |
 | 原生终端 | 当前工作区终端标签、Ghostty AppKit/Metal 视图、本机配置、PTY 与进程生命周期 | `internal/terminal/`、`internal/ui/terminal.go`、`scripts/prepare-ghostty.py` | [设计](../design.md)、[终端验证](../verification/2026-11-01-terminal.md) |
-| 存储与恢复 | 应用索引、界面状态与原生历史核验，P3 引入 | `internal/storage/` | [存储与恢复](storage.md) |
+| 存储与恢复 | 应用索引、界面状态与原生历史核验 | `internal/storage/` | [存储与恢复](storage.md) |
 | 双渠道与发布 | Preview 候选构建、渠道数据隔离、正式版晋升和恢复 | `internal/release/`、`scripts/release.py` | [双渠道与发布](releases.md) |
 
 ## 何时建立专项文档
@@ -43,4 +43,4 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 
 应用级外观、字体与完成通知见[设置与完成通知](settings.md)。
 
-P6.1 抽象、Claude adapter 与 Agent 选择入口已实现于工作区；完整 race、真实双 Agent 并行、子代理/后台工具和前后台 Bash 停止已通过。用户重新授权后的原生文件审批、拒绝反馈、多选问答、模型选择、Agent 切换、手动压缩续聊和停止已取得证据；流式停止后的历史中断标记修复见 P6 验证记录。覆盖边界见 [P6 验证记录](../verification/2026-10-28-p6-agent.md)。
+Agent 抽象、Claude adapter 与 Agent 选择入口已实现于工作区；完整 race、真实双 Agent 并行、子代理/后台工具和前后台 Bash 停止已通过。用户重新授权后的原生文件审批、拒绝反馈、多选问答、模型选择、Agent 切换、手动压缩续聊和停止已取得证据；流式停止后的历史中断标记修复见 Claude 接入与双 Agent 支持验证记录。覆盖边界见 [Claude 接入与双 Agent 支持验证记录](../verification/2026-10-28-p6-agent.md)。

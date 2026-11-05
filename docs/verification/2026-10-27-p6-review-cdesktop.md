@@ -1,4 +1,4 @@
-# P6 接入方案复核：以 cdesktop Claude executor 为依据
+# 接入方案复核：以 cdesktop Claude executor 为依据
 
 复核日期：2026-10-27。结论：**Agent 抽象、原生历史归属、夹具先行的方向成立，但现方案不能直接作为实现契约。必须先修正授权范围、turn 标识、初始化字段来源和 JSONL 恢复算法；进程常驻与 schema 不升版都应改为有验收条件的选择。**
 
@@ -10,7 +10,7 @@
 - cdesktop：`/tmp/ref-cdesktop`，`75bd015e88f9797d785c9fabcfca03c7151fd5cc`，参考工作区为空；本报告的“当前实现”均指此本地快照，不声称核验了远端最新 HEAD。
 - SDK 类型：`/tmp/p6-source-typescript.d.ts`，SHA-256 `64a59ddbcae4dc05da268dd3e009431c67e91a23616bce38f122b9247650271f`。原方案标为 SDK 0.3.311，本次依据文件内容核对，未独立核验 npm 包版本与安装包运行代码。
 - 原方案：`/tmp/p6-agent-analysis.md`，SHA-256 `57ed945f6673849b28fab64a418726d68004e2f27d50edb2a993cf08324f1ecb`。用户称“昨天”，但所给文件署名为 **2026-10-27**；本次以此文件版本为准。
-- 仓库实施计划实际仍处于 P4 验收，P6.0～P6.4 是本次评审的拟议阶段，不是已批准开始的实现任务。依据：`docs/implementation-plan.md:7`。
+- 仓库实施计划实际仍处于文件编辑与 Git 验收，Claude 接入与双 Agent 支持是本次评审的拟议阶段，不是已批准开始的实现任务。依据：`docs/implementation-plan.md:7`。
 
 引用约定：`C/` = `/tmp/ref-cdesktop/crates/`，`F/` = `/home/ming/Documents/AI/Fuyu/`，`T:` = `/tmp/p6-source-typescript.d.ts:`；冒号后均为源码行号。
 
@@ -87,7 +87,7 @@ Fuyu 的 Send 立即返回 Turn，状态机又以 Turn.ID 拒绝不匹配的完�
 
 “Claude 只有单次 allow/deny + permission mode”是事实错误。cdesktop 类型已支持 `updatedPermissions` 与 `destination:session`，并实际用于 ExitPlanMode；给定 SDK 还支持 addRules/replaceRules/removeRules、目录增删，以及 user/project/local/session/cliArg 等 destination。依据：`C/executors/src/executors/claude/types.rs:89`、`:117`、`:137`；`C/executors/src/executors/claude/client.rs:111`；`T:2598`。
 
-建议 P6 首版默认只展示已验证的“本次允许 / 拒绝”；若真实请求提供可验证的 permission_suggestions，再提供“在本会话允许此规则”，并展示工具、命令或目录范围。保持原始规则结构，不从自然语言说明猜规则。缺少精确映射的 Codex turn scope 直接不展示；永久授权首版暂缓。
+建议 Claude 接入与双 Agent 支持首版默认只展示已验证的“本次允许 / 拒绝”；若真实请求提供可验证的 permission_suggestions，再提供“在本会话允许此规则”，并展示工具、命令或目录范围。保持原始规则结构，不从自然语言说明猜规则。缺少精确映射的 Codex turn scope 直接不展示；永久授权首版暂缓。
 
 **删除原建议按钮“本次允许并切换会话权限模式”。** 用户对单个动作的批准不构成放开整个 session 的授权。权限模式如需提供，应是独立设置，有自己的实际生效反馈。
 
@@ -107,7 +107,7 @@ cdesktop 自己保存日志的做法不能替 Fuyu 的原生 transcript reader �
 
 给定 SDK 明确支持 streaming-input 多轮 result；cdesktop 却在首个 result 后停止读取。这说明两种策略均有实现空间，不能从 stream-json 参数推出必须常驻。依据：`T:6003`、`T:6093`；`C/executors/src/executors/claude/protocol.rs:90`。
 
-建议 P6.0 同时验证 A：每轮 spawn + resume；B：每会话常驻并连续发送至少两轮。**P6.2 的保守基线可先取 A，B 在多轮、中断、审批撤销和空闲退出全部通过后启用。**这是缩小首版状态复杂度的工程建议，不是 SDK 要求。若 A 不能达到会话授权、后台任务或延迟目标，验收后选 B，不同时维护两套未经验证的生产路径。
+建议 Claude 协议与历史核验同时验证 A：每轮 spawn + resume；B：每会话常驻并连续发送至少两轮。**Claude 运行时接入的保守基线可先取 A，B 在多轮、中断、审批撤销和空闲退出全部通过后启用。**这是缩小首版状态复杂度的工程建议，不是 SDK 要求。若 A 不能达到会话授权、后台任务或延迟目标，验收后选 B，不同时维护两套未经验证的生产路径。
 
 采用 B 时 reader 不能遇 result 就 break，还要继续接收任务通知、后续 init、控制响应及后台工具状态。采用 A 时 result 后也应有有界排空/关闭流程，避免立即关闭 stdout 遗失尾随通知。依据：`T:6003`。
 
@@ -122,13 +122,13 @@ cdesktop 自己保存日志的做法不能替 Fuyu 的原生 transcript reader �
 1. `runtime_identity` 为 `id=1` 单行、`codex_home NOT NULL`，`BindRuntime` 只绑定一个 Codex 根目录；不能直接“新插一行 claude_home”。依据：`F/internal/storage/store.go:149`、`:237`。
 2. `sessions.thread_id TEXT UNIQUE` 不含 Agent。加入 Agent JSON 字段不会改变这个跨 Agent 唯一性约束。依据：`F/internal/storage/store.go:131`、`:310`。
 
-建议 **P6.3 使用 v4**：增加 agent 归属，原生非空 ID 唯一性改为 `(agent, native_session_id)`，Runtime 绑定支持按 agent 记录规范化历史根目录；旧记录全部迁移为 codex，保留原有 home 校验。不是为“多一个字段”升版，而是维护运行时归属和索引契约。
+建议 **Agent 会话入口与存储使用 v4**：增加 agent 归属，原生非空 ID 唯一性改为 `(agent, native_session_id)`，Runtime 绑定支持按 agent 记录规范化历史根目录；旧记录全部迁移为 codex，保留原有 home 校验。不是为“多一个字段”升版，而是维护运行时归属和索引契约。
 
 若坚持 v3，也存在可行替代：payload 增 Agent；数据库 thread_id 只存带 agent 命名空间的索引键；Claude home 绑定放 settings JSON，保留原生 ID 单独字段。但必须明确编码/解码、旧数据兼容与旧程序误读风险。当前旧程序会忽略未知 JSON 字段，可能将 Claude 会话当 Codex 打开；v4 可利用已有高版本拒绝机制阻止误读。依据：`F/internal/storage/store.go:122`、`:277`。因此“不升版”只能是完整设计后的选择，不能预先定论。
 
 ### 2.6 夹具先行：保留，增加来源与负路径
 
-保留 P6.0，但真实录制与合成异常输入分别标来源，记录 CLI 版本、可执行路径、SDK 类型摘要、cwd、权限模式和 capability。SDK 包版本不等于本机 CLI 版本，原方案的“2.1.268+”只能作为相关字段的已知版本说明，不能证明全部功能都在该版本可用。依据：`T:433`、`T:6221`、`T:6280`。
+保留 Claude 协议与历史核验，但真实录制与合成异常输入分别标来源，记录 CLI 版本、可执行路径、SDK 类型摘要、cwd、权限模式和 capability。SDK 包版本不等于本机 CLI 版本，原方案的“2.1.268+”只能作为相关字段的已知版本说明，不能证明全部功能都在该版本可用。依据：`T:433`、`T:6221`、`T:6280`。
 
 夹具应记录双向帧，验证输出响应、状态转换和资源回收，不只断言解析成功。真实 transcript 另录，不用 stdout JSON 伪装 transcript。cdesktop 自带测试只能说明其投影意图，不算 Fuyu 已通过验收。
 
@@ -150,7 +150,7 @@ cdesktop 对非 AskUserQuestion 且缺 tool_use_id 的请求甚至直接 allow�
 
 应先实现 cdesktop 已展示的 AskUserQuestion → updatedInput.answers 路径，并保留原始问题文本及答案映射。`request_user_dialog` 是另一个可扩展 dialog_kind 通道，需要在 initialize 声明自己能呈现的 supportedDialogKinds；遇到未声明 kind 不能套用“所有未知请求都回错误/取消”，SDK 说明该错误会被忽略，而取消是实际的用户决策。依据：`C/executors/src/executors/claude/client.rs:203`；`T:5264`。
 
-P6 首版可不声明任何未实现 dialog kind；若实际 CLI 发来意外 dialog，显示不支持并保留停止入口。初始化必须据实际能力协商，不把“2.1.268+”等同于 UI 已支持所有提问。
+Claude 接入与双 Agent 支持首版可不声明任何未实现 dialog kind；若实际 CLI 发来意外 dialog，显示不支持并保留停止入口。初始化必须据实际能力协商，不把“2.1.268+”等同于 UI 已支持所有提问。
 
 ### 3.4 Slash commands 不是 Codex Skill 的别名
 
@@ -172,7 +172,7 @@ cdesktop 支持 runtime env → profile env → provider env 的覆盖，Claude 
 
 Fuyu 应复用可执行路径/Node/PATH 探测，但按子进程构造环境，不把 Claude 的配置写进全局进程环境。核验 CLAUDE_CONFIG_DIR、API key/provider 设置、cwd/符号链接/worktree 与附加目录；绑定实际规范化历史根，别只绑定固定 ~/.claude。CLAUDE_CONFIG_DIR 会影响本地 transcript 写入，类型已有说明。依据：`T:6856`。
 
-嵌套启动相关 CLAUDECODE 等变量应列入 P6.0 实测项目；本次在所查 executor/env 路径未发现专门过滤，不能把清除哪些变量写成已核验规则。报告也未读取用户当前凭据值。
+嵌套启动相关 CLAUDECODE 等变量应列入 Claude 协议与历史核验实测项目；本次在所查 executor/env 路径未发现专门过滤，不能把清除哪些变量写成已核验规则。报告也未读取用户当前凭据值。
 
 ### 3.7 大输出与 JSONL 边界：参考实现没有替我们兜底
 
@@ -197,21 +197,21 @@ compaction 不等于清空聊天：UI 可以显示压缩标记，但历史 reade
 - Fuyu 模型缓存和 backend 现在在 root App 上，而不是按 agent/session/cwd 区分；仅把类型移到 agent 包会使两种 Agent 的模型列表串用。需统一改路由、事件归属、缓存键、历史入口、运行详情及错误文案。依据：`F/internal/ui/app.go:31`、`:47`；`F/internal/ui/models.go:22`。
 - `ResumeThread` 与 `ListTurns` 目前承担恢复门控，`State.Apply` 接受的仍是 Codex 事件名。类型别名不会自动消除这些语义。应定义应用事件与恢复结果的能力边界，再由各 adapter 投影。依据：`F/internal/ui/history.go:15`、`:27`；`F/internal/app/state.go:97`。
 
-## 4. P6.0～P6.4 的具体增补项
+## 4. Claude 接入与双 Agent 支持的具体增补项
 
 以下为修订建议，均未勾选完成；实施仍需按仓库当前阶段另行推进。
 
-### P6.0 协议与历史证据先行
+### 协议与历史证据先行
 
 1. 固定可执行路径和实测 CLI 版本，保存类型文件摘要；录制 initialize 完整 request/response、system/init、首个 user/assistant/result，区分模型目录来源与会话当前模型。
 2. 录制一次允许、拒绝含反馈、审批超时、审批时停止、control_cancel_request、重复请求和 pending 回放；验证 AskUserQuestion，多余 dialog kind 不声明。
-3. 对比“每轮 spawn+resume”与“同进程两轮以上”，包括空闲、第二轮中断、result 后通知、session 权限跨轮存续；选定 P6.2 唯一生产基线并记录原因。
+3. 对比“每轮 spawn+resume”与“同进程两轮以上”，包括空闲、第二轮中断、result 后通知、session 权限跨轮存续；选定 Claude 运行时接入唯一生产基线并记录原因。
 4. 分开录制真实 transcript：两轮上下文、工具配对、手动/自动 compact、正常续接、异常中断后的恢复；确认 parentUuid、目录编码、CLAUDE_CONFIG_DIR 和 worktree 行为。
 5. 合成负路径夹具覆盖超大帧、半行、坏行、未知 subtype、子代理交错、result success+is_error、终态重复/迟到、EOF 无 result、控制响应乱序与写入不确定。
 
-通过门槛：形成版本/能力矩阵与双向协议断言；每项注明真实录制或合成。仅有“解析能过”不能结束 P6.0。
+通过门槛：形成版本/能力矩阵与双向协议断言；每项注明真实录制或合成。仅有“解析能过”不能结束 Claude 协议与历史核验。
 
-### P6.1 Agent 抽象与 Codex 等价回归
+### Agent 抽象与 Codex 等价回归
 
 1. 定义 AgentKind、SessionKey、应用 TurnID、ProcessGeneration、Capabilities、应用事件、审批意图、历史分页/恢复核验结果；原始协议帧留在各 adapter 内。
 2. 把生命周期、审批、模型/命令目录、原生历史、缺口核验、占用/分叉按能力组织，允许实现明确“不支持”，不要求 Claude 伪造 Codex RPC。
@@ -221,7 +221,7 @@ compaction 不等于清空聊天：UI 可以显示压缩标记，但历史 reade
 
 通过门槛：Codex 行为回归通过，且 UI/app 不再需要用 Codex 专属 RPC 去修复 Claude 状态。
 
-### P6.2 Claude adapter 与失败状态机
+### Claude adapter 与失败状态机
 
 1. 实现有界 framing、独立 reader、带超时的串行 writer、双向 request_id 关联；完成握手和权限确认后提交输入。
 2. 发送前分配稳定 turn/user UUID；每 session 一个在途 turn；处理 delta、分块 assistant、最终消息和 result 的覆盖/去重，以及原生终态分类。
@@ -230,9 +230,9 @@ compaction 不等于清空聊天：UI 可以显示压缩标记，但历史 reade
 5. 实现 transcript 分支重建、compaction、消息/工具关联和稳定分页；读取损坏/尾部未完成时显示具体不确定性，禁止假成功。
 6. 子代理至少有父任务归属；无完整嵌套 UI 时显示有用摘要。保留 result 后通知与后台工具状态；未知合法帧不破坏会话，未知交互按能力规则处理。
 
-通过门槛：P6.0 正负夹具通过，证明审批等待不阻塞控制通道、晚到旧轮事件不结束新轮、一个 Claude session 故障不污染其他会话。
+通过门槛：Claude 协议与历史核验正负夹具通过，证明审批等待不阻塞控制通道、晚到旧轮事件不结束新轮、一个 Claude session 故障不污染其他会话。
 
-### P6.3 会话入口、身份与存储
+### 会话入口、身份与存储
 
 1. 在新会话创建前选择 Agent；已有原生 session 不原地改 Agent。每个会话保存 AgentKind、原生 ID、选中模型与必要运行时归属；旧会话默认 Codex。
 2. 完成 v4 迁移设计与实现：按 Agent 的 Runtime 根目录绑定、原生 ID 联合唯一约束、旧值回填、一致性备份、失败回滚和高版本拒绝；若选择 v3 替代设计，必须先通过第 2.5 节全部约束验证。
@@ -242,7 +242,7 @@ compaction 不等于清空聊天：UI 可以显示压缩标记，但历史 reade
 
 通过门槛：旧数据无损打开、混合 Agent 会话重开不串线、错误 home 不被误认成历史丢失。
 
-### P6.4 真实 Claude 与双 Agent 联合验收
+### 真实 Claude 与双 Agent 联合验收
 
 1. Claude 真实文件任务：读取、审批写入、拒绝与反馈、连续两轮上下文、模型选择、问答；验证发生的文件副作用与 UI 终态一致。
 2. 分别在流式输出、等待审批、启动/发送窗口中停止；检查回执、result、进程组与后台任务，不以一个“停止成功”标记替代其余证据。
@@ -255,7 +255,7 @@ compaction 不等于清空聊天：UI 可以显示压缩标记，但历史 reade
 
 ## 5. 本轮验证边界
 
-已完成：对照所给 P6 文件、cdesktop Claude/Codex executor 及其服务层日志/停止链路、SDK 类型、Fuyu Backend/状态/历史/模型/存储源码进行只读核验，并确认六项决策中需要修订的事实与边界。
+已完成：对照所给 Claude 接入与双 Agent 支持文件、cdesktop Claude/Codex executor 及其服务层日志/停止链路、SDK 类型、Fuyu Backend/状态/历史/模型/存储源码进行只读核验，并确认六项决策中需要修订的事实与边界。
 
 未执行：真实 Claude stream-json、登录/权限配置操作、真实 JSONL 样本解析、会话恢复/分叉、GUI、构建和测试。未把参考项目测试算作 Fuyu 验收；未核验用户本机 Claude CLI 版本或当前生效权限参数。
 

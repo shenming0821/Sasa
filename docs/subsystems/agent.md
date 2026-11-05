@@ -52,4 +52,4 @@ Claude 允许原生用户 UUID 与输入 prompt UUID 不同，通过 checkpoint�
 
 新增测试：`internal/agent/agent_test.go`、`internal/app/agent_test.go`、`internal/codex/agent_test.go`、`internal/storage/agent_test.go`、`internal/ui/agents_test.go`、`internal/claude/fixture_test.go`。原 Codex/app/UI 发送、审批、停止、恢复、分叉、多会话测试保留，用于 Mac 等价回归。
 
-真实基础证据见[夹具说明](../../internal/claude/testdata/README.md)，实现与验证边界见 [P6 验证](../verification/2026-10-28-p6-agent.md)。参考项目和静态检查均不能替代 Fuyu 的 Go 测试、真实 Runtime 与原生窗口验收。
+真实基础证据见[夹具说明](../../internal/claude/testdata/README.md)，实现与验证边界见 [Claude 接入与双 Agent 支持验证](../verification/2026-10-28-p6-agent.md)。参考项目和静态检查均不能替代 Fuyu 的 Go 测试、真实 Runtime 与原生窗口验收。

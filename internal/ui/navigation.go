@@ -197,7 +197,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 							label = "终端标签 " + tab.ID
 							closeLabel = "关闭终端标签 " + tab.ID
 						}
-						b := native.ButtonBase(tc).Label(label).Tooltip(a.tabTitle(tab)).Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
+						b := native.ButtonBase(tc).Label(label).Tooltip(a.tabTooltip(tab)).Grow(1).MinWidth(0).FillHeight().Padding(0, 12)
 						if pane := a.renderingPane; pane != nil {
 							b.Drag(paneTabDrag{Workspace: a.activeWorkspace, Pane: pane.ID, Tab: tab.ID})
 							if b.Dragging() {
@@ -230,12 +230,14 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 											break
 										}
 									}
+								} else if tab.Kind == "terminal" {
+									native.Box(tc).Size(12, 16).Shrink(0).Center().Children(func() {
+										native.Icon(tc, launchTerminalIcon).Size(16, 16).Shrink(0).TextColor(t.TextMuted)
+									})
 								} else {
 									glyph := fileIcon
 									if tab.Kind == "diff" {
 										glyph = gitIcon
-									} else if tab.Kind == "terminal" {
-										glyph = launchTerminalIcon
 									}
 									native.Icon(tc, glyph).Size(12, 12).TextColor(t.TextMuted)
 								}

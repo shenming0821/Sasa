@@ -1,3 +1,2 @@
-// Package claude 当前保存真实 CLI 协议证据及样本断言。
-// 生产 adapter、进程策略和 transcript reader 在 P6.2 接入。
+// Package claude 提供 Claude Code CLI 的协议、运行时适配与原生历史读取。
 package claude

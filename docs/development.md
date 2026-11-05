@@ -2,7 +2,7 @@
 
 ## 1. 当前状态与环境
 
-当前已实现并完成当前环境下的 P1/P2/P3 验收，包括多会话、SQLite 索引、原生历史恢复及窗口生命周期。实际覆盖与支持边界见 [P3 验证](verification/2026-10-22-p3.md)。
+当前已实现并完成当前环境下的真实任务、过程交互及会话恢复验收，包括多会话、SQLite 索引、原生历史恢复及窗口生命周期。实际覆盖与支持边界见 [会话持久化与恢复验证](verification/2026-10-22-p3.md)。
 
 本机已验证环境：macOS arm64、Command Line Tools、Go `1.27.3`、Codex CLI `0.163.0`。`go.mod` 要求 Go `1.27.1`，指定工具链 `go1.27.3`；MyGo 固定为 `v0.6.3-0.20261022014156-976f17c9391f`。
 
@@ -18,7 +18,7 @@ Go 安装在 `~/.local/share/fuyu/toolchains/go1.27.3/`，未修改系统工具�
 
 鼠标左键在已聚焦的文本编辑器中重新定位时，补丁重置光标闪烁计时，使新位置立即显示光标。光标颜色取控件解析后的正文色，编辑区的 GitHub 配色独立生效，普通输入继续继承应用正文色。升级 MyGo 时同时核对 `ui/input.go` 的点击定位路径及 `ui/editor_layout.go` / `ui/textarea.go` 的光标绘制；文件缓冲及普通文本区域的可控时钟与像素回归见 `TestEditorClickRestartsVisibleCaretPhase`、`TestEditorThemeSelectionAndCaretPixels`。
 
-P2 另在该隔离副本中修复 macOS 无障碍密码字段 setter 的缓存：AX value/selectedText 写入原文时，只将原文发送给编辑器，不保存在可读的 AppKit 无障碍值中。版本或目标代码不匹配时同样明确失败；升级框架后重新核对原生秘密输入和自动填充。
+该隔离副本另修复 macOS 无障碍密码字段 setter 的缓存：AX value/selectedText 写入原文时，只将原文发送给编辑器，不保存在可读的 AppKit 无障碍值中。版本或目标代码不匹配时同样明确失败；升级框架后重新核对原生秘密输入和自动填充。
 
 ```sh
 ./scripts/go version
@@ -81,15 +81,15 @@ Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。
 FUYU_LIVE=1 ./scripts/go test ./internal/codex -run '^TestLiveCodexLoop$' -v -count=1
 ```
 
-P3 的真实双目录、重开恢复与小型开发任务验证：
+会话恢复的真实双目录、重开恢复与小型开发任务验证：
 
 ```sh
 FUYU_LIVE=1 ./scripts/go test ./internal/codex -run '^TestLiveP3DirectoriesAndRestart$' -v -count=1
 ```
 
-P1 的 `TestLiveCodexLoop` 验证实际文件、同 thread 的第二轮上下文、原生中断终态和 App Server 退出；它不证明所有后台命令都随 `turn/interrupt` 退出。原生 GUI、真实输入法与进程检查单独记录。
+`TestLiveCodexLoop` 验证实际文件、同 thread 的第二轮上下文、原生中断终态和 App Server 退出；它不证明所有后台命令都随 `turn/interrupt` 退出。原生 GUI、真实输入法与进程检查单独记录。
 
-P4 的真实文件监听联动与 500 文件负载分别按需执行；普通测试跳过真实调用。两者使用临时目录和内存渲染器，覆盖磁盘、缓冲和真实协议联动，原生窗口另行验收：
+文件编辑与 Git 的真实文件监听联动与 500 文件负载分别按需执行；普通测试跳过真实调用。两者使用临时目录和内存渲染器，覆盖磁盘、缓冲和真实协议联动，原生窗口另行验收：
 
 ```sh
 FUYU_LIVE=1 ./scripts/go test ./internal/ui -run '^TestLiveP4AgentWritesWhileEditing$' -v -count=1

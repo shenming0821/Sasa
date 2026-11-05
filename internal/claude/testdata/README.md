@@ -1,6 +1,6 @@
 # Claude CLI 基础协议证据
 
-真实录制于 Linux，日期为 2026-10-27（两份 JSON 输出）及 2026-10-28（普通文本对照），时区 Asia/Shanghai。Linux 编写，Mac 待验证。此目录是 P6.0 基础证据，不代表 Claude adapter 或完整协议验收已完成。
+真实录制于 Linux，日期为 2026-10-27（两份 JSON 输出）及 2026-10-28（普通文本对照），时区 Asia/Shanghai。Linux 编写，Mac 待验证。此目录是 Claude 协议与历史核验基础证据，不代表 Claude adapter 或完整协议验收已完成。
 
 ## 版本与环境
 
@@ -57,7 +57,7 @@ system/init 实测包含当前 model、tools、slash_commands、terminal_slash_c
 - session 规则跨进程保留；未经验证不承诺持久授权。
 - 独立录制原生 transcript，覆盖 parentUuid、工具配对、compaction、正常与异常恢复、worktree 和配置根变化。
 
-有界 framing、半行/坏行、未知 subtype、子代理交错、重复/迟到终态、EOF 无 result、超大图片/工具输出及控制响应乱序等合成异常夹具，随 P6.2 解析器补齐并单独标注来源。本轮不把这些项目计为完成。
+有界 framing、半行/坏行、未知 subtype、子代理交错、重复/迟到终态、EOF 无 result、超大图片/工具输出及控制响应乱序等合成异常夹具，随 Claude 运行时接入解析器补齐并单独标注来源。本轮不把这些项目计为完成。
 
 ## Mac 任务生命周期补录（2026-10-28）
 

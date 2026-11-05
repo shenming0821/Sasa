@@ -424,7 +424,7 @@ func TestPaneEmptyTabCloseAndContentReplacement(t *testing.T) {
 	if err := tester.Click("新建 Codex 会话"); err != nil {
 		t.Fatal(err)
 	}
-	if tester.HasText("新标签页") || !a.session.open {
+	if tester.HasText("选择面板内容") || a.activeTab != sessionTabID(a.session.id) || !a.session.open {
 		t.Fatal("creating content did not replace the empty tab")
 	}
 }

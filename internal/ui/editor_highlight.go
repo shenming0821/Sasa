@@ -198,16 +198,22 @@ func (a *App) loadDiskComparison(source, d *filePage) {
 	})
 }
 func (a *App) tabTitle(tab storage.Tab) string {
-	if tab.Kind == "empty" {
+	if tab.Kind == "empty" || tab.Kind == "terminal" {
 		return "新标签页"
-	}
-	if tab.Kind == "terminal" {
-		return a.terminalTitle(tab)
 	}
 	if tab.Kind == "session" {
 		for _, s := range a.sessions {
 			if s.id == tab.SessionID {
-				return s.title()
+				title := s.title()
+				if title == "新会话" && s.saved.CustomTitle == "" {
+					for _, message := range s.State.Messages {
+						if message.Role == "user" {
+							return title
+						}
+					}
+					return "新标签页"
+				}
+				return title
 			}
 		}
 		return "会话"
@@ -246,6 +252,13 @@ func (a *App) tabTitle(tab storage.Tab) string {
 		name += " · " + tab.Compare
 	}
 	return name
+}
+
+func (a *App) tabTooltip(tab storage.Tab) string {
+	if tab.Kind == "terminal" {
+		return "终端 · " + tab.Workspace
+	}
+	return a.tabTitle(tab)
 }
 
 func workspaceTabLabel(root string, roots []string) string {

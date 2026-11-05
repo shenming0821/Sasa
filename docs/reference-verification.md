@@ -193,7 +193,7 @@ schema 生成只证明安装包导出这些结构，不能证明实验能力默�
 
 Fuyu 的具体规则依据本项目的 Codex Runtime、MyGo 原生 UI 和当前开发阶段编写。Magpie 的订阅迁移、社区作者名单、Web GUI 测试、跨平台发布流程和历史缺陷属于其自身项目背景，不作为 Fuyu 的现有机制或经历。
 
-规范入口为根目录 `AGENTS.md`，`CLAUDE.md` 仅引用该入口。规范建立时应用代码尚未创建；随后 P1 已建立可运行实现，实际构建/测试命令见[开发指南](development.md)，结果见[P1 验证记录](verification/2026-10-22-p1.md)。本节仅记录规范参考来源。
+规范入口为根目录 `AGENTS.md`，`CLAUDE.md` 仅引用该入口。规范建立时应用代码尚未创建；随后真实任务闭环已建立可运行实现，实际构建/测试命令见[开发指南](development.md)，结果见[真实任务闭环验证记录](verification/2026-10-22-p1.md)。本节仅记录规范参考来源。
 
 固定参考：
 
@@ -210,11 +210,11 @@ https://github.com/yetone/magpie/blob/ea6be1592706ea4a0dd6cd526acec0b5d1fb967e/L
 
 | 参考点 | 在什么条件下，执行什么动作 | 落实阶段与验收 |
 |---|---|---|
-| 审批独立状态 | 收到审批或用户提问时，保存原生请求 ID 及 thread/turn/item 归属；分别处理待回答、提交中、已解决、取消和失效。任务结束或连接失效时更新入口，防止重复响应；等待用户期间保持协议读取可用 | P2：覆盖批准、拒绝、回答、中断、晚到结果与重复点击 |
-| 明确滚动意图 | 用户位于末尾时跟随流式输出；用户向上阅读时保持阅读锚点；用户主动返回最新消息时恢复跟随。历史补入和内容高度变化时按相同规则处理 | P1：验收真实窗口的流式阅读；P3：补齐会话切换和历史加载时的阅读恢复 |
-| 结构化工具状态 | 展示工具事件时，以原生 item ID 合并结构化的工具类型、输入/输出、审批及执行状态；依据 item 终态更新工具结果，独立于 turn 终态。第二种 Agent 接入时再按实际差异提取公共模型 | P2：核对命令、文件修改、失败、拒绝与超时；保留必要原生字段 |
-| 总量受控的事件缓冲 | 处理持续输出时，限制事件队列和显示缓存的总容量，检测消费者落后及事件缺口；发生缺口时通过快照重新核验，无法补齐时明确显示结果不完整 | P2：大量输出期间输入、停止和阅读可用；超限后仍能核对终态。容量值在实现时确定并实测，避免直接复制参考项目阈值 |
-| 应用历史与 Runtime 历史分工 | 实现持久化时，应用保存会话索引、草稿、阅读位置等自身数据；对话历史和任务状态向 Codex 原生接口核验。恢复时分别判断可读历史、可继续对话和可重新接入活动任务 | P3：覆盖正常重开、异常退出、失联与状态校准，保持原始凭据和配置 |
+| 审批独立状态 | 收到审批或用户提问时，保存原生请求 ID 及 thread/turn/item 归属；分别处理待回答、提交中、已解决、取消和失效。任务结束或连接失效时更新入口，防止重复响应；等待用户期间保持协议读取可用 | 任务过程与交互：覆盖批准、拒绝、回答、中断、晚到结果与重复点击 |
+| 明确滚动意图 | 用户位于末尾时跟随流式输出；用户向上阅读时保持阅读锚点；用户主动返回最新消息时恢复跟随。历史补入和内容高度变化时按相同规则处理 | 真实任务闭环：验收真实窗口的流式阅读；会话持久化与恢复：补齐会话切换和历史加载时的阅读恢复 |
+| 结构化工具状态 | 展示工具事件时，以原生 item ID 合并结构化的工具类型、输入/输出、审批及执行状态；依据 item 终态更新工具结果，独立于 turn 终态。第二种 Agent 接入时再按实际差异提取公共模型 | 任务过程与交互：核对命令、文件修改、失败、拒绝与超时；保留必要原生字段 |
+| 总量受控的事件缓冲 | 处理持续输出时，限制事件队列和显示缓存的总容量，检测消费者落后及事件缺口；发生缺口时通过快照重新核验，无法补齐时明确显示结果不完整 | 任务过程与交互：大量输出期间输入、停止和阅读可用；超限后仍能核对终态。容量值在实现时确定并实测，避免直接复制参考项目阈值 |
+| 应用历史与 Runtime 历史分工 | 实现持久化时，应用保存会话索引、草稿、阅读位置等自身数据；对话历史和任务状态向 Codex 原生接口核验。恢复时分别判断可读历史、可继续对话和可重新接入活动任务 | 会话持久化与恢复：覆盖正常重开、异常退出、失联与状态校准，保持原始凭据和配置 |
 
 架构保持：继续采用 Go + MyGo 原生 UI，当前连续对话复用同一 App Server 和原生 thread；用户明确要求从历史分支会话时再引入 fork。上述参考不引入 Web UI、多 Agent 框架或每轮重启进程的要求。
 
@@ -234,9 +234,9 @@ crates/local-deployment/src/container.rs
 crates/utils/src/process.rs
 ```
 
-## 11. P2 实现时的再次核验
+## 11. 任务过程与交互实现时的再次核验
 
-P2 再次读取 cdesktop 固定提交 `75bd015e88f9797d785c9fabcfca03c7151fd5cc` 的审批桥接、Codex 客户端和消息存储源码。参考其设计后按 Fuyu 的 Go/MyGo 与原生协议独立实现，未运行 cdesktop，也未将其测试作为本项目证据。
+实现任务过程与交互时，再次读取 cdesktop 固定提交 `75bd015e88f9797d785c9fabcfca03c7151fd5cc` 的审批桥接、Codex 客户端和消息存储源码。参考其设计后按 Fuyu 的 Go/MyGo 与原生协议独立实现，未运行 cdesktop，也未将其测试作为本项目证据。
 
 | 固定源码 | 读到的机制 | Fuyu 的落实 |
 |---|---|---|
@@ -258,9 +258,9 @@ https://github.com/cdesktop-ai/cdesktop/blob/75bd015e88f9797d785c9fabcfca03c7151
 codex app-server generate-json-schema --experimental --out /tmp/fuyu-p2-schema
 ```
 
-已确认 `serverRequest/resolved` 的关联字段为 threadId/requestId；question 按 ID 映射并含 isOther/isSecret/isBlocking；命令审批有原始 availableDecisions 和策略修订对象；文件新增/删除 diff 为原始文件内容。运行验证、未触发分支和容量边界统一见 [P2 验收](verification/2026-10-22-p2.md)。
+已确认 `serverRequest/resolved` 的关联字段为 threadId/requestId；question 按 ID 映射并含 isOther/isSecret/isBlocking；命令审批有原始 availableDecisions 和策略修订对象；文件新增/删除 diff 为原始文件内容。运行验证、未触发分支和容量边界统一见 [任务过程与交互验收](verification/2026-10-22-p2.md)。
 
-## 12. P3 原生历史与生命周期核验
+## 12. 原生历史与生命周期核验
 
 按本机 `codex-cli 0.163.0` 生成 `/tmp/fuyu-p3-schema`，核对当前安装版本的 `ThreadResumeParams`、`ThreadResumeResponse`、`ThreadTurnsListParams`、`ThreadTurnsListResponse` 和 thread/list 相关定义。
 
@@ -268,11 +268,11 @@ codex app-server generate-json-schema --experimental --out /tmp/fuyu-p2-schema
 codex app-server generate-json-schema --experimental --out /tmp/fuyu-p3-schema
 ```
 
-采用 `thread/resume` 的 `excludeTurns=true`，不覆盖原生 cwd/model/权限配置；从响应读取真实设置和 thread.status。`thread/turns/list` 使用 `itemsView=full`、`sortDirection=desc`、`limit=20` 和不透明 nextCursor；thread/list 按 `updated_at` 降序，每页20条。完整历史由原生记录提供，应用 SQLite 只保存界面元数据和原生 ID。实际字段及调用见 `internal/codex/history.go`；分页、真实恢复与边界见 [P3 验证](verification/2026-10-22-p3.md)。
+采用 `thread/resume` 的 `excludeTurns=true`，不覆盖原生 cwd/model/权限配置；从响应读取真实设置和 thread.status。`thread/turns/list` 使用 `itemsView=full`、`sortDirection=desc`、`limit=20` 和不透明 nextCursor；thread/list 按 `updated_at` 降序，每页20条。完整历史由原生记录提供，应用 SQLite 只保存界面元数据和原生 ID。实际字段及调用见 `internal/codex/history.go`；分页、真实恢复与边界见 [会话持久化与恢复验证](verification/2026-10-22-p3.md)。
 
 窗口生命周期按固定 MyGo 提交的 `Window.OnClose` / `Hide` / `Show`、`App.OnActivate`、`Dock.SetMenu`、`App.OnBeforeQuit` 核对实现；SQLite 固定 `modernc.org/sqlite v1.60.1`。本节记录本机 schema 与固定依赖核验，不将上游示例当作本应用运行证据。
 
-## 13. Mayoi：P4 轻量原生编辑器参考
+## 13. Mayoi：轻量原生编辑器参考
 
 2026-11-02 编辑器主题继续核对固定提交 `cd08688ade5ece3411d9bb812228c7d30492526a`，参考 `internal/highlight/highlight.go` 的 token/颜色分离与特殊文件名识别，以及 `vue.xml` 和 `TestVueDirectiveOverLines` 的指令引号边界。Fuyu 保留自己的有界异步高亮流程，保存原始 Chroma token 类型，绘制时使用当前依赖 Chroma v2.27.0 的 `github` / `github-dark` 样式；在 Vue 规则副本中等效收紧指令正则，并另外委派 script/style 的嵌入语言。未复制 Mayoi 高亮器或构建运行 Mayoi；上游 lexer 原始失败与 Fuyu 修正后的独立回归见[主题验证](verification/2026-11-02-editor-themes.md)。
 
@@ -289,11 +289,11 @@ codex app-server generate-json-schema --experimental --out /tmp/fuyu-p3-schema
 | `internal/git/git.go`、`cmd/mayoi/scm.go` | porcelain v2 NUL 状态、staged/unstaged 区分、源代码管理展示；只采用本轮只读范围 |
 | `docs/ARCHITECTURE.md`、`go.mod`、`LICENSE` | 架构说明、实际依赖分叉和 MIT 许可；性能描述属于上游自述 |
 
-Mayoi 当前声明 MyGo v0.6.0，但通过 replace 实际使用 `github.com/sorrycc/mygo v0.4.9-0.20261022125358-4bd079439ee7`；Fuyu 使用 `github.com/egoist/mygo v0.6.3-0.20261022014156-976f17c9391f` 及本项目输入补丁。已在 Fuyu 本机依赖源码核对 TextBuffer/Snapshot、TextAreaBufferBase、TextRanges、TrackLines 存在；编辑、绘制和中文输入行为兼容性待 P4.0 验证，不据此直接替换依赖或复制整个应用。
+Mayoi 当前声明 MyGo v0.6.0，但通过 replace 实际使用 `github.com/sorrycc/mygo v0.4.9-0.20261022125358-4bd079439ee7`；Fuyu 使用 `github.com/egoist/mygo v0.6.3-0.20261022014156-976f17c9391f` 及本项目输入补丁。已在 Fuyu 本机依赖源码核对 TextBuffer/Snapshot、TextAreaBufferBase、TextRanges、TrackLines 存在；编辑、绘制和中文输入行为兼容性待原生编辑兼容验证，不据此直接替换依赖或复制整个应用。
 
-进一步核对 Mayoi 的 `go.mod` 提交记录：`34c00c4946c33cc388f65e47e4118d9fdc19e83f` 于 2026-10-21 升级官方 MyGo 0.6.0 并删除分叉；`046b499868f4d21d44ac6f00d6e309d8565dbebb` 随后说明为保留 Linux Pango Tab 宽度与旧 Cairo 文字渲染修复而恢复分叉，等待上游 #614 发布。该记录解释当时的依赖选择，不表示未来同步有保证，也不证明 macOS 编辑必须使用分叉。Fuyu P4 默认保留官方依赖，缺口按实际兼容验证处理。
+进一步核对 Mayoi 的 `go.mod` 提交记录：`34c00c4946c33cc388f65e47e4118d9fdc19e83f` 于 2026-10-21 升级官方 MyGo 0.6.0 并删除分叉；`046b499868f4d21d44ac6f00d6e309d8565dbebb` 随后说明为保留 Linux Pango Tab 宽度与旧 Cairo 文字渲染修复而恢复分叉，等待上游 #614 发布。该记录解释当时的依赖选择，不表示未来同步有保证，也不证明 macOS 编辑必须使用分叉。Fuyu 文件编辑与 Git 默认保留官方依赖，缺口按实际兼容验证处理。
 
-固定来源：[Mayoi 源码](https://github.com/sorrycc/Mayoi/tree/2650b9bfa90c87ffe0d48fffb140dd2fc428ff1c)。P4 范围、待验证限额和分步方案见[P4 设计](p4-editor-design.md)。
+固定来源：[Mayoi 源码](https://github.com/sorrycc/Mayoi/tree/2650b9bfa90c87ffe0d48fffb140dd2fc428ff1c)。文件编辑与 Git 范围、待验证限额和分步方案见[文件编辑与 Git 设计](p4-editor-design.md)。
 
 ### 2026-10-26 Git 工作流补充核对
 

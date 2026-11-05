@@ -48,4 +48,4 @@ Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clea
 
 ## 验证
 
-`adapter_test.go`、`queue_test.go` 与合成 `testdata/server.py` 验证审批不堵 reader、取消/停止、跨会话失败隔离、重复响应、问答、多选、目录绑定、坏帧、未知终态、历史分支与分页、队列上限。真实测试需显式 `FUYU_LIVE_CLAUDE=1`，使用临时 cwd 与现有原生登录。已取得证据和未验收项见 [P6 验证记录](../verification/2026-10-28-p6-agent.md)。
+`adapter_test.go`、`queue_test.go` 与合成 `testdata/server.py` 验证审批不堵 reader、取消/停止、跨会话失败隔离、重复响应、问答、多选、目录绑定、坏帧、未知终态、历史分支与分页、队列上限。真实测试需显式 `FUYU_LIVE_CLAUDE=1`，使用临时 cwd 与现有原生登录。已取得证据和未验收项见 [Claude 接入与双 Agent 支持验证记录](../verification/2026-10-28-p6-agent.md)。
