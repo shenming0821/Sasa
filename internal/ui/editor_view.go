@@ -106,42 +106,64 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 		}
 	})
 	native.Column(c).FillWidth().Padding(4, 12, 10, 12).Gap(6).Children(func() {
-		searchField(c).Children(func() {
-			input := native.TextInputBase(c, &w.query).Label("搜索文件内容").Placeholder("搜索文件内容").Grow(1).MinWidth(0).FontSize(12).Padding(4)
-			if w.searchFocus {
-				input.Focus()
-				w.searchFocus = false
-			}
-			composing := input.Composing()
-			input.OnTextKey(func(k native.TextKey) bool {
-				if composing {
-					return false
+		native.Row(c).FillWidth().Gap(4).AlignItems(native.Center).Children(func() {
+			searchField(c).Grow(1).Children(func() {
+				input := native.TextInputBase(c, &w.query).Label("搜索文件内容").Placeholder("搜索文件内容").Grow(1).MinWidth(0).FontSize(12).Padding(4)
+				if w.searchFocus {
+					input.Focus()
+					w.searchFocus = false
 				}
-				if k.Key == native.KeyEscape {
-					w.query = ""
-					k.SetText("")
-					return true
-				}
-				count := len(w.contentSearch.Matches)
-				if k.Key == native.KeyEnter && !w.searchLoading && w.searchKey() == w.searchQuery && count > 0 {
-					a.openSearchMatch(w, w.contentSearch.Matches[min(w.searchIndex, count-1)])
-					return true
-				}
-				if count > 0 && (k.Key == native.KeyDown || k.Key == native.KeyUp) {
-					delta := 1
-					if k.Key == native.KeyUp {
-						delta = -1
+				composing := input.Composing()
+				input.OnTextKey(func(k native.TextKey) bool {
+					if composing {
+						return false
 					}
-					w.searchIndex = (w.searchIndex + delta + count) % count
-					revealSearchMatch(w, w.searchIndex)
-					return true
-				}
-				return false
+					if k.Key == native.KeyEscape {
+						w.query = ""
+						k.SetText("")
+						return true
+					}
+					count := len(w.contentSearch.Matches)
+					if k.Key == native.KeyEnter && !w.searchLoading && w.searchKey() == w.searchQuery && count > 0 {
+						a.openSearchMatch(w, w.contentSearch.Matches[min(w.searchIndex, count-1)])
+						return true
+					}
+					if count > 0 && (k.Key == native.KeyDown || k.Key == native.KeyUp) {
+						delta := 1
+						if k.Key == native.KeyUp {
+							delta = -1
+						}
+						w.searchIndex = (w.searchIndex + delta + count) % count
+						revealSearchMatch(w, w.searchIndex)
+						return true
+					}
+					return false
+				})
+				searchOptionButton(c, "区分大小写", "Aa", &w.searchCase)
+				searchOptionButton(c, "全字匹配", "ab", &w.searchWord)
+				searchOptionButton(c, "使用正则表达式", ".*", &w.searchRegex)
 			})
-			searchOptionButton(c, "区分大小写", "Aa", &w.searchCase)
-			searchOptionButton(c, "全字匹配", "ab", &w.searchWord)
-			searchOptionButton(c, "使用正则表达式", ".*", &w.searchRegex)
+			label := "展开搜索筛选"
+			if w.searchDetails {
+				label = "收起搜索筛选"
+			}
+			b := quietIconButton(c, label).Size(24, 26)
+			if !w.searchDetails && (strings.TrimSpace(w.searchInclude) != "" || strings.TrimSpace(w.searchExclude) != "" || w.searchIgnored) {
+				b.TextColor(t.Accent)
+			}
+			b.Children(func() {
+				g := native.Icon(c, chevron).Size(14, 14)
+				if !w.searchDetails {
+					g.Rotate(-90)
+				}
+			})
+			if b.Clicked() {
+				w.searchDetails = !w.searchDetails
+			}
 		})
+		if !w.searchDetails {
+			return
+		}
 		searchField(c).Children(func() {
 			native.TextInputBase(c, &w.searchInclude).Label("包含的文件").Placeholder("包含的文件").
 				Grow(1).MinWidth(0).FontSize(12).Padding(4)

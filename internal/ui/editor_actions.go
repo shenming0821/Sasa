@@ -75,6 +75,7 @@ func (a *App) searchInFolder(root, path string) {
 		return
 	}
 	w.searchInclude = ""
+	w.searchDetails = true
 	if rel, err := filepath.Rel(w.root, path); err == nil && rel != "." {
 		w.searchInclude = "./" + filepath.ToSlash(rel)
 	}

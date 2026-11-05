@@ -96,6 +96,7 @@ func TestP4ContentSearchOptionsGroupsAndCollapse(t *testing.T) {
 	a, q, root := p4App(t)
 	a.historyOpen, a.rightTab = true, "files"
 	w := a.workspace(root)
+	w.searchDetails = true
 	tt := native.NewTester(a.view, 1100, 760)
 	p4Wait(t, tt, q, func() bool { return len(w.children[root]) > 0 })
 	if err := tt.Click("搜索文件内容"); err != nil {
@@ -154,6 +155,36 @@ func TestP4ContentSearchOptionsGroupsAndCollapse(t *testing.T) {
 	p4Wait(t, tt, q, func() bool { return !w.searchLoading && w.error != "" })
 	if !tt.HasText("正则表达式无效") {
 		t.Fatal("invalid regex error not shown", w.error)
+	}
+}
+
+func TestP4SearchFiltersCollapseAndFolderSearchReveal(t *testing.T) {
+	a, q, root := p4App(t)
+	a.historyOpen, a.rightTab = true, "files"
+	w := a.workspace(root)
+	tt := native.NewTester(a.view, 1100, 760)
+	p4Wait(t, tt, q, func() bool { return len(w.children[root]) > 0 })
+	if _, ok := tt.Find("包含的文件"); ok {
+		t.Fatal("include field visible while collapsed by default")
+	}
+	if err := tt.Click("展开搜索筛选"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("包含的文件"); !ok {
+		t.Fatal("expanded filters not visible")
+	}
+	if err := tt.Click("收起搜索筛选"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("包含的文件"); ok {
+		t.Fatal("collapsed filters still visible")
+	}
+	a.searchInFolder(root, filepath.Join(root, "internal"))
+	tt.Frame()
+	if _, ok := tt.Find("包含的文件"); !ok || w.searchInclude != "./internal" {
+		t.Fatal("folder search did not reveal filters", w.searchInclude)
 	}
 }
 

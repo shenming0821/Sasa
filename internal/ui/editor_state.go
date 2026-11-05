@@ -49,6 +49,7 @@ type workspacePage struct {
 	searchQuery                  string
 	searchLoading                bool
 	searchInclude, searchExclude string
+	searchDetails                bool
 	searchCase, searchWord       bool
 	searchRegex, searchIgnored   bool
 	searchCollapsed              map[string]bool
