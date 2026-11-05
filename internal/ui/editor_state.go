@@ -39,18 +39,15 @@ type workspacePage struct {
 	children                     map[string][]workspace.Entry
 	expanded, loading            map[string]bool
 	list                         native.ListState
-	searchList                   native.ListState
 	contentList                  native.ListState
 	historyScroll, gitScroll     native.ScrollState
 	historyQuery                 string
 	historyScope                 int
 	directoryProgress            map[string]float32
 	entries                      []treeRow
-	search                       workspace.SearchResult
 	contentSearch                workspace.ContentSearchResult
 	searchQuery                  string
 	searchLoading                bool
-	searchContent                bool
 	searchInclude, searchExclude string
 	searchCase, searchWord       bool
 	searchRegex, searchIgnored   bool
@@ -1115,12 +1112,9 @@ func (w *workspacePage) contentQuery() workspace.ContentQuery {
 	}
 }
 
-// searchKey is the identity of the currently wanted search: mode, query text
-// and, for content search, its options and file patterns.
+// searchKey is the identity of the currently wanted search: query text,
+// options and file patterns.
 func (w *workspacePage) searchKey() string {
-	if !w.searchContent {
-		return "files\x00" + w.query
-	}
 	return fmt.Sprintf("content\x00%#v", w.contentQuery())
 }
 
@@ -1138,7 +1132,6 @@ func (a *App) searchFiles(w *workspacePage) {
 	w.generation++
 	generation := w.generation
 	if strings.TrimSpace(w.query) == "" {
-		w.search = workspace.SearchResult{}
 		w.contentSearch = workspace.ContentSearchResult{}
 		w.searchCollapsed = nil
 		w.searchIndex = 0
@@ -1147,20 +1140,15 @@ func (a *App) searchFiles(w *workspacePage) {
 		return
 	}
 	w.searchLoading = true
-	query, content, options := w.query, w.searchContent, w.contentQuery()
+	options := w.contentQuery()
 	ctx, cancel := a.projectContext(5 * time.Second)
 	w.searchCancel = cancel
 	a.runBackgroundFileTaskContext(ctx, func() {
 		defer cancel()
-		var names workspace.SearchResult
 		var matches workspace.ContentSearchResult
 		err := ctx.Err()
 		if err == nil {
-			if content {
-				matches, err = workspace.SearchContent(ctx, w.root, options)
-			} else {
-				names, err = workspace.Search(ctx, w.root, query)
-			}
+			matches, err = workspace.SearchContent(ctx, w.root, options)
 		}
 		a.update(func() {
 			if generation != w.generation {
@@ -1168,7 +1156,6 @@ func (a *App) searchFiles(w *workspacePage) {
 			}
 			w.searchLoading = false
 			w.searchCancel = nil
-			w.search = names
 			w.contentSearch = matches
 			w.searchCollapsed = nil
 			w.searchIndex = 0

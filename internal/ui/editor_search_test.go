@@ -24,8 +24,8 @@ func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
 	if err := tt.ChooseMenuItem("在文件夹中搜索"); err != nil {
 		t.Fatal(err)
 	}
-	if !w.searchContent || w.searchInclude != "./internal" || !a.historyOpen || a.rightTab != "files" {
-		t.Fatal("folder search did not arm content mode", w.searchContent, w.searchInclude)
+	if w.searchInclude != "./internal" || !a.historyOpen || a.rightTab != "files" {
+		t.Fatal("folder search did not set the include pattern", w.searchInclude)
 	}
 	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
@@ -50,14 +50,7 @@ func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
 	}
 	w.searchInclude = ""
 	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
-	if err := tt.Click("全文搜索"); err != nil {
-		t.Fatal(err)
-	}
-	p4Wait(t, tt, q, func() bool { return !w.searchLoading && !w.searchContent })
-	if len(w.contentSearch.Matches) != 0 {
-		t.Fatal("filename mode kept content matches")
-	}
-	if err := tt.Click("查找文件"); err != nil {
+	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Key(0, native.KeyEscape)
@@ -73,27 +66,17 @@ func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
 	}
 }
 
-func TestP4ContentSearchKeyboardAndModeToggle(t *testing.T) {
+func TestP4ContentSearchKeyboardAndOpen(t *testing.T) {
 	a, q, root := p4App(t)
 	a.historyOpen, a.rightTab = true, "files"
 	tt := native.NewTester(a.view, 1100, 760)
 	w := a.workspace(root)
 	p4Wait(t, tt, q, func() bool { return len(w.children[root]) > 0 })
-	if err := tt.Click("查找文件"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Type("fuyu")
-	p4Wait(t, tt, q, func() bool { return !w.searchLoading && w.searchQuery == w.searchKey() })
-	if len(w.search.Entries) != 0 {
-		t.Fatal("filename search matched content-only text")
-	}
-	if err := tt.Click("全文搜索"); err != nil {
-		t.Fatal(err)
-	}
-	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
 	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
 	}
+	tt.Type("fuyu")
+	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
 	tt.Key(0, native.KeyDown)
 	if w.searchIndex != 1 || w.selected != w.contentSearch.Matches[1].Path {
 		t.Fatal("Down did not move to the second match")
@@ -113,7 +96,6 @@ func TestP4ContentSearchOptionsGroupsAndCollapse(t *testing.T) {
 	a, q, root := p4App(t)
 	a.historyOpen, a.rightTab = true, "files"
 	w := a.workspace(root)
-	w.searchContent = true
 	tt := native.NewTester(a.view, 1100, 760)
 	p4Wait(t, tt, q, func() bool { return len(w.children[root]) > 0 })
 	if err := tt.Click("搜索文件内容"); err != nil {

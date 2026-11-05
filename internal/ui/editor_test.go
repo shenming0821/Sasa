@@ -230,7 +230,7 @@ func TestP4NarrowEditorKeepsSaveAndFilePanelSeparate(t *testing.T) {
 	for _, width := range []int{1280, 1000, 640} {
 		tt.SetSize(width, 480)
 		save, saveOK := tt.Find("保存")
-		search, searchOK := tt.Find("查找文件")
+		search, searchOK := tt.Find("搜索文件内容")
 		content, contentOK := tt.Find("文件内容 " + path)
 		if !saveOK || !searchOK || !contentOK || save.X < 0 || save.X+save.W > search.X ||
 			search.X+search.W > float32(width) || content.Y+content.H > 480 {
@@ -423,16 +423,17 @@ func TestP4TreeKeyboardAndSearch(t *testing.T) {
 	}
 	tt.Key(0, native.KeyEnter)
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
-	if e := tt.Click("查找文件"); e != nil {
+	if e := tt.Click("搜索文件内容"); e != nil {
 		t.Fatal(e)
 	}
-	tt.Type("README")
-	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.search.Entries) == 1 })
+	tt.Type("fuyu")
+	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
+	first := w.contentSearch.Matches[0].Path
 	tt.Key(0, native.KeyEnter)
 	p4Wait(t, tt, q, func() bool {
-		return a.currentFile() != nil && a.currentFile().path == filepath.Join(root, "README.md") && a.currentFile().loaded
+		return a.currentFile() != nil && a.currentFile().path == first && a.currentFile().loaded
 	})
-	if e := tt.Click("查找文件"); e != nil {
+	if e := tt.Click("搜索文件内容"); e != nil {
 		t.Fatal(e)
 	}
 	tt.Key(0, native.KeyEscape)
@@ -946,14 +947,14 @@ func TestP4SearchPreservesTreeScrollAndRejectsOldRows(t *testing.T) {
 	}
 	w.query = "first-query"
 	w.searchQuery = w.searchKey()
-	w.search.Entries = []workspace.Entry{{Path: filepath.Join(root, "README.md"), Name: "README.md"}}
+	w.contentSearch.Matches = []workspace.ContentMatch{{Path: filepath.Join(root, "README.md"), Line: 1, Text: "README"}}
 	tt.Frame()
 	w.query = "different-query"
 	a.searchFiles(w)
-	if len(w.search.Entries) != 1 || !w.searchLoading {
+	if len(w.contentSearch.Matches) != 1 || !w.searchLoading {
 		t.Fatal("issuing a search did not keep the previous results visible")
 	}
-	if err := tt.Click("查找文件"); err != nil {
+	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Key(0, native.KeyEnter)
@@ -988,7 +989,7 @@ func TestP4WorkspaceSwitchCancelsQueuedDirectoryAndSearch(t *testing.T) {
 			t.Fatal("canceled reads waited for occupied workers")
 		}
 	}
-	if w.loading[root] || w.searchLoading || len(w.children[root]) != 0 || len(w.search.Entries) != 0 || w.error != "" {
+	if w.loading[root] || w.searchLoading || len(w.children[root]) != 0 || len(w.contentSearch.Matches) != 0 || w.error != "" {
 		t.Fatal("obsolete workspace read changed visible state")
 	}
 	<-a.fileWorkers
