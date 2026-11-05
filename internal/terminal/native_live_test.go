@@ -134,6 +134,12 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	if err := first.Present(window.NativeHandle(), bounds, false, true); err != nil {
 		return err
 	}
+	if !first.probeBackingScale(false) {
+		return fmt.Errorf("initial terminal layer scale does not match the display")
+	}
+	if !first.probeBackingScale(true) {
+		return fmt.Errorf("terminal layer scale did not follow backing change without animation")
+	}
 	first.probeText("pwd > cwd; echo $$ > pid; sleep 60 & echo $! > child; stty size > size; printf '\\033[32mNATIVE_%s_%s\\033[0m\\n' METAL 中文\r")
 	if err := probeWait(func() bool {
 		return strings.Contains(first.probeScreen(), "NATIVE_METAL_中文") && fileExists(filepath.Join(root, "size"))
@@ -177,6 +183,9 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	bounds.W, bounds.H = 900, 600
 	if err := first.Present(window.NativeHandle(), bounds, true, true); err != nil {
 		return err
+	}
+	if !first.probeBackingScale(false) {
+		return fmt.Errorf("resized terminal layer scale does not match the display")
 	}
 	var rows, columns, newRows, newColumns int
 	fmt.Sscanf(string(initial), "%d %d", &rows, &columns)
@@ -223,7 +232,7 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	if err := probeWait(second.Exited); err != nil {
 		return fmt.Errorf("native shell exit not reported: %w", err)
 	}
-	fmt.Printf("NATIVE_TERMINAL_PASS cwd, Chinese/ANSI terminal state, raw keyboard input, mutable composition commit, native view resize %dx%d -> %dx%d, hidden/visible surfaces, independent shells, process cleanup, shell exit\n", columns, rows, newColumns, newRows)
+	fmt.Printf("NATIVE_TERMINAL_PASS cwd, Chinese/ANSI terminal state, raw keyboard input, mutable composition commit, backing scale restoration without animation, native view resize %dx%d -> %dx%d, hidden/visible surfaces, independent shells, process cleanup, shell exit\n", columns, rows, newColumns, newRows)
 	fmt.Printf("NATIVE_OUTPUT_SAMPLE 20000 lines observed in %s (local sample, includes shell/awk/polling; not a renderer benchmark)\n", bulkDuration.Round(time.Millisecond))
 	return nil
 }

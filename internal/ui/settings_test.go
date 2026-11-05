@@ -15,6 +15,31 @@ import (
 	"github.com/shenming0821/Fuyu/internal/codex"
 )
 
+func TestSettingsDefaultChineseFontRemainsSelectable(t *testing.T) {
+	a := New(stubBackend{}, "test", "/workspace", nil)
+	store := imageStore(t, a)
+	tt := native.NewTester(a.view, 1000, 760)
+	a.openSettings()
+	a.fontFamilies = []string{latinFont, "PingFang SC"}
+	tt.Frame()
+	for _, label := range []string{"设置分类 外观", "选择中文字体", "中文字体 PingFang SC", "选择中文字体", "中文字体 .PingFang UI SC"} {
+		if err := tt.Click(label); err != nil {
+			t.Fatalf("default Chinese font must remain selectable after changing fonts: %s: %v", label, err)
+		}
+		tt.Frame()
+	}
+	if a.preferences.ChineseFont != defaultPreferences().ChineseFont {
+		t.Fatal("default Chinese font was not restored", a.preferences.ChineseFont)
+	}
+	restored := New(stubBackend{}, "test", "/workspace", nil)
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	if restored.preferences.ChineseFont != defaultPreferences().ChineseFont {
+		t.Fatal("restored default font did not persist", restored.preferences.ChineseFont)
+	}
+}
+
 func TestSettingsAppearancePersistenceAndFontScope(t *testing.T) {
 	a := New(stubBackend{}, "test", "/workspace", nil)
 	store := imageStore(t, a)

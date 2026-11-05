@@ -280,13 +280,17 @@ func (a *App) appearanceSettings(c *native.Context) {
 			}
 		})
 	})
+	defaults := defaultPreferences()
 	for _, entry := range []struct {
-		label string
-		value *string
+		label        string
+		value        *string
+		defaultValue string
 	}{
-		{"英文字体", &a.preferences.EnglishFont}, {"中文字体", &a.preferences.ChineseFont}, {"代码字体", &a.preferences.CodeFont},
+		{"英文字体", &a.preferences.EnglishFont, defaults.EnglishFont},
+		{"中文字体", &a.preferences.ChineseFont, defaults.ChineseFont},
+		{"代码字体", &a.preferences.CodeFont, defaults.CodeFont},
 	} {
-		a.fontSetting(c.Key(entry.label), entry.label, entry.value)
+		a.fontSetting(c.Key(entry.label), entry.label, entry.value, entry.defaultValue)
 	}
 	native.Column(c).FillWidth().Padding(12).Gap(8).Radius(10).Background(t.Surface).Children(func() {
 		native.Text(c, "字体预览").FontSize(11).TextColor(t.TextMuted)
@@ -297,7 +301,7 @@ func (a *App) appearanceSettings(c *native.Context) {
 	})
 }
 
-func (a *App) fontSetting(c *native.Context, label string, value *string) {
+func (a *App) fontSetting(c *native.Context, label string, value *string, defaultValue string) {
 	native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
 		settingLabel(c, label)
 		b := treeButton(c, "选择"+label).Grow(1).MinWidth(0).Height(32).Padding(0, 10).Border(1, c.Theme().Border)
@@ -325,8 +329,10 @@ func (a *App) fontSetting(c *native.Context, label string, value *string) {
 				native.Scroll(c).FillWidth().MinWidth(0).Height(180).Children(func() {
 					native.Column(c).FillWidth().Children(func() {
 						names := slices.Clone(a.fontFamilies)
-						if !slices.Contains(names, *value) {
-							names = append([]string{*value}, names...)
+						for _, required := range []string{*value, defaultValue} {
+							if !slices.Contains(names, required) {
+								names = append([]string{required}, names...)
+							}
 						}
 						matched := false
 						for _, name := range names {

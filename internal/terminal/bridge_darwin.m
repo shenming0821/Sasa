@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <Metal/Metal.h>
+#import <QuartzCore/QuartzCore.h>
 #include <dlfcn.h>
 #include <stdatomic.h>
 #include "bridge.h"
@@ -322,10 +323,16 @@ void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
     return value ?: @"";
 }
 - (void)syncSize {
-    if (!self.surface || !self.window) return;
+    if (!self.window) return;
     CGFloat scale = self.window.backingScaleFactor;
-    gt_surface_set_content_scale(self.surface, scale, scale);
-    gt_surface_set_size(self.surface, (uint32_t)round(self.bounds.size.width * scale), (uint32_t)round(self.bounds.size.height * scale));
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    self.layer.contentsScale = scale;
+    [CATransaction commit];
+    if (!self.surface || self.bounds.size.width <= 0 || self.bounds.size.height <= 0) return;
+    NSSize pixels = [self convertSizeToBacking:self.bounds.size];
+    gt_surface_set_content_scale(self.surface, pixels.width / self.bounds.size.width, pixels.height / self.bounds.size.height);
+    gt_surface_set_size(self.surface, (uint32_t)round(pixels.width), (uint32_t)round(pixels.height));
     NSNumber *display = self.window.screen.deviceDescription[@"NSScreenNumber"];
     if (display) gt_surface_set_display_id(self.surface, display.unsignedIntValue);
 }

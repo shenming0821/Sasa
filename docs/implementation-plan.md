@@ -6,6 +6,10 @@
 
 ## 1. 当前接续点
 
+2026-11-05 默认字体恢复入口：字体菜单补齐类别默认值，修复中文从 `.PingFang UI SC` 切到其他字体后“系统中文字体（默认）”消失、无法切回的问题；保留独立当前值与字体枚举并去重。新增切换、重新打开、恢复默认及持久化回归，旧实现失败。验证结果见[设置验证](verification/2026-10-27-settings.md#2026-11-05默认中文字体恢复入口)。
+
+2026-11-05 终端文字缩放：修复 Ghostty 原生视图在 backing 改变后未同步 `CALayer.contentsScale` 的缺口；在禁用隐式动画的事务内同步图层，并用 `convertSizeToBacking` 更新 surface 缩放与像素尺寸。新增实际 Metal 回归，旧实现失败、修复后通过，含隐藏恢复与 PTY resize。两侧字体发现诊断一致（英文 M PLUS Code Latin、中文 PingFang SC，默认 13 pt）；Preview 已打开，普通/粗体/淡色/斜体中英混排窗口检查通过，原 Devin 同内容与跨 DPI 屏幕对照待用户验收。见[终端文字验证](verification/2026-11-05-terminal-text.md)。
+
 2026-11-05 双渠道与候选晋升：按用户确认的方案实现本机正式版/Preview 并行，日常构建默认生成固定 Preview 候选，独立 bundle ID、图标标记、窗口标题、应用数据和 Codex/Claude 原生根。`scripts/run-preview` 按构建 ID 重启 Preview；`scripts/promote` 从候选切换渠道并重新签名、正常退出正式版、备份应用及 SQLite/草稿、核验窗口启动确认，失败恢复；`scripts/rollback` 支持保留兼容数据或显式恢复升级前数据。新版通过私有 Unix socket 走原有正常退出门控；旧版首次迁移可能需先按 ⌘Q。默认安装成功后备份旧 bin 应用并将旧入口指向已安装正式版，日常构建只重启 Preview。全量 test/vet、10 项受控发布测试、相关定向 race、包构建和签名通过，真实双版本并行、Preview 正常重开及隔离目录晋升/回退通过；当前整包 UI race 两次受同一 Git 用例超时阻断，该用例定向重跑通过，原因待独立排查。当前 Preview 候选 `20261105T025851Z-3b76ebface-a87969` 已打开，原正式版继续运行；真实用户数据发布与双 Agent 真实请求待 Preview 验收后执行。使用边界见[双渠道与发布](subsystems/releases.md)，证据与待办见[双渠道验证](verification/2026-11-05-preview-release.md)。
 
 2026-11-04 编辑器全文搜索与文件夹范围：文件面板查找输入框新增“全文”开关，内容搜索逐行不区分大小写匹配，结果显示文件名、行号和以匹配为中心的预览，点击、Enter 或方向键打开文件并按匹配行列定位；目录右键新增“在文件夹中搜索”，切到内容模式并把范围限定到该目录，范围条显示相对路径并可清除，文件名搜索同样按范围目录遍历。内容搜索复用目录遍历的忽略/跳过/上限规则，跳过二进制与非 UTF-8 文件，单文件 4 MiB、每文件 50 行、合计 200 行封顶，超限或读取失败标记“结果不完整”；目录重命名时范围跟随新路径，删除时清除。`Search` 重构为与 `SearchContent` 共用的 `walkEntries`。workspace/UI 定向测试、UI 整包 test、相关 race、vet、`gofmt`、构建与差异检查通过；旧版正常退出后 `open` 复现既有启动阻塞，结束后直接启动新版 PID 43370，原生窗口可见。原生观感待用户验收。见[全文搜索验证](verification/2026-11-04-workspace-search.md)。
@@ -499,6 +503,20 @@ P3 验收通过后，使用 Fuyu 完成真实的小型开发任务，记录使�
 如果发生意外中断且未来得及更新记录，接续时以实际文件、进程和可复核的运行结果重新确认进度。
 
 ## 7. 工作记录
+
+### 2026-11-05：默认中文字体恢复入口
+
+- 本轮完成：字体菜单固定保留类别默认值，中文系统 UI 字体 `.PingFang UI SC` 在切换后仍可选择。
+- 修改文件：`internal/ui/settings.go`、`settings_test.go`、设置子系统说明及验证记录、本文。
+- 验证与下一动作：旧实现回归失败；修复后设置/字体定向测试、UI vet、格式与差异检查通过。Preview 已正常重开，原生菜单在当前中文为 `PingFang SC` 时仍显示默认项，保留当前偏好供用户选择。实际结果见[设置验证](verification/2026-10-27-settings.md#2026-11-05默认中文字体恢复入口)。
+
+### 2026-11-05：终端显示缩放
+
+- 本轮完成：补齐 Ghostty 图层 backing 缩放同步，禁用隐式动画，以 AppKit backing 尺寸更新 surface。
+- 修改文件：`internal/terminal/bridge_darwin.m`、`probe_darwin.go`、`native_live_test.go` 及终端验证记录、本文。
+- 验证结果：旧实现原生缩放回归失败，修复后通过；全量 test/vet、终端定向 race、格式与差异检查通过；Preview 构建、正常启动与真实中英混排检查通过。证据见[终端文字验证](verification/2026-11-05-terminal-text.md)。
+- 进程与环境：原生 Probe 的 shell/子进程清理通过；Preview 保留测试终端，正式版继续运行。
+- 剩余与下一动作：在 Preview 对照原 Devin 场景及真实跨 DPI 屏幕移动，用户验收后再按授权晋升。
 
 ### 2026-10-22：计划落盘
 
