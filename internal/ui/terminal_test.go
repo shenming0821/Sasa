@@ -82,7 +82,7 @@ func TestEmbeddedTerminalTabsKeepWorkspaceAndSession(t *testing.T) {
 	}
 }
 
-func TestEmbeddedTerminalRestoresTabsWithoutStartingShell(t *testing.T) {
+func TestEmbeddedTerminalRestoresTabsAndStartsShell(t *testing.T) {
 	app := New(stubBackend{}, "test", t.TempDir(), nil)
 	store := imageStore(t, app)
 	app.terminalFactory = func(string) (terminalConnection, error) { return &testTerminal{}, nil }
@@ -105,14 +105,8 @@ func TestEmbeddedTerminalRestoresTabsWithoutStartingShell(t *testing.T) {
 	restored.terminalFactory = func(root string) (terminalConnection, error) { calls++; return &testTerminal{}, nil }
 	t.Cleanup(restored.closeWorkspaceResources)
 	tester := native.NewTester(restored.view, 1000, 760)
-	if !tester.HasText("重新启动 Fuyu 后，终端需要新建 shell 会话。") || calls != 0 {
-		t.Fatal("terminal restoration hides shell boundary")
-	}
-	if err := tester.Click("启动终端"); err != nil {
-		t.Fatal(err)
-	}
-	if calls != 1 || restored.currentTerminal() != page {
-		t.Fatal("restored terminal failed to start")
+	if tester.HasText("重新启动 Fuyu 后，终端需要新建 shell 会话。") || calls != 1 || restored.currentTerminal() != page || page.connection == nil {
+		t.Fatal("restored terminal did not start shell automatically")
 	}
 	restored.newTerminal()
 	if restored.currentTerminal().id == page.id {
@@ -157,7 +151,7 @@ func TestEmbeddedTerminalStartupErrorAndRetry(t *testing.T) {
 		return nil, errors.New("shell unavailable")
 	}
 	tester := native.NewTester(app.view, 1000, 760)
-	if err := tester.Click("新建终端"); err != nil {
+	if err := tester.Click("打开终端"); err != nil {
 		t.Fatal(err)
 	}
 	if !tester.HasText("启动终端失败：shell unavailable") {

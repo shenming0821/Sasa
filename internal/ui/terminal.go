@@ -135,13 +135,12 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 			native.Text(c, "正在关闭终端…").Padding(16).FontSize(12)
 			return
 		}
+		if page.connection == nil && page.err == "" {
+			a.startTerminal(page)
+		}
 		if page.connection == nil {
 			native.Column(c).Fill().Padding(20).Gap(12).Children(func() {
-				message := "重新启动 Fuyu 后，终端需要新建 shell 会话。"
-				if page.err != "" {
-					message = page.err
-				}
-				native.Text(c, message).FontSize(12)
+				native.Text(c, page.err).FontSize(12)
 				if actionButton(c, "启动终端").Clicked() {
 					a.startTerminal(page)
 				}
