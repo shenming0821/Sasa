@@ -43,6 +43,16 @@ static atomic_bool tickPending;
 - (void)sendEvent:(NSEvent *)event action:(ghostty_input_action_e)action text:(NSString *)text composing:(BOOL)composing;
 @end
 
+static NSString *escapedPath(NSString *path) {
+    static NSCharacterSet *safe;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        safe = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-"];
+    });
+    if ([path rangeOfCharacterFromSet:safe.invertedSet].location == NSNotFound) return path;
+    return [NSString stringWithFormat:@"'%@'", [path stringByReplacingOccurrencesOfString:@"'" withString:@"'\\''"]];
+}
+
 static ghostty_input_mods_e modifiers(NSEventModifierFlags flags) {
     unsigned value = 0;
     if (flags & NSEventModifierFlagShift) value |= GHOSTTY_MODS_SHIFT;
@@ -220,6 +230,7 @@ fuyu_terminal_t fuyu_terminal_new(uintptr_t window, uintptr_t token, const char 
     [view setAccessibilityElement:YES];
     [view setAccessibilityRole:NSAccessibilityTextAreaRole];
     [view setAccessibilityLabel:@"工作区终端"];
+    [view registerForDraggedTypes:@[NSPasteboardTypeFileURL]];
     [host.superview addSubview:view];
     ghostty_surface_config_s options = gt_surface_config_new();
     options.platform_tag = GHOSTTY_PLATFORM_MACOS;
@@ -447,6 +458,21 @@ void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
 - (void)rightMouseUp:(NSEvent *)event { [self mouseUp:event]; }
 - (void)otherMouseDown:(NSEvent *)event { [self mouseDown:event]; }
 - (void)otherMouseUp:(NSEvent *)event { [self mouseUp:event]; }
+- (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
+    if ([sender.draggingPasteboard canReadObjectForClasses:@[NSURL.class] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}]) return NSDragOperationCopy;
+    return NSDragOperationNone;
+}
+- (BOOL)performDragOperation:(id<NSDraggingInfo>)sender {
+    NSArray *urls = [sender.draggingPasteboard readObjectsForClasses:@[NSURL.class] options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+    if (!urls.count || !self.surface) return NO;
+    NSMutableString *text = [NSMutableString string];
+    for (NSURL *url in urls) {
+        if (text.length) [text appendString:@" "];
+        [text appendString:escapedPath(url.path)];
+    }
+    gt_surface_text(self.surface, text.UTF8String, [text lengthOfBytesUsingEncoding:NSUTF8StringEncoding]);
+    return YES;
+}
 - (void)scrollWheel:(NSEvent *)event {
     if (!self.surface) return;
     double scale = event.hasPreciseScrollingDeltas ? 2 : 1;
