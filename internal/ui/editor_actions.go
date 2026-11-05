@@ -20,7 +20,7 @@ type fileActionState struct {
 	copy                        func(string) error
 }
 
-func (a *App) fileMenu(root, path string, editing bool) func(*native.Menu) {
+func (a *App) fileMenu(root, path string, editing, dir bool) func(*native.Menu) {
 	return func(menu *native.Menu) {
 		if editing {
 			menu.EditItems()
@@ -51,6 +51,12 @@ func (a *App) fileMenu(root, path string, editing bool) func(*native.Menu) {
 				}
 			}
 		}
+		if dir {
+			menu.Separator()
+			if menu.Item("在文件夹中搜索").Chosen() {
+				a.searchInFolder(root, path)
+			}
+		}
 		menu.Separator()
 		for _, kind := range []string{"重命名", "删除"} {
 			if menu.Item(kind).Disabled(path == root).Chosen() {
@@ -58,6 +64,24 @@ func (a *App) fileMenu(root, path string, editing bool) func(*native.Menu) {
 			}
 		}
 	}
+}
+
+// searchInFolder opens the files panel content search scoped to path. The
+// folder is already inside the shown workspace (the tree only offers the item
+// on its own rows).
+func (a *App) searchInFolder(root, path string) {
+	w := a.workspace(a.workspaceRoot(root))
+	if !workspace.Contains(w.root, path) {
+		return
+	}
+	w.searchContent = true
+	w.searchScope = ""
+	if path != w.root {
+		w.searchScope = path
+	}
+	w.searchFocus = true
+	a.rightTab = "files"
+	a.historyOpen = true
 }
 
 func (a *App) beginFileAction(root, path, kind string) {
@@ -328,6 +352,12 @@ func (a *App) refreshEditorPath(path, target string) {
 		}
 		if state.searchCancel != nil {
 			state.searchCancel()
+		}
+		if workspace.Contains(path, state.searchScope) {
+			state.searchScope = ""
+			if target != "" {
+				state.searchScope = renamedEditorPath(state.searchScope, path, target)
+			}
 		}
 		state.generation++
 		state.searchLoading = false

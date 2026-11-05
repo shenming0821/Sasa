@@ -189,7 +189,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 							}
 						}
 						if tab.Kind == "file" || tab.Kind == "diff" {
-							b.ContextMenu(a.fileMenu(tab.Workspace, tab.Path, false))
+							b.ContextMenu(a.fileMenu(tab.Workspace, tab.Path, false, false))
 						}
 						if tab.Kind == "session" {
 							for _, target := range a.sessions {

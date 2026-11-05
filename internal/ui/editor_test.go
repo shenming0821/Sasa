@@ -944,7 +944,8 @@ func TestP4SearchPreservesTreeScrollAndRejectsOldRows(t *testing.T) {
 	if first < 60 {
 		t.Fatal("tree fixture did not scroll", first)
 	}
-	w.query, w.searchQuery = "first-query", "first-query"
+	w.query = "first-query"
+	w.searchQuery = w.searchKey()
 	w.search.Entries = []workspace.Entry{{Path: filepath.Join(root, "README.md"), Name: "README.md"}}
 	tt.Frame()
 	w.query = "different-query"

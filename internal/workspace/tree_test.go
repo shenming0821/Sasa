@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -28,6 +29,69 @@ func TestLazyTreeSearchAndRootBoundary(t *testing.T) {
 	}
 	if _, e = ReadDir(context.Background(), root, filepath.Join(root, "loop")); e == nil {
 		t.Fatal("symlink traversed")
+	}
+}
+
+func TestContentSearchScopeSkipsAndTruncates(t *testing.T) {
+	root := t.TempDir()
+	write := func(rel, text string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(text), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("main.go", "package main\n// 你好 Fuyu\nfunc main() {}\n")
+	write("sub/note.md", "Needle line\nneedle 你好 second\n")
+	write("node_modules/pkg/x.go", "needle hidden\n")
+	write("binary.bin", "needle\x00inside\n")
+	var many strings.Builder
+	for range 60 {
+		many.WriteString("needle line\n")
+	}
+	write("many.txt", many.String())
+
+	result, err := SearchContent(context.Background(), root, root, "needle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Matches) != 52 || !result.Truncated {
+		t.Fatal("expected 50 capped lines plus 2 note matches and truncation", len(result.Matches), result.Truncated)
+	}
+	byPath := map[string][]ContentMatch{}
+	for _, m := range result.Matches {
+		byPath[m.Path] = append(byPath[m.Path], m)
+	}
+	if len(byPath[filepath.Join(root, "many.txt")]) != 50 || len(byPath[filepath.Join(root, "sub", "note.md")]) != 2 {
+		t.Fatal("matches grouped by path wrong", byPath)
+	}
+	if len(byPath[filepath.Join(root, "binary.bin")]) != 0 || len(byPath[filepath.Join(root, "node_modules", "pkg", "x.go")]) != 0 {
+		t.Fatal("binary or skipped directory leaked matches")
+	}
+	second := byPath[filepath.Join(root, "sub", "note.md")][1]
+	if second.Line != 2 || second.Col != 1 || !strings.Contains(second.Text, "needle 你好 second") {
+		t.Fatal("match location or preview wrong", second)
+	}
+
+	cjk, err := SearchContent(context.Background(), root, root, "fuyu")
+	if err != nil || len(cjk.Matches) != 1 {
+		t.Fatal(cjk, err)
+	}
+	if hit := cjk.Matches[0]; hit.Line != 2 || hit.Col != 7 {
+		t.Fatal("CJK column misaligned", hit)
+	}
+
+	scoped, err := SearchContent(context.Background(), root, filepath.Join(root, "sub"), "needle")
+	if err != nil || len(scoped.Matches) != 2 || scoped.Truncated {
+		t.Fatal("scoped search wrong", scoped, err)
+	}
+	if _, err := SearchContent(context.Background(), root, filepath.Dir(root), "needle"); err == nil {
+		t.Fatal("search escaped workspace root")
+	}
+	if names, err := Search(context.Background(), filepath.Join(root, "sub"), "note"); err != nil || len(names.Entries) != 1 {
+		t.Fatal("scoped filename search wrong", names, err)
 	}
 }
 

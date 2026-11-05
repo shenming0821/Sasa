@@ -12,6 +12,7 @@ import (
 	"github.com/shenming0821/Fuyu/internal/editor"
 	gitview "github.com/shenming0821/Fuyu/internal/git"
 	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Fuyu/internal/workspace"
 )
 
 var fileIcon = icon(`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h6"/>`)
@@ -104,35 +105,78 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			}
 		}
 	})
-	native.Column(c).FillWidth().Padding(4, 12, 10, 12).Children(func() {
-		input := native.TextInput(c, &w.query).Label("查找文件").Placeholder("查找文件").FillWidth().FontSize(12)
-		composing := input.Composing()
-		input.OnTextKey(func(k native.TextKey) bool {
-			if composing {
-				return false
+	native.Column(c).FillWidth().Padding(4, 12, 10, 12).Gap(4).Children(func() {
+		native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
+			label := "查找文件"
+			if w.searchContent {
+				label = "搜索文件内容"
 			}
-			if k.Key == native.KeyEscape {
-				w.query = ""
-				k.SetText("")
-				return true
+			input := native.TextInput(c, &w.query).Label(label).Placeholder(label).Grow(1).MinWidth(0).FontSize(12)
+			if w.searchFocus {
+				input.Focus()
+				w.searchFocus = false
 			}
-			if k.Key == native.KeyEnter && !w.searchLoading && w.query == w.searchQuery && len(w.search.Entries) > 0 {
-				index := min(w.searchIndex, len(w.search.Entries)-1)
-				a.openFile(w.root, w.search.Entries[index].Path)
-				return true
-			}
-			if len(w.search.Entries) > 0 && (k.Key == native.KeyDown || k.Key == native.KeyUp) {
-				delta := 1
-				if k.Key == native.KeyUp {
-					delta = -1
+			composing := input.Composing()
+			input.OnTextKey(func(k native.TextKey) bool {
+				if composing {
+					return false
 				}
-				w.searchIndex = (w.searchIndex + delta + len(w.search.Entries)) % len(w.search.Entries)
-				w.selected = w.search.Entries[w.searchIndex].Path
-				w.searchList.ScrollTo(w.searchIndex, native.Center)
-				return true
+				if k.Key == native.KeyEscape {
+					w.query = ""
+					k.SetText("")
+					return true
+				}
+				count := len(w.search.Entries)
+				if w.searchContent {
+					count = len(w.contentSearch.Matches)
+				}
+				if k.Key == native.KeyEnter && !w.searchLoading && w.searchKey() == w.searchQuery && count > 0 {
+					index := min(w.searchIndex, count-1)
+					if w.searchContent {
+						a.openSearchMatch(w, w.contentSearch.Matches[index])
+					} else {
+						a.openFile(w.root, w.search.Entries[index].Path)
+					}
+					return true
+				}
+				if count > 0 && (k.Key == native.KeyDown || k.Key == native.KeyUp) {
+					delta := 1
+					if k.Key == native.KeyUp {
+						delta = -1
+					}
+					w.searchIndex = (w.searchIndex + delta + count) % count
+					if w.searchContent {
+						w.selected = w.contentSearch.Matches[w.searchIndex].Path
+						w.contentList.ScrollTo(w.searchIndex, native.Center)
+					} else {
+						w.selected = w.search.Entries[w.searchIndex].Path
+						w.searchList.ScrollTo(w.searchIndex, native.Center)
+					}
+					return true
+				}
+				return false
+			})
+			toggle := native.ButtonBase(c).Label("全文搜索").Tooltip("在文件内容中查找").Size(34, 26).Radius(8).TextColor(t.TextMuted)
+			selectedButtonFace(c, toggle, w.searchContent, 8, 0)
+			toggle.Children(func() { native.Text(c, "全文").FontSize(11) })
+			if toggle.Clicked() {
+				w.searchContent = !w.searchContent
 			}
-			return false
 		})
+		if w.searchScope != "" {
+			if rel, err := filepath.Rel(w.root, w.searchScope); err == nil && rel != "." {
+				native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
+					native.Text(c, "范围："+rel).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
+					clear := quietIconButton(c, "清除搜索范围").Size(18, 18)
+					clear.Children(func() { native.Icon(c, tabCloseIcon).Size(10, 10) })
+					if clear.Clicked() {
+						w.searchScope = ""
+					}
+				})
+			} else {
+				w.searchScope = ""
+			}
+		}
 	})
 	a.searchFiles(w)
 	if w.error != "" {
@@ -161,19 +205,30 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 		w.directoryProgress[path] = native.Box(c.Key("directory-motion:"+path)).Size(0, 0).Animate("open", target, 200*time.Millisecond)
 	}
 	rows := a.flattenTree(w)
+	var matches []workspace.ContentMatch
 	list := &w.list
 	listContext := c.Key("file-tree-list")
-	if strings.TrimSpace(w.query) != "" {
-		list = &w.searchList
-		listContext = c.Key("file-search-list")
+	searching := strings.TrimSpace(w.query) != ""
+	if searching {
 		rows = nil
-		for _, entry := range w.search.Entries {
-			rows = append(rows, treeRow{Entry: entry, Scale: 1})
+		if w.searchContent {
+			list = &w.contentList
+			listContext = c.Key("file-content-search-list")
+			matches = w.contentSearch.Matches
+			if !w.searchLoading && len(matches) == 0 {
+				native.Text(c, "没有匹配的内容").FontSize(12).TextColor(t.TextMuted).Padding(16)
+			}
+		} else {
+			list = &w.searchList
+			listContext = c.Key("file-search-list")
+			for _, entry := range w.search.Entries {
+				rows = append(rows, treeRow{Entry: entry, Scale: 1})
+			}
+			if !w.searchLoading && len(rows) == 0 {
+				native.Text(c, "没有匹配的文件").FontSize(12).TextColor(t.TextMuted).Padding(16)
+			}
 		}
-		if !w.searchLoading && len(rows) == 0 {
-			native.Text(c, "没有匹配的文件").FontSize(12).TextColor(t.TextMuted).Padding(16)
-		}
-		if w.search.Truncated {
+		if w.search.Truncated || w.contentSearch.Truncated {
 			native.Text(c, "结果不完整，请缩小搜索范围").FontSize(11).TextColor(t.TextMuted).Padding(8, 12)
 		}
 	}
@@ -190,8 +245,22 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 	if w.rowHandles == nil {
 		w.rowHandles = map[string]*native.Handle{}
 	}
-	list.Key = func(i int) any { return rows[i].Path }
-	native.List(listContext, list, len(rows), func(i int) {
+	count := len(rows)
+	if searching && w.searchContent {
+		count = len(matches)
+	}
+	list.Key = func(i int) any {
+		if searching && w.searchContent {
+			m := matches[i]
+			return m.Path + "\x00" + fmt.Sprint(m.Line)
+		}
+		return rows[i].Path
+	}
+	native.List(listContext, list, count, func(i int) {
+		if searching && w.searchContent {
+			a.contentMatchRow(c, w, matches[i], i)
+			return
+		}
 		row := rows[i]
 		rc := c.Key(row.Path)
 		b := treeButton(rc, "文件树 "+row.Path).FillWidth().Height(32*row.Scale).Radius(5).Padding(0, 10, 0, float32(12+row.Depth*14))
@@ -202,7 +271,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			w.rowHandles[row.Path] = &native.Handle{}
 		}
 		b.Bind(w.rowHandles[row.Path])
-		b.ContextMenu(a.fileMenu(w.root, row.Path, false))
+		b.ContextMenu(a.fileMenu(w.root, row.Path, false, row.Dir && !row.Link))
 		if w.focusPath == row.Path {
 			b.Focus()
 			w.focusPath = ""
@@ -283,6 +352,68 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			}
 		}
 	}).FillWidth().Grow(1).MinHeight(0)
+}
+func (a *App) contentMatchRow(c *native.Context, w *workspacePage, m workspace.ContentMatch, i int) {
+	t := c.Theme()
+	key := m.Path + "\x00" + fmt.Sprint(m.Line)
+	rc := c.Key(key)
+	b := treeButton(rc, fmt.Sprintf("搜索结果 %s:%d", m.Path, m.Line)).FillWidth().Height(44).Radius(5).Padding(0, 10, 0, 12)
+	if w.rowHandles[key] == nil {
+		w.rowHandles[key] = &native.Handle{}
+	}
+	b.Bind(w.rowHandles[key])
+	b.ContextMenu(a.fileMenu(w.root, m.Path, false, false))
+	b.HandleInput(func(ev native.InputEvent) bool {
+		if ev.Kind != native.InputKeyDown {
+			return false
+		}
+		next := i
+		switch ev.Key {
+		case native.KeyDown:
+			next = min(len(w.contentSearch.Matches)-1, i+1)
+		case native.KeyUp:
+			next = max(0, i-1)
+		case native.KeyEnter:
+			a.openSearchMatch(w, m)
+			return true
+		default:
+			return false
+		}
+		w.selected, w.searchIndex = w.contentSearch.Matches[next].Path, next
+		w.contentList.ScrollTo(next, native.Center)
+		return true
+	})
+	if w.searchIndex == i && w.selected == m.Path {
+		b.Background(t.SurfacePressed)
+	}
+	b.Children(func() {
+		rel, _ := filepath.Rel(w.root, m.Path)
+		dir, name := filepath.Split(rel)
+		native.Column(rc).Fill().Justify(native.Center).Gap(2).Children(func() {
+			native.Row(rc).FillWidth().Gap(5).AlignItems(native.Center).Children(func() {
+				native.Text(rc, name).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+				native.Text(rc, fmt.Sprintf(":%d", m.Line)).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(0)
+				if dir = strings.TrimSuffix(dir, string(filepath.Separator)); dir != "" {
+					native.Text(rc, dir).FontSize(10).TextColor(t.TextMuted.Alpha(.8)).SingleLine().Grow(1).MinWidth(0)
+				}
+			})
+			native.Text(rc, m.Text).FontSize(11).TextColor(t.TextMuted).SingleLine()
+		})
+	})
+	if b.Clicked() {
+		w.selected, w.searchIndex = m.Path, i
+		a.openSearchMatch(w, m)
+		if d := a.currentFile(); d != nil {
+			d.focusOwner = w.rowHandles[key]
+		}
+	}
+}
+func (a *App) openSearchMatch(w *workspacePage, m workspace.ContentMatch) {
+	a.openFile(w.root, m.Path)
+	if d := a.currentFile(); d != nil && d.root == w.root && d.path == m.Path {
+		d.pendingLocation = &fileLocation{line: m.Line, column: m.Col}
+		d.pinFrame = 0
+	}
 }
 func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 	if d.pinFrame != 0 {
@@ -535,7 +666,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		palette := githubEditorPalette(t.Dark)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
 			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
-			area.ContextMenu(a.fileMenu(d.root, d.path, true))
+			area.ContextMenu(a.fileMenu(d.root, d.path, true, false))
 			a.focusPressedPane(area)
 			if d.pendingSelection != nil {
 				area.SetTextSelection(d.pendingSelection[0], d.pendingSelection[1])

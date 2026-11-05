@@ -40,14 +40,19 @@ type workspacePage struct {
 	expanded, loading            map[string]bool
 	list                         native.ListState
 	searchList                   native.ListState
+	contentList                  native.ListState
 	historyScroll, gitScroll     native.ScrollState
 	historyQuery                 string
 	historyScope                 int
 	directoryProgress            map[string]float32
 	entries                      []treeRow
 	search                       workspace.SearchResult
+	contentSearch                workspace.ContentSearchResult
 	searchQuery                  string
 	searchLoading                bool
+	searchContent                bool
+	searchScope                  string
+	searchFocus                  bool
 	searchIndex                  int
 	searchCancel                 context.CancelFunc
 	generation                   int
@@ -1096,36 +1101,66 @@ func treeAnimationSize(w *workspacePage, path string) int {
 	visit(path)
 	return count
 }
+
+// searchKey is the identity of the currently wanted search: mode, scope
+// directory (workspace root when unset) and query text.
+func (w *workspacePage) searchKey() string {
+	scope := w.searchScope
+	if scope == "" {
+		scope = w.root
+	}
+	mode := "files"
+	if w.searchContent {
+		mode = "content"
+	}
+	return mode + "\x00" + scope + "\x00" + w.query
+}
+
 func (a *App) searchFiles(w *workspacePage) {
-	if w.query == w.searchQuery || !a.canAsync() {
+	key := w.searchKey()
+	if key == w.searchQuery || !a.canAsync() {
 		return
 	}
-	w.searchQuery = w.query
+	if scope := w.searchScope; scope != "" {
+		if info, err := os.Lstat(scope); err != nil || !info.IsDir() {
+			w.searchScope = ""
+			key = w.searchKey()
+		}
+	}
+	w.searchQuery = key
 	if w.searchCancel != nil {
 		w.searchCancel()
 		w.searchCancel = nil
 	}
 	w.search = workspace.SearchResult{}
+	w.contentSearch = workspace.ContentSearchResult{}
 	w.searchIndex = 0
 	w.error = ""
 	w.generation++
 	generation := w.generation
 	if strings.TrimSpace(w.query) == "" {
-		w.search = workspace.SearchResult{}
 		w.searchLoading = false
 		w.reveal = false
 		return
 	}
 	w.searchLoading = true
-	query := w.query
+	query, content, scope := w.query, w.searchContent, w.searchScope
+	if scope == "" {
+		scope = w.root
+	}
 	ctx, cancel := a.projectContext(5 * time.Second)
 	w.searchCancel = cancel
 	a.runBackgroundFileTaskContext(ctx, func() {
 		defer cancel()
-		var results workspace.SearchResult
+		var names workspace.SearchResult
+		var matches workspace.ContentSearchResult
 		err := ctx.Err()
 		if err == nil {
-			results, err = workspace.Search(ctx, w.root, query)
+			if content {
+				matches, err = workspace.SearchContent(ctx, w.root, scope, query)
+			} else {
+				names, err = workspace.Search(ctx, scope, query)
+			}
 		}
 		a.update(func() {
 			if generation != w.generation {
@@ -1133,7 +1168,8 @@ func (a *App) searchFiles(w *workspacePage) {
 			}
 			w.searchLoading = false
 			w.searchCancel = nil
-			w.search = results
+			w.search = names
+			w.contentSearch = matches
 			if err != nil {
 				w.error = err.Error()
 			}
