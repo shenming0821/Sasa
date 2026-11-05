@@ -1,6 +1,6 @@
 # Fuyu 设计文档 v2.2
 
-> 更新日期：2026-11-01
+> 更新日期：2026-11-05
 > 当前交付目标：Codex / Claude Code 原生 UI 交互
 > 原始方案：`/Users/shenming/Downloads/Fuyu 设计文档v2.0.md`  
 > 参考源码与核验边界：[参考项目核验](reference-verification.md)  
@@ -9,6 +9,8 @@
 ## 1. 当前产品范围
 
 Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提供桌面交互。围绕用户选择的本地工作目录，完成创建会话、连续对话、流式输出、工具展示、审批、回答问题、中断及历史恢复。
+
+本机提供正式版与 Preview 两个渠道，使用独立应用标识、应用数据及 Agent 历史根。日常构建生成带构建 ID 的 Preview 候选，验收后从该候选晋升正式版，保留正式版自己的会话、草稿与设置。替换前正常退出、备份应用与应用数据；启动失败时恢复升级前状态。当前通过本机脚本完成发布，渠道边界、回退规则与验收见[双渠道与发布](subsystems/releases.md)。
 
 当前已实现 Repository → Worktree 管理；文件浏览、轻量编辑与 Git 状态按 [P4 设计](p4-editor-design.md)推进，原有验收边界保留。当前入口注册独立的 Codex/Claude 后端，使用 P6.1 应用 Agent 契约路由。Claude adapter 和 Agent 入口已实现，完整验收状态见实施计划；协议差异及恢复边界见 [Claude 运行时](subsystems/claude-runtime.md)。
 

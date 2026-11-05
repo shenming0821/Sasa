@@ -4,7 +4,7 @@
 
 主窗口通过 MyGo 的 `WindowOptions.StateKey = "main"` 保存窗口状态。状态单独写入应用数据目录的 `window-state.json`，随 `-data-dir` 隔离；正常退出时保存，下次创建窗口时恢复。首次启动或无可读记录时采用 1000×760 DIP，最小尺寸为 640×480 DIP。MyGo 同时记录位置、最大化与全屏状态，并提供显示器可见范围处理；当前原生验收确认尺寸恢复，位置和其他状态的验证边界见[窗口恢复验证](../verification/2026-11-03-window-state.md)。隐藏窗口继续保留当前原生窗口。此记录不进入 SQLite，也不改变数据库版本。
 
-`internal/storage/store.go` 使用 `modernc.org/sqlite v1.60.1` 保存应用索引。macOS 默认路径为 `~/Library/Application Support/Fuyu/fuyu.db`，可通过 `-data-dir` 指定独立目录。
+`internal/storage/store.go` 使用 `modernc.org/sqlite v1.60.1` 保存应用索引。macOS 正式版默认路径为 `~/Library/Application Support/Fuyu/fuyu.db`，Preview 为 `~/Library/Application Support/Fuyu Preview/fuyu.db`，可通过 `-data-dir` 指定独立目录。入口在打开数据库前校验 `release-channel` 渠道标记；Preview 拒绝使用正式版默认目录、正式版标记或未标记的既有数据库，正式版拒绝 Preview 标记。首次打开后在数据锁内记录渠道。Preview 的原生历史根与配置复制边界见[双渠道与发布](releases.md)。
 
 数据库保存会话 ID、原生 thread ID、cwd、标题、草稿、选中会话、已打开标签、侧栏开关与宽度、项目折叠、历史面板开关、阅读锚点和条目内偏移、工具展开状态，以及未确认任务标记。消息、工具正文由 Codex 原生历史提供；凭据、待处理协议请求和秘密表单答案不写入应用数据库。用户主动输入的草稿属于本地持久数据。
 

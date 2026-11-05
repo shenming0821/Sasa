@@ -22,17 +22,19 @@ P2 另在该隔离副本中修复 macOS 无障碍密码字段 setter 的缓存�
 
 ```sh
 ./scripts/go version
-./scripts/build
-open bin/Fuyu.app
+./scripts/build preview
+./scripts/run-preview <上一步输出的构建ID>
 ```
 
-`scripts/build` 构建本地开发 `.app`，输出 `bin/Fuyu.app`；原有 `bin/fuyu` 入口通过符号链接指向包内同一可执行文件，每次构建自动同步，使用同一默认数据目录。包含 bundle 元数据和应用图标；尚未配置正式发布签名、公证或安装器。图标源文件为 `assets/app-icon.png`，构建时通过 macOS 自带的 `sips` 和 `iconutil` 生成 16–1024 像素的多尺寸 `Resources/Fuyu.icns`，并写入 `CFBundleIconFile`。当前图标采用用户确认的蓝色 F 与橙色 Y 组合，底色为不透明纯白 `#FFFFFF`，PNG 为 1024×1024；可编辑矢量源保存在 `assets/app-icon.svg`。更新矢量源后，执行 `sips -s format png assets/app-icon.svg --out assets/app-icon.png` 导出 PNG，再重新构建以更新图标。终端启动便于查看退出错误：
+`scripts/build` 默认构建 Preview，等同于 `scripts/build preview`。候选保存于 `bin/candidates/<构建ID>/Fuyu Preview.app`，记录源码提交、包含未提交和未跟踪源码的摘要、全部产物校验值；构建期间源码变化则拒绝生成候选。`run-preview` 从指定候选复制至 `bin/Fuyu Preview.app` 并正常重启 Preview；不传构建 ID 时启动最近的候选。既有 `bin/Fuyu.app` 与 `bin/fuyu` 保留，日常构建不覆盖正式版。晋升命令为 `./scripts/promote <构建ID>`，默认安装 `/Applications/Fuyu.app`。完整发布、预检和回退步骤见[双渠道与发布](subsystems/releases.md)。当前为本机发布，尚未配置公证或网络更新服务。
+
+图标源文件为 `assets/app-icon.png`，构建时通过 macOS 自带的 `sips` 和 `iconutil` 生成 16–1024 像素的多尺寸 `Resources/Fuyu.icns`，并写入 `CFBundleIconFile`。当前图标采用用户确认的蓝色 F 与橙色 Y 组合，底色为不透明纯白 `#FFFFFF`，PNG 为 1024×1024；可编辑矢量源保存在 `assets/app-icon.svg`。Preview 图标在该矢量源上增加紫色 P 标记，窗口标题显示 Preview 与构建 ID。更新矢量源后，执行 `sips -s format png assets/app-icon.svg --out assets/app-icon.png` 导出 PNG，再重新构建以更新图标。终端启动便于查看退出错误：
 
 ```sh
-bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
+"bin/Fuyu Preview.app/Contents/MacOS/Fuyu" -cwd /path/to/project -codex codex
 ```
 
-构建完成后更新 `.app` 外层目录的修改时间，并在本机 Launch Services 工具可用时重新登记此应用，使系统重新读取图标与 bundle 元数据。原地覆盖包内文件可能保留外层目录时间，导致 Finder 和启动后的应用继续沿用默认图标缓存。图标验证包含 Finder 实际预览，不能只核对 `.icns` 文件存在。实际回归见[图标验收](verification/2026-10-23-app-icon.md)。
+启动或晋升时替换完整 `.app`，并在本机 Launch Services 工具可用时重新登记此应用，使系统重新读取图标与 bundle 元数据。图标验证包含 Finder 实际预览，不能只核对 `.icns` 文件存在。正式图标历史回归见[图标验收](verification/2026-10-23-app-icon.md)。
 
 通过 Finder 或 Dock 启动时，Fuyu 自动发现 Codex，并为自身及其子进程补充 PATH。发现顺序为应用继承的 PATH、用户交互式登录 shell 的 PATH、当前用户的常见安装目录与系统安装目录；补充 Bun、npm 自定义前缀常用目录、pnpm、Volta、asdf 与 nvm 目录。nvm 额外检查 `NVM_DIR`、`~/.nvm` 和 `~/.local/share/nvm`；无已配置优先级时按版本号从新到旧补充。只读取安装位置，不安装或更新 Codex，也不修改系统环境或 shell 配置。
 
@@ -40,15 +42,15 @@ bin/Fuyu.app/Contents/MacOS/Fuyu -cwd /path/to/project -codex codex
 
 窗口先恢复本地索引并显示，再后台发现与连接 Agent。登录 shell 环境探测最多等待 2 秒，输出最多 64 KiB，失败后继续检查常见目录；版本探测与 App Server 初始化并行，分别最多 5 秒和 60 秒。未找到 Codex、缺少 Node.js 或连接失败时，窗口显示具体原因。自定义安装位置可通过登录 shell 的 PATH 或 `-codex` 指定。实际验证见[启动路径验收](verification/2026-10-23-codex-discovery.md)。
 
-默认数据目录为 `~/Library/Application Support/Fuyu`，可用 `-data-dir /absolute/path` 隔离测试实例。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的 `CODEX_HOME`（默认 `~/.codex`），切换原生历史目录时使用独立数据目录。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
+正式版默认数据目录为 `~/Library/Application Support/Fuyu`，Preview 为 `~/Library/Application Support/Fuyu Preview`，可用 `-data-dir /absolute/path` 指定同渠道的独立目录。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的原生历史根。正式版 Codex 沿用 `CODEX_HOME`（默认 `~/.codex`），Preview 使用自己数据目录下的 `runtimes/codex`。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
 
-Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。配置根来自 `CLAUDE_CONFIG_DIR`，默认 `~/.claude`；应用按 Agent 独立绑定根目录，子进程显式使用这一根，切换配置根时使用独立应用数据目录。Claude 检查点保存于应用数据目录的 `claude/`。缺失 CLI 时点击对应的新建图标显示具体原因，可继续使用另一可用 Agent。
+Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。正式版配置根来自 `CLAUDE_CONFIG_DIR`，默认 `~/.claude`；Preview 使用自己数据目录的 `runtimes/claude`。应用按 Agent 独立绑定根目录，子进程显式使用这一根，切换配置根时使用独立应用数据目录。Claude 检查点保存于应用数据目录的 `claude/`。缺失 CLI 时点击对应的新建图标显示具体原因，可继续使用另一可用 Agent。
 
 ## 2. 目录与代码定位
 
 入口为 `cmd/desktop/main.go`。现有包与状态/进程边界见[子系统索引](subsystems/README.md)和[运行时说明](subsystems/codex-runtime.md)。
 
-构建在写完资源和 Info.plist 后，先签名内嵌 libghostty，再以 `com.shenming.fuyu` 签名整个应用，并严格核验包签名。本地默认 `FUYU_CODESIGN_IDENTITY=-`，使用 ad hoc 签名；已有 Apple 签发的代码签名证书时，通过 `FUYU_CODESIGN_IDENTITY` 指定钥匙串中的身份。Info.plist 包含局域网模型服务用途说明。macOS 按负责的 GUI 应用身份判定其子进程的局域网权限，终端 CLI 则自动获准访问；仅在 CLI 中连通不能证明 Fuyu 已获准。ad hoc 签名仍不能保证跨构建的权限身份稳定；可靠追踪需要 Apple 签发的身份。此次本机阻断与验证边界见[网络验证](verification/2026-11-02-local-network.md)。
+构建在写完资源和 Info.plist 后，先签名内嵌 libghostty，再以当前渠道的 Bundle ID 签名整个应用（正式版 `com.shenming.fuyu`、Preview `com.shenming.fuyu.preview`），并严格核验包签名。本地默认 `FUYU_CODESIGN_IDENTITY=-`，使用 ad hoc 签名；已有 Apple 签发的代码签名证书时，通过 `FUYU_CODESIGN_IDENTITY` 指定钥匙串中的身份。Info.plist 包含局域网模型服务用途说明。macOS 按负责的 GUI 应用身份判定其子进程的局域网权限，终端 CLI 则自动获准访问；仅在 CLI 中连通不能证明 Fuyu 已获准。ad hoc 签名仍不能保证跨构建的权限身份稳定；可靠追踪需要 Apple 签发的身份。此前本机阻断与验证边界见[网络验证](verification/2026-11-02-local-network.md)。
 
 ## 3. 验证方式
 

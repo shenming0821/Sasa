@@ -18,6 +18,7 @@ P1 已建立下列源码包，P2 补充任务交互，P3 加入多会话、SQLit
 | 进程管理 | 自有 App Server 启停、cwd、退出检测与取消 | `internal/runtime/` | [生命周期设计](../design.md) |
 | 原生终端 | 当前工作区终端标签、Ghostty AppKit/Metal 视图、本机配置、PTY 与进程生命周期 | `internal/terminal/`、`internal/ui/terminal.go`、`scripts/prepare-ghostty.py` | [设计](../design.md)、[终端验证](../verification/2026-11-01-terminal.md) |
 | 存储与恢复 | 应用索引、界面状态与原生历史核验，P3 引入 | `internal/storage/` | [存储与恢复](storage.md)、[P3 计划](../implementation-plan.md) |
+| 双渠道与发布 | Preview 候选构建、渠道数据隔离、正式版晋升和恢复 | `internal/release/`、`scripts/release.py` | [双渠道与发布](releases.md) |
 
 ## 何时建立专项文档
 

@@ -89,6 +89,8 @@ type App struct {
 	quitTargets        map[int]bool
 	quitApp            func()
 	quitPrompt         func(mygo.MessageOptions) (mygo.MessageResult, error)
+	releaseTitle       string
+	startupReady       func() error
 	// Replaced in component tests so no task or native dialog is started.
 	submit   func()
 	respond  func(*app.Interaction, any)
@@ -120,6 +122,9 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 }
 
 func (a *App) Run() error {
+	var readyErr error
+	stopControl := func() {}
+	defer func() { stopControl() }()
 	if a.store != nil {
 		mygo.App.SetPath(mygo.PathUserData, a.store.Directory())
 	}
@@ -141,7 +146,7 @@ func (a *App) Run() error {
 	mygo.App.WhenReady(func() {
 		a.applySystemTheme()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title: "Fuyu", Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
+			Title: a.windowTitle(), Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
 			StateKey: "main",
 			Content:  native.View(a.view),
 		})
@@ -162,8 +167,23 @@ func (a *App) Run() error {
 		a.recoverSelectedSession()
 		stopStartup = a.startRuntimeLoading()
 		go a.autosave()
+		stop, err := a.startReleaseControl()
+		if err == nil {
+			stopControl = stop
+			if a.startupReady != nil {
+				err = a.startupReady()
+			}
+		}
+		if err != nil {
+			readyErr = err
+			a.quitting = true
+			mygo.App.Quit()
+		}
 	})
-	return mygo.App.Run()
+	if err := mygo.App.Run(); err != nil {
+		return err
+	}
+	return readyErr
 }
 
 func (a *App) canSend() bool {

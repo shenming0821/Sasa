@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/claude"
 	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/release"
 	process "github.com/shenming0821/Fuyu/internal/runtime"
 	"github.com/shenming0821/Fuyu/internal/storage"
 	"github.com/shenming0821/Fuyu/internal/ui"
@@ -28,20 +30,43 @@ func main() {
 func run() error {
 	cwd := flag.String("cwd", "", "Initial working directory")
 	executable := flag.String("codex", "codex", "Codex executable")
-	dataDir := flag.String("data-dir", "", "Application data directory (default: user config directory/Fuyu)")
+	dataDir := flag.String("data-dir", "", "Application data directory (default: user config directory/channel name)")
+	showVersion := flag.Bool("version", false, "Print release identity as JSON and exit")
+	readyFile := flag.String("ready-file", "", "Write startup acknowledgement after restoring the window")
+	launchToken := flag.String("launch-token", "", "Startup acknowledgement token")
 	flag.Parse()
+	identity, err := release.Current()
+	if err != nil {
+		return err
+	}
+	if *showVersion {
+		return json.NewEncoder(os.Stdout).Encode(identity)
+	}
 	if *dataDir == "" {
 		configDir, err := os.UserConfigDir()
 		if err != nil {
 			return err
 		}
-		*dataDir = filepath.Join(configDir, "Fuyu")
+		*dataDir = filepath.Join(configDir, identity.Name())
+	}
+	*dataDir, err = filepath.Abs(*dataDir)
+	if err != nil {
+		return err
+	}
+	if err := identity.ValidateDataDir(*dataDir); err != nil {
+		return err
 	}
 	store, err := storage.Open(*dataDir)
 	if err != nil {
 		return fmt.Errorf("open application index: %w", err)
 	}
 	defer store.Close()
+	if err := identity.BindDataDir(*dataDir); err != nil {
+		return err
+	}
+	if err := identity.PrepareRuntime(*dataDir); err != nil {
+		return err
+	}
 	codexHome := os.Getenv("CODEX_HOME")
 	if codexHome == "" {
 		home, err := os.UserHomeDir()
@@ -72,6 +97,7 @@ func run() error {
 		*cwd = path
 	}
 	desktop := ui.New(nil, "Codex", *cwd, nil)
+	desktop.SetRelease(identity, func() error { return identity.WriteReady(*readyFile, *launchToken, *dataDir) })
 	desktop.SetStartup(func(ctx context.Context, publish func(ui.RuntimeConnection)) {
 		loadRuntimes(ctx, *executable, *dataDir, publish)
 	})
