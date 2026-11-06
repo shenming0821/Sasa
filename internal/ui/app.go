@@ -36,6 +36,7 @@ type App struct {
 	branchCatalogState
 	worktreeCreate *worktreeCreation
 	sessionRenameState
+	quickOpen          quickOpenState
 	imageCache         map[string]*imagePreview
 	imageLoading       bool
 	imageClock         uint64

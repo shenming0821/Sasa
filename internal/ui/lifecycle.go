@@ -19,6 +19,8 @@ func (a *App) closeCurrentPage() {
 		}
 	case a.fileAction.open:
 		a.fileAction.open = false
+	case a.quickOpen.open:
+		a.quickOpen.open = false
 	case a.worktreeRenameOpen:
 		a.worktreeRenameOpen = false
 	case a.sessionRenameOpen:
