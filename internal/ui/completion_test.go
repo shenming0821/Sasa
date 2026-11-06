@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -381,6 +383,156 @@ func TestSkillReferencesSurviveDraftRestartAndFollowEdits(t *testing.T) {
 	b.State.Cwd = "/other"
 	if len(b.draftSkills("$frontend-design task")) != 0 {
 		t.Fatal("skill reference crossed working directories")
+	}
+}
+
+func TestCompletionQueryFileMention(t *testing.T) {
+	for _, c := range []struct {
+		text  string
+		kind  byte
+		query string
+	}{
+		{"@", '@', ""},
+		{"task @int", '@', "int"},
+		{"@internal/ui", '@', "internal/ui"},
+		{"@a $design", '$', "design"},
+	} {
+		caret := len([]rune(c.text))
+		q, ok := queryCompletion(c.text, caret, caret)
+		if !ok || q.kind != c.kind || q.query != c.query {
+			t.Fatalf("%q → %+v ok=%v", c.text, q, ok)
+		}
+	}
+	text := "fix @internal/ui/completion.go now"
+	caret := len([]rune("fix @internal/ui/completion.go"))
+	q, ok := queryCompletion(text, caret, caret)
+	if !ok || q.kind != '@' || q.query != "internal/ui/completion.go" {
+		t.Fatalf("mid-sentence query failed: %+v ok=%v", q, ok)
+	}
+	for _, text := range []string{"user@host", "email@x.com", "@a@b", "@dir/file.go ", "@@"} {
+		caret := len([]rune(text))
+		if _, ok := queryCompletion(text, caret, caret); ok {
+			t.Fatalf("unexpected completion %q", text)
+		}
+	}
+}
+
+func awaitFileIndex(t *testing.T, a *App, jobs chan func()) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for a.session.completion.filesVersion == 0 {
+		select {
+		case job := <-jobs:
+			job()
+		case <-time.After(100 * time.Millisecond):
+			if time.Now().After(deadline) {
+				t.Fatal("file index not loaded")
+			}
+		}
+	}
+}
+
+func TestFileMentionCompletionInsertsPathsAndDescends(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "sub"), 0700)
+	os.WriteFile(filepath.Join(root, "sub", "note.md"), nil, 0600)
+	os.WriteFile(filepath.Join(root, "top.go"), nil, 0600)
+	a := New(stubBackend{}, "test", root, nil)
+	jobs := make(chan func(), 8)
+	a.dispatch = func(fn func()) { jobs <- fn }
+	sent := 0
+	a.submit = func() { sent++ }
+	tt := native.NewTester(a.view, 640, 480)
+	tt.Click("任务输入")
+	tt.Type("@")
+	awaitFileIndex(t, a, jobs)
+	tt.Frame()
+	if _, ok := tt.Find("候选 sub"); !ok {
+		t.Fatal("directory not listed")
+	}
+	if _, ok := tt.Find("候选 top.go"); !ok {
+		t.Fatal("file not listed")
+	}
+	tt.Type("sub")
+	if _, ok := tt.Find("候选 sub"); !ok {
+		t.Fatal("query did not keep directory candidate")
+	}
+	if _, ok := tt.Find("候选 top.go"); ok {
+		t.Fatal("unrelated file stayed visible")
+	}
+	tt.Key(0, native.KeyEnter)
+	if a.State.Draft != "@sub/" {
+		t.Fatalf("directory did not stay open: %q", a.State.Draft)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("候选 note.md"); !ok {
+		t.Fatal("directory children not listed")
+	}
+	tt.Key(0, native.KeyEnter)
+	if a.State.Draft != "@sub/note.md " {
+		t.Fatalf("file reference not inserted: %q", a.State.Draft)
+	}
+	tt.Type("task")
+	if a.State.Draft != "@sub/note.md task" {
+		t.Fatalf("typing lost focus/caret: %q", a.State.Draft)
+	}
+	if sent != 0 {
+		t.Fatal("completion submitted a task")
+	}
+}
+
+func TestFileMentionEscapeDismissesAndTextSendsVerbatim(t *testing.T) {
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, "only.go"), nil, 0600)
+	a := New(stubBackend{}, "test", root, nil)
+	jobs := make(chan func(), 8)
+	a.dispatch = func(fn func()) { jobs <- fn }
+	tt := native.NewTester(a.view, 640, 480)
+	tt.Click("任务输入")
+	tt.Type("@")
+	awaitFileIndex(t, a, jobs)
+	tt.Frame()
+	tt.Key(0, native.KeyEscape)
+	if _, ok := tt.Find("输入候选"); ok {
+		t.Fatal("Escape did not dismiss file candidates")
+	}
+	a.State.Draft = "@only.go 说明这个文件"
+	a.completion.caret = len([]rune(a.State.Draft))
+	a.completion.focus = true
+	tt.Frame()
+	sent := ""
+	a.submit = func() { sent = a.State.Draft }
+	tt.Key(0, native.KeyEnter)
+	if sent != "@only.go 说明这个文件" {
+		t.Fatalf("mention text not sent verbatim: %q", sent)
+	}
+}
+
+func TestFileMentionPagesMoreItemsAtScrollEnd(t *testing.T) {
+	root := t.TempDir()
+	for i := range 45 {
+		os.WriteFile(filepath.Join(root, fmt.Sprintf("f%02d.go", i)), nil, 0600)
+	}
+	a := New(stubBackend{}, "test", root, nil)
+	jobs := make(chan func(), 8)
+	a.dispatch = func(fn func()) { jobs <- fn }
+	tt := native.NewTester(a.view, 640, 480)
+	tt.Click("任务输入")
+	tt.Type("@f")
+	awaitFileIndex(t, a, jobs)
+	tt.Frame()
+	if _, ok := tt.Find("候选 f29.go"); !ok {
+		t.Fatal("first page missing")
+	}
+	if _, ok := tt.Find("候选 f30.go"); ok {
+		t.Fatal("second page rendered before scrolling")
+	}
+	panel, _ := tt.Find("输入候选")
+	tt.Scroll(panel.X+40, panel.Y+80, 0, 2000)
+	tt.Frame()
+	tt.Frame()
+	if _, ok := tt.Find("候选 f30.go"); !ok {
+		t.Fatal("scroll end did not load next page")
 	}
 }
 

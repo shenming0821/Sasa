@@ -33,6 +33,37 @@ func TestLazyTreeSearchAndRootBoundary(t *testing.T) {
 	}
 }
 
+func TestIndexListsFilesAndDirectoriesWithoutDependencies(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "sub", "deep"), 0700)
+	os.WriteFile(filepath.Join(root, "sub", "deep", "file.go"), nil, 0600)
+	os.WriteFile(filepath.Join(root, "top.md"), nil, 0600)
+	os.Mkdir(filepath.Join(root, "node_modules"), 0700)
+	os.WriteFile(filepath.Join(root, "node_modules", "dep.js"), nil, 0600)
+	result, err := Index(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dirs, files []string
+	for _, e := range result.Entries {
+		rel, _ := filepath.Rel(root, e.Path)
+		if e.Dir {
+			dirs = append(dirs, rel)
+		} else {
+			files = append(files, rel)
+		}
+	}
+	if !slices.Contains(dirs, "sub") || !slices.Contains(dirs, filepath.Join("sub", "deep")) {
+		t.Fatal(dirs)
+	}
+	if !slices.Contains(files, filepath.Join("sub", "deep", "file.go")) || !slices.Contains(files, "top.md") {
+		t.Fatal(files)
+	}
+	if slices.Contains(dirs, "node_modules") || slices.Contains(files, filepath.Join("node_modules", "dep.js")) {
+		t.Fatal("dependency directory indexed")
+	}
+}
+
 func TestContentSearchScopeSkipsAndTruncates(t *testing.T) {
 	root := t.TempDir()
 	write := func(rel, text string) {

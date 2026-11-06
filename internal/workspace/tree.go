@@ -192,6 +192,22 @@ func walkEntries(ctx context.Context, root, dir string, respectIgnore bool, visi
 	return truncated, err
 }
 
+// Index collects every visible file and directory under root in tree order,
+// applying the shared traversal bounds and ignore rules. Interactive pickers
+// keep the result and filter it per keystroke instead of rewalking the tree.
+func Index(ctx context.Context, root string) (SearchResult, error) {
+	var result SearchResult
+	truncated, err := walkEntries(ctx, root, root, true, func(v Entry) (bool, error) {
+		if v.Dir && searchSkipDirs[v.Name] {
+			return false, nil
+		}
+		result.Entries = append(result.Entries, v)
+		return true, nil
+	})
+	result.Truncated = truncated
+	return result, err
+}
+
 func Search(ctx context.Context, root, query string) (SearchResult, error) {
 	var result SearchResult
 	query = strings.ToLower(query)

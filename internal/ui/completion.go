@@ -22,6 +22,17 @@ type inputCompletion struct {
 	loading, loaded bool
 	error           string
 	chosen          map[string]agent.Skill
+	files           []completionFile
+	filesCwd        string
+	filesChecked    time.Time
+	filesLoading    bool
+	filesError      string
+	filesTruncated  bool
+	filesVersion    uint64
+	fileFiltered    []completionItem
+	fileFilterKey   string
+	fileScroll      native.ScrollState
+	fileShown       int
 	focus           bool
 	caret           int
 	reveal          bool
@@ -35,6 +46,8 @@ type completionQuery struct {
 type completionItem struct {
 	name, description string
 	skill             *agent.Skill
+	path              string
+	dir               bool
 }
 
 var slashCommands = []completionItem{
@@ -63,6 +76,9 @@ func queryCompletion(text string, anchor, caret int) (completionQuery, bool) {
 	if token[0] == '$' && !strings.ContainsAny(string(token[1:]), "/$") {
 		return completionQuery{'$', string(token[1:]), start, caret}, true
 	}
+	if token[0] == '@' && !strings.ContainsAny(string(token[1:]), "@$") {
+		return completionQuery{'@', string(token[1:]), start, caret}, true
+	}
 	return completionQuery{}, false
 }
 
@@ -71,6 +87,9 @@ func completionKey(q completionQuery) string {
 }
 
 func (a *App) completionItems(q completionQuery) []completionItem {
+	if q.kind == '@' {
+		return a.completionFileItems(q)
+	}
 	var items []completionItem
 	query := strings.ToLower(q.query)
 	if q.kind == '/' {
@@ -113,7 +132,7 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 				}
 			}
 			if strings.Contains(strings.ToLower(name+" "+skill.Name+" "+description), query) {
-				items = append(items, completionItem{name, description, skill})
+				items = append(items, completionItem{name: name, description: description, skill: skill})
 			}
 		}
 		sort.SliceStable(items, func(i, j int) bool { return strings.ToLower(items[i].name) < strings.ToLower(items[j].name) })
@@ -176,6 +195,16 @@ func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 		} else {
 			a.runSlashCommand(item.name)
 		}
+	} else if q.kind == '@' {
+		r := []rune(a.State.Draft)
+		// Directories keep the token open so typing continues into their children.
+		token := "@" + item.path + " "
+		if item.dir {
+			token = "@" + item.path + "/"
+		}
+		a.State.Draft = string(r[:q.start]) + token + string(r[q.end:])
+		a.completion.caret = q.start + len([]rune(token))
+		a.completion.focus = true
 	} else {
 		r := []rune(a.State.Draft)
 		token := "$" + item.skill.Name + " "
@@ -226,11 +255,13 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 	panel.Children(func() {
 		runtimeSkills := q.kind == '/' && a.kind.Normalized() == agent.Claude
 		title := "命令"
-		if q.kind == '$' || runtimeSkills {
-			title = "技能"
-		}
-		if runtimeSkills {
+		switch {
+		case q.kind == '@':
+			title = "路径"
+		case runtimeSkills:
 			title = "技能与命令"
+		case q.kind == '$':
+			title = "技能"
 		}
 		native.Row(c).FillWidth().Children(func() {
 			native.Text(c, title).FontSize(11).TextColor(t.TextMuted)
@@ -239,6 +270,11 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 			if q.kind == '$' || runtimeSkills {
 				if quietButton(c, "刷新技能").KeepFocus().Disabled(a.completion.loading).Children(func() { native.Text(c, "刷新").FontSize(11) }).Clicked() {
 					a.loadCompletionCatalog(true)
+				}
+			}
+			if q.kind == '@' {
+				if quietButton(c, "刷新文件候选").KeepFocus().Disabled(a.completion.filesLoading).Children(func() { native.Text(c, "刷新").FontSize(11) }).Clicked() {
+					a.loadCompletionFiles(true)
 				}
 			}
 		})
@@ -250,22 +286,66 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 				}
 			})
 		}
-		if len(items) == 0 && !a.completion.loading {
+		if q.kind == '@' && a.completion.filesError != "" {
+			native.Row(c).FillWidth().Gap(8).Children(func() {
+				native.Text(c, a.completion.filesError).FontSize(12).Grow(1).TextColor(t.TextMuted)
+				if quietButton(c, "重新读取文件").KeepFocus().Children(func() { native.Text(c, "重试").FontSize(12) }).Clicked() {
+					a.loadCompletionFiles(true)
+				}
+			})
+		}
+		if len(items) == 0 && !(a.completion.loading || q.kind == '@' && a.completion.filesLoading) {
 			native.Text(c, "没有匹配项").FontSize(12).TextColor(t.TextMuted)
 		}
-		native.Scroll(c).FillWidth().MaxHeight(156).Children(func() {
+		if q.kind == '@' && a.completion.filesLoading && len(items) == 0 {
+			native.Text(c, "正在读取工作区文件…").FontSize(12).TextColor(t.TextMuted)
+		}
+		// File candidates page in as the user scrolls; keyboard selection past
+		// the rendered window grows it just enough to stay visible.
+		shown := items
+		if q.kind == '@' {
+			limit := max(a.completion.fileShown, a.completion.selected+1)
+			if limit < len(items) {
+				shown = items[:limit]
+			}
+		}
+		scroll := native.Scroll(c).FillWidth().MaxHeight(156)
+		if q.kind == '@' {
+			scroll = scroll.TrackScroll(&a.completion.fileScroll)
+			if len(shown) < len(items) && a.completion.fileScroll.MaxY > 0 && a.completion.fileScroll.Y >= a.completion.fileScroll.MaxY-24 {
+				a.completion.fileShown += completionFilePageSize
+				c.Invalidate()
+			}
+		}
+		scroll.Children(func() {
 			native.Column(c).FillWidth().Gap(2).Children(func() {
-				for i, item := range items {
-					row := native.ButtonBase(c.Key(item.name+fmt.Sprint(i))).Label("候选 "+item.name).FillWidth().Padding(7, 8).Radius(6).KeepFocus()
+				for i, item := range shown {
+					row := native.ButtonBase(c.Key(item.name + item.path + fmt.Sprint(i))).Label("候选 " + item.name).FillWidth().Radius(6).KeepFocus()
 					if i == a.completion.selected || row.Hovered() {
 						row.Background(t.SurfaceHover)
 					}
-					row.Children(func() {
-						native.Column(c).FillWidth().Gap(3).Children(func() {
-							native.Text(c, item.name).FontSize(13).SingleLine()
-							native.Text(c, strings.Join(strings.Fields(item.description), " ")).FontSize(11).TextColor(t.TextMuted).SingleLine()
+					if q.kind == '@' {
+						row.Padding(6, 8)
+						row.Children(func() {
+							native.Row(c).FillWidth().AlignItems(native.Center).Gap(8).Children(func() {
+								glyph := fileIcon
+								if item.dir {
+									glyph = folderIcon
+								}
+								native.Icon(c, glyph).Size(13, 13).Shrink(0).TextColor(t.TextMuted)
+								native.Text(c, item.name).FontSize(13).SingleLine().Shrink(0)
+								native.Text(c, item.description).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
+							})
 						})
-					})
+					} else {
+						row.Padding(7, 8)
+						row.Children(func() {
+							native.Column(c).FillWidth().Gap(3).Children(func() {
+								native.Text(c, item.name).FontSize(13).SingleLine()
+								native.Text(c, strings.Join(strings.Fields(item.description), " ")).FontSize(11).TextColor(t.TextMuted).SingleLine()
+							})
+						})
+					}
 					if a.completion.reveal && i == a.completion.selected {
 						row.ScrollIntoView()
 					}
@@ -276,6 +356,9 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 				}
 			})
 		})
+		if q.kind == '@' && a.completion.filesTruncated {
+			native.Text(c, "工作区过大，候选仅覆盖部分内容").FontSize(10).TextColor(t.TextMuted)
+		}
 	})
 	a.completion.reveal = false
 }

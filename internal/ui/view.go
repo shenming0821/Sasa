@@ -320,11 +320,16 @@ func (a *App) composer(c *native.Context) {
 			if query.kind == '$' || query.kind == '/' && a.kind.Normalized() == agent.Claude {
 				a.loadCompletionSkills()
 			}
+			if query.kind == '@' {
+				a.loadCompletionFiles(false)
+			}
 			key := completionKey(query)
 			if a.completion.key != key {
 				a.completion.key = key
 				a.completion.selected = 0
 				a.completion.reveal = true
+				a.completion.fileShown = completionFilePageSize
+				a.completion.fileScroll.Y = 0
 			}
 			if a.completion.dismissed != key {
 				native.Overlay(c, func() { a.completionPanel(c, composer, query) })
