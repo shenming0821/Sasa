@@ -264,6 +264,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 		row := rows[i]
 		rc := c.Key(row.Path)
 		b := treeButton(rc, "文件树 "+row.Path).FillWidth().Height(32*row.Scale).Radius(5).Padding(0, 10, 0, float32(12+row.Depth*14))
+		dragFiles(b, []string{row.Path})
 		if row.Scale < 1 {
 			b.ClipY().Opacity(row.Scale)
 		}

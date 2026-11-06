@@ -313,3 +313,56 @@ func TestImageQueuedImportsKeepDraftAndEnforceLimits(t *testing.T) {
 		t.Fatal("failed batch changed existing image draft")
 	}
 }
+
+func TestFileDragDataOffersAbsolutePaths(t *testing.T) {
+	data := fileDragData([]string{"/workspace/main.go", "/other dir/说明.md"})
+	files, err := data.Files()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 2 || files[0] != "/workspace/main.go" || files[1] != "/other dir/说明.md" {
+		t.Fatalf("drag data did not round-trip file paths: %v", files)
+	}
+}
+
+func TestDropAndPasteNonImageFilesInsertAtPrefixedAbsolutePaths(t *testing.T) {
+	ref, _ := imageFixture(t)
+	a := New(stubBackend{}, "test", "/workspace", nil)
+	imageStore(t, a)
+	queue := make(chan func(), 10)
+	a.dispatch = func(fn func()) { queue <- fn }
+	tt := native.NewTester(func(c *native.Context) { native.Column(c).Fill().Children(func() { a.composer(c) }) }, 640, 360)
+	a.readImageClipboard = func() (transfer.Data, error) { return tt.ClipboardData(), nil }
+	input, ok := tt.Find("任务输入")
+	if !ok {
+		t.Fatal("missing composer")
+	}
+	if !tt.DropFiles(input.X+10, input.Y+10, "/workspace/internal/ui/images.go", "/other/repo/README.md") {
+		t.Fatal("non-image file drop was not accepted")
+	}
+	want := "@/workspace/internal/ui/images.go @/other/repo/README.md "
+	if a.State.Draft != want {
+		t.Fatalf("unexpected draft after file drop: got %q, want %q", a.State.Draft, want)
+	}
+	if _, ok := tt.Find("输入候选"); ok {
+		t.Fatal("dropping files unexpectedly opened completion popup")
+	}
+	tt.Type("请检查")
+	if a.State.Draft != want+"请检查" {
+		t.Fatalf("typing after drop did not append at end: got %q", a.State.Draft)
+	}
+	fileData, err := transfer.FileData(ref.Path, "/workspace/cmd/desktop/main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tt.SetClipboardData(fileData)
+	tt.Key(native.Cmd, native.KeyV)
+	pumpUpdate(t, queue)
+	want = want + "请检查 @/workspace/cmd/desktop/main.go "
+	if a.State.Draft != want {
+		t.Fatalf("mixed file paste did not append non-image path: got %q, want %q", a.State.Draft, want)
+	}
+	if len(a.State.DraftImages) != 1 || a.imageError != "" {
+		t.Fatalf("mixed file paste failed image import: len=%d err=%q", len(a.State.DraftImages), a.imageError)
+	}
+}

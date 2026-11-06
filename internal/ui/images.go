@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/transfer"
@@ -126,13 +127,63 @@ func (a *App) imagePickerButton(c *native.Context) {
 	}
 }
 
+// fileDrag carries paths dragged within the window; DragData offers the same
+// paths to other applications as file URLs.
+type fileDrag struct{ paths []string }
+
+func fileDragData(paths []string) transfer.Data {
+	data, err := transfer.FileData(paths...)
+	if err != nil {
+		return transfer.Data{}
+	}
+	return data
+}
+
+func dragFiles(e native.Element, paths []string) {
+	e.Drag(fileDrag{paths}).DragData(fileDragData(paths))
+}
+
+func isImagePath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *App) addDroppedFiles(paths []string) {
+	var refs []attachment.Image
+	var files []string
+	for _, path := range paths {
+		if isImagePath(path) {
+			refs = append(refs, attachment.Image{Path: path})
+		} else if trimmed := strings.TrimSpace(path); trimmed != "" {
+			files = append(files, "@"+filepath.Clean(trimmed))
+		}
+	}
+	a.addImages(refs)
+	if len(files) == 0 {
+		return
+	}
+	if a.renderingPane != nil {
+		a.focusPane(a.activeWorkspace, a.renderingPane)
+	}
+	prefix := a.State.Draft
+	if prefix != "" {
+		r := []rune(prefix)
+		if !unicode.IsSpace(r[len(r)-1]) {
+			prefix += " "
+		}
+	}
+	a.State.Draft = prefix + strings.Join(files, " ") + " "
+	a.completion.caret = len([]rune(a.State.Draft))
+	a.completion.focus = true
+}
+
 func (a *App) takeImageData(data transfer.Data) bool {
 	if files, err := data.Files(); err == nil && len(files) > 0 {
-		var refs []attachment.Image
-		for _, path := range files {
-			refs = append(refs, attachment.Image{Path: path})
-		}
-		a.addImages(refs)
+		a.addDroppedFiles(files)
 		return true
 	}
 	var refs []attachment.Image
@@ -174,14 +225,13 @@ func (a *App) pasteImages() bool {
 
 func (a *App) receiveImageDrop(box native.Element) {
 	if paths := box.DroppedFiles(); len(paths) > 0 {
-		var refs []attachment.Image
-		for _, path := range paths {
-			refs = append(refs, attachment.Image{Path: path})
-		}
-		a.addImages(refs)
+		a.addDroppedFiles(paths)
 	}
 	if drop, ok := native.DropData(box, transfer.DropOptions{Formats: []transfer.Format{transfer.FileList, transfer.URIList, transfer.PNG}}); ok {
 		a.takeImageData(drop.Data)
+	}
+	if drag, ok := native.Drop[fileDrag](box); ok {
+		a.addDroppedFiles(drag.paths)
 	}
 }
 

@@ -360,6 +360,11 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 	}
 	row.Children(func() {
 		b := native.ButtonBase(c.Key("open")).Label("Git "+group+" "+entry.Path).Grow(1).FillHeight().MinWidth(0).Padding(0, 2, 0, 8)
+		var dragPaths []string
+		for _, chosen := range a.gitChosen(w, group, entry) {
+			dragPaths = append(dragPaths, filepath.Join(w.root, chosen.Path))
+		}
+		dragFiles(b, dragPaths)
 		b.ContextMenu(func(m *native.Menu) {
 			if group != "冲突" {
 				label := "暂存"
@@ -576,6 +581,7 @@ func (a *App) gitHistoryCommit(c *native.Context, w *workspacePage, info gitview
 	}
 	for _, entry := range tree.entries {
 		file := treeButton(c.Key(entry.Path), "提交文件 "+info.Hash+" "+entry.Path).FillWidth().Height(28).Padding(0, 8, 0, 26)
+		dragFiles(file, []string{filepath.Join(w.root, entry.Path)})
 		file.Children(func() {
 			native.Row(c).Fill().Gap(5).AlignItems(native.Center).Children(func() {
 				native.Icon(c, fileIcon).Size(12, 12).TextColor(t.TextMuted)
