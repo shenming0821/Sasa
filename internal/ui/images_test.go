@@ -314,6 +314,20 @@ func TestImageQueuedImportsKeepDraftAndEnforceLimits(t *testing.T) {
 	}
 }
 
+func TestFilePathRangesFindDroppedPathTokens(t *testing.T) {
+	text := "请看 @/a/main.go 和 @/中文/说明.md\n@/b.txt email@/x @go.mod @ x @"
+	got := filePathRanges(text)
+	r := []rune(text)
+	var tokens []string
+	for _, span := range got {
+		tokens = append(tokens, string(r[span[0]:span[1]]))
+	}
+	want := []string{"@/a/main.go", "@/中文/说明.md", "@/b.txt", "@go.mod"}
+	if fmt.Sprint(tokens) != fmt.Sprint(want) {
+		t.Fatalf("got %q, want %q", tokens, want)
+	}
+}
+
 func TestFileDragDataOffersAbsolutePaths(t *testing.T) {
 	data := fileDragData([]string{"/workspace/main.go", "/other dir/说明.md"})
 	files, err := data.Files()

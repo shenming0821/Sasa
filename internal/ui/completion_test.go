@@ -102,7 +102,7 @@ func TestComposerSkillCompletionKeyboardEscapeAndClick(t *testing.T) {
 }
 
 func TestCompletionQueryUsesCaretAndKeepsOtherText(t *testing.T) {
-	for _, text := range []string{"/tmp/file", "hello /status", "cost$front", "$$front"} {
+	for _, text := range []string{"/tmp/file", "hello /status", "cost$front", "$$front", "@/Users/me/Docu", "看 @/"} {
 		if _, ok := queryCompletion(text, len([]rune(text)), len([]rune(text))); ok {
 			t.Fatalf("unexpected completion %q", text)
 		}
@@ -408,6 +408,21 @@ func TestCompletionQueryFileMention(t *testing.T) {
 	q, ok := queryCompletion(text, caret, caret)
 	if !ok || q.kind != '@' || q.query != "internal/ui/completion.go" {
 		t.Fatalf("mid-sentence query failed: %+v ok=%v", q, ok)
+	}
+	text = "fix @internal/ui/old.go now"
+	caret = len([]rune("fix @internal/u"))
+	q, ok = queryCompletion(text, caret, caret)
+	if !ok || q.query != "internal/u" {
+		t.Fatalf("mid-token query failed: %+v ok=%v", q, ok)
+	}
+	a := completionTestApp()
+	a.State.Draft = text
+	a.acceptCompletion(q, completionItem{path: "internal/ui/view.go"})
+	if a.State.Draft != "fix @internal/ui/view.go now" || a.completion.caret != len([]rune("fix @internal/ui/view.go ")) {
+		t.Fatalf("picking inside a path did not replace it: %q caret=%d", a.State.Draft, a.completion.caret)
+	}
+	if _, ok := queryCompletion("@/Users/me/a.go", 1, 1); ok {
+		t.Fatal("caret after @ of an absolute path opened completion")
 	}
 	for _, text := range []string{"user@host", "email@x.com", "@a@b", "@dir/file.go ", "@@"} {
 		caret := len([]rune(text))

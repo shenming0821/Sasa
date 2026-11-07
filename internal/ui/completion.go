@@ -76,8 +76,15 @@ func queryCompletion(text string, anchor, caret int) (completionQuery, bool) {
 	if token[0] == '$' && !strings.ContainsAny(string(token[1:]), "/$") {
 		return completionQuery{'$', string(token[1:]), start, caret}, true
 	}
-	if token[0] == '@' && !strings.ContainsAny(string(token[1:]), "@$") {
-		return completionQuery{'@', string(token[1:]), start, caret}, true
+	// A path picked with the caret inside one replaces all of it, so the
+	// query's end reaches the token's end; the query filters by the prefix.
+	end := caret
+	for end < len(r) && !unicode.IsSpace(r[end]) {
+		end++
+	}
+	// @/absolute paths come from file drops; candidates are workspace-relative.
+	if token[0] == '@' && !strings.HasPrefix(string(r[start+1:end]), "/") && !strings.ContainsAny(string(token[1:]), "@$") {
+		return completionQuery{'@', string(token[1:]), start, end}, true
 	}
 	return completionQuery{}, false
 }
@@ -198,12 +205,14 @@ func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 	} else if q.kind == '@' {
 		r := []rune(a.State.Draft)
 		// Directories keep the token open so typing continues into their children.
-		token := "@" + item.path + " "
+		token, caret := "@"+item.path+" ", 0
 		if item.dir {
 			token = "@" + item.path + "/"
+		} else if q.end < len(r) && unicode.IsSpace(r[q.end]) {
+			token, caret = "@"+item.path, 1
 		}
 		a.State.Draft = string(r[:q.start]) + token + string(r[q.end:])
-		a.completion.caret = q.start + len([]rune(token))
+		a.completion.caret = q.start + len([]rune(token)) + caret
 		a.completion.focus = true
 	} else {
 		r := []rune(a.State.Draft)

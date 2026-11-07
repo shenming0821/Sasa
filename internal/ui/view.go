@@ -309,6 +309,9 @@ func (a *App) composer(c *native.Context) {
 		a.draftImageStrip(c)
 		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
 			Placeholder("与 "+a.kind.String()+" 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
+		for _, span := range filePathRanges(a.State.Draft) {
+			composer.TextRanges(native.TextRange{Start: span[0], End: span[1], Color: t.Accent, Weight: 600})
+		}
 		a.focusPressedPane(composer)
 		if a.completion.focus && a.paneIsFocused() {
 			composer.Focus().SetTextSelection(a.completion.caret, a.completion.caret)

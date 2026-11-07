@@ -143,6 +143,25 @@ func dragFiles(e native.Element, paths []string) {
 	e.Drag(fileDrag{paths}).DragData(fileDragData(paths))
 }
 
+// filePathRanges finds the rune ranges of @path tokens, as file drops and
+// @ completion insert them, for the composer to highlight.
+func filePathRanges(text string) [][2]int {
+	var ranges [][2]int
+	r := []rune(text)
+	for i := 0; i+1 < len(r); i++ {
+		if r[i] != '@' || unicode.IsSpace(r[i+1]) || i > 0 && !unicode.IsSpace(r[i-1]) {
+			continue
+		}
+		end := i + 2
+		for end < len(r) && !unicode.IsSpace(r[end]) {
+			end++
+		}
+		ranges = append(ranges, [2]int{i, end})
+		i = end
+	}
+	return ranges
+}
+
 func isImagePath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp":
