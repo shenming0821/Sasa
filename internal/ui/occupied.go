@@ -87,6 +87,7 @@ func (a *App) forkSession() {
 			branch.State.ThreadID, branch.State.Draft = result.ThreadMeta.ID, draft
 			branch.State.DraftImages = images
 			branch.selectedModel = s.selectedModel
+			branch.selectedEffort, branch.selectedTier = s.selectedEffort, s.selectedTier
 			branch.saved.Title = title + "（分叉）"
 			branch.saved.AtEnd = true
 			branch.State.Disconnected = s.State.Disconnected

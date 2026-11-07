@@ -59,6 +59,7 @@ type Snapshot struct {
 	WorkspaceLayouts   map[string]WorkspaceLayout
 	DeletedThreads     []DeletedThread
 	LastClaudeModels   map[string]string
+	ModelEfforts       map[string]string
 	DefaultAgent       agent.AgentKind
 	Preferences        *Preferences
 	WorkspaceTabs      []Tab

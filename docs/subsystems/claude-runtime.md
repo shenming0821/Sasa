@@ -44,7 +44,7 @@ Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clea
 
 运行详情展示 system/init 的实际模型与 CLI 版本，模型选择在内部保留原生别名；恢复时从检查点读取对应实际值。审批的应用 request ID 编码原 session/进程代次，回传时还原 native request_id，避免两个独立进程的相同 native ID 串用。
 
-模型菜单及输入区使用 initialize 的 resolvedModel 显示具体模型名称，发送时保留原生别名；目录移除 default 和额外的 `[1m]` 上下文预设，按具体模型去重。模型目录加载前显示“选择模型”，避免短暂泄漏 opus/sonnet 等别名。每个 Claude 配置根单独记住上次选择或成功发送的模型，保存在 SQLite 设置的 LastClaudeModels 中；新建会话和切回 Claude 时沿用，现有会话保留自身选择。旧设置没有该字段时，从已有 Claude 会话选择回填，并优先采用上次活动会话。没有使用记录时选择目录中的首个具体模型，Codex 模型默认行为保持原有规则。
+模型菜单及输入区使用 initialize 的 resolvedModel 显示具体模型名称，发送时保留原生别名；目录移除 default 和额外的 `[1m]` 上下文预设，按具体模型去重。模型目录加载前显示“选择模型”，避免短暂泄漏 opus/sonnet 等别名。每个 Claude 配置根单独记住上次选择或成功发送的模型，保存在 SQLite 设置的 LastClaudeModels 中；各模型的推理强度按 `Agent + Runtime + Model` 保存在 `ModelEfforts` 中，新建会话、切回 Claude 或再次选择同一模型时自动沿用，现有会话保留自身选择。旧设置没有对应字段时，从已有会话选择回填，并优先采用上次活动会话。没有使用记录时选择目录中的首个具体模型，Codex 模型默认行为保持原有规则。
 
 ## 验证
 

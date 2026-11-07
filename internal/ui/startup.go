@@ -92,6 +92,9 @@ func (a *App) installRuntime(result RuntimeConnection) {
 			s.runtimeKey = result.Runtime
 			if s.selectedModel == "" {
 				s.selectedModel = a.lastClaudeModels[result.Runtime]
+				if s.selectedEffort == "" {
+					s.selectedEffort = a.rememberedModelEffort(result.Kind, result.Runtime, s.selectedModel)
+				}
 			}
 		}
 		if s.runtimeKey != result.Runtime {

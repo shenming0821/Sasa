@@ -53,6 +53,7 @@ type App struct {
 	agentErrors        map[agent.AgentKind]string
 	defaultAgent       agent.AgentKind
 	lastClaudeModels   map[string]string
+	modelEfforts       map[string]string
 	version            string
 	win                *mygo.Window
 	md                 markdown.Options

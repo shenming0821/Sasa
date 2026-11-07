@@ -42,3 +42,14 @@
 - `./scripts/go test ./internal/claude ./internal/ui -count=1`、`./scripts/go vet` 通过。
 
 真实模型下档位对回答深度的实际影响未量化验证（zhipu provider 两轮 `thinkingTokens` 均为 0）；原生窗口观感待用户验收；initialize 未报告默认档位，未选择时菜单无高亮、按钮不显示后缀为有意行为。
+
+## 模型与推理强度绑定记忆
+
+2026-11-06：`storage.Snapshot` 新增 `ModelEfforts`，按 `Agent + Runtime + Model` 记录各模型最近选择的推理强度。选择某模型的推理强度时更新绑定并随设置持久化；切换到该模型、新建会话自动带出模型或异步解析默认模型时，自动恢复该模型绑定的推理强度（服务档位 `SelectedTier` 仍在切换模型时重置）。旧快照缺少 `ModelEfforts` 时从已有会话回填，当前选中会话优先；已加载目录不再支持旧档位时，按钮、菜单高亮与发送参数统一回退到模型默认。
+
+通过：
+
+- `TestModelMenuEffortAndSpeedOptionsSendAndPersist`：模型 A 选择“高”后切到模型 B 再切回模型 A 自动恢复“高”，修改为“中”再切换往返保持“中”，服务档位切换模型时重置。
+- `TestInitialModelResolvesToConcreteSessionSelection`：异步解析出默认模型时自动带出该模型已绑定的推理强度。
+- `TestModelEffortBindingAcrossSessionsAgentsAndMigration`：旧会话记录迁移回填 `ModelEfforts`、新建 Claude 会话继承绑定强度、跨会话选择 Codex 模型自动应用绑定强度、同名模型跨 Agent 隔离。
+- `./scripts/go test -race ./internal/ui ./internal/storage -count=1`、`./scripts/go vet ./...` 通过。

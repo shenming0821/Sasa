@@ -119,6 +119,9 @@ func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
 					break
 				}
 			}
+			if owner.selectedEffort == "" {
+				owner.selectedEffort = a.rememberedModelEffort(owner.kind, owner.runtimeKey, owner.selectedModel)
+			}
 			selected = append(selected, owner)
 		}
 	}
@@ -162,6 +165,28 @@ func (a *App) rememberClaudeModel(model string) {
 	root.lastClaudeModels[a.runtimeKey] = model
 }
 
+func modelEffortKey(kind agent.AgentKind, runtime, model string) string {
+	return string(kind.Normalized()) + "\x00" + runtime + "\x00" + model
+}
+
+func (a *App) rememberedModelEffort(kind agent.AgentKind, runtime, model string) string {
+	if model == "" || model == "default" {
+		return ""
+	}
+	return a.application().modelEfforts[modelEffortKey(kind, runtime, model)]
+}
+
+func (a *App) rememberModelEffort(model, effort string) {
+	if model == "" || model == "default" || effort == "" {
+		return
+	}
+	root := a.application()
+	if root.modelEfforts == nil {
+		root.modelEfforts = map[string]string{}
+	}
+	root.modelEfforts[modelEffortKey(a.kind, a.runtimeKey, model)] = effort
+}
+
 func (a *App) resolveInitialModel() {
 	if a.selectedModel != "" || a.modelResolving || a.modelResolvedCwd == a.State.Cwd {
 		return
@@ -190,6 +215,9 @@ func (a *App) resolveInitialModel() {
 				return
 			}
 			s.selectedModel, s.modelError = model, ""
+			if s.selectedEffort == "" {
+				s.selectedEffort = a.rememberedModelEffort(s.kind, s.runtimeKey, model)
+			}
 		})
 	}()
 }
@@ -223,13 +251,17 @@ func (a *App) modelPicker(c *native.Context) {
 		}
 	}
 	effort := a.selectedEffort
-	if effort == "" {
-		for i := range root.models {
-			if root.models[i].Model == a.selectedModel {
-				effort = root.models[i].DefaultReasoningEffort
-				break
-			}
+	for i := range root.models {
+		if root.models[i].Model != a.selectedModel {
+			continue
 		}
+		if effort != "" && !modelHasEffort(&root.models[i], effort) {
+			effort = ""
+		}
+		if effort == "" {
+			effort = root.models[i].DefaultReasoningEffort
+		}
+		break
 	}
 	label := shortModel(model)
 	if effort != "" {
@@ -281,7 +313,8 @@ func (a *App) modelMenu(c *native.Context) {
 				previousLast := a.application().lastClaudeModels[a.runtimeKey]
 				a.selectedModel, a.modelError = value, ""
 				if value != previous {
-					a.selectedEffort, a.selectedTier = "", ""
+					a.selectedEffort = a.rememberedModelEffort(a.kind, a.runtimeKey, value)
+					a.selectedTier = ""
 				}
 				a.rememberClaudeModel(value)
 				if err := a.persist(); err != nil {
@@ -450,6 +483,9 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 	}
 	if len(current.SupportedReasoningEfforts) > 0 {
 		effort := a.selectedEffort
+		if effort != "" && !modelHasEffort(current, effort) {
+			effort = ""
+		}
 		if effort == "" {
 			effort = current.DefaultReasoningEffort
 		}
@@ -457,7 +493,24 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			for _, option := range current.SupportedReasoningEfforts {
 				value := option.ReasoningEffort
 				chip("effort-"+value, "推理强度 "+effortLabel(value), effortLabel(value), option.Description, value == effort,
-					func() { choose(&a.selectedEffort, value, "推理强度") })
+					func() {
+						previousEffort := a.selectedEffort
+						key := modelEffortKey(a.kind, a.runtimeKey, a.selectedModel)
+						previousRemembered, hadRemembered := a.application().modelEfforts[key]
+						a.selectedEffort = value
+						a.rememberModelEffort(a.selectedModel, value)
+						if err := a.persist(); err != nil {
+							a.selectedEffort = previousEffort
+							if hadRemembered {
+								a.application().modelEfforts[key] = previousRemembered
+							} else {
+								delete(a.application().modelEfforts, key)
+							}
+							a.modelError = "保存推理强度失败：" + err.Error()
+							return
+						}
+						a.modelError = ""
+					})
 			}
 		})
 		if a.session.effortPin != "" {

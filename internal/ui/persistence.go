@@ -53,6 +53,22 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 			}
 		}
 	}
+	a.modelEfforts = maps.Clone(snapshot.ModelEfforts)
+	if a.modelEfforts == nil {
+		a.modelEfforts = map[string]string{}
+		for _, saved := range snapshot.Sessions {
+			kind := saved.Agent.Normalized()
+			if (saved.ModelAgent == "" || saved.ModelAgent.Normalized() == kind) && saved.SelectedModel != "" && saved.SelectedModel != "default" && saved.SelectedEffort != "" {
+				a.modelEfforts[modelEffortKey(kind, saved.Runtime, saved.SelectedModel)] = saved.SelectedEffort
+			}
+		}
+		for _, saved := range snapshot.Sessions {
+			kind := saved.Agent.Normalized()
+			if saved.ID == snapshot.Selected && (saved.ModelAgent == "" || saved.ModelAgent.Normalized() == kind) && saved.SelectedModel != "" && saved.SelectedModel != "default" && saved.SelectedEffort != "" {
+				a.modelEfforts[modelEffortKey(kind, saved.Runtime, saved.SelectedModel)] = saved.SelectedEffort
+			}
+		}
+	}
 	if snapshot.Preferences != nil {
 		a.preferences = *snapshot.Preferences
 	}
@@ -101,6 +117,9 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		if saved.ModelAgent == "" || saved.ModelAgent.Normalized() == s.kind {
 			s.selectedModel = saved.SelectedModel
 			s.selectedEffort, s.selectedTier = saved.SelectedEffort, saved.SelectedTier
+			if s.selectedEffort == "" && s.selectedModel != "" {
+				s.selectedEffort = a.rememberedModelEffort(s.kind, s.runtimeKey, s.selectedModel)
+			}
 		}
 		s.completion.cwd = saved.Cwd
 		s.completion.chosen = make(map[string]agent.Skill)
@@ -171,6 +190,7 @@ func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
 		DeletedThreads:   slices.Clone(a.deletedThreads),
 		LastClaudeModels: maps.Clone(a.lastClaudeModels),
+		ModelEfforts:     maps.Clone(a.modelEfforts),
 		DefaultAgent:     a.defaultAgent.Normalized(),
 		Preferences:      &a.preferences,
 		Repositories:     a.repositories,

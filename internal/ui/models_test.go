@@ -405,6 +405,30 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
+	if a.selectedEffort != "high" || a.selectedTier != "" || !tt.HasText("one·高") {
+		t.Fatal("remembered model effort was not restored or tier leaked", a.selectedEffort, a.selectedTier)
+	}
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("推理强度 中"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selectedEffort != "medium" || !tt.HasText("one·中") {
+		t.Fatal("updated model effort not applied", a.selectedEffort)
+	}
+	if err := tt.Click("选择模型 Model Two"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("选择模型 Model One"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selectedEffort != "medium" || !tt.HasText("one·中") {
+		t.Fatal("updated model effort not remembered on reselect", a.selectedEffort)
+	}
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
@@ -539,19 +563,80 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 func TestInitialModelResolvesToConcreteSessionSelection(t *testing.T) {
 	b := &modelCaptureBackend{}
 	a := New(b, "test", "/workspace", nil)
+	a.rememberModelEffort("provider/default", "medium")
 	queue := make(chan func(), 4)
 	a.dispatch = func(fn func()) { queue <- fn }
 	owner := a.session
 	a.resolveInitialModel()
 	a.newSession("/other")
 	pumpUpdate(t, queue)
-	if owner.selectedModel != "provider/default" || a.selectedModel != "" {
-		t.Fatal("default resolution changed wrong session", owner.selectedModel, a.selectedModel)
+	if owner.selectedModel != "provider/default" || owner.selectedEffort != "medium" || a.selectedModel != "" {
+		t.Fatal("default resolution changed wrong session or missed remembered effort", owner.selectedModel, owner.selectedEffort, a.selectedModel)
 	}
 	a.resolveInitialModel()
 	a.selectedModel = "provider/one"
 	pumpUpdate(t, queue)
 	if a.selectedModel != "provider/one" {
 		t.Fatal("late default replaced explicit selection")
+	}
+}
+
+func TestModelEffortBindingAcrossSessionsAgentsAndMigration(t *testing.T) {
+	codexBackend := &modelCaptureBackend{}
+	claudeBackend := &modelCaptureBackend{}
+	a := New(codexBackend, "test", "/workspace", nil)
+	if err := a.RegisterBackend(agent.Claude, "/claude", claudeBackend); err != nil {
+		t.Fatal(err)
+	}
+	store := imageStore(t, a)
+	if err := store.Save(storage.Snapshot{
+		DefaultAgent: agent.Claude, Selected: 2, OpenTabs: []int{1, 2},
+		Sessions: []storage.Session{
+			{ID: 1, Agent: agent.Codex, Cwd: "/workspace", SelectedModel: "provider/one", SelectedEffort: "medium"},
+			{ID: 2, Agent: agent.Claude, Runtime: "/claude", Cwd: "/workspace", SelectedModel: "sonnet", SelectedEffort: "high"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	restored := New(codexBackend, "test", "/workspace", nil)
+	if err := restored.RegisterBackend(agent.Claude, "/claude", claudeBackend); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	restored.newSession("/claude-next")
+	if restored.selectedModel != "sonnet" || restored.selectedEffort != "high" {
+		t.Fatal("new Claude session did not inherit bound model effort", restored.selectedModel, restored.selectedEffort)
+	}
+	if err := restored.newAgentSession(agent.Codex); err != nil {
+		t.Fatal(err)
+	}
+	restored.models = []codex.Model{
+		{Model: "provider/one", DisplayName: "Model One",
+			SupportedReasoningEfforts: []agent.ReasoningEffortOption{{ReasoningEffort: "low"}, {ReasoningEffort: "medium"}, {ReasoningEffort: "high"}},
+			DefaultReasoningEffort:    "low"},
+		{Model: "sonnet", DisplayName: "Codex Sonnet",
+			SupportedReasoningEfforts: []agent.ReasoningEffortOption{{ReasoningEffort: "low"}, {ReasoningEffort: "high"}}},
+	}
+	restored.modelsLoaded = true
+	tt := native.NewTester(restored.view, 1000, 760)
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("选择模型 Model One"); err != nil {
+		t.Fatal(err)
+	}
+	if restored.selectedEffort != "medium" || !tt.HasText("one·中") {
+		t.Fatal("migrated Codex model effort was not restored", restored.selectedEffort)
+	}
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("选择模型 Codex Sonnet"); err != nil {
+		t.Fatal(err)
+	}
+	if restored.selectedEffort != "" {
+		t.Fatal("Claude effort binding leaked across Agent boundary", restored.selectedEffort)
 	}
 }
