@@ -338,9 +338,9 @@ func TestP4EditorUndoFindAndCloseLastFile(t *testing.T) {
 	}
 	tt.Type("第二行")
 	tt.Key(0, native.KeyEnter)
-	p4Wait(t, tt, q, func() bool { return d.findResult == "已定位" })
-	if d.findResult != "已定位" {
-		t.Fatal("find did not select result")
+	p4Wait(t, tt, q, func() bool { return d.findResult == "1/1" })
+	if d.findResult != "1/1" {
+		t.Fatal("find did not select result", d.findResult)
 	}
 	tt.Key(0, native.KeyEscape)
 	if d.findOpen {
@@ -862,18 +862,19 @@ func TestP4FindCaseAndExpiredResult(t *testing.T) {
 	d.observe()
 	d.findOpen, d.query = true, "fuyu"
 	a.findInFile(d, false)
-	p4Wait(t, tt, q, func() bool { return d.findResult == "已定位" })
+	p4Wait(t, tt, q, func() bool { return d.findResult == "1/2" })
 	if d.anchor != 3 || d.caret != 7 {
 		t.Fatal("case-insensitive Unicode selection", d.anchor, d.caret)
 	}
 	d.findCase, d.anchor, d.caret = true, 0, 0
 	a.findInFile(d, false)
-	p4Wait(t, tt, q, func() bool { return d.findResult == "已定位" })
+	p4Wait(t, tt, q, func() bool { return d.findResult == "1/1" })
 	if d.anchor != 11 || d.caret != 15 {
 		t.Fatal("case-sensitive selection", d.anchor, d.caret)
 	}
 	// Prevent the old worker result from selecting text after another edit.
 	d.pendingSelection = nil
+	d.query = "你好"
 	a.findInFile(d, false)
 	var result func()
 	select {

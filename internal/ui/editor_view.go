@@ -1,10 +1,13 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/egoist/mygo"
@@ -821,6 +824,15 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		if d.pendingLocation != nil {
 			c.AnimationFrame()
 		}
+		spec := a.activeFileSearch(d)
+		stale := !d.findScanned || d.findKey != spec.key || d.findBuffer != d.buffer || d.findVersion != snap.Version()
+		if spec.key == "" {
+			if d.findScanned {
+				d.findMatches, d.findScanned, d.findKey = nil, false, ""
+			}
+		} else if stale && d.findCancel == nil && time.Since(d.changedAt) > 150*time.Millisecond {
+			a.scanFileMatches(d, spec)
+		}
 		width := max(available, d.contentWidth)
 		palette := githubEditorPalette(t.Dark)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
@@ -907,8 +919,8 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 				return false
 			}))
-			if d.kind == "diff" {
-				area.Draw(func(p *native.Painter, r native.Rect) {
+			area.Draw(func(p *native.Painter, r native.Rect) {
+				if d.kind == "diff" {
 					first := max(0, int(d.scroll.Y/20))
 					last := min(len(d.gitRows), first+int(r.H/20)+3)
 					for i := first; i < last; i++ {
@@ -928,8 +940,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 							}
 						}
 					}
-				})
-			}
+				}
+				a.paintFileMatches(p, r, d, snap, palette)
+			})
 			area.DrawOver(func(p *native.Painter, r native.Rect) {
 				first := max(0, int(d.scroll.Y/20))
 				last := min(snap.LineCount(), first+int(r.H/20)+3)
@@ -984,76 +997,277 @@ func (d *filePage) cancelFind() {
 		d.findCancel = nil
 		d.findGeneration++
 	}
+	d.findStep = 0
 	if d.findResult == "正在查找…" {
 		d.findResult = ""
 	}
 }
 
-func (a *App) findInFile(d *filePage, previous bool) {
+// findMatch is one keyword match in a file buffer, as rune offsets.
+type findMatch struct{ start, end int }
+
+// fileSearchSpec is the search whose matches the file view highlights: the
+// find bar's query while it is open, else the workspace content search's.
+type fileSearchSpec struct {
+	key  string
+	q    workspace.ContentQuery
+	find bool
+	step int // navigation the find bar asked for with this scan: -1, 0 or 1
+}
+
+// activeFileSearch returns the spec of the search currently applying to d.
+func (a *App) activeFileSearch(d *filePage) fileSearchSpec {
+	if d.findOpen {
+		if strings.TrimSpace(d.query) == "" {
+			return fileSearchSpec{}
+		}
+		return fileSearchSpec{
+			key:  "f\x00" + d.query + "\x00" + fmt.Sprint(d.findCase),
+			q:    workspace.ContentQuery{Text: d.query, MatchCase: d.findCase},
+			find: true,
+		}
+	}
+	w := a.workspaces[d.root]
+	if w == nil || strings.TrimSpace(w.query) == "" {
+		return fileSearchSpec{}
+	}
+	q := w.contentQuery()
+	return fileSearchSpec{
+		key: fmt.Sprintf("s\x00%v\x00%v\x00%v\x00%s", q.MatchCase, q.WholeWord, q.Regex, q.Text),
+		q:   q,
+	}
+}
+
+// fileMatchScanLimit caps the matches one scan keeps.
+const fileMatchScanLimit = 20000
+
+// scanBufferContentMatches finds every match of q in snap, in rune offsets.
+// It may run on any goroutine.
+func scanBufferContentMatches(ctx context.Context, snap native.TextSnapshot, q workspace.ContentQuery) ([]findMatch, error) {
+	re, err := workspace.CompileContentQuery(q)
+	if err != nil {
+		return nil, err
+	}
+	text := snap.String()
+	var matches []findMatch
+	runes, at := 0, 0
+	for _, m := range re.FindAllStringIndex(text, fileMatchScanLimit) {
+		if m[0] == m[1] {
+			continue
+		}
+		if q.WholeWord && !workspace.IsWholeWord(text, m[0], m[1]) {
+			continue
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		runes += utf8.RuneCountInString(text[at:m[0]])
+		start := runes
+		runes += utf8.RuneCountInString(text[m[0]:m[1]])
+		at = m[1]
+		matches = append(matches, findMatch{start, runes})
+	}
+	return matches, nil
+}
+
+// scanFileMatches finds spec's matches in d's buffer in the background. When
+// the spec came from the find bar the current match also advances: to the
+// requested step, to the first match from the caret when the query changed,
+// or staying put over a rescan of the same query.
+func (a *App) scanFileMatches(d *filePage, spec fileSearchSpec) {
 	d.cancelFind()
-	if d.query == "" || d.buffer == nil {
+	if !a.canAsync() || d.buffer == nil {
 		return
+	}
+	if spec.step != 0 {
+		d.findStep = spec.step
 	}
 	buffer := d.buffer
 	snapshot := buffer.Snapshot()
-	query, exact := d.query, d.findCase
-	anchor, caret := d.anchor, d.caret
 	d.findGeneration++
 	generation := d.findGeneration
-	d.findResult = "正在查找…"
 	ctx, cancel := a.projectContext(5 * time.Second)
 	d.findCancel = cancel
 	a.runBackgroundFileTaskContext(ctx, func() {
 		defer cancel()
-		if ctx.Err() != nil {
-			a.update(func() {
-				if a.files[d.id] == d && generation == d.findGeneration {
-					d.findCancel = nil
-					d.findResult = "查找已超时，请重试"
-				}
-			})
-			return
-		}
-		text := snapshot.String()
-		needle := query
-		if !exact {
-			text, needle = strings.ToLower(text), strings.ToLower(needle)
-		}
-		runes := []rune(text)
-		anchor, caret = min(max(anchor, 0), len(runes)), min(max(caret, 0), len(runes))
-		offset := -1
-		if previous {
-			offset = strings.LastIndex(string(runes[:anchor]), needle)
-			if offset < 0 {
-				offset = strings.LastIndex(text, needle)
-			}
-		} else {
-			i := strings.Index(string(runes[caret:]), needle)
-			if i >= 0 {
-				offset = len(string(runes[:caret])) + i
-			} else {
-				offset = strings.Index(text, needle)
-			}
-		}
-		start, end := 0, 0
-		if offset >= 0 {
-			start = utf8.RuneCountInString(text[:offset])
-			end = start + utf8.RuneCountInString(needle)
-		}
+		matches, err := scanBufferContentMatches(ctx, snapshot, spec.q)
 		a.update(func() {
-			if a.files[d.id] != d || d.buffer != buffer || generation != d.findGeneration || d.buffer.Version() != snapshot.Version() || d.query != query || d.findCase != exact || !d.findOpen {
+			if generation == d.findGeneration {
+				d.findCancel = nil
+			}
+			if a.files[d.id] != d || d.buffer != buffer || generation != d.findGeneration || d.buffer.Version() != snapshot.Version() {
 				return
 			}
-			d.findCancel = nil
-			if offset < 0 {
-				d.findResult = "没有匹配"
+			if err != nil {
+				if spec.find {
+					d.findResult = "正则表达式无效"
+				}
 				return
 			}
-			d.pendingSelection = &[2]int{start, end}
-			d.anchor, d.caret = start, end
-			d.findResult = "已定位"
+			queryChanged := d.findKey != spec.key
+			d.findMatches = matches
+			d.findKey, d.findBuffer, d.findVersion, d.findScanned = spec.key, buffer, snapshot.Version(), true
+			if !spec.find || !d.findOpen || d.query != spec.q.Text || d.findCase != spec.q.MatchCase {
+				return
+			}
+			n := len(matches)
+			if n == 0 {
+				d.findIndex, d.findResult, d.findStep = -1, "没有匹配", 0
+				return
+			}
+			if d.findStep != 0 {
+				var idx int
+				if d.findStep > 0 {
+					idx = sort.Search(n, func(i int) bool { return matches[i].start >= d.caret })
+					if idx == n {
+						idx = 0
+					}
+				} else {
+					idx = sort.Search(n, func(i int) bool { return matches[i].end > d.anchor }) - 1
+					if idx < 0 {
+						idx = n - 1
+					}
+				}
+				d.findStep = 0
+				a.revealFileMatch(d, idx)
+				return
+			}
+			if queryChanged || d.findIndex < 0 || d.findIndex >= n {
+				d.findIndex = sort.Search(n, func(i int) bool { return matches[i].end > min(d.anchor, d.caret) })
+				if d.findIndex == n {
+					d.findIndex = 0
+				}
+				a.revealFileMatch(d, d.findIndex)
+				return
+			}
+			d.findResult = fmt.Sprintf("%d/%d", d.findIndex+1, n)
 		})
 	})
+}
+
+// findInFile is the find bar's Enter or step button: with fresh matches it
+// steps, else it asks the scan in flight or a new one to reveal a match.
+func (a *App) findInFile(d *filePage, previous bool) {
+	if d.query == "" || d.buffer == nil {
+		return
+	}
+	spec := fileSearchSpec{
+		key:  "f\x00" + d.query + "\x00" + fmt.Sprint(d.findCase),
+		q:    workspace.ContentQuery{Text: d.query, MatchCase: d.findCase},
+		find: true,
+		step: 1,
+	}
+	if previous {
+		spec.step = -1
+	}
+	if d.findScanned && d.findKey == spec.key && d.findBuffer == d.buffer && d.findVersion == d.buffer.Version() {
+		a.stepFileMatch(d, previous)
+		return
+	}
+	if d.findCancel != nil {
+		// A scan for this query is on its way: it applies the step itself.
+		d.findStep = spec.step
+	} else {
+		a.scanFileMatches(d, spec)
+	}
+	d.findResult = "正在查找…"
+}
+
+// stepFileMatch moves the current match over cached matches, wrapping around.
+func (a *App) stepFileMatch(d *filePage, previous bool) {
+	n := len(d.findMatches)
+	if n == 0 {
+		d.findIndex, d.findResult = -1, "没有匹配"
+		return
+	}
+	if d.findIndex < 0 || d.findIndex >= n {
+		d.findIndex = sort.Search(n, func(i int) bool { return d.findMatches[i].end > min(d.anchor, d.caret) })
+		if d.findIndex == n {
+			d.findIndex = 0
+		}
+	} else {
+		by := 1
+		if previous {
+			by = -1
+		}
+		d.findIndex = (d.findIndex + by + n) % n
+	}
+	a.revealFileMatch(d, d.findIndex)
+}
+
+// revealFileMatch makes match i current: selected, in sight and counted.
+func (a *App) revealFileMatch(d *filePage, i int) {
+	m := d.findMatches[i]
+	d.findIndex = i
+	d.pendingSelection = &[2]int{m.start, m.end}
+	d.anchor, d.caret = m.start, m.end
+	d.findResult = fmt.Sprintf("%d/%d", i+1, len(d.findMatches))
+}
+
+// paintFileMatches draws the searched keywords under the text, the way
+// Mayoi's find does: every match filled, the match under the selection
+// stronger with a ring.
+func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, snap native.TextSnapshot, palette editorPalette) {
+	if !d.findScanned || len(d.findMatches) == 0 || d.findBuffer != d.buffer || d.findVersion != snap.Version() {
+		return
+	}
+	textX := r.X + 58
+	first := max(0, int(d.scroll.Y/20)-1)
+	last := min(snap.LineCount()-1, first+int(r.H/20)+3)
+	lo, _ := snap.LineRange(first)
+	_, hi := snap.LineRange(last)
+	i := sort.Search(len(d.findMatches), func(i int) bool { return d.findMatches[i].end > lo })
+	font := native.Font{Family: a.codeFontFamily(), Size: 13}
+	sel0, sel1 := min(d.anchor, d.caret), max(d.anchor, d.caret)
+	line, lineStart, lineEnd := -1, 0, 0
+	var lineRunes []rune
+	var layout *native.TextLayout
+	count := 0
+	for ; i < len(d.findMatches) && count < 500; i++ {
+		m := d.findMatches[i]
+		if m.start > hi || m.end > snap.Len() {
+			break
+		}
+		cur := m.start <= sel1 && sel0 <= m.end
+		endLine := snap.LineAt(m.end)
+		for l := snap.LineAt(m.start); l <= endLine && l <= last; l++ {
+			if l != line {
+				lineStart, lineEnd = snap.LineRange(l)
+				lineRunes = []rune(snap.Slice(lineStart, lineEnd))
+				layout = nil
+				line = l
+			}
+			s, e := max(m.start, lineStart), min(m.end, lineEnd)
+			if e <= s {
+				continue
+			}
+			if layout == nil {
+				layout = native.ShapeText(string(lineRunes), font, 0)
+			}
+			x0 := textX + layout.Caret(utf16Len(lineRunes[:s-lineStart])).X
+			x1 := textX + layout.Caret(utf16Len(lineRunes[:e-lineStart])).X
+			if x1 <= textX {
+				continue
+			}
+			y := r.Y + 8 + float32(l)*20 - d.scroll.Y
+			box := native.Rect{X: max(x0, textX) - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}
+			if cur {
+				p.Fill(box, palette.accent.Alpha(.45), 3)
+				p.Stroke(box, palette.accent.Alpha(.9), 3, 1)
+			} else {
+				p.Fill(box, palette.accent.Alpha(.25), 3)
+			}
+			count++
+		}
+	}
+}
+
+func utf16Len(rs []rune) int {
+	n := 0
+	for _, r := range rs {
+		n += utf16.RuneLen(r)
+	}
+	return n
 }
 func (a *App) confirmFile(d *filePage, title, detail string, fn func()) {
 	if a.quitDialog {

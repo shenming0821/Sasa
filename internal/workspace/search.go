@@ -59,7 +59,7 @@ type ContentSearchResult struct {
 // refuses them; oversized or unreadable files mark the result truncated.
 func SearchContent(ctx context.Context, root string, q ContentQuery) (ContentSearchResult, error) {
 	var result ContentSearchResult
-	pattern, err := compileContentQuery(q)
+	pattern, err := CompileContentQuery(q)
 	if err != nil {
 		return result, err
 	}
@@ -104,7 +104,9 @@ func SearchContent(ctx context.Context, root string, q ContentQuery) (ContentSea
 	return result, nil
 }
 
-func compileContentQuery(q ContentQuery) (*regexp.Regexp, error) {
+// CompileContentQuery compiles the text pattern of q the same way SearchContent
+// does. The file viewer reuses it to highlight the searched keywords.
+func CompileContentQuery(q ContentQuery) (*regexp.Regexp, error) {
 	expr := q.Text
 	if !q.Regex {
 		expr = regexp.QuoteMeta(expr)
@@ -312,7 +314,7 @@ func searchFileContent(path string, pattern *regexp.Regexp, wholeWord bool, limi
 		line = strings.TrimSuffix(line, "\r")
 		var spans [][]int
 		for _, span := range pattern.FindAllStringIndex(line, contentSearchMaxLineRanges) {
-			if span[1] > span[0] && (!wholeWord || isWholeWord(line, span[0], span[1])) {
+			if span[1] > span[0] && (!wholeWord || IsWholeWord(line, span[0], span[1])) {
 				spans = append(spans, span)
 			}
 		}
@@ -331,7 +333,9 @@ func searchFileContent(path string, pattern *regexp.Regexp, wholeWord bool, limi
 
 func isWordRune(r rune) bool { return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) }
 
-func isWholeWord(line string, start, end int) bool {
+// IsWholeWord reports whether the byte range in line sits on whole-word
+// boundaries, judged by Unicode letters, digits and underscore.
+func IsWholeWord(line string, start, end int) bool {
 	if before, _ := utf8.DecodeLastRuneInString(line[:start]); start > 0 && isWordRune(before) {
 		return false
 	}

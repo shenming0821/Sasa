@@ -109,6 +109,13 @@ type filePage struct {
 	findGeneration                                                      uint64
 	findCancel                                                          context.CancelFunc
 	findResult                                                          string
+	findMatches                                                         []findMatch
+	findIndex                                                           int
+	findStep                                                            int
+	findKey                                                             string
+	findBuffer                                                          *native.TextBuffer
+	findVersion                                                         uint64
+	findScanned                                                         bool
 	pendingSelection                                                    *[2]int
 	pendingLocation                                                     *fileLocation
 	highlights                                                          []syntaxToken

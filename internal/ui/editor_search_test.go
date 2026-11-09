@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"context"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Fuyu/internal/workspace"
 )
 
 func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
@@ -185,6 +187,76 @@ func TestP4SearchFiltersCollapseAndFolderSearchReveal(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("包含的文件"); !ok || w.searchInclude != "./internal" {
 		t.Fatal("folder search did not reveal filters", w.searchInclude)
+	}
+}
+
+func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
+	a, q, root := p4App(t)
+	tt := native.NewTester(a.view, 1100, 760)
+	path := filepath.Join(root, "README.md")
+	a.openFile(root, path)
+	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	d := a.currentFile()
+	d.buffer.Set("fuyu one\nfuyu two\nFUYU three\n")
+	d.observe()
+	d.findOpen, d.query = true, "fuyu"
+	a.findInFile(d, false)
+	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findMatches) == 3 })
+	if d.findResult != "1/3" || d.anchor != 0 || d.caret != 4 {
+		t.Fatal("first match not revealed", d.findResult, d.anchor, d.caret)
+	}
+	a.findInFile(d, false)
+	if d.findIndex != 1 || d.findResult != "2/3" || d.anchor != 9 || d.caret != 13 {
+		t.Fatal("step did not reach the second match", d.findIndex, d.findResult, d.anchor, d.caret)
+	}
+	a.findInFile(d, true)
+	if d.findIndex != 0 || d.findResult != "1/3" {
+		t.Fatal("previous did not go back", d.findIndex, d.findResult)
+	}
+	a.findInFile(d, true)
+	if d.findIndex != 2 || d.findResult != "3/3" || d.anchor != 18 || d.caret != 22 {
+		t.Fatal("previous did not wrap to the last match", d.findIndex, d.findResult, d.anchor, d.caret)
+	}
+	// Closing find falls back to the workspace content search: its keywords
+	// highlight the file without touching the selection.
+	d.findOpen = false
+	w := a.workspace(root)
+	w.query = "two"
+	anchor, caret := d.anchor, d.caret
+	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findKey) > 0 && d.findKey[0] == 's' && len(d.findMatches) == 1 })
+	if d.findMatches[0] != (findMatch{14, 17}) || d.pendingSelection != nil || d.anchor != anchor || d.caret != caret {
+		t.Fatal("workspace highlight changed selection or mismatched", d.findMatches, d.anchor, d.caret)
+	}
+	w.query = ""
+	tt.Frame()
+	if d.findScanned {
+		t.Fatal("cleared search kept match highlight state")
+	}
+}
+
+func TestScanBufferContentMatches(t *testing.T) {
+	snap := native.NewTextBuffer("Fuyu 你好\nfuyu 世界\nFUYU\n").Snapshot()
+	matches, err := scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "fuyu"})
+	if err != nil || len(matches) != 3 {
+		t.Fatal("case-insensitive matches", matches, err)
+	}
+	if matches[0] != (findMatch{0, 4}) || matches[1] != (findMatch{8, 12}) || matches[2] != (findMatch{16, 20}) {
+		t.Fatal("wrong rune offsets", matches)
+	}
+	matches, err = scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "fuyu", MatchCase: true})
+	if err != nil || len(matches) != 1 || matches[0] != (findMatch{8, 12}) {
+		t.Fatal("case-sensitive matches", matches, err)
+	}
+	matches, err = scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "uyu", WholeWord: true})
+	if err != nil || len(matches) != 0 {
+		t.Fatal("whole word matched inside a word", matches, err)
+	}
+	matches, err = scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "世界", WholeWord: true})
+	if err != nil || len(matches) != 1 || matches[0] != (findMatch{13, 15}) {
+		t.Fatal("whole word missed a CJK match", matches, err)
+	}
+	if _, err = scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "(", Regex: true}); err == nil {
+		t.Fatal("invalid regex reported no error")
 	}
 }
 
