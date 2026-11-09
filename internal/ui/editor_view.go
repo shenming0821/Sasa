@@ -139,6 +139,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 					}
 					return false
 				})
+				searchClearButton(c, w)
 				searchOptionButton(c, "区分大小写", "Aa", &w.searchCase)
 				searchOptionButton(c, "全字匹配", "ab", &w.searchWord)
 				searchOptionButton(c, "使用正则表达式", ".*", &w.searchRegex)
@@ -419,6 +420,10 @@ func (a *App) contentMatchRow(c *native.Context, w *workspacePage, m workspace.C
 
 var searchIgnoreIcon = icon(`<path d="M4 5h16l-6 7.5V18l-4 2v-7.5z"/>`)
 
+// searchClearIcon is the filled "clear field" glyph: the even-odd rule
+// cuts the x out of the disc, so the hole takes the face's color.
+var searchClearIcon = icon(`<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM9.5 16.6 12 14.1 14.5 16.6 16.6 14.5 14.1 12 16.6 9.5 14.5 7.4 12 9.9 9.5 7.4 7.4 9.5 10.6 12 7.4 14.5Z"/>`)
+
 // searchRow is one row of the grouped content results: a file heading
 // (match < 0) carrying the file's match count, or a matching line.
 type searchRow struct {
@@ -471,6 +476,20 @@ func searchField(c *native.Context) native.Element {
 	}
 	e.Border(1, border)
 	return e
+}
+
+// searchClearButton empties the query and refocuses the input; it only
+// shows while there is something to clear.
+func searchClearButton(c *native.Context, w *workspacePage) {
+	if w.query == "" {
+		return
+	}
+	b := quietIconButton(c.Key("clear-search"), "清除搜索内容").Size(20, 20)
+	b.Children(func() { native.Icon(c, searchClearIcon).Size(13, 13) })
+	if b.Clicked() {
+		w.query = ""
+		w.searchFocus = true
+	}
 }
 
 func searchOptionButton(c *native.Context, label, glyph string, on *bool) {

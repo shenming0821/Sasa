@@ -125,6 +125,42 @@ func TestActionButtonFeedbackAndLateDisabled(t *testing.T) {
 	}
 }
 
+func TestSearchClearButton(t *testing.T) {
+	var surface, muted native.Color
+	w := &workspacePage{query: "关键字"}
+	tt := native.NewTester(func(c *native.Context) {
+		th := c.Theme()
+		surface, muted = th.Surface, th.TextMuted
+		searchField(c).Children(func() {
+			native.TextInputBase(c, &w.query).Grow(1).MinWidth(0)
+			searchClearButton(c, w)
+		})
+	}, 240, 40)
+	is := func(got color.RGBA, want native.Color) bool {
+		return got.R == want.R && got.G == want.G && got.B == want.B
+	}
+	r, found := tt.Find("清除搜索内容")
+	if !found {
+		t.Fatal("clear button missing with a non-empty query")
+	}
+	cx, cy := int(r.X+r.W/2), int(r.Y+r.H/2)
+	if got := tt.Image().RGBAAt(cx, cy); !is(got, surface) {
+		t.Fatalf("the x hole should show the field face, got %v", got)
+	}
+	if got := tt.Image().RGBAAt(cx+3, cy); !is(got, muted) {
+		t.Fatalf("the disc should paint the muted color, got %v", got)
+	}
+	if err := tt.Click("清除搜索内容"); err != nil {
+		t.Fatal(err)
+	}
+	if w.query != "" || !w.searchFocus {
+		t.Fatalf("click should clear the query and refocus, query=%q focus=%v", w.query, w.searchFocus)
+	}
+	if _, found := tt.Find("清除搜索内容"); found {
+		t.Fatal("clear button should hide once the query is empty")
+	}
+}
+
 func TestQuietIconButtonCentersGlyph(t *testing.T) {
 	for _, sizes := range [][2]float32{{24, 16}, {28, 18}, {26, 16}, {30, 16}, {24, 13}} {
 		for _, dark := range []bool{false, true} {
