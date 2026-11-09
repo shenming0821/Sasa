@@ -223,6 +223,14 @@ func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
 	if d.findResult != "" || d.findIndex != -1 || d.findScanned || len(d.findMatches) != 0 {
 		t.Fatal("cleared query kept stale find state", d.findResult, d.findIndex, d.findScanned)
 	}
+	// The find bar floats over the editor: closing it does not shift content.
+	withBar, _ := tt.Find("文件内容 " + path)
+	d.findOpen = false
+	tt.Frame()
+	withoutBar, _ := tt.Find("文件内容 " + path)
+	if withBar != withoutBar {
+		t.Fatal("find bar shifted the editor content", withBar, withoutBar)
+	}
 	// Closing find falls back to the workspace content search: its keywords
 	// highlight the file without touching the selection.
 	d.findOpen = false

@@ -738,51 +738,6 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		if !d.highlighting && (d.contentWidth == 0 || d.highlightVersion != d.buffer.Version()) && time.Since(d.changedAt) > 200*time.Millisecond {
 			a.requestHighlight(d)
 		}
-		if d.findOpen {
-			native.Row(c).FillWidth().Padding(4, 12).Gap(8).Children(func() {
-				searchField(c).Grow(1).Children(func() {
-					input := native.TextInputBase(c, &d.query).Label("文件内查找").Placeholder("查找文本").Grow(1).MinWidth(0).FontSize(12).Padding(4)
-					if d.findFocus {
-						input.Focus()
-						d.findFocus = false
-					}
-					composing := input.Composing()
-					input.OnTextKey(func(k native.TextKey) bool {
-						if composing {
-							return false
-						}
-						if k.Key == native.KeyEscape {
-							d.findOpen = false
-							d.cancelFind()
-							d.focus = true
-							return true
-						}
-						if k.Key == native.KeyEnter {
-							a.findInFile(d, k.Mods&native.Shift != 0)
-							return true
-						}
-						return false
-					})
-					native.Text(c, d.findResult).FontSize(11).TextColor(t.TextMuted).Padding(0, 4)
-				})
-				caseButton := native.ButtonBase(c).Label("区分大小写").Size(28, 26).
-					Tooltip("区分大小写").Radius(8).TextColor(t.TextMuted)
-				selectedButtonFace(c, caseButton, d.findCase, 8, 0)
-				caseButton.Children(func() { native.Text(c, "Aa").FontSize(11) })
-				if caseButton.Clicked() {
-					d.findCase = !d.findCase
-					a.findInFile(d, false)
-				}
-				if actionButton(c, "下一个").Clicked() {
-					a.findInFile(d, false)
-				}
-				if quietIconButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
-					d.findOpen = false
-					d.cancelFind()
-					d.focus = true
-				}
-			})
-		}
 		if d.file.Reason != "" {
 			native.Row(c).FillWidth().Padding(4, 14).Gap(8).AlignItems(native.Center).Children(func() {
 				native.Text(c, d.file.Reason).FontSize(11).TextColor(t.TextMuted).Grow(1)
@@ -970,6 +925,52 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					}
 				}
 			})
+			if d.findOpen {
+				native.Row(c).Attach(native.AnchorTopRight, native.AnchorTopRight).Top(6).Right(16).Padding(4, 10).Gap(8).AlignItems(native.Center).
+					Background(t.Background).Border(1, t.Border.Alpha(.7)).Radius(t.Radius).Shadow(0, 2, 10, 0, native.RGBA(0, 0, 0, .08)).Children(func() {
+					searchField(c).Width(280).Children(func() {
+						input := native.TextInputBase(c, &d.query).Label("文件内查找").Placeholder("查找文本").Grow(1).MinWidth(0).FontSize(12).Padding(4)
+						if d.findFocus {
+							input.Focus()
+							d.findFocus = false
+						}
+						composing := input.Composing()
+						input.OnTextKey(func(k native.TextKey) bool {
+							if composing {
+								return false
+							}
+							if k.Key == native.KeyEscape {
+								d.findOpen = false
+								d.cancelFind()
+								d.focus = true
+								return true
+							}
+							if k.Key == native.KeyEnter {
+								a.findInFile(d, k.Mods&native.Shift != 0)
+								return true
+							}
+							return false
+						})
+						native.Text(c, d.findResult).FontSize(11).TextColor(t.TextMuted).Padding(0, 4)
+					})
+					caseButton := native.ButtonBase(c).Label("区分大小写").Size(28, 26).
+						Tooltip("区分大小写").Radius(8).TextColor(t.TextMuted)
+					selectedButtonFace(c, caseButton, d.findCase, 8, 0)
+					caseButton.Children(func() { native.Text(c, "Aa").FontSize(11) })
+					if caseButton.Clicked() {
+						d.findCase = !d.findCase
+						a.findInFile(d, false)
+					}
+					if actionButton(c, "下一个").Clicked() {
+						a.findInFile(d, false)
+					}
+					if quietIconButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
+						d.findOpen = false
+						d.cancelFind()
+						d.focus = true
+					}
+				})
+			}
 		})
 		native.Row(c).FillWidth().Height(27).Padding(0, 14).Gap(12).AlignItems(native.Center).BorderWidth(1, 0, 0, 0).BorderColor(t.Border.Alpha(.5)).Children(func() {
 			state := "UTF-8"
