@@ -434,11 +434,7 @@ func (a *App) quickOpenStatus(c *native.Context, query quickOpenQuery, count int
 				a.loadQuickOpenFiles(true)
 			}
 		})
-	case count == 0 && strings.TrimSpace(query.name) == "":
-		native.Text(c, "没有最近打开的文件，输入以搜索").FontSize(12).TextColor(t.TextMuted)
-	case count == 0 && q.filesLoading:
-		native.Text(c, "正在索引工作区文件…").FontSize(12).TextColor(t.TextMuted)
-	case count == 0:
+	case count == 0 && strings.TrimSpace(query.name) != "":
 		native.Text(c, "没有匹配的文件").FontSize(12).TextColor(t.TextMuted)
 	}
 }
