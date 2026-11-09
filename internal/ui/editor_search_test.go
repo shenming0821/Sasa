@@ -217,6 +217,12 @@ func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
 	if d.findIndex != 2 || d.findResult != "3/3" || d.anchor != 18 || d.caret != 22 {
 		t.Fatal("previous did not wrap to the last match", d.findIndex, d.findResult, d.anchor, d.caret)
 	}
+	// Clearing the query blanks the counter and drops the cached matches.
+	d.query = ""
+	tt.Frame()
+	if d.findResult != "" || d.findIndex != -1 || d.findScanned || len(d.findMatches) != 0 {
+		t.Fatal("cleared query kept stale find state", d.findResult, d.findIndex, d.findScanned)
+	}
 	// Closing find falls back to the workspace content search: its keywords
 	// highlight the file without touching the selection.
 	d.findOpen = false

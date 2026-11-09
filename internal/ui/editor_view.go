@@ -740,29 +740,31 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		}
 		if d.findOpen {
 			native.Row(c).FillWidth().Padding(4, 12).Gap(8).Children(func() {
-				input := native.TextInput(c, &d.query).Label("文件内查找").Placeholder("查找文本").Grow(1).FontSize(12)
-				if d.findFocus {
-					input.Focus()
-					d.findFocus = false
-				}
-				composing := input.Composing()
-				input.OnTextKey(func(k native.TextKey) bool {
-					if composing {
+				searchField(c).Grow(1).Children(func() {
+					input := native.TextInputBase(c, &d.query).Label("文件内查找").Placeholder("查找文本").Grow(1).MinWidth(0).FontSize(12).Padding(4)
+					if d.findFocus {
+						input.Focus()
+						d.findFocus = false
+					}
+					composing := input.Composing()
+					input.OnTextKey(func(k native.TextKey) bool {
+						if composing {
+							return false
+						}
+						if k.Key == native.KeyEscape {
+							d.findOpen = false
+							d.cancelFind()
+							d.focus = true
+							return true
+						}
+						if k.Key == native.KeyEnter {
+							a.findInFile(d, k.Mods&native.Shift != 0)
+							return true
+						}
 						return false
-					}
-					if k.Key == native.KeyEscape {
-						d.findOpen = false
-						d.cancelFind()
-						d.focus = true
-						return true
-					}
-					if k.Key == native.KeyEnter {
-						a.findInFile(d, k.Mods&native.Shift != 0)
-						return true
-					}
-					return false
+					})
+					native.Text(c, d.findResult).FontSize(11).TextColor(t.TextMuted).Padding(0, 4)
 				})
-				native.Text(c, d.findResult).FontSize(11).TextColor(t.TextMuted)
 				caseButton := native.ButtonBase(c).Label("区分大小写").Size(28, 26).
 					Tooltip("区分大小写").Radius(8).TextColor(t.TextMuted)
 				selectedButtonFace(c, caseButton, d.findCase, 8, 0)
@@ -827,9 +829,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		spec := a.activeFileSearch(d)
 		stale := !d.findScanned || d.findKey != spec.key || d.findBuffer != d.buffer || d.findVersion != snap.Version()
 		if spec.key == "" {
-			if d.findScanned {
-				d.findMatches, d.findScanned, d.findKey = nil, false, ""
-			}
+			d.cancelFind()
+			d.findMatches, d.findScanned, d.findKey = nil, false, ""
+			d.findIndex, d.findResult = -1, ""
 		} else if stale && d.findCancel == nil && time.Since(d.changedAt) > 150*time.Millisecond {
 			a.scanFileMatches(d, spec)
 		}
