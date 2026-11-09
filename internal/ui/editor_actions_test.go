@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -87,6 +88,40 @@ func TestEditorFileMenusAndRename(t *testing.T) {
 		t.Fatal("recreated old path reused renamed tab")
 	}
 	p4Wait(t, tester, queue, func() bool { return a.currentFile().loaded })
+}
+
+func TestEditorCopyPathWithLineNumber(t *testing.T) {
+	a, queue, root := p4App(t)
+	a.historyOpen, a.rightTab = true, "files"
+	path := filepath.Join(root, "README.md")
+	a.openFile(root, path)
+	tester := native.NewTester(a.view, 1280, 800)
+	page := a.currentFile()
+	p4Wait(t, tester, queue, func() bool {
+		return page.loaded && !page.checking && len(a.workspace(root).children[root]) > 0
+	})
+	var copied string
+	a.fileAction.copy = func(text string) error { copied = text; return nil }
+	r, ok := tester.Find("文件内容 " + path)
+	if !ok {
+		t.Fatal("editor area not found")
+	}
+	for _, line := range []int{2, 1} {
+		tester.RightClickAt(r.X+24, r.Y+8+float32(line-1)*20+10)
+		if err := tester.ChooseMenuItem("复制路径和行号"); err != nil {
+			t.Fatal(err, tester.Menu())
+		}
+		if want := fmt.Sprintf("%s:%d", path, line); copied != want {
+			t.Fatalf("copied %q, want %q", copied, want)
+		}
+	}
+	if err := tester.RightClick("文件树 " + path); err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(tester.Menu(), "复制路径和行号") {
+		t.Fatal("file tree menu offered a line copy")
+	}
+	tester.CloseMenu()
 }
 
 func TestEditorRenameDirectoryPreservesDraftAndRecovery(t *testing.T) {

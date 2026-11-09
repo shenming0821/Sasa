@@ -825,7 +825,14 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		palette := githubEditorPalette(t.Dark)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
 			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
-			area.ContextMenu(a.fileMenu(d.root, d.path, true, false))
+			var lineAtClick func() int
+			if d.kind == "file" {
+				lineAtClick = func() int {
+					_, caret := area.TextAnchorCaret()
+					return snap.LineAt(caret)
+				}
+			}
+			area.ContextMenu(a.fileMenuAt(d.root, d.path, true, false, lineAtClick))
 			a.focusPressedPane(area)
 			if d.pendingSelection != nil {
 				area.SetTextSelection(d.pendingSelection[0], d.pendingSelection[1])

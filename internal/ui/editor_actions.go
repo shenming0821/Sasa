@@ -21,7 +21,21 @@ type fileActionState struct {
 }
 
 func (a *App) fileMenu(root, path string, editing, dir bool) func(*native.Menu) {
+	return a.fileMenuAt(root, path, editing, dir, nil)
+}
+
+// fileMenuAt adds a "复制路径和行号" item when line is not nil: line reports
+// the line the menu opened at, which the editor's secondary click sets as
+// the caret.
+func (a *App) fileMenuAt(root, path string, editing, dir bool, line func() int) func(*native.Menu) {
 	return func(menu *native.Menu) {
+		copyText := a.fileAction.copy
+		if copyText == nil {
+			copyText = func(text string) error {
+				mygo.Clipboard.WriteText(text)
+				return nil
+			}
+		}
 		if editing {
 			menu.EditItems()
 			menu.Separator()
@@ -38,17 +52,16 @@ func (a *App) fileMenu(root, path string, editing, dir bool) func(*native.Menu) 
 						return
 					}
 				}
-				copyText := a.fileAction.copy
-				if copyText == nil {
-					copyText = func(text string) error {
-						mygo.Clipboard.WriteText(text)
-						return nil
-					}
-				}
 				if err := copyText(text); err != nil {
 					a.beginFileAction(root, path, "错误")
 					a.fileAction.err = "复制路径失败：" + err.Error()
 				}
+			}
+		}
+		if line != nil && menu.Item("复制路径和行号").Chosen() {
+			if err := copyText(fmt.Sprintf("%s:%d", path, line()+1)); err != nil {
+				a.beginFileAction(root, path, "错误")
+				a.fileAction.err = "复制路径失败：" + err.Error()
 			}
 		}
 		if dir {
