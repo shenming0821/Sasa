@@ -116,6 +116,9 @@ type filePage struct {
 	findBuffer                                                          *native.TextBuffer
 	findVersion                                                         uint64
 	findScanned                                                         bool
+	bracketStart, bracketEnd, bracketCaret                              int
+	bracketBuffer                                                       *native.TextBuffer
+	bracketVersion                                                      uint64
 	pendingSelection                                                    *[2]int
 	pendingLocation                                                     *fileLocation
 	highlights                                                          []syntaxToken

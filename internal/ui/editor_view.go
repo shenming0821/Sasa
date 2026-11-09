@@ -815,6 +815,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			}
 			previousCaret := d.caret
 			d.anchor, d.caret = area.TextAnchorCaret()
+			d.matchBrackets(snap)
 			if d.kind == "diff" && d.gitReview != nil && d.caret != previousCaret {
 				line := snap.LineAt(d.caret)
 				if line < len(d.gitRows) && d.gitRows[line].hunk >= 0 {
@@ -899,6 +900,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					}
 				}
 				a.paintFileMatches(p, r, d, snap, palette)
+				a.paintBracketPair(p, r, d, snap, palette)
 			})
 			area.DrawOver(func(p *native.Painter, r native.Rect) {
 				first := max(0, int(d.scroll.Y/20))
@@ -1262,6 +1264,142 @@ func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, sn
 			}
 			count++
 		}
+	}
+}
+
+// matchBrackets refreshes the bracket pair around the caret, caching by
+// caret, buffer and version: the scan is cheap while no bracket touches.
+func (d *filePage) matchBrackets(snap native.TextSnapshot) {
+	if d.bracketCaret == d.caret && d.bracketBuffer == d.buffer && d.bracketVersion == snap.Version() {
+		return
+	}
+	d.bracketCaret, d.bracketBuffer, d.bracketVersion = d.caret, d.buffer, snap.Version()
+	d.bracketStart, d.bracketEnd = 0, 0
+	if pos, mate, ok := findBracketPair(snap, d.caret); ok {
+		d.bracketStart, d.bracketEnd = pos, mate
+	}
+}
+
+// findBracketPair returns the rune positions of the bracket pair touching
+// the caret: the bracket at the caret wins, else the one before it.
+func findBracketPair(snap native.TextSnapshot, caret int) (int, int, bool) {
+	pos := -1
+	if s := snap.Slice(caret, caret+1); isBracket(s) {
+		pos = caret
+	} else if s := snap.Slice(caret-1, caret); isBracket(s) {
+		pos = caret - 1
+	}
+	if pos < 0 {
+		return 0, 0, false
+	}
+	rs := []rune(snap.String())
+	switch rs[pos] {
+	case '(', '[', '{':
+		if mate := matchBracketForward(rs, pos); mate >= 0 {
+			return pos, mate, true
+		}
+	default:
+		if mate := matchBracketBackward(rs, pos); mate >= 0 {
+			return mate, pos, true
+		}
+	}
+	return 0, 0, false
+}
+
+func isBracket(s string) bool {
+	if len(s) != 1 {
+		return false
+	}
+	switch s[0] {
+	case '(', ')', '[', ']', '{', '}':
+		return true
+	}
+	return false
+}
+
+// bracketMate maps an open bracket to its close and back; 0 for others.
+func bracketMate(b rune) rune {
+	switch b {
+	case '(':
+		return ')'
+	case '[':
+		return ']'
+	case '{':
+		return '}'
+	case ')':
+		return '('
+	case ']':
+		return '['
+	case '}':
+		return '{'
+	}
+	return 0
+}
+
+// matchBracketForward finds the close bracket matching the open one at pos
+// in rune space, counting only the same bracket type.
+func matchBracketForward(rs []rune, pos int) int {
+	open, close := rs[pos], bracketMate(rs[pos])
+	depth := 0
+	for i := pos + 1; i < len(rs); i++ {
+		switch rs[i] {
+		case open:
+			depth++
+		case close:
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
+}
+
+// matchBracketBackward finds the open bracket matching the close one at pos.
+func matchBracketBackward(rs []rune, pos int) int {
+	close, open := rs[pos], bracketMate(rs[pos])
+	depth := 0
+	for i := pos - 1; i >= 0; i-- {
+		switch rs[i] {
+		case close:
+			depth++
+		case open:
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
+}
+
+// paintBracketPair draws a rounded box around each bracket of the pair at
+// the caret, the way editors mark bracket matching.
+func (a *App) paintBracketPair(p *native.Painter, r native.Rect, d *filePage, snap native.TextSnapshot, palette editorPalette) {
+	if d.bracketEnd <= 0 || d.bracketBuffer != d.buffer || d.bracketVersion != snap.Version() {
+		return
+	}
+	first := max(0, int(d.scroll.Y/20)-1)
+	last := min(snap.LineCount()-1, first+int(r.H/20)+3)
+	font := native.Font{Family: a.codeFontFamily(), Size: 13}
+	textX := r.X + 58
+	for _, pos := range [2]int{d.bracketStart, d.bracketEnd} {
+		line := snap.LineAt(pos)
+		if line < first || line > last {
+			continue
+		}
+		lineStart, lineEnd := snap.LineRange(line)
+		lineRunes := []rune(snap.Slice(lineStart, lineEnd))
+		if pos >= lineEnd {
+			continue
+		}
+		layout := native.ShapeText(string(lineRunes), font, 0)
+		x0 := textX + layout.Caret(utf16Len(lineRunes[:pos-lineStart])).X
+		x1 := textX + layout.Caret(utf16Len(lineRunes[:pos+1-lineStart])).X
+		y := r.Y + 8 + float32(line)*20 - d.scroll.Y
+		box := native.Rect{X: x0 - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}
+		p.Fill(box, palette.accent.Alpha(.15), 3)
+		p.Stroke(box, palette.accent.Alpha(.6), 3, 1)
 	}
 }
 

@@ -274,6 +274,72 @@ func TestScanBufferContentMatches(t *testing.T) {
 	}
 }
 
+func TestFindBracketPair(t *testing.T) {
+	snap := native.NewTextBuffer("f(a {b} c)\nd(e[f])g\n").Snapshot()
+	pair := func(caret int) [2]int {
+		if a, b, ok := findBracketPair(snap, caret); ok {
+			return [2]int{a, b}
+		}
+		return [2]int{-1, -1}
+	}
+	for _, tc := range []struct {
+		caret int
+		want  [2]int
+	}{
+		{1, [2]int{1, 9}},   // on "("
+		{2, [2]int{1, 9}},   // just after "("
+		{9, [2]int{1, 9}},   // on ")"
+		{10, [2]int{1, 9}},  // just after ")"
+		{4, [2]int{4, 6}},   // on "{"
+		{7, [2]int{4, 6}},   // just after "}"
+		{5, [2]int{4, 6}},   // between "{" and "b"
+		{12, [2]int{12, 17}}, // "(" with a [] pair inside
+		{14, [2]int{14, 16}},
+		{18, [2]int{12, 17}},
+		{0, [2]int{-1, -1}},
+		{3, [2]int{-1, -1}},
+		{8, [2]int{-1, -1}},
+		{11, [2]int{-1, -1}},
+		{20, [2]int{-1, -1}},
+	} {
+		if got := pair(tc.caret); got != tc.want {
+			t.Fatalf("caret %d: got %v, want %v", tc.caret, got, tc.want)
+		}
+	}
+	if _, _, ok := findBracketPair(native.NewTextBuffer("a(b").Snapshot(), 1); ok {
+		t.Fatal("unmatched open bracket reported a pair")
+	}
+	if _, _, ok := findBracketPair(native.NewTextBuffer("a)b").Snapshot(), 1); ok {
+		t.Fatal("unmatched close bracket reported a pair")
+	}
+}
+
+func TestP4BracketPairHighlightFollowsCaret(t *testing.T) {
+	a, q, root := p4App(t)
+	tt := native.NewTester(a.view, 1100, 760)
+	path := filepath.Join(root, "README.md")
+	a.openFile(root, path)
+	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	d := a.currentFile()
+	d.buffer.Set("f(a {b} c)\n")
+	d.observe()
+	d.pendingSelection = &[2]int{1, 1}
+	tt.Frame()
+	if d.bracketStart != 1 || d.bracketEnd != 9 {
+		t.Fatal("bracket pair not highlighted", d.bracketStart, d.bracketEnd)
+	}
+	d.pendingSelection = &[2]int{3, 3}
+	tt.Frame()
+	if d.bracketEnd != 0 {
+		t.Fatal("stale bracket pair kept", d.bracketStart, d.bracketEnd)
+	}
+	d.pendingSelection = &[2]int{5, 5}
+	tt.Frame()
+	if d.bracketStart != 4 || d.bracketEnd != 6 {
+		t.Fatal("inner pair not highlighted", d.bracketStart, d.bracketEnd)
+	}
+}
+
 func TestRenamedSearchIncludeFollowsFolder(t *testing.T) {
 	root := "/w"
 	if got := renamedSearchInclude(root, "./a/b", "/w/a", "/w/c"); got != "./c/b" {

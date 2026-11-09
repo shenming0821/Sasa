@@ -62,7 +62,7 @@ Git 面板采用连续文件列表：分组标题高 26 DIP，文件行高 28 DI
 
 ### GitHub 编辑区主题
 
-`editor_syntax.go` 集中处理语言识别和编辑区配色；后台高亮保留 Chroma token 类型及 rune 区间，绘制时解析 `github` / `github-dark` 的 token 继承色。切换应用浅深色立即重绘已打开文档，不重新分词；浅色底色/正文为 `#ffffff` / `#1f2328`，深色为 `#0d1117` / `#e6edf3`。编辑区独立设置底色、正文、选区、行号与增删色，工具栏和其他界面继续使用应用主题。原生光标使用解析后的正文色；文件内查找的当前匹配仍用原生选区反馈，其余匹配用 Accent 半透明高亮。
+`editor_syntax.go` 集中处理语言识别和编辑区配色；后台高亮保留 Chroma token 类型及 rune 区间，绘制时解析 `github` / `github-dark` 的 token 继承色。切换应用浅深色立即重绘已打开文档，不重新分词；浅色底色/正文为 `#ffffff` / `#1f2328`，深色为 `#0d1117` / `#e6edf3`。编辑区独立设置底色、正文、选区、行号与增删色，工具栏和其他界面继续使用应用主题。原生光标使用解析后的正文色；文件内查找的当前匹配仍用原生选区反馈，其余匹配用 Accent 半透明高亮。光标相邻 `()[]{}` 时配对括号以 Accent 淡底圆角框标记，光标处的括号优先于前一个，只计同类型嵌套，不解析字符串与注释。
 
 Vue 采用 Chroma 规则副本收紧 `v-` 指令的双引号边界，并将 script/style 内容委派给 JavaScript/TypeScript/JSX/TSX 或 CSS/SCSS/Sass/Less lexer。SQL 使用通用 SQL，Brewfile、Makefile、Dockerfile、`.npmrc` / `.yarnrc` 明确选择 lexer；`go.mod` / `go.work` / `go.sum` 避免误识别为其他语言，按正文显示。未知文件和超出既有高亮限额的文件同样回退正文。现有可见区预览、完整文档校正、取消与版本校验保留；并排 Diff 只应用匹配当前缓冲版本的 token。验证见[编辑器主题](../verification/2026-11-02-editor-themes.md)。
 
