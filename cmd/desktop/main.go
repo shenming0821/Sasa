@@ -14,6 +14,7 @@ import (
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/claude"
 	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Fuyu/internal/devin"
 	"github.com/shenming0821/Fuyu/internal/release"
 	process "github.com/shenming0821/Fuyu/internal/runtime"
 	"github.com/shenming0821/Fuyu/internal/storage"
@@ -124,6 +125,24 @@ func loadRuntimes(ctx context.Context, executable, dataDir string, publish func(
 			client, err = claude.New(path, "", filepath.Join(dataDir, "claude"))
 		}
 		result := ui.RuntimeConnection{Kind: agent.Claude, Err: err}
+		if client != nil {
+			defer client.Close()
+			result.Backend, result.Runtime = client, client.Home()
+		}
+		publish(result)
+		<-ctx.Done()
+	})
+	workers.Go(func() {
+		path, err := devin.ResolveExecutable()
+		var client *devin.Client
+		if err == nil {
+			var apiKey string
+			apiKey, err = devin.ResolveAPIKey()
+			if err == nil {
+				client, err = devin.New(ctx, path, apiKey, "", filepath.Join(dataDir, "devin"))
+			}
+		}
+		result := ui.RuntimeConnection{Kind: agent.Devin, Err: err}
 		if client != nil {
 			defer client.Close()
 			result.Backend, result.Runtime = client, client.Home()

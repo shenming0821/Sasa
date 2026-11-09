@@ -11,6 +11,7 @@ type AgentKind string
 const (
 	Codex  AgentKind = "codex"
 	Claude AgentKind = "claude"
+	Devin  AgentKind = "devin"
 )
 
 func (k AgentKind) Normalized() AgentKind {
@@ -22,7 +23,7 @@ func (k AgentKind) Normalized() AgentKind {
 
 func (k AgentKind) Validate() error {
 	switch k.Normalized() {
-	case Codex, Claude:
+	case Codex, Claude, Devin:
 		return nil
 	default:
 		return fmt.Errorf("不支持的 Agent：%s", k)
@@ -35,6 +36,8 @@ func (k AgentKind) String() string {
 		return "Codex"
 	case Claude:
 		return "Claude Code"
+	case Devin:
+		return "Devin"
 	default:
 		return string(k)
 	}

@@ -94,7 +94,8 @@ func (a *App) loadCompletionCatalog(force bool) {
 	_, skillsSupported := backend.(interface {
 		ListSkills(context.Context, string) ([]agent.SkillsEntry, error)
 	})
-	if key.Agent == agent.Claude && !commandsSupported || key.Agent != agent.Claude && !skillsSupported {
+	commandsAgent := key.Agent == agent.Claude || key.Agent == agent.Devin
+	if commandsAgent && !commandsSupported || !commandsAgent && !skillsSupported {
 		entry.loaded, entry.error, entry.checked = true, "当前连接不支持读取技能", now
 		root.applyCompletionCatalog(key, entry)
 		return
@@ -205,7 +206,7 @@ func (a *App) trimCompletionCatalogs() {
 }
 
 func readCompletionCatalog(ctx context.Context, backend Backend, key agent.CacheKey, force bool) ([]agent.Skill, []agent.Command, error) {
-	if key.Agent == agent.Claude {
+	if key.Agent == agent.Claude || key.Agent == agent.Devin {
 		catalog, ok := backend.(agent.CommandCatalog)
 		if !ok {
 			return nil, nil, fmt.Errorf("当前连接不支持读取技能")

@@ -320,7 +320,7 @@ func TestPaneEmptyContentLayout(t *testing.T) {
 					t.Fatal("empty pane is missing its new tab or folder name")
 				}
 				var first native.Rect
-				for index, label := range []string{"Codex", "Claude Code", "终端"} {
+				for index, label := range []string{"Codex", "Claude Code", "Devin", "终端"} {
 					button, found := tester.Find(label)
 					if !found || button.W < 240 || button.H != 56 || button.X < bounds.X || button.X+button.W > bounds.X+bounds.W {
 						t.Fatalf("%s is missing or clipped: button=%+v pane=%+v", label, button, bounds)

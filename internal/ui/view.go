@@ -330,7 +330,7 @@ func (a *App) composer(c *native.Context) {
 		query, show := queryCompletion(a.State.Draft, anchor, caret)
 		if show && !composing {
 			// Claude 的斜杠命令来自运行时目录，与技能共用这份按会话缓存。
-			if query.kind == '$' || query.kind == '/' && a.kind.Normalized() == agent.Claude {
+			if query.kind == '$' || query.kind == '/' && a.kind.Normalized() != agent.Codex {
 				a.loadCompletionSkills()
 			}
 			if query.kind == '@' {
@@ -424,8 +424,8 @@ func (a *App) runtimeDetails(c *native.Context) {
 		native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
 			native.Text(c, "运行详情").FontSize(12).FontWeight(600).Grow(1)
 			version := a.version
-			if a.kind.Normalized() == agent.Claude {
-				version = "Claude Code"
+			if a.kind.Normalized() != agent.Codex {
+				version = a.kind.String()
 				if a.State.RuntimeVersion != "" {
 					version += " " + a.State.RuntimeVersion
 				}

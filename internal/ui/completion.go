@@ -100,9 +100,9 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 	var items []completionItem
 	query := strings.ToLower(q.query)
 	if q.kind == '/' {
-		if a.kind.Normalized() == agent.Claude {
+		if a.kind.Normalized() != agent.Codex {
 			for _, command := range a.completion.commands {
-				if !command.IsSkill {
+				if a.kind.Normalized() == agent.Claude && !command.IsSkill {
 					continue
 				}
 				name := "/" + command.Name
@@ -153,7 +153,7 @@ func (a *App) loadCompletionSkills() {
 
 func (a *App) isClearCommand(text string) bool {
 	parts := strings.Fields(text)
-	return a.kind.Normalized() == agent.Claude && len(parts) > 0 && parts[0] == "/clear"
+	return a.kind.Normalized() != agent.Codex && len(parts) > 0 && parts[0] == "/clear"
 }
 
 func (a *App) runSlashCommand(text string) bool {
@@ -165,7 +165,7 @@ func (a *App) runSlashCommand(text string) bool {
 		a.clearConversation()
 		return true
 	}
-	if a.kind.Normalized() == agent.Claude {
+	if a.kind.Normalized() != agent.Codex {
 		return false
 	}
 	switch text {
@@ -195,7 +195,7 @@ func (a *App) runSlashCommand(text string) bool {
 func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 	a.completion.dismissed = ""
 	if q.kind == '/' {
-		if a.kind.Normalized() == agent.Claude {
+		if a.kind.Normalized() != agent.Codex {
 			a.State.Draft = item.name + " "
 			a.completion.caret = len([]rune(a.State.Draft))
 			a.completion.focus = true
@@ -262,7 +262,7 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 		return
 	}
 	panel.Children(func() {
-		runtimeSkills := q.kind == '/' && a.kind.Normalized() == agent.Claude
+		runtimeSkills := q.kind == '/' && a.kind.Normalized() != agent.Codex
 		title := "命令"
 		switch {
 		case q.kind == '@':

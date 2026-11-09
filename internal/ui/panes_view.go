@@ -117,13 +117,16 @@ func (a *App) emptyPane(c *native.Context) {
 			native.Text(c, "选择面板内容").FillWidth().TextAlign(native.Center).FontSize(22).FontWeight(600).TextColor(theme.Text)
 			native.Text(c, "新建会话或终端").FillWidth().TextAlign(native.Center).FontSize(12).TextColor(theme.TextMuted).Margin(8, 0, 24, 0)
 			native.Column(c).FillWidth().Radius(12).Border(1, theme.Border).Clip().Children(func() {
-				for index, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+				for index, kind := range []agent.AgentKind{agent.Codex, agent.Claude, agent.Devin} {
 					if index > 0 {
 						native.Box(c).FillWidth().Height(1).Background(theme.Border).Margin(0, 16, 0, 58)
 					}
 					label, glyph, color := kind.String(), codexAgentIcon, theme.Text
-					if kind == agent.Claude {
+					switch kind {
+					case agent.Claude:
 						glyph, color = claudeAgentIcon, native.Hex("#D97757")
+					case agent.Devin:
+						glyph = devinAgentIcon
 					}
 					if emptyPaneAction(c.Key(string(kind)), label, glyph, color).Clicked() {
 						a.focusPane(root, pane)

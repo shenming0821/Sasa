@@ -177,8 +177,8 @@ func Open(dir string) (_ *Store, err error) {
 	if err = s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return nil, err
 	}
-	if version > 4 {
-		return nil, fmt.Errorf("数据库版本 %d 高于当前支持版本 4，保留原文件", version)
+	if version > 5 {
+		return nil, fmt.Errorf("数据库版本 %d 高于当前支持版本 5，保留原文件", version)
 	}
 	if version == 0 {
 		tx, e := s.db.Begin()
@@ -266,6 +266,11 @@ func Open(dir string) (_ *Store, err error) {
 	}
 	if version < 4 {
 		if err := s.migrateV4(version > 0); err != nil {
+			return nil, err
+		}
+	}
+	if version < 5 {
+		if err := s.migrateV5(version > 0); err != nil {
 			return nil, err
 		}
 	}

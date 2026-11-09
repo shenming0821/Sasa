@@ -94,7 +94,7 @@ func (s *session) rowHandle(id string) *native.Handle {
 func (a *App) newSession(cwd string) {
 	kind := a.defaultAgent.Normalized()
 	runtime := ""
-	if kind == agent.Claude {
+	if kind != agent.Codex {
 		runtime = a.agentRuntime(kind)
 	}
 	a.newSessionForAgent(cwd, kind, runtime)
@@ -110,11 +110,11 @@ func (a *App) newSessionForAgent(cwd string, kind agent.AgentKind, runtime strin
 		s.selectedModel = remembered
 		s.selectedEffort = a.rememberedModelEffort(kind, s.runtimeKey, s.selectedModel)
 	}
-	if kind.Normalized() == agent.Claude {
-		s.State.Agent = agent.Claude
+	if kind.Normalized() != agent.Codex {
+		s.State.Agent = kind
 		if a.forSession(s).sessionBackend() == nil {
 			s.State.Disconnected = true
-			s.State.Error = a.agentErrors[agent.Claude]
+			s.State.Error = a.agentErrors[kind]
 		}
 	}
 	if s.kind.Normalized() == agent.Codex && a.session != nil && a.kind.Normalized() == agent.Codex && a.runtimeKey == "" && a.State.Disconnected {

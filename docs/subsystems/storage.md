@@ -24,10 +24,13 @@
 | 2 | runtime_identity，绑定 Codex 历史目录 |
 | 3 | 有类型的 WorkspaceTabs、ActiveTabID、文件位置和工作区面板状态 |
 | 4 | sessions.agent、`(agent, thread_id)` 联合唯一约束，runtime_identity 按 Agent 保存 home |
+| 5 | sessions 与 runtime_identity 的 agent CHECK 放宽到 codex/claude/devin，表结构其余不变 |
 
-拒绝高于当前支持版本 4 的数据库；旧版程序也会拒绝打开 v4，避免误把 Claude 会话作为 Codex。v1/v2 升级至 v3 前先读取并校验旧 JSON；已有数据库以 `VACUUM INTO` 创建一致性备份，权限 0600，并校验备份版本 2 与 `quick_check`。同名备份损坏或不是普通文件时保留原数据库并报错；已有有效备份时保留旧备份，另建唯一名称的新快照，避免把过时备份当作本次迁移来源。版本提升在事务内完成。
+拒绝高于当前支持版本 5 的数据库；旧版程序也会拒绝打开 v4+，避免误把 Claude、Devin 会话作为 Codex。v1/v2 升级至 v3 前先读取并校验旧 JSON；已有数据库以 `VACUUM INTO` 创建一致性备份，权限 0600，并校验备份版本 2 与 `quick_check`。同名备份损坏或不是普通文件时保留原数据库并报错；已有有效备份时保留旧备份，另建唯一名称的新快照，避免把过时备份当作本次迁移来源。版本提升在事务内完成。
 
 v4 迁移先校验现有 JSON，再通过 `VACUUM INTO` 创建本次唯一命名的 `fuyu-before-v4-*.db` 一致性备份，校验版本 3 与 `quick_check`、权限 0600；在同一事务重建会话和 Runtime 身份表并提升版本，失败回滚。旧列归属填为 codex，空原生 ID 转为 NULL，不占唯一约束；旧 home 和 payload 字节保持不变。会话 payload 新增 `Agent`（空值经 `Normalized()` 默认为 Codex）、`Runtime` 与 `ModelAgent`；模型归属不匹配或未知 Agent 的保存被拒绝。相同原生 ID 可分别属于 Codex 和 Claude，同一 Agent 内仍唯一。Linux 编写，Mac 待验证，新增回归见 `internal/storage/agent_test.go`。
+
+v5 以同样方式重建两张表把 agent CHECK 放宽为 codex/claude/devin，备份 `fuyu-before-v5-*.db` 校验版本 4；不触及 payload 与其他列，Devin 会话和 Runtime 绑定自该版本起可持久化。
 
 版本提升保留旧 settings JSON，UI 兼容读取旧 `OpenTabs` / `Selected` 后，在首次成功保存时将有序混合标签与会话索引一同写入事务。`WorkspaceTabs` 是新记录的打开标签来源，明确空数组保持空白；旧记录缺少 `OpenTabs` 时仅打开选中会话，已有数组保留顺序并去重。文件正文按需读取，不因恢复标签批量加载。
 

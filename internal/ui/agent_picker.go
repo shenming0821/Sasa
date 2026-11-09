@@ -31,10 +31,10 @@ func (a *App) newAgentSession(kind agent.AgentKind) error {
 	if err := kind.Validate(); err != nil {
 		return err
 	}
-	if kind == agent.Claude && root.backends[backendKey{kind: kind, runtime: a.agentRuntime(kind)}] == nil {
+	if kind != agent.Codex && root.backends[backendKey{kind: kind, runtime: a.agentRuntime(kind)}] == nil {
 		message := root.agentErrors[kind]
 		if message == "" {
-			message = "Claude Code 尚未连接，请核验 CLI 安装和运行时配置"
+			message = kind.String() + " 尚未连接，请核验 CLI 安装和运行时配置"
 		}
 		return fmt.Errorf("%s", message)
 	}
@@ -53,7 +53,7 @@ func (a *App) newAgentSession(kind agent.AgentKind) error {
 
 func (a *App) agentSessionButtons(c *native.Context) {
 	native.Row(c).Gap(4).AlignItems(native.Center).Children(func() {
-		for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+		for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude, agent.Devin} {
 			button := quietIconButton(c.Key(string(kind)), "使用 "+kind.String()+" 新建会话").Size(30, 30)
 			button.Children(func() {
 				agentIcon(c, kind, 16)
@@ -70,8 +70,11 @@ func (a *App) agentSessionButtons(c *native.Context) {
 
 func agentIcon(c *native.Context, kind agent.AgentKind, size float32) native.Element {
 	glyph, color := codexAgentIcon, c.Theme().Text
-	if kind.Normalized() == agent.Claude {
+	switch kind.Normalized() {
+	case agent.Claude:
 		glyph, color = claudeAgentIcon, native.Hex("#D97757")
+	case agent.Devin:
+		glyph = devinAgentIcon
 	}
 	return native.Icon(c, glyph).Size(size, size).TextColor(color)
 }

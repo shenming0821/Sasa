@@ -88,7 +88,7 @@ func (a *App) installRuntime(result RuntimeConnection) {
 			s.State.Error = "连接 Agent 失败：" + result.Err.Error()
 			continue
 		}
-		if s.runtimeKey == "" && s.State.ThreadID == "" && result.Kind == agent.Claude {
+		if s.runtimeKey == "" && s.State.ThreadID == "" && result.Kind != agent.Codex {
 			s.runtimeKey = result.Runtime
 			if s.selectedModel == "" {
 				s.selectedModel = a.lastModels[modelPreferenceKey(result.Kind, result.Runtime)]
