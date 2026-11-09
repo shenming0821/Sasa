@@ -34,21 +34,21 @@ func TestChangeSummaryTurnPlacementAndAnchors(t *testing.T) {
 	next := changeMessage("next", "second", "b.go", "@@ -1 +1 @@\n-b\n+c\n")
 	a.State.Messages = []*app.Message{one, {ID: "explain", Role: "assistant", Text: "progress", TurnID: "first"}, two, bad, {ID: "answer", Role: "assistant", Text: "done", Done: true, TurnID: "first"}, {ID: "user", Role: "user", Text: "next"}, next, {ID: "answer2", Role: "assistant", Text: "done2", Done: true, TurnID: "second"}}
 	rows := a.conversationRows()
-	if len(rows) != 7 || rows[1].message != bad || rows[2].message.ID != "answer" || len(rows[3].changes) != 2 || rows[5].message.ID != "answer2" || len(rows[6].changes) != 1 {
+	if len(rows) != 8 || len(rows[0].changes) != 1 || rows[1].message.ID != "explain" || len(rows[2].changes) != 1 || rows[3].message != bad || rows[4].message.ID != "answer" || len(rows[6].changes) != 1 || rows[7].message.ID != "answer2" {
 		t.Fatalf("turn projection=%+v", rows)
 	}
 	a.saved.Anchor = "two"
 	a.saved.AnchorOffset = 30
 	a.restoreReading()
-	if a.saved.Anchor != "one" || a.saved.AnchorOffset != 0 {
-		t.Fatal("grouped file anchor not restored")
+	if a.saved.Anchor != "two" || a.saved.AnchorOffset != 30 {
+		t.Fatal("file anchor crossed an assistant body boundary")
 	}
-	summary := a.summarizeChanges(rows[3].changes)
+	summary := a.summarizeChanges([]*app.Message{one, two})
 	if len(summary.Files) != 1 || summary.Added != 1 || summary.Deleted != 1 {
 		t.Fatal("duplicate edits counted", summary)
 	}
 	two.Tool.Changes[0].Diff = "@@ -1 +1 @@\n-new\n+old\n"
-	summary = a.summarizeChanges(rows[3].changes)
+	summary = a.summarizeChanges([]*app.Message{one, two})
 	if summary.Added != 0 || summary.Deleted != 0 {
 		t.Fatal("cached stats did not refresh after protocol update")
 	}

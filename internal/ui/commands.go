@@ -52,47 +52,41 @@ func (s *session) conversationRows() []conversationRow {
 		return s.projectedRows
 	}
 	var rows []conversationRow
-	var changes []*app.Message
-	turn := ""
-	flush := func() {
-		if len(changes) > 0 {
-			rows = append(rows, conversationRow{message: changes[0], changes: changes})
-			changes = nil
-		}
-	}
+	commandRow, changeRow := -1, -1
+	turn, parent := "", ""
 	for _, m := range s.visibleConversationMessages() {
-		if m.Role == "user" || (m.TurnID != "" && turn != "" && m.TurnID != turn) {
-			flush()
-			turn = ""
-		}
-		if m.TurnID != "" {
-			turn = m.TurnID
-		}
 		if m.Role == "assistant" && m.Text == "" {
 			continue
 		}
-		if m.Role == "tool" && m.Interaction == nil && m.Tool != nil && m.Tool.Kind == "fileChange" && m.Tool.Status == "completed" && len(m.Tool.Changes) > 0 {
-			changes = append(changes, m)
-			continue
-		}
 		command := groupableTool(m)
-		if command {
-			flush()
+		change := m.Role == "tool" && m.Interaction == nil && m.Tool != nil && m.Tool.Kind == "fileChange" && m.Tool.Status == "completed" && len(m.Tool.Changes) > 0
+		owner := ""
+		if m.Tool != nil {
+			owner = m.Tool.ParentToolID
 		}
-		if command && len(rows) > 0 {
-			last := &rows[len(rows)-1]
-			if len(last.commands) > 0 && last.message.TurnID == m.TurnID && last.message.Tool.ParentToolID == m.Tool.ParentToolID {
-				last.commands = append(last.commands, m)
-				continue
+		if !command && !change || m.TurnID != turn || owner != parent {
+			commandRow, changeRow = -1, -1
+		}
+		turn, parent = m.TurnID, owner
+		// Between body messages, interleaved commands and successful edits
+		// update their own rows. Keep each row's first ID for saved anchors.
+		switch {
+		case command:
+			if commandRow < 0 {
+				commandRow = len(rows)
+				rows = append(rows, conversationRow{message: m})
 			}
+			rows[commandRow].commands = append(rows[commandRow].commands, m)
+		case change:
+			if changeRow < 0 {
+				changeRow = len(rows)
+				rows = append(rows, conversationRow{message: m})
+			}
+			rows[changeRow].changes = append(rows[changeRow].changes, m)
+		default:
+			rows = append(rows, conversationRow{message: m})
 		}
-		row := conversationRow{message: m}
-		if command {
-			row.commands = []*app.Message{m}
-		}
-		rows = append(rows, row)
 	}
-	flush()
 	question, result := "", -1
 	for index := range rows {
 		message := rows[index].message

@@ -48,7 +48,6 @@ func TestMixedToolGroupsBoundariesAndRecovery(t *testing.T) {
 		{ID: "text", Role: "assistant", Text: "说明"},
 		{ID: "user", Role: "user", Text: "继续"},
 		{ID: "approval", Role: "tool", Tool: &app.Tool{Kind: "commandExecution"}, Interaction: &app.Interaction{}},
-		changeMessage("change", "turn", "test.go", "@@ -1 +1 @@\n-a\n+b\n"),
 	} {
 		t.Run(boundary.ID, func(t *testing.T) {
 			desktop := New(nil, "test", "/tmp", nil)
