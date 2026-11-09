@@ -142,6 +142,54 @@ func TestMessageEditEnterSendsFromEditor(t *testing.T) {
 	}
 }
 
+func TestMessageEditCollapsesToBubbleWhileSubmitting(t *testing.T) {
+	desktop, backend := editTestApp()
+	queue := make(chan func(), 10)
+	desktop.dispatch = func(update func()) { queue <- update }
+	message := desktop.State.Messages[2]
+	desktop.beginMessageEdit(message)
+	desktop.edit.Text = "  edited question  "
+	tester := native.NewTester(func(c *native.Context) { desktop.message(c, message) }, 700, 400)
+	desktop.sendMessageEdit()
+	tester.Frame()
+	bubble, found := tester.Find("edited question")
+	if !found {
+		t.Fatal("edited text not rendered as a bubble during submit")
+	}
+	if _, found := tester.Find("编辑消息内容"); found {
+		t.Fatal("edit box still visible during submit")
+	}
+	tester.Move(bubble.X+4, bubble.Y+4)
+	if err := tester.Click("复制消息"); err != nil || tester.Clipboard() != "edited question" {
+		t.Fatal("copy did not use the shown text", err)
+	}
+	pumpUpdate(t, queue)
+	pumpUpdate(t, queue)
+	if sent := <-backend.sends; sent != "replacement/edited question" {
+		t.Fatal(sent)
+	}
+}
+
+func TestMessageEditRestoresEditorOnPrepareFailure(t *testing.T) {
+	desktop, backend := editTestApp()
+	queue := make(chan func(), 10)
+	desktop.dispatch = func(update func()) { queue <- update }
+	backend.err = errors.New("unsupported boundary")
+	message := desktop.State.Messages[2]
+	desktop.beginMessageEdit(message)
+	desktop.edit.Text = "edited question"
+	tester := native.NewTester(func(c *native.Context) { desktop.message(c, message) }, 700, 400)
+	desktop.sendMessageEdit()
+	pumpUpdate(t, queue)
+	tester.Frame()
+	if _, found := tester.Find("编辑消息内容"); !found {
+		t.Fatal("edit box not restored after failed preparation")
+	}
+	if !tester.HasText("编辑未发送") {
+		t.Fatal("error not surfaced in the restored edit box")
+	}
+}
+
 func TestComposerEscapeDismissesCompletionBeforeStopping(t *testing.T) {
 	desktop := completionTestApp()
 	backend := &editTestBackend{stops: make(chan string, 2)}

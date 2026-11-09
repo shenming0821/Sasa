@@ -317,9 +317,14 @@ func (a *App) finishMessageEdit() {
 }
 
 func (a *App) userMessage(c *native.Context, message *app.Message) {
-	if a.edit != nil && a.edit.ID == message.ID {
+	editing := a.edit != nil && a.edit.ID == message.ID
+	if editing && !a.editPreparing && !a.editSending {
 		a.messageEditBox(c, message)
 		return
+	}
+	text := message.Text
+	if editing {
+		text = strings.TrimSpace(a.edit.Text)
 	}
 	theme := c.Theme()
 	box := native.Column(c.Key("user-message")).FillWidth().Gap(4)
@@ -328,9 +333,9 @@ func (a *App) userMessage(c *native.Context, message *app.Message) {
 		if len(message.Images) > 0 {
 			a.messageImages(c, message)
 		}
-		if message.Text != "" {
+		if text != "" {
 			native.Row(c).FillWidth().Justify(native.End).Children(func() {
-				native.Text(c, message.Text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
+				native.Text(c, text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
 					MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(theme.Surface)
 			})
 		}
@@ -354,7 +359,7 @@ func (a *App) userMessage(c *native.Context, message *app.Message) {
 			copyButton := quietIconButton(c.Key("copy"), label).Size(28, 28)
 			copyButton.Children(func() { native.Icon(c, glyph).Size(16, 16) })
 			if copyButton.Clicked() {
-				c.WriteClipboard(message.Text)
+				c.WriteClipboard(text)
 				a.userCopiedID, a.userCopiedUntil = message.ID, time.Now().Add(1500*time.Millisecond)
 				if a.canAsync() {
 					bound := a.forSession(a.session)
