@@ -146,3 +146,9 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 ## 2026-10-24：删除目录后的展开状态与空目录重试
 
 验收夹具目录已删除，但其展开记录跨重启保留，恢复文件树时将 ENOENT 显示为常驻错误。读取发现子目录消失，或父目录快照已不含该目录时，移除对应导航状态及过时请求，并在后续快照保存清理结果；工作区根目录和权限错误继续提示，打开文件与草稿保留。空目录成功返回的切片可能为 nil，应使用缓存键是否存在区分“空目录”与“未加载”，避免逐帧重读。回归见 `TestP4RemovedExpandedDirectoryIsPruned`、`TestP4EmptyExpandedDirectoryDoesNotReloadEveryFrame`、`TestP4MissingRootAndDirectoryPermissionsRemainErrors`。
+
+## 2026-11-09：终端页 Cmd+P 被原生视图吞掉且 picker 被遮盖
+
+终端页内 Cmd+P 无反应。第一层原因：嵌入的 `FuyuGhosttyView` 是 `MyGoSurfaceView` 的上层兄弟视图且持有 first responder，`performKeyEquivalent:` 只转发 w/，，其余键被终端吞掉，mygo `Shortcut` 收不到。第二层原因：即使事件送达，picker 画在 mygo 层会被终端画面完全盖住——首轮修复只通了事件路径，状态断言全过但用户实测仍“没有反应”。
+
+当问题涉及原生 NSView 叠加时，验证须覆盖“输入事件 → 状态变化 → 屏幕层级”整条链；`a.win == nil` 的受控测试走不到原生合成路径，遮挡类问题只能真实运行暴露。另一个教训是否决方案前先查框架实际 API：曾以“要脱离 mygo 重写”否决浮层方案，实际锁定版 mygo 的 `NewFlyout` 透明浮层原语可直接复用 `native.View` 渲染同一 picker，成本极低且体验更好（终端不隐藏、不 resize）；既有约定（浮层打开即隐藏终端）解释现状，不构成新方案的上限。最终方案见提交 `4240273`（`internal/ui/quick_open.go` 的 `syncQuickOpenWindow`、`returnTerminal` 焦点恢复），回归 `TestQuickOpenIndependentSurfaceDismissAndReopen`、`TestTerminalShortcutOpensQuickOpen`。
