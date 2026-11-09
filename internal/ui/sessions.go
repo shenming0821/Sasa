@@ -53,6 +53,7 @@ type session struct {
 	disclosureMoving  bool
 	changeSummaries   map[string]cachedChangeSummary
 	completion        inputCompletion
+	composerFocus     bool
 	readingContext    *native.Context
 	restoreOffset     bool
 	detailsOpen       bool

@@ -399,8 +399,9 @@ void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
     if (event.type != NSEventTypeKeyDown || !self.surface) return NO;
     if ((event.modifierFlags & NSEventModifierFlagCommand) && !(event.modifierFlags & (NSEventModifierFlagControl | NSEventModifierFlagOption))) {
         NSString *key = event.charactersIgnoringModifiers.lowercaseString;
-        if ([key isEqualToString:@"w"] || [key isEqualToString:@","]) {
-            if (self.token) fuyuTerminalEvent(self.token, [key isEqualToString:@"w"] ? 1 : 2);
+        if ([key isEqualToString:@"w"] || [key isEqualToString:@","] || [key isEqualToString:@"p"]) {
+            int code = [key isEqualToString:@"w"] ? 1 : [key isEqualToString:@","] ? 2 : 5;
+            if (self.token) fuyuTerminalEvent(self.token, code);
             return YES;
         }
     }

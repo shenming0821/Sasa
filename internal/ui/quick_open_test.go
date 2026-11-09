@@ -4,8 +4,83 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
 )
+
+type testQuickOpenWindow struct {
+	closed      func()
+	destroyed   bool
+	invalidated int
+	width       int
+	height      int
+}
+
+func (w *testQuickOpenWindow) Destroy() {
+	if !w.destroyed {
+		w.destroyed = true
+		w.closed()
+	}
+}
+func (w *testQuickOpenWindow) Invalidate()       { w.invalidated++ }
+func (w *testQuickOpenWindow) SetSize(wd, h int) { w.width, w.height = wd, h }
+
+func TestQuickOpenIndependentSurfaceDismissAndReopen(t *testing.T) {
+	a, queue, root := p4App(t)
+	var windows []*testQuickOpenWindow
+	a.quickOpen.newWindow = func(_ mygo.FlyoutOptions, closed func()) quickOpenWindow {
+		w := &testQuickOpenWindow{closed: closed}
+		windows = append(windows, w)
+		return w
+	}
+	main := native.NewTester(a.view, 1280, 800)
+	main.Key(native.Cmd, native.KeyP)
+	p4Wait(t, main, queue, func() bool { return !a.quickOpen.filesLoading })
+	if len(windows) != 1 || windows[0].invalidated == 0 || a.quickOpen.root != root {
+		t.Fatal("picker surface did not open or receive the file-index update")
+	}
+	if _, found := main.Find("快速打开文件"); found {
+		t.Fatal("picker was also drawn under the native terminal")
+	}
+	panel := native.NewTester(a.quickOpenWindowView, 1280, 800)
+	if err := panel.Click("快速打开文件"); err != nil {
+		t.Fatal(err)
+	}
+	panel.Type("README")
+	if a.quickOpen.query != "README" {
+		t.Fatalf("independent picker did not receive input: %q", a.quickOpen.query)
+	}
+	// Index updates can arrive between frames, while the installed key
+	// callback still holds the old rows. Enter must use the current results.
+	files := a.quickOpen.files
+	a.quickOpen.files = nil
+	a.quickOpen.filesVersion++
+	panel.Key(0, native.KeyEnter)
+	if !a.quickOpen.open || a.currentFile() != nil {
+		t.Fatal("Enter accepted a stale search result")
+	}
+	a.quickOpen.files = files
+	a.quickOpen.filesVersion++
+	panel.Key(0, native.KeyEscape)
+	main.Frame()
+	if a.quickOpen.open || a.quickOpen.window != nil || !windows[0].destroyed {
+		t.Fatal("Escape did not release the independent picker surface")
+	}
+	main.Key(native.Cmd, native.KeyP)
+	if len(windows) != 2 || a.quickOpen.query != "" {
+		t.Fatal("reopening did not create a fresh picker")
+	}
+	main.SetSize(1000, 700)
+	if windows[1].width != 1000 || windows[1].height != 700 {
+		t.Fatal("picker did not follow the parent size")
+	}
+	panel = native.NewTester(a.quickOpenWindowView, 1000, 700)
+	panel.Key(native.Cmd, native.KeyW)
+	main.Frame()
+	if a.quickOpen.open || !windows[1].destroyed {
+		t.Fatal("Cmd+W did not dismiss the independent picker")
+	}
+}
 
 func TestParseQuickQuery(t *testing.T) {
 	cases := []struct {

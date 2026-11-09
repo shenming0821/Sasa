@@ -123,6 +123,8 @@ func (a *App) startTerminal(page *terminalPage) {
 				a.openSettings()
 			case "t":
 				a.newTerminal()
+			case "p":
+				a.openQuickOpen()
 			}
 		})
 	})
@@ -166,7 +168,7 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 		if a.paneTabDragging || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil {
 			return
 		}
-		focus := page.focus && a.paneIsFocused()
+		focus := page.focus && a.paneIsFocused() && !a.quickOpen.open
 		if focus {
 			a.paneNativeFocus = page.id
 		}

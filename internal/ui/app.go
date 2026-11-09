@@ -226,6 +226,7 @@ func (a *App) send() {
 	if !a.canSend() {
 		return
 	}
+	a.composerFocus = true
 	text := strings.TrimSpace(a.State.Draft)
 	if (len(a.State.DraftImages) == 0 || a.isClearCommand(text)) && a.runSlashCommand(text) {
 		return

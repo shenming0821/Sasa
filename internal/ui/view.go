@@ -313,6 +313,12 @@ func (a *App) composer(c *native.Context) {
 			composer.TextRanges(native.TextRange{Start: span[0], End: span[1], Color: t.Accent, Weight: 600})
 		}
 		a.focusPressedPane(composer)
+		if a.composerFocus {
+			a.composerFocus = false
+			if a.paneIsFocused() {
+				composer.Focus()
+			}
+		}
 		if a.completion.focus && a.paneIsFocused() {
 			composer.Focus().SetTextSelection(a.completion.caret, a.completion.caret)
 			a.completion.focus = false

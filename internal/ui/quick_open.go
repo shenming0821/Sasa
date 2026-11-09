@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/workspace"
 )
@@ -36,6 +37,17 @@ type quickOpenState struct {
 	filtered       []quickOpenItem
 	filterKey      string
 	list           native.ListState
+	window         quickOpenWindow
+	windowWidth    int
+	windowHeight   int
+	returnTerminal string
+	newWindow      func(mygo.FlyoutOptions, func()) quickOpenWindow
+}
+
+type quickOpenWindow interface {
+	Destroy()
+	Invalidate()
+	SetSize(int, int)
 }
 
 type quickOpenItem struct {
@@ -55,6 +67,12 @@ func (a *App) openQuickOpen() {
 	}
 	root := a.application()
 	q := &root.quickOpen
+	if !q.open {
+		q.returnTerminal = ""
+		if page := root.currentTerminal(); page != nil {
+			q.returnTerminal = page.id
+		}
+	}
 	q.root = a.workspaceCwd()
 	q.open = true
 	q.query = ""
@@ -261,6 +279,71 @@ func (a *App) acceptQuickOpen(item quickOpenItem, query quickOpenQuery) {
 // The picker's panel pins to the top rather than Modal's center, so the
 // input holds still while the result list grows and shrinks under it.
 func (a *App) quickOpenView(c *native.Context) {
+	if a.win == nil && a.quickOpen.newWindow == nil {
+		a.quickOpenPanel(c)
+		return
+	}
+	a.syncQuickOpenWindow(c)
+}
+
+// A separate transparent MyGo surface sits above native terminal views without
+// hiding or resizing them. Only the parent frame creates and destroys it, so
+// dismissing the dialog never releases a renderer while it is painting.
+func (a *App) syncQuickOpenWindow(c *native.Context) {
+	q := &a.quickOpen
+	if !q.open {
+		if q.window != nil {
+			q.window.Destroy()
+		}
+		return
+	}
+	width, height := c.Size()
+	w, h := max(1, int(width)), max(1, int(height))
+	if q.window == nil {
+		create := q.newWindow
+		if create == nil {
+			create = func(opts mygo.FlyoutOptions, closed func()) quickOpenWindow {
+				window := mygo.NewFlyout(opts)
+				window.OnClosed(closed)
+				return window
+			}
+		}
+		q.windowWidth, q.windowHeight = w, h
+		q.window = create(mygo.FlyoutOptions{
+			Parent: a.win, Placement: mygo.PlacementBottomStart,
+			Width: w, Height: h, Focusable: true,
+			Content: native.View(a.quickOpenWindowView),
+		}, func() {
+			q.window = nil
+			q.open = false
+			if page := a.terminals[q.returnTerminal]; page != nil && a.activeTab == page.id {
+				page.focus = true
+			}
+			q.returnTerminal = ""
+			if a.win != nil {
+				a.win.Invalidate()
+			}
+		})
+	} else if q.windowWidth != w || q.windowHeight != h {
+		q.windowWidth, q.windowHeight = w, h
+		q.window.SetSize(w, h)
+	}
+	q.window.Invalidate()
+}
+
+func (a *App) quickOpenWindowView(c *native.Context) {
+	a.applyAppearance(c)
+	c.Root().Background(native.Transparent)
+	if c.Shortcut(native.Cmd, native.KeyP) {
+		a.openQuickOpen()
+	}
+	a.quickOpenPanel(c)
+	if !a.quickOpen.open && a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *App) quickOpenPanel(c *native.Context) {
 	q := &a.quickOpen
 	native.DialogBase(c.Key("quick-open"), &q.open, func(backdrop, panel native.Element) {
 		if c.Shortcut(native.Cmd, native.KeyW) {
@@ -274,16 +357,26 @@ func (a *App) quickOpenView(c *native.Context) {
 			Border(1, t.Border.Alpha(.7)).Shadow(0, 10, 30, 0, native.RGBA(0, 0, 0, 0.3)).
 			MaxHeight(height - top - 32)
 		a.loadQuickOpenFiles(false)
-		query := parseQuickQuery(q.query)
-		items := a.quickOpenItems(query)
-		q.selected = min(max(q.selected, 0), max(len(items)-1, 0))
 		native.Column(c).Width(min(width-64, 560)).Gap(8).Children(func() {
 			input := native.TextInput(c, &q.query).Label("快速打开文件").Placeholder("按文件名搜索（:行号 跳转）").AutoFocus().FillWidth()
+			query := parseQuickQuery(q.query)
+			items := a.quickOpenItems(query)
+			q.selected = min(max(q.selected, 0), max(len(items)-1, 0))
 			composing := input.Composing()
 			input.OnTextKey(func(k native.TextKey) bool {
 				if composing {
 					return false
 				}
+				switch k.Key {
+				case native.KeyDown, native.KeyUp, native.KeyEnter, native.KeyTab:
+				default:
+					return false
+				}
+				// Keys can arrive before another frame. Read the editor's
+				// current text instead of accepting the previous frame's result.
+				query := parseQuickQuery(k.Text())
+				items := a.quickOpenItems(query)
+				q.selected = min(max(q.selected, 0), max(len(items)-1, 0))
 				switch k.Key {
 				case native.KeyDown, native.KeyUp:
 					if len(items) > 0 {
