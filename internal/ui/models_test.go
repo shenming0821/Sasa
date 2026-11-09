@@ -132,7 +132,7 @@ func TestClaudeModelChoiceBecomesDefaultAcrossSessionsAndRestart(t *testing.T) {
 	if restored.selectedModel != "sonnet" {
 		t.Fatal("restart lost last selected model", restored.selectedModel)
 	}
-	restored.lastClaudeModels = map[string]string{"/other-runtime": "opus"}
+	restored.lastModels = map[string]string{modelPreferenceKey(agent.Claude, "/other-runtime"): "opus"}
 	restored.newSession("/isolated")
 	if restored.selectedModel != "" {
 		t.Fatal("model preference crossed Claude runtime boundaries")
@@ -211,8 +211,8 @@ func TestModelMenuSelectionIsolationPersistenceAndDetails(t *testing.T) {
 	}
 	a.newSession("/second")
 	tt.Frame()
-	if a.selectedModel != "" {
-		t.Fatal("selection leaked to new session")
+	if a.selectedModel != "provider/one" {
+		t.Fatal("new session did not reuse last selected model", a.selectedModel)
 	}
 	a.selectSession(owner)
 	tt.Frame()

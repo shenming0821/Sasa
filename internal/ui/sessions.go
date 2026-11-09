@@ -106,9 +106,11 @@ func (a *App) newSessionForAgent(cwd string, kind agent.AgentKind, runtime strin
 		modelsCwd: cwd, id: a.nextSession, State: app.New(cwd), loaded: true,
 		kind: kind, runtimeKey: runtime,
 	}
-	if kind.Normalized() == agent.Claude {
-		s.selectedModel = a.lastClaudeModels[s.runtimeKey]
+	if remembered := a.lastModels[modelPreferenceKey(kind, s.runtimeKey)]; remembered != "" {
+		s.selectedModel = remembered
 		s.selectedEffort = a.rememberedModelEffort(kind, s.runtimeKey, s.selectedModel)
+	}
+	if kind.Normalized() == agent.Claude {
 		s.State.Agent = agent.Claude
 		if a.forSession(s).sessionBackend() == nil {
 			s.State.Disconnected = true

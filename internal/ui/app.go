@@ -52,7 +52,7 @@ type App struct {
 	modelCatalogs      map[agent.CacheKey]*modelCatalogEntry
 	agentErrors        map[agent.AgentKind]string
 	defaultAgent       agent.AgentKind
-	lastClaudeModels   map[string]string
+	lastModels   map[string]string
 	modelEfforts       map[string]string
 	version            string
 	win                *mygo.Window
@@ -385,9 +385,7 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 						a.editSending = false
 					}
 				}
-				if a.kind.Normalized() == agent.Claude {
-					a.rememberClaudeModel(model)
-				}
+				a.rememberModel(model)
 				if model != "" && a.kind.Normalized() != agent.Claude {
 					a.State.Model = model
 				}

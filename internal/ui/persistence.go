@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -39,17 +40,22 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	a.store = store
 	a.deletedThreads = slices.Clone(snapshot.DeletedThreads)
 	a.defaultAgent = snapshot.DefaultAgent.Normalized()
-	a.lastClaudeModels = maps.Clone(snapshot.LastClaudeModels)
-	if a.lastClaudeModels == nil {
-		a.lastClaudeModels = map[string]string{}
+	a.lastModels = map[string]string{}
+	for key, model := range snapshot.LastClaudeModels {
+		if !strings.ContainsRune(key, '\x00') {
+			key = modelPreferenceKey(agent.Claude, key)
+		}
+		a.lastModels[key] = model
+	}
+	if len(a.lastModels) == 0 {
 		for _, saved := range snapshot.Sessions {
 			if saved.Agent.Normalized() == agent.Claude && (saved.ModelAgent == "" || saved.ModelAgent.Normalized() == agent.Claude) && saved.SelectedModel != "" && saved.SelectedModel != "default" {
-				a.lastClaudeModels[saved.Runtime] = saved.SelectedModel
+				a.lastModels[modelPreferenceKey(agent.Claude, saved.Runtime)] = saved.SelectedModel
 			}
 		}
 		for _, saved := range snapshot.Sessions {
 			if saved.ID == snapshot.Selected && saved.Agent.Normalized() == agent.Claude && (saved.ModelAgent == "" || saved.ModelAgent.Normalized() == agent.Claude) && saved.SelectedModel != "" && saved.SelectedModel != "default" {
-				a.lastClaudeModels[saved.Runtime] = saved.SelectedModel
+				a.lastModels[modelPreferenceKey(agent.Claude, saved.Runtime)] = saved.SelectedModel
 			}
 		}
 	}
@@ -189,7 +195,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
 		DeletedThreads:   slices.Clone(a.deletedThreads),
-		LastClaudeModels: maps.Clone(a.lastClaudeModels),
+		LastClaudeModels: maps.Clone(a.lastModels),
 		ModelEfforts:     maps.Clone(a.modelEfforts),
 		DefaultAgent:     a.defaultAgent.Normalized(),
 		Preferences:      &a.preferences,

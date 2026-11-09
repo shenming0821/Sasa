@@ -91,7 +91,7 @@ func (a *App) installRuntime(result RuntimeConnection) {
 		if s.runtimeKey == "" && s.State.ThreadID == "" && result.Kind == agent.Claude {
 			s.runtimeKey = result.Runtime
 			if s.selectedModel == "" {
-				s.selectedModel = a.lastClaudeModels[result.Runtime]
+				s.selectedModel = a.lastModels[modelPreferenceKey(result.Kind, result.Runtime)]
 				if s.selectedEffort == "" {
 					s.selectedEffort = a.rememberedModelEffort(result.Kind, result.Runtime, s.selectedModel)
 				}

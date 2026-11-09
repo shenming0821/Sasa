@@ -114,7 +114,7 @@ func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
 		if owner.selectedModel == "" || owner.selectedModel == "default" || strings.HasSuffix(owner.selectedModel, "[1m]") {
 			owner.selectedModel = entry.models[0].Model
 			for _, model := range entry.models {
-				if !model.Hidden && (owner.State.Model != "" && model.DisplayName == owner.State.Model || model.Model == a.lastClaudeModels[key.Runtime]) {
+			if !model.Hidden && (owner.State.Model != "" && model.DisplayName == owner.State.Model || model.Model == a.lastModels[modelPreferenceKey(key.Agent, key.Runtime)]) {
 					owner.selectedModel = model.Model
 					break
 				}
@@ -154,15 +154,19 @@ func (a *App) prewarmModels() {
 
 func shortModel(model string) string { return model[strings.LastIndex(model, "/")+1:] }
 
-func (a *App) rememberClaudeModel(model string) {
-	if a.kind.Normalized() != agent.Claude || model == "" || model == "default" {
+func modelPreferenceKey(kind agent.AgentKind, runtime string) string {
+	return string(kind.Normalized()) + "\x00" + runtime
+}
+
+func (a *App) rememberModel(model string) {
+	if model == "" || model == "default" {
 		return
 	}
 	root := a.application()
-	if root.lastClaudeModels == nil {
-		root.lastClaudeModels = map[string]string{}
+	if root.lastModels == nil {
+		root.lastModels = map[string]string{}
 	}
-	root.lastClaudeModels[a.runtimeKey] = model
+	root.lastModels[modelPreferenceKey(a.kind, a.runtimeKey)] = model
 }
 
 func modelEffortKey(kind agent.AgentKind, runtime, model string) string {
@@ -310,18 +314,21 @@ func (a *App) modelMenu(c *native.Context) {
 			if b.Clicked() {
 				previous := a.selectedModel
 				previousEffort, previousTier := a.selectedEffort, a.selectedTier
-				previousLast := a.application().lastClaudeModels[a.runtimeKey]
+				prefKey := modelPreferenceKey(a.kind, a.runtimeKey)
+				previousLast := a.application().lastModels[prefKey]
 				a.selectedModel, a.modelError = value, ""
 				if value != previous {
 					a.selectedEffort = a.rememberedModelEffort(a.kind, a.runtimeKey, value)
 					a.selectedTier = ""
 				}
-				a.rememberClaudeModel(value)
+				a.rememberModel(value)
 				if err := a.persist(); err != nil {
 					a.selectedModel = previous
 					a.selectedEffort, a.selectedTier = previousEffort, previousTier
-					if a.kind.Normalized() == agent.Claude {
-						a.application().lastClaudeModels[a.runtimeKey] = previousLast
+					if previousLast == "" {
+						delete(a.application().lastModels, prefKey)
+					} else {
+						a.application().lastModels[prefKey] = previousLast
 					}
 					a.modelError = "保存模型选择失败：" + err.Error()
 					return

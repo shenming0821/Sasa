@@ -114,7 +114,7 @@ func TestHistoryOpensTheRowAgentInsteadOfDefault(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			application := New(stubBackend{}, "test", "/project", nil)
 			application.defaultAgent = agent.Claude
-			application.lastClaudeModels = map[string]string{"/claude": "claude-model"}
+			application.lastModels = map[string]string{modelPreferenceKey(agent.Claude, "/claude"): "claude-model"}
 			application.agentErrors = map[agent.AgentKind]string{agent.Claude: "unavailable"}
 			runtime := ""
 			if kind == agent.Claude {
