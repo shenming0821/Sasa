@@ -33,7 +33,9 @@ Preview 首次启动从现有环境配置根复制 Codex 的 `config.toml`、`au
 
 `candidate.json` 保存身份、每个产物文件的 SHA-256 与权限，以及去除签名后的程序摘要。候选是验收与发布的固定来源，启动和晋升前都核对文件清单与签名；不在候选内写运行数据。再次开发产生新候选，不覆盖旧候选。
 
-`run-preview` 接受明确构建 ID；省略时选择最近候选。复制到启动位置后登记应用并直接执行包内程序，绕开本机曾出现的 `open` 启动阻塞。替换前正常请求退出已有 Preview；等待超过默认 30 秒则保留用户提示并报错，处理后重试。
+Preview 启动、正式版晋升和回退重开均通过 macOS Launch Services（`/usr/bin/open -n -a`）启动应用，使应用建立自己的启动域，避免直接创建进程时继承调用方已退出的 coalition。启动继续传递数据目录、一次性 token 和 ready 文件；以 ready 中的 PID 对照实际可执行路径，并核对构建、渠道和数据目录，再确认窗口初始化后进程仍存活。启动日志由 `open --stdout/--stderr` 保存；保留调用环境中的 PATH、CODEX_HOME、CLAUDE_CONFIG_DIR 路径配置。
+
+`run-preview` 接受明确构建 ID；省略时选择最近候选。复制到启动位置后登记应用，并通过 Launch Services 启动。替换前正常请求退出已有 Preview；因未保存内容或活动任务提示未退出时，强制结束目标 Preview 进程后重试。正式版遇到同类提示时保留提示并告知用户。
 
 ## 晋升正式版
 

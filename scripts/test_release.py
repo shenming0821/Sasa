@@ -34,6 +34,39 @@ class FakePlatform:
             raise RuntimeError('controlled startup failure')
 
 
+class MacOSLaunchTests(unittest.TestCase):
+    def test_open_uses_launch_services_and_preserves_runtime_paths(self):
+        with patch.object(release, 'run') as run, patch.dict(release.os.environ, {'PATH': '/runtime/bin', 'CODEX_HOME': '/runtime/codex', 'CLAUDE_CONFIG_DIR': '/runtime/claude'}, clear=True):
+            release.MacOS().open_app(Path('/Applications/Fuyu.app'), ['-data-dir', '/data'], Path('/logs/startup.log'))
+        self.assertEqual(run.call_args.args, (
+            '/usr/bin/open', '-n', '-a', '/Applications/Fuyu.app', '--stdout', '/logs/startup.log', '--stderr', '/logs/startup.log',
+            '--env', 'PATH=/runtime/bin', '--env', 'CODEX_HOME=/runtime/codex', '--env', 'CLAUDE_CONFIG_DIR=/runtime/claude', '--args', '-data-dir', '/data'))
+
+    def check_launch(self, reported_pid, running):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            platform = release.MacOS()
+            identity = {'buildID': 'verified-build', 'channel': 'preview'}
+
+            def acknowledge(app, arguments, log):
+                ready = Path(arguments[arguments.index('-ready-file') + 1])
+                release.write_json(ready, {'pid': reported_pid, 'token': arguments[-1], 'dataDir': str(root), **identity})
+
+            with patch.object(platform, 'open_app', side_effect=acknowledge), patch.object(platform, 'running', side_effect=running), patch.object(release.time, 'sleep'):
+                platform.launch(root / 'Fuyu.app', root, identity, 2, root)
+
+    def test_launch_accepts_pid_from_verified_window_acknowledgement(self):
+        self.check_launch(321, [[321], [321]])
+
+    def test_launch_rejects_pid_outside_target_application(self):
+        with self.assertRaisesRegex(RuntimeError, '启动确认不匹配'):
+            self.check_launch(999, [[321]])
+
+    def test_launch_rejects_process_exiting_after_window_acknowledgement(self):
+        with self.assertRaisesRegex(RuntimeError, '窗口初始化后进程退出'):
+            self.check_launch(321, [[321], []])
+
+
 class ReleaseTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

@@ -242,22 +242,26 @@ class MacOS:
                 raise RuntimeError(f'应用尚未正常退出，请处理窗口中的任务或未保存内容提示；旧版请按 ⌘Q 退出后重试：{app}')
             time.sleep(0.3)
 
+    def open_app(self, app, arguments, log):
+        command = ['/usr/bin/open', '-n', '-a', str(app.resolve()), '--stdout', str(log), '--stderr', str(log)]
+        for name in ['PATH', 'CODEX_HOME', 'CLAUDE_CONFIG_DIR']:
+            if name in os.environ:
+                command.extend(['--env', f'{name}={os.environ[name]}'])
+        run(*command, '--args', *arguments, timeout=15, capture_output=True, text=True)
+
     def launch(self, app, data, identity, timeout, work):
         token = uuid.uuid4().hex
         ready = work / ('ready-' + token + '.json')
         log = work / ('startup-' + token + '.log')
-        with log.open('wb') as output:
-            process = subprocess.Popen([str(app / EXECUTABLE), '-data-dir', str(data), '-ready-file', str(ready), '-launch-token', token], cwd=ROOT, stdout=output, stderr=output, start_new_session=True)
+        self.open_app(app, ['-data-dir', str(data), '-ready-file', str(ready), '-launch-token', token], log)
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if process.poll() is not None:
-                raise RuntimeError(f'启动失败，退出码 {process.returncode}，日志：{log}')
             if ready.exists():
                 ack = read_json(ready)
-                if ack.get('token') != token or ack.get('pid') != process.pid or ack.get('buildID') != identity['buildID'] or ack.get('channel') != identity['channel'] or Path(ack.get('dataDir', '')).resolve() != data.resolve():
+                if ack.get('token') != token or ack.get('pid') not in self.running(app) or ack.get('buildID') != identity['buildID'] or ack.get('channel') != identity['channel'] or Path(ack.get('dataDir', '')).resolve() != data.resolve():
                     raise RuntimeError(f'启动确认不匹配：{ready}')
                 time.sleep(1)
-                if process.poll() is None and process.pid in self.running(app):
+                if ack['pid'] in self.running(app):
                     return
                 raise RuntimeError(f'窗口初始化后进程退出，日志：{log}')
             time.sleep(0.2)
@@ -265,10 +269,9 @@ class MacOS:
 
     def reopen(self, app, data, work):
         log = work / ('reopen-' + uuid.uuid4().hex[:8] + '.log')
-        with log.open('wb') as output:
-            process = subprocess.Popen([str(app / EXECUTABLE), '-data-dir', str(data)], cwd=ROOT, stdout=output, stderr=output, start_new_session=True)
+        self.open_app(app, ['-data-dir', str(data)], log)
         time.sleep(1)
-        if process.poll() is not None:
+        if not self.running(app):
             raise RuntimeError(f'上一版已恢复，但重开失败，日志：{log}')
 
 
