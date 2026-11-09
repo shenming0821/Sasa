@@ -114,7 +114,7 @@ func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
 		if owner.selectedModel == "" || owner.selectedModel == "default" || strings.HasSuffix(owner.selectedModel, "[1m]") {
 			owner.selectedModel = entry.models[0].Model
 			for _, model := range entry.models {
-			if !model.Hidden && (owner.State.Model != "" && model.DisplayName == owner.State.Model || model.Model == a.lastModels[modelPreferenceKey(key.Agent, key.Runtime)]) {
+				if !model.Hidden && (owner.State.Model != "" && model.DisplayName == owner.State.Model || model.Model == a.lastModels[modelPreferenceKey(key.Agent, key.Runtime)]) {
 					owner.selectedModel = model.Model
 					break
 				}

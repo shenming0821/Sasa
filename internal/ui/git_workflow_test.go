@@ -176,6 +176,22 @@ func TestGitHistoryCommitReadFailureRetryAndEmptyCommit(t *testing.T) {
 	}
 }
 
+func TestGitHistoryHeaderRefreshReloadsNewCommits(t *testing.T) {
+	a, q, root, git := gitWorkflowApp(t)
+	w := a.workspace(root)
+	w.collapsed["最近提交已展开"] = true
+	tt := native.NewTester(a.view, 1600, 900)
+	p4Wait(t, tt, q, func() bool { return !w.gitLoading && w.gitHistoryLoaded && len(w.gitHistory) == 1 })
+	git("commit", "--allow-empty", "-m", "newest")
+	if err := tt.Click("刷新提交历史"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 2 })
+	if w.gitHistory[0].Subject != "newest" {
+		t.Fatal("refresh did not pick up the new commit", w.gitHistory[0].Subject)
+	}
+}
+
 func TestGitSelectionAndDraftsAreSeparatedByWorkspaceAndIndexSide(t *testing.T) {
 	a := New(stubBackend{}, "test", "/one", nil)
 	w := a.workspace("/one")

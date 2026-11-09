@@ -52,7 +52,7 @@ type App struct {
 	modelCatalogs      map[agent.CacheKey]*modelCatalogEntry
 	agentErrors        map[agent.AgentKind]string
 	defaultAgent       agent.AgentKind
-	lastModels   map[string]string
+	lastModels         map[string]string
 	modelEfforts       map[string]string
 	version            string
 	win                *mygo.Window

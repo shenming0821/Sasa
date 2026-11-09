@@ -168,7 +168,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 				}
 			})
 		})
-		a.gitHistoryView(c.Key("history"), w)
+		a.gitHistoryView(c.Key("history"), w, busy)
 	})
 }
 
@@ -491,21 +491,33 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 	})
 }
 
-func (a *App) gitHistoryView(c *native.Context, w *workspacePage) {
+func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool) {
 	native.Column(c).FillWidth().Shrink(0).MinHeight(34).MaxHeightPercent(45).Padding(4, 8).Gap(0).Children(func() {
-		header := treeButton(c.Key("header"), "切换最近提交").FillWidth().Height(26).Shrink(0).Padding(0, 6)
-		header.Children(func() {
-			native.Row(c).Fill().AlignItems(native.Center).Gap(6).Children(func() {
-				g := native.Icon(c, chevron).Size(12, 12)
-				if !w.collapsed["最近提交已展开"] {
-					g.Rotate(-90)
+		row := native.Row(c.Key("heading")).FillWidth().Height(26).Shrink(0).Radius(5).AlignItems(native.Center)
+		shown := row.Hovered() || row.FocusWithin()
+		if shown {
+			row.Background(c.Theme().SurfaceHover)
+		}
+		row.Children(func() {
+			header := native.ButtonBase(c.Key("header")).Label("切换最近提交").Grow(1).FillHeight().Padding(0, 6)
+			header.Children(func() {
+				native.Row(c).Fill().AlignItems(native.Center).Gap(6).Children(func() {
+					g := native.Icon(c, chevron).Size(12, 12)
+					if !w.collapsed["最近提交已展开"] {
+						g.Rotate(-90)
+					}
+					native.Text(c, "最近提交").FontSize(12).Bold()
+				})
+			})
+			if header.Clicked() {
+				w.collapsed["最近提交已展开"] = !w.collapsed["最近提交已展开"]
+			}
+			native.Row(c.Key("actions")).Width(24).FillHeight().AlignItems(native.Center).Children(func() {
+				if gitIconButton(c.Key("refresh"), "刷新提交历史", refreshProjectIcon, busy || w.gitHistoryLoading).Clicked() {
+					a.gitLoadHistory(w, false)
 				}
-				native.Text(c, "最近提交").FontSize(12).Bold()
 			})
 		})
-		if header.Clicked() {
-			w.collapsed["最近提交已展开"] = !w.collapsed["最近提交已展开"]
-		}
 		if !w.collapsed["最近提交已展开"] {
 			return
 		}
