@@ -63,6 +63,7 @@ func SummarizeChanges(cwd string, messages []*Message) ChangeSummary {
 			var kind struct {
 				Type     string `json:"type"`
 				MovePath string `json:"move_path"`
+				Region   bool   `json:"region"`
 			}
 			if json.Unmarshal(change.Kind, &kind) != nil {
 				f.exact = false
@@ -89,7 +90,7 @@ func SummarizeChanges(cwd string, messages []*Message) ChangeSummary {
 				f.exact = false
 			}
 			if f.exact {
-				f.exact = f.apply(change.Diff, kind.Type)
+				f.exact = f.apply(change.Diff, kind.Type, kind.Region)
 			}
 		}
 	}
@@ -147,8 +148,11 @@ func (f *patchFile) learn(line patchLine, text string, noNewline bool) bool {
 	return true
 }
 
-func (f *patchFile) apply(patch, kind string) bool {
+func (f *patchFile) apply(patch, kind string, region bool) bool {
 	lines := rawLines(patch)
+	if region {
+		return f.region(lines)
+	}
 	hasHunk := slices.ContainsFunc(lines, func(s string) bool { return turnHunk.MatchString(s) })
 	if !hasHunk {
 		switch kind {
@@ -258,6 +262,28 @@ func (f *patchFile) apply(patch, kind string) bool {
 	if kind == "add" || kind == "delete" {
 		f.complete = true
 	}
+	return true
+}
+
+// A region snapshot replaces the recorded block wholesale and carries no file
+// position, so it merges exactly only when the file has no earlier state;
+// further regions stay marked incomplete rather than merging at guessed places.
+func (f *patchFile) region(lines []string) bool {
+	if len(f.base) > 0 || len(f.current) > 0 || len(lines) == 0 || len(lines) > 100000 {
+		return false
+	}
+	for _, s := range lines {
+		switch {
+		case strings.HasPrefix(s, "-"):
+			f.base = append(f.base, patchLine{original: f.next, text: s[1:], known: true})
+			f.next++
+		case strings.HasPrefix(s, "+"):
+			f.current = append(f.current, patchLine{original: -1, text: s[1:], known: true})
+		default:
+			return false
+		}
+	}
+	f.complete = true
 	return true
 }
 

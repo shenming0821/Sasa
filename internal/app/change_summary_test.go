@@ -13,6 +13,7 @@ func fileChangeMessage(path, kind, diff string) *Message {
 
 func TestTurnChangesComposeNetEdits(t *testing.T) {
 	update := `{"type":"update"}`
+	region := `{"type":"update","region":true}`
 	tests := []struct {
 		name     string
 		changes  []*Message
@@ -36,6 +37,14 @@ func TestTurnChangesComposeNetEdits(t *testing.T) {
 		{"inconsistent coordinates", []*Message{fileChangeMessage("a.go", update, "@@ -1 +5 @@\n-old\n+new\n")}, 0, 0, false},
 		{"conflicting history", []*Message{fileChangeMessage("a.go", update, "@@ -1 +1 @@\n-old\n+middle\n"), fileChangeMessage("a.go", update, "@@ -1 +1 @@\n-unrelated\n+new\n")}, 0, 0, false},
 		{"bounded sparse allocation", []*Message{fileChangeMessage("a.go", update, "@@ -999999999 +999999999 @@\n-old\n+new\n")}, 0, 0, false},
+		{"region replacement", []*Message{fileChangeMessage("a.go", region, "-old\n-middle\n+new\n")}, 1, 2, true},
+		{"region dedupes kept lines", []*Message{fileChangeMessage("a.go", region, "-same\n-old\n+same\n+new\n")}, 1, 1, true},
+		{"region blank lines", []*Message{fileChangeMessage("a.go", region, "-old\n-\n+new\n+\n")}, 1, 1, true},
+		{"region new file", []*Message{fileChangeMessage("a.go", `{"type":"add","region":true}`, "+one\n+two\n")}, 2, 0, true},
+		{"region delete", []*Message{fileChangeMessage("a.go", `{"type":"delete","region":true}`, "-one\n-two\n")}, 0, 2, true},
+		{"second region stays unknown", []*Message{fileChangeMessage("a.go", region, "-a\n+b\n"), fileChangeMessage("a.go", region, "-b\n+c\n")}, 0, 0, false},
+		{"empty region is unknown", []*Message{fileChangeMessage("a.go", region, "")}, 0, 0, false},
+		{"malformed region", []*Message{fileChangeMessage("a.go", region, "-old\n+new\nnot prefixed\n")}, 0, 0, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -87,7 +96,7 @@ func TestTurnChangesPatchPreservesCoordinates(t *testing.T) {
 		f.current = append(f.current, line)
 		f.next++
 	}
-	if !f.apply(got.Files[0].Patch, "update") {
+	if !f.apply(got.Files[0].Patch, "update", false) {
 		t.Fatal("composed patch not applicable:", got.Files[0].Patch)
 	}
 	var text strings.Builder

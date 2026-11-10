@@ -287,7 +287,8 @@ func contentText(blocks []toolContent) string {
 }
 
 // diffChanges projects ACP diff content blocks as file-change entries with a
-// line-prefixed pseudo diff; ACP carries full texts rather than unified diffs.
+// line-prefixed region diff; ACP carries region texts rather than positioned
+// unified diffs, so kinds are marked "region" for the summarizer.
 func diffChanges(blocks []toolContent, kind string, locations []toolLocation) []map[string]any {
 	var changes []map[string]any
 	changeKind := map[string]string{"edit": "update", "delete": "delete", "move": "update"}[kind]
@@ -300,15 +301,17 @@ func diffChanges(blocks []toolContent, kind string, locations []toolLocation) []
 			continue
 		}
 		var diff strings.Builder
-		for _, line := range strings.Split(strings.TrimSuffix(block.OldText, "\n"), "\n") {
-			if line != "" {
+		if block.OldText != "" {
+			for _, line := range strings.Split(strings.TrimSuffix(block.OldText, "\n"), "\n") {
 				diff.WriteString("-" + line + "\n")
 			}
 		}
-		for _, line := range strings.Split(strings.TrimSuffix(block.NewText, "\n"), "\n") {
-			diff.WriteString("+" + line + "\n")
+		if block.NewText != "" {
+			for _, line := range strings.Split(strings.TrimSuffix(block.NewText, "\n"), "\n") {
+				diff.WriteString("+" + line + "\n")
+			}
 		}
-		change := map[string]string{"type": changeKind}
+		change := map[string]any{"type": changeKind, "region": true}
 		if block.OldText == "" && changeKind == "update" {
 			change["type"] = "add"
 		}
@@ -318,7 +321,7 @@ func diffChanges(blocks []toolContent, kind string, locations []toolLocation) []
 	}
 	for _, location := range locations {
 		if location.Path != "" && !seen[location.Path] {
-			raw, _ := json.Marshal(map[string]string{"type": changeKind})
+			raw, _ := json.Marshal(map[string]any{"type": changeKind, "region": true})
 			changes = append(changes, map[string]any{"path": location.Path, "kind": json.RawMessage(raw), "diff": ""})
 		}
 	}
