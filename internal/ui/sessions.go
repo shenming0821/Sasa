@@ -52,6 +52,7 @@ type session struct {
 	processScrollHold bool
 	disclosureMoving  bool
 	changeSummaries   map[string]cachedChangeSummary
+	streamedMessages  map[string]bool
 	completion        inputCompletion
 	composerFocus     bool
 	readingContext    *native.Context

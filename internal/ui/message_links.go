@@ -48,11 +48,38 @@ func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
 			}
 		}
 	}
-	if message.Done {
-		markdown.View(c, message.Text, &a.md)
-	} else {
-		markdown.Stream(c, message.Text, &a.md)
+	// Stream's reveal lives on the element; a row that unmounts and
+	// rebuilds would type what it already showed. Only the first mounted
+	// view of a message streams; later views show it as it is.
+	box := native.Column(c.Key("stream:" + message.ID)).FillWidth()
+	armed := native.Local(box, streamArmedKey{}, func() bool { return false })
+	box.Children(func() {
+		if owner.streamReveal(message, armed) {
+			markdown.Stream(c, message.Text, &a.md)
+		} else {
+			markdown.View(c, message.Text, &a.md)
+		}
+	})
+}
+
+type streamArmedKey struct{}
+
+// streamReveal reports whether message paces its text on this element:
+// the first mounted view of an unfinished message streams and keeps
+// doing so; any later view shows the text as it is.
+func (s *session) streamReveal(m *app.Message, armed *bool) bool {
+	if m.Done {
+		return false
 	}
+	if *armed || !s.streamedMessages[m.ID] {
+		*armed = true
+		if s.streamedMessages == nil {
+			s.streamedMessages = map[string]bool{}
+		}
+		s.streamedMessages[m.ID] = true
+		return true
+	}
+	return false
 }
 
 func messageLinkLocation(destination string) *fileLocation {

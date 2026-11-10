@@ -80,6 +80,7 @@ func (a *App) releaseClosedSession(s *session, now time.Time) {
 				s.conversationCache = conversationCache{}
 				s.conversationNavigation = conversationNavigation{}
 				s.rows, s.commandGroups, s.changeSummaries = nil, nil, nil
+				s.streamedMessages = nil
 				s.expandedProcesses = nil
 				s.processProgress = nil
 				s.processScrollHold = false
