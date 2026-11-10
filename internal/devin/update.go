@@ -51,11 +51,17 @@ func (c *Client) onUpdate(sessionID string, raw json.RawMessage) {
 	}
 	c.mu.Lock()
 	s := c.sessions[sessionID]
-	if s != nil && s.loading {
+	if s != nil && s.loading && update.Kind != "available_commands_update" {
 		s.replayBuf = append(s.replayBuf, json.RawMessage(append([]byte(nil), raw...)))
 	}
 	c.mu.Unlock()
 	if s == nil || s.loading {
+		// The runtime advertises commands before session/new responds, and
+		// there is no way to request them again; apply them even when the
+		// session is not promptable yet.
+		if update.Kind == "available_commands_update" {
+			c.updateCommands(s, raw)
+		}
 		return
 	}
 	switch update.Kind {
@@ -444,7 +450,9 @@ func (t *toolState) item(id string) map[string]any {
 }
 
 // updateCommands caches the runtime's native command surface for the
-// completion catalog. Commands keep their hint and cognition category.
+// completion catalog. Commands keep their hint and cognition category. The
+// session may be nil when the advertisement precedes session registration;
+// command data is connection-wide, so it still applies.
 func (c *Client) updateCommands(s *acpSession, raw json.RawMessage) {
 	var u struct {
 		Commands []struct {
@@ -461,17 +469,34 @@ func (c *Client) updateCommands(s *acpSession, raw json.RawMessage) {
 	if json.Unmarshal(raw, &u) != nil {
 		return
 	}
+	c.mu.Lock()
+	cwd := ""
+	if s != nil {
+		cwd = s.cwd
+	}
 	commands := make([]agent.Command, 0, len(u.Commands))
 	for _, command := range u.Commands {
-		entry := agent.Command{Name: command.Name, Description: command.Description, Source: "Devin", Cwd: s.cwd, IsSkill: command.Meta.Category == "Skills"}
+		entry := agent.Command{Name: command.Name, Description: command.Description, Source: "Devin", Cwd: cwd, IsSkill: command.Meta.Category == "Skills"}
 		if command.Input != nil && command.Input.Hint != "" {
 			entry.Arguments = []string{command.Input.Hint}
 		}
 		commands = append(commands, entry)
 	}
-	c.mu.Lock()
 	c.commands = commands
 	c.mu.Unlock()
+	// Advertisements arrive asynchronously, so a cached completion catalog can
+	// predate them; the event lets the UI invalidate and reread.
+	event := agent.Event{Session: agent.SessionKey{Agent: agent.Devin, Runtime: c.home}, Method: "fuyu/commands"}
+	if !c.queue.push(event) {
+		c.mu.Lock()
+		if !c.failed {
+			c.failed = true
+			if c.conn != nil {
+				c.conn.close()
+			}
+		}
+		c.mu.Unlock()
+	}
 }
 
 // onRequest routes agent-initiated requests. Only permission requests are

@@ -103,13 +103,13 @@ func TestComposerSkillCompletionKeyboardEscapeAndClick(t *testing.T) {
 
 func TestCompletionQueryUsesCaretAndKeepsOtherText(t *testing.T) {
 	for _, text := range []string{"/tmp/file", "hello /status", "cost$front", "$$front", "@/Users/me/Docu", "看 @/"} {
-		if _, ok := queryCompletion(text, len([]rune(text)), len([]rune(text))); ok {
+		if _, ok := queryCompletion(text, len([]rune(text)), len([]rune(text)), agent.Codex); ok {
 			t.Fatalf("unexpected completion %q", text)
 		}
 	}
 	text := "中文 $front suffix"
 	caret := len([]rune("中文 $front"))
-	q, ok := queryCompletion(text, caret, caret)
+	q, ok := queryCompletion(text, caret, caret, agent.Codex)
 	if !ok || q.kind != '$' || q.query != "front" {
 		t.Fatal("unicode/caret query failed")
 	}
@@ -248,6 +248,107 @@ func TestClaudeSlashCompletionLoadsRuntimeSkills(t *testing.T) {
 	}
 }
 
+func TestDevinDollarCompletionInsertsNativeSkillCommand(t *testing.T) {
+	b := &commandTestBackend{request: make(chan string, 1), result: make(chan []agent.Command, 1)}
+	a := New(stubBackend{}, "test", "/devin-work", nil)
+	if err := a.RegisterBackend(agent.Devin, "/devin", b); err != nil {
+		t.Fatal(err)
+	}
+	a.newSession("/devin-work")
+	a.session.kind, a.session.runtimeKey = agent.Devin, "/devin"
+	a.session.State.Agent = agent.Devin
+	jobs := make(chan func(), 4)
+	a.dispatch = func(fn func()) { jobs <- fn }
+	tt := native.NewTester(a.view, 640, 480)
+	tt.Click("任务输入")
+	tt.Type("$")
+	select {
+	case cwd := <-b.request:
+		if cwd != "/devin-work" {
+			t.Fatal(cwd)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("typing $ did not read Devin commands")
+	}
+	b.result <- []agent.Command{
+		{Name: "review", Description: "审查改动", Source: "Devin", Cwd: "/devin-work", IsSkill: true},
+		{Name: "status", Description: "查看状态", Source: "Devin", Cwd: "/devin-work"},
+	}
+	select {
+	case job := <-jobs:
+		job()
+	case <-time.After(time.Second):
+		t.Fatal("no command result")
+	}
+	tt.Frame()
+	if _, ok := tt.Find("候选 /review"); !ok {
+		t.Fatal("Devin skill missing from $ menu")
+	}
+	if _, ok := tt.Find("候选 /status"); ok {
+		t.Fatal("non-skill command shown in $ menu")
+	}
+	tt.Key(0, native.KeyTab)
+	if a.State.Draft != "/review " {
+		t.Fatalf("skill not inserted as native command: %q", a.State.Draft)
+	}
+	tt.Type("x $r")
+	if a.State.Draft != "/review x $r" {
+		t.Fatalf("typing lost focus/caret: %q", a.State.Draft)
+	}
+	if _, ok := tt.Find("输入候选"); ok {
+		t.Fatal("mid-text $ opened completion for Devin")
+	}
+}
+
+func TestDevinCommandsEventRefreshesEmptyCatalog(t *testing.T) {
+	b := &commandTestBackend{request: make(chan string, 1), result: make(chan []agent.Command, 1)}
+	a := New(stubBackend{}, "test", "/devin-work", nil)
+	if err := a.RegisterBackend(agent.Devin, "/devin", b); err != nil {
+		t.Fatal(err)
+	}
+	a.newSession("/devin-work")
+	a.session.kind, a.session.runtimeKey = agent.Devin, "/devin"
+	a.session.State.Agent = agent.Devin
+	jobs := make(chan func(), 4)
+	a.dispatch = func(fn func()) { jobs <- fn }
+	tt := native.NewTester(a.view, 640, 480)
+	tt.Click("任务输入")
+	tt.Type("$")
+	awaitRequest := func() {
+		t.Helper()
+		select {
+		case <-b.request:
+		case <-time.After(time.Second):
+			t.Fatal("no command request")
+		}
+	}
+	awaitJob := func() {
+		t.Helper()
+		select {
+		case job := <-jobs:
+			job()
+		case <-time.After(time.Second):
+			t.Fatal("no command result")
+		}
+	}
+	awaitRequest()
+	b.result <- nil
+	awaitJob()
+	tt.Frame()
+	if _, ok := tt.Find("候选 /review"); ok {
+		t.Fatal("empty catalog showed a candidate")
+	}
+	a.applyBatch([]agent.Event{{Session: agent.SessionKey{Agent: agent.Devin, Runtime: "/devin"}, Method: "fuyu/commands"}})
+	tt.Frame()
+	awaitRequest()
+	b.result <- []agent.Command{{Name: "review", Description: "审查改动", Source: "Devin", Cwd: "/devin-work", IsSkill: true}}
+	awaitJob()
+	tt.Frame()
+	if _, ok := tt.Find("候选 /review"); !ok {
+		t.Fatal("advertised commands did not refresh the $ menu")
+	}
+}
+
 func TestClaudeSlashCompletionRetryClearsError(t *testing.T) {
 	backend := &commandTestBackend{
 		request: make(chan string, 1), result: make(chan []agent.Command, 1), failure: make(chan error, 1),
@@ -357,7 +458,7 @@ func TestCompletionKeyboardSelectionAndIMEGate(t *testing.T) {
 func TestSkillReferencesSurviveDraftRestartAndFollowEdits(t *testing.T) {
 	a := completionTestApp()
 	a.State.Draft = "$front"
-	q, _ := queryCompletion(a.State.Draft, 6, 6)
+	q, _ := queryCompletion(a.State.Draft, 6, 6, agent.Codex)
 	a.acceptCompletion(q, completionItem{skill: &a.completion.skills[0]})
 	a.State.Draft += "task"
 	store, err := storage.Open(t.TempDir())
@@ -398,20 +499,20 @@ func TestCompletionQueryFileMention(t *testing.T) {
 		{"@a $design", '$', "design"},
 	} {
 		caret := len([]rune(c.text))
-		q, ok := queryCompletion(c.text, caret, caret)
+		q, ok := queryCompletion(c.text, caret, caret, agent.Codex)
 		if !ok || q.kind != c.kind || q.query != c.query {
 			t.Fatalf("%q → %+v ok=%v", c.text, q, ok)
 		}
 	}
 	text := "fix @internal/ui/completion.go now"
 	caret := len([]rune("fix @internal/ui/completion.go"))
-	q, ok := queryCompletion(text, caret, caret)
+	q, ok := queryCompletion(text, caret, caret, agent.Codex)
 	if !ok || q.kind != '@' || q.query != "internal/ui/completion.go" {
 		t.Fatalf("mid-sentence query failed: %+v ok=%v", q, ok)
 	}
 	text = "fix @internal/ui/old.go now"
 	caret = len([]rune("fix @internal/u"))
-	q, ok = queryCompletion(text, caret, caret)
+	q, ok = queryCompletion(text, caret, caret, agent.Codex)
 	if !ok || q.query != "internal/u" {
 		t.Fatalf("mid-token query failed: %+v ok=%v", q, ok)
 	}
@@ -421,12 +522,12 @@ func TestCompletionQueryFileMention(t *testing.T) {
 	if a.State.Draft != "fix @internal/ui/view.go now" || a.completion.caret != len([]rune("fix @internal/ui/view.go ")) {
 		t.Fatalf("picking inside a path did not replace it: %q caret=%d", a.State.Draft, a.completion.caret)
 	}
-	if _, ok := queryCompletion("@/Users/me/a.go", 1, 1); ok {
+	if _, ok := queryCompletion("@/Users/me/a.go", 1, 1, agent.Codex); ok {
 		t.Fatal("caret after @ of an absolute path opened completion")
 	}
 	for _, text := range []string{"user@host", "email@x.com", "@a@b", "@dir/file.go ", "@@"} {
 		caret := len([]rune(text))
-		if _, ok := queryCompletion(text, caret, caret); ok {
+		if _, ok := queryCompletion(text, caret, caret, agent.Codex); ok {
 			t.Fatalf("unexpected completion %q", text)
 		}
 	}

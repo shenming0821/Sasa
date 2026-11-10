@@ -328,7 +328,7 @@ func (a *App) composer(c *native.Context) {
 		composing := composer.Composing()
 		// Element handles are valid during build; key callbacks use the captured caret.
 		anchor, caret := composer.TextAnchorCaret()
-		query, show := queryCompletion(a.State.Draft, anchor, caret)
+		query, show := queryCompletion(a.State.Draft, anchor, caret, a.kind)
 		if show && !composing {
 			// Claude 的斜杠命令来自运行时目录，与技能共用这份按会话缓存。
 			if query.kind == '$' || query.kind == '/' && a.kind.Normalized() != agent.Codex {
@@ -357,7 +357,7 @@ func (a *App) composer(c *native.Context) {
 			if composing {
 				return false
 			}
-			q, ok := queryCompletion(k.Text(), anchor, caret)
+			q, ok := queryCompletion(k.Text(), anchor, caret, a.kind)
 			if ok && k.Mods == 0 && a.completion.dismissed != completionKey(q) {
 				items := a.completionItems(q)
 				switch k.Key {

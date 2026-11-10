@@ -139,6 +139,17 @@ func (a *App) loadCompletionCatalog(force bool) {
 	}()
 }
 
+// invalidateCompletionCatalogs drops loaded catalog entries for a backend so
+// the next completion trigger rereads freshly advertised commands.
+func (a *App) invalidateCompletionCatalogs(session agent.SessionKey) {
+	for key, entry := range a.application().completionCatalogs {
+		if entry.loading || key.Agent != session.Agent.Normalized() || key.Runtime != session.Runtime {
+			continue
+		}
+		entry.loaded = false
+	}
+}
+
 func (a *App) restoreCompletionCatalogs() {
 	a.applyCompletionDiskCache(a.store.LoadCatalogs())
 }

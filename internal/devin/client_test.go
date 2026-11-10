@@ -25,6 +25,13 @@ func init() {
 	}
 }
 
+// fakeCommands mirrors a real available_commands_update payload: the runtime
+// advertises it ahead of the session/new response.
+var fakeCommands = []any{
+	map[string]any{"name": "review", "description": "Review changes", "input": map[string]any{"hint": "[path]"}, "_meta": map[string]any{"cognition.ai/category": "Skills"}},
+	map[string]any{"name": "compact", "description": "Compact context", "_meta": map[string]any{"cognition.ai/category": "Session"}},
+}
+
 var fakeOptions = []any{
 	map[string]any{"id": "mode", "name": "Session Mode", "type": "select", "currentValue": "accept-edits", "options": []any{
 		map[string]any{"value": "accept-edits", "name": "Code"},
@@ -152,6 +159,7 @@ func runFakeACP() {
 			}
 			respond(map[string]any{})
 		case "session/new":
+			update("acp-session-1", map[string]any{"sessionUpdate": "available_commands_update", "availableCommands": fakeCommands})
 			respond(map[string]any{"sessionId": "acp-session-1", "modes": modes(), "configOptions": currentOptions})
 		case "session/set_mode":
 			setMode(params.SessionID, params.ModeID)
@@ -662,6 +670,44 @@ func TestClientDisconnect(t *testing.T) {
 	}
 	if _, err := c.Send(ctx, thread.Thread.ID, "again"); err == nil {
 		t.Fatal("断开后发送应失败")
+	}
+}
+
+func TestCommandsAdvertisedBeforeSessionRegistration(t *testing.T) {
+	c := newTestClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := c.StartThread(ctx, "/tmp"); err != nil {
+		t.Fatal(err)
+	}
+	events := collectUntil(t, c, "fuyu/runtime")
+	notified := false
+	for _, event := range events {
+		if event.Method == "fuyu/commands" {
+			notified = true
+		}
+	}
+	if !notified {
+		t.Fatal("命令广告未发出 fuyu/commands 事件")
+	}
+	commands, err := c.ListCommands(ctx, "/tmp")
+	if err != nil || len(commands) != 2 {
+		t.Fatalf("commands=%+v err=%v", commands, err)
+	}
+	var review, compact *agent.Command
+	for i := range commands {
+		if commands[i].Name == "review" {
+			review = &commands[i]
+		}
+		if commands[i].Name == "compact" {
+			compact = &commands[i]
+		}
+	}
+	if review == nil || !review.IsSkill || len(review.Arguments) != 1 || review.Arguments[0] != "[path]" {
+		t.Fatalf("技能命令缺失标记或参数提示: %+v", review)
+	}
+	if compact == nil || compact.IsSkill {
+		t.Fatalf("非技能命令被误标: %+v", compact)
 	}
 }
 

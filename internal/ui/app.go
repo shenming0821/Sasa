@@ -553,6 +553,10 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		if !a.session.accepts(e) {
 			continue
 		}
+		if e.Method == "fuyu/commands" {
+			a.invalidateCompletionCatalogs(e.Session)
+			continue
+		}
 		if a.recovering && e.Method == "fuyu/eventGap" {
 			a.historyOverflow = true
 			continue

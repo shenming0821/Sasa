@@ -57,7 +57,7 @@ var slashCommands = []completionItem{
 	{name: "/skills", description: "选择当前目录可用的技能"},
 }
 
-func queryCompletion(text string, anchor, caret int) (completionQuery, bool) {
+func queryCompletion(text string, anchor, caret int, kind agent.AgentKind) (completionQuery, bool) {
 	r := []rune(text)
 	if anchor != caret || caret < 0 || caret > len(r) {
 		return completionQuery{}, false
@@ -70,10 +70,13 @@ func queryCompletion(text string, anchor, caret int) (completionQuery, bool) {
 		return completionQuery{}, false
 	}
 	token := r[start:caret]
-	if token[0] == '/' && start == 0 && caret == len(r) && !strings.ContainsAny(string(token[1:]), "/$") {
+	leading := start == 0 && caret == len(r)
+	if token[0] == '/' && leading && !strings.ContainsAny(string(token[1:]), "/$") {
 		return completionQuery{'/', string(token[1:]), start, caret}, true
 	}
-	if token[0] == '$' && !strings.ContainsAny(string(token[1:]), "/$") {
+	// Codex $ references attach to any token; other runtimes only invoke
+	// skills as a leading /command, so their $ trigger shares that shape.
+	if token[0] == '$' && (kind.Normalized() == agent.Codex || leading) && !strings.ContainsAny(string(token[1:]), "/$") {
 		return completionQuery{'$', string(token[1:]), start, caret}, true
 	}
 	// A path picked with the caret inside one replaces all of it, so the
@@ -118,6 +121,16 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 		for _, item := range slashCommands {
 			if strings.Contains(item.name, query) {
 				items = append(items, item)
+			}
+		}
+	} else if a.kind.Normalized() != agent.Codex {
+		for _, command := range a.completion.commands {
+			if !command.IsSkill {
+				continue
+			}
+			name := "/" + command.Name
+			if strings.Contains(strings.ToLower(name), query) {
+				items = append(items, completionItem{name: name, description: command.Description})
 			}
 		}
 	} else {
@@ -194,14 +207,12 @@ func (a *App) runSlashCommand(text string) bool {
 
 func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 	a.completion.dismissed = ""
-	if q.kind == '/' {
-		if a.kind.Normalized() != agent.Codex {
-			a.State.Draft = item.name + " "
-			a.completion.caret = len([]rune(a.State.Draft))
-			a.completion.focus = true
-		} else {
-			a.runSlashCommand(item.name)
-		}
+	if a.kind.Normalized() != agent.Codex && q.kind != '@' {
+		a.State.Draft = item.name + " "
+		a.completion.caret = len([]rune(a.State.Draft))
+		a.completion.focus = true
+	} else if q.kind == '/' {
+		a.runSlashCommand(item.name)
 	} else if q.kind == '@' {
 		r := []rune(a.State.Draft)
 		// Directories keep the token open so typing continues into their children.
@@ -238,7 +249,7 @@ func (a *session) draftSkills(text string) []agent.Skill {
 		if end < len(r) && !unicode.IsSpace(r[end]) {
 			continue
 		}
-		q, ok := queryCompletion(text, end, end)
+		q, ok := queryCompletion(text, end, end, a.kind)
 		if !ok || q.kind != '$' || seen[q.query] {
 			continue
 		}
