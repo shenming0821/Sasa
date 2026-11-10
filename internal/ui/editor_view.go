@@ -93,7 +93,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 		}
 		native.Spacer(c)
 		b := quietIconButton(c, "全部折叠").Size(26, 26)
-		b.Children(func() { native.Icon(c, chevron).Size(14, 14).Rotate(-90) })
+		b.Children(func() { native.Icon(c, collapseAllIcon).Size(14, 14) })
 		if b.Clicked() {
 			w.expanded = map[string]bool{w.root: true}
 			if filepath.Dir(w.selected) != w.root {

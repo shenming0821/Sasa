@@ -16,16 +16,17 @@ const (
 )
 
 var (
-	folderIcon  = icon(`<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 1h18"/>`)
-	newIcon     = icon(`<path d="M12 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M15 3l6 6M10 14l2-5 7-7 4 4-7 7-6 1Z"/>`)
-	upIcon      = icon(`<path d="M12 19V5m-6 6 6-6 6 6"/>`)
-	downIcon    = icon(`<path d="M12 5v14m-6-6 6 6 6-6"/>`)
-	stopIcon    = icon(`<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none"/>`)
-	copyIcon    = icon(`<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>`)
-	checkIcon   = icon(`<path d="m5 12 4 4L19 6"/>`)
-	chevron     = icon(`<path d="m7 10 5 5 5-5"/>`)
-	sidebarIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`)
-	historyIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>`)
+	folderIcon      = icon(`<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 1h18"/>`)
+	newIcon         = icon(`<path d="M12 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M15 3l6 6M10 14l2-5 7-7 4 4-7 7-6 1Z"/>`)
+	upIcon          = icon(`<path d="M12 19V5m-6 6 6-6 6 6"/>`)
+	downIcon        = icon(`<path d="M12 5v14m-6-6 6 6 6-6"/>`)
+	stopIcon        = icon(`<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none"/>`)
+	copyIcon        = icon(`<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>`)
+	checkIcon       = icon(`<path d="m5 12 4 4L19 6"/>`)
+	chevron         = icon(`<path d="m7 10 5 5 5-5"/>`)
+	collapseAllIcon = icon(`<path fill="currentColor" stroke="none" d="M21 6.406C21.9 6.931 22.5 7.89 22.5 9V16.5C22.5 19.815 19.815 22.5 16.5 22.5H9C7.89 22.5 6.931 21.9 6.406 21H16.5C18.975 21 21 18.975 21 16.5V6.406Z"/><rect x="3" y="3" width="16.5" height="16.5" rx="3"/><rect x="8.25" y="10.5" width="6" height="1.5" rx="0.75" fill="currentColor" stroke="none"/>`)
+	sidebarIcon     = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>`)
+	historyIcon     = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>`)
 )
 
 func icon(paths string) *native.SVG {
