@@ -148,22 +148,34 @@ func (s *session) visibleConversationMessages() []*app.Message {
 		for end < len(s.State.Messages) && s.State.Messages[end].Role != "user" {
 			end++
 		}
-		if message.Timing == nil || message.Timing.Finished.IsZero() || s.expandedProcesses[message.ID] || s.processProgress[message.ID] > 0 {
+		if message.Timing == nil || message.Timing.Finished.IsZero() {
 			visible = append(visible, s.State.Messages[start:end]...)
-		} else {
-			visible = append(visible, message)
-			var result *app.Message
-			for _, candidate := range s.State.Messages[start+1 : end] {
-				if candidate.Role == "assistant" && candidate.Text != "" {
-					result = candidate
-				}
-				if changeRecord(candidate) {
-					visible = append(visible, candidate)
-				}
+			start = end
+			continue
+		}
+		// Finished turns pin the final reply after the process, matching the
+		// collapsed view; Devin accumulates one reply from its first chunk, so
+		// tool records would otherwise expand below the answer.
+		folded := !s.expandedProcesses[message.ID] && s.processProgress[message.ID] <= 0
+		visible = append(visible, message)
+		resultIndex := -1
+		for index, candidate := range s.State.Messages[start+1 : end] {
+			if candidate.Role == "assistant" && candidate.Text != "" {
+				resultIndex = index
 			}
-			if result != nil {
-				visible = append(visible, result)
+		}
+		var result *app.Message
+		for index, candidate := range s.State.Messages[start+1 : end] {
+			if index == resultIndex {
+				result = candidate
+				continue
 			}
+			if !folded || changeRecord(candidate) {
+				visible = append(visible, candidate)
+			}
+		}
+		if result != nil {
+			visible = append(visible, result)
 		}
 		start = end
 	}

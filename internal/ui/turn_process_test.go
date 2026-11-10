@@ -107,6 +107,38 @@ func TestCollapsedTurnKeepsChangeCard(t *testing.T) {
 	assertFolded()
 }
 
+func TestExpandedTurnPinsReplyAfterProcess(t *testing.T) {
+	// Devin accumulates one assistant message from its first chunk, so tool
+	// records can land after the reply in Messages; expansion must still
+	// restore the process between the duration line and the final reply.
+	desktop := New(stubBackend{}, "test", "/tmp", nil)
+	started := time.Now().Add(-time.Minute)
+	desktop.State.Messages = []*app.Message{
+		{ID: "question", Role: "user", Text: "检查", Timing: &app.TurnTiming{Started: started, Finished: started.Add(time.Minute)}},
+		{ID: "reply", Role: "assistant", Text: "最终回复", Done: true},
+		commandMessage("read", "completed"),
+	}
+	tester := native.NewTester(desktop.view, 1000, 700)
+	tester.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
+	tester.Frame()
+	if tester.HasText("命令组 read") {
+		t.Fatal("collapsed turn leaked the process")
+	}
+	if err := tester.Click("展开执行过程 question"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	command, commandOK := tester.Find("命令组 read")
+	reply, replyOK := tester.Find("最终回复")
+	if !commandOK || !replyOK || command.Y >= reply.Y {
+		t.Fatal("expanded process did not return between the duration line and the final reply")
+	}
+	rows := desktop.conversationRows()
+	if len(rows) != 3 || len(rows[1].commands) == 0 || rows[2].message.ID != "reply" {
+		t.Fatalf("expanded projection did not pin the reply last: %+v", rows)
+	}
+}
+
 func TestChangeOnlyTurnHasNoProcessDisclosure(t *testing.T) {
 	desktop := New(stubBackend{}, "test", "/tmp", nil)
 	started := time.Now().Add(-time.Minute)
