@@ -262,7 +262,7 @@ func TestGitUnsavedGuardAndWriteOwnership(t *testing.T) {
 	}
 }
 
-func TestGitDiffHunkActionsAndSplitLayout(t *testing.T) {
+func TestGitDiffHunkNavigationAndSplitLayout(t *testing.T) {
 	a, q, root, git := gitWorkflowApp(t)
 	var lines []string
 	for i := range 40 {
@@ -290,11 +290,6 @@ func TestGitDiffHunkActionsAndSplitLayout(t *testing.T) {
 	tt.Click("并排")
 	if _, ok := tt.Find("差异 原版本"); !ok {
 		t.Fatal("split view not rendered")
-	}
-	tt.Click("暂存此修改块")
-	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && len(gitEntries(w, "已暂存的更改")) == 1 })
-	if index := git("show", ":hunks.txt"); strings.Contains(index, "changed 02") || !strings.Contains(index, "changed 30") {
-		t.Fatal("block action staged wrong changes", index)
 	}
 }
 
@@ -716,55 +711,6 @@ func TestGitMessageRejectsSameStatusWithChangedBytes(t *testing.T) {
 	p4Wait(t, tt, q, func() bool { return !w.gitGenerating })
 	if w.gitMessage != "" || !strings.Contains(w.gitActionError, "已变化") {
 		t.Fatal("generation accepted stale bytes with same porcelain status", w.gitMessage, w.gitActionError)
-	}
-}
-
-func TestGitHunkStageConfirmsUnsavedEditorBeforeUsingDisk(t *testing.T) {
-	a, q, root, git := gitWorkflowApp(t)
-	path := filepath.Join(root, "README.md")
-	os.WriteFile(path, []byte("disk change\n"), 0600)
-	w := a.workspace(root)
-	tt := native.NewTester(a.view, 1600, 900)
-	a.openFile(root, path)
-	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
-	source := a.currentFile()
-	source.buffer.Set("unsaved editor change\n")
-	a.observeFile(source)
-	p4Wait(t, tt, q, func() bool { return len(gitEntries(w, "更改")) == 1 })
-	a.openGitDiff(w, gitEntries(w, "更改")[0], false)
-	p4Wait(t, tt, q, func() bool { return a.currentFile() != source && a.currentFile().loaded })
-	if err := tt.Click("暂存此修改块"); err != nil {
-		t.Fatal(err)
-	}
-	if w.gitDecision == nil || w.gitBusy != "" {
-		t.Fatal("block staging bypassed unsaved editor confirmation")
-	}
-	if git("diff", "--cached") != "" {
-		t.Fatal("index changed before disk version was confirmed")
-	}
-	if err := tt.Click("使用磁盘版本"); err != nil {
-		t.Fatal(err)
-	}
-	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && len(gitEntries(w, "已暂存的更改")) == 1 })
-	if git("show", ":README.md") != "disk change\n" || source.buffer.String() != "unsaved editor change\n" || !source.dirty() {
-		t.Fatal("block staging changed the unsaved editor or selected wrong bytes")
-	}
-	a.gitStage(w, gitEntries(w, "已暂存的更改"), true)
-	p4Wait(t, tt, q, func() bool {
-		d := a.currentFile()
-		return w.gitBusy == "" && len(gitEntries(w, "已暂存的更改")) == 0 && !w.gitLoading && !d.loading
-	})
-	if err := tt.Click("暂存此修改块"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("保存后继续"); err != nil {
-		t.Fatal(err)
-	}
-	p4Wait(t, tt, q, func() bool {
-		return !source.dirty() && w.gitBusy == "" && !w.gitPreparing && w.gitActionError != ""
-	})
-	if !strings.Contains(w.gitActionError, "已变化") || git("diff", "--cached") != "" {
-		t.Fatal("saving silently applied an obsolete reviewed block", w.gitActionError)
 	}
 }
 

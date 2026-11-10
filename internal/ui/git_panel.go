@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
 	gitview "github.com/shenming0821/Fuyu/internal/git"
 )
@@ -389,25 +390,13 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 		}
 		dragFiles(b, dragPaths)
 		b.ContextMenu(func(m *native.Menu) {
-			if group != "冲突" {
-				label := "暂存"
-				if staged {
-					label = "取消暂存"
-				}
-				if m.Item(label).Disabled(busy).Chosen() {
-					a.gitStage(w, a.gitChosen(w, group, entry), staged)
-				}
-				if !staged && m.Item("撤销改动…").Disabled(busy).Chosen() {
-					a.gitDiscard(w, a.gitChosen(w, group, entry))
-				}
-			}
-			if m.Item("打开文件").Disabled(entry.XY == ".D" || entry.XY == "D.").Chosen() {
-				a.openFile(w.root, filepath.Join(w.root, entry.Path))
-			}
-			m.Separator()
-			for _, intent := range []string{"解释这些改动", "检查问题", "继续修改"} {
-				if m.Item(intent).Chosen() {
-					a.gitToCodex(w, a.gitChosen(w, group, entry), staged, intent, nil)
+			for _, label := range []string{"复制路径", "复制相对路径"} {
+				if m.Item(label).Chosen() {
+					text := entry.Path
+					if label == "复制路径" {
+						text = filepath.Join(w.root, entry.Path)
+					}
+					mygo.Clipboard.WriteText(text)
 				}
 			}
 		})

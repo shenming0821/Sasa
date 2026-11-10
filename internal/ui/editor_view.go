@@ -637,23 +637,40 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			})
 		}
 		native.Row(c).Height(34).FillWidth().Padding(0, 16).Gap(8).AlignItems(native.Center).Children(func() {
-			path, openable := d.path, true
-			if d.gitCommit != "" {
-				openable = false
-				if len(d.gitCommitFiles) > 0 {
-					entry := d.gitCommitFiles[d.gitCommitFile]
-					path = filepath.Join(d.root, entry.Path)
-					openable = !strings.HasPrefix(entry.XY, "D") && !d.loading
-				}
-			} else if d.gitReview != nil {
-				openable = gitStatusLabel(d.gitReview.Entry, d.gitReview.Staged) != "删除"
-			}
+			path, _ := d.diffOpenTarget()
 			rel, _ := filepath.Rel(d.root, path)
-			native.ScrollHorizontal(c.Key("file-path")).Grow(1).FillHeight().MinWidth(0).Children(func() {
-				native.Row(c).FillHeight().AlignItems(native.Center).Children(func() {
-					native.Text(c, rel).FontSize(11).TextColor(t.TextMuted).SingleLine()
+			if d.turnReview != nil {
+				names := make([]string, len(d.turnReview.files))
+				for i, f := range d.turnReview.files {
+					names[i] = a.relativeChangePath(f.Path)
+				}
+				current := names[d.turnReview.selected]
+				native.Select(c, &current, names).Label("本轮修改的文件").Grow(1).MinWidth(0).FontSize(11)
+				if current != names[d.turnReview.selected] {
+					for i, name := range names {
+						if name == current {
+							d.turnReview.selected = i
+							a.setTurnReviewFile(d)
+							break
+						}
+					}
+				}
+			} else {
+				native.ScrollHorizontal(c.Key("file-path")).Grow(1).FillHeight().MinWidth(0).Children(func() {
+					native.Row(c).FillHeight().Gap(5).AlignItems(native.Center).Children(func() {
+						native.Text(c, rel).FontSize(11).TextColor(t.TextMuted).SingleLine()
+						if d.kind == "diff" && d.gitReview != nil {
+							changeCounts(c, d.gitReview.Added, d.gitReview.Deleted, true)
+						}
+					})
 				})
-			})
+			}
+			if d.turnReview != nil && d.gitReview != nil {
+				f := d.turnReview.files[d.turnReview.selected]
+				native.Row(c).Gap(5).Shrink(0).AlignItems(native.Center).Children(func() {
+					changeCounts(c, d.gitReview.Added, d.gitReview.Deleted, f.Exact)
+				})
+			}
 			for _, s := range a.sessions {
 				if len(s.State.PendingInteractions()) > 0 {
 					if actionButton(c, "返回待处理会话").Clicked() {
@@ -662,16 +679,12 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					break
 				}
 			}
-			copyPath := quietIconButton(c, "复制完整路径").Size(24, 24)
-			copyPath.Children(func() { native.Icon(c, copyIcon).Size(12, 12) })
-			if copyPath.Clicked() && a.win != nil {
-				mygo.Clipboard.WriteText(path)
+			if d.kind == "diff" && d.compare != "外部更改" && d.gitReview != nil {
+				native.Row(c).Gap(4).Shrink(0).AlignItems(native.Center).Children(func() {
+					a.gitDiffControls(c, d)
+				})
 			}
-			if d.kind == "diff" {
-				if actionButton(c, "打开文件").Disabled(!openable).Clicked() {
-					a.openFile(d.root, path)
-				}
-			} else {
+			if d.kind != "diff" {
 				if actionButton(c, "保存").Disabled(!d.dirty() || d.saving || d.file.Reason != "").Clicked() {
 					a.saveFile(d, false, false, nil)
 				}
@@ -739,7 +752,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		if !d.highlighting && (d.contentWidth == 0 || d.highlightVersion != d.buffer.Version()) && time.Since(d.changedAt) > 200*time.Millisecond {
 			a.requestHighlight(d)
 		}
-		if d.file.Reason != "" {
+		if d.file.Reason != "" && (d.kind != "diff" || d.compare == "外部更改") {
 			native.Row(c).FillWidth().Padding(4, 14).Gap(8).AlignItems(native.Center).Children(func() {
 				native.Text(c, d.file.Reason).FontSize(11).TextColor(t.TextMuted).Grow(1)
 				if d.kind == "file" && actionButton(c, "在外部打开").Clicked() && a.win != nil {

@@ -210,7 +210,7 @@ func (a *App) setTurnReviewFile(d *filePage) {
 		review.Entry.XY = ".D"
 	}
 	a.gitSetDiffText(d, text, &review)
-	d.file.Path, d.file.Reason = d.path, "本轮历史差异 · 只读"
+	d.file.Path, d.file.Reason = d.path, "只读"
 	d.gitHunk, d.caret, d.anchor = 0, 0, 0
 	d.scroll, d.hscroll = native.ScrollState{}, native.ScrollState{}
 	d.gitLeftScroll, d.gitRightScroll = native.ScrollState{}, native.ScrollState{}

@@ -1,34 +1,34 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	native "github.com/egoist/mygo/ui"
 	gitview "github.com/shenming0821/Fuyu/internal/git"
 )
 
-func (a *App) gitDiffToolbar(c *native.Context, d *filePage) {
-	w := a.workspace(d.root)
-	native.Column(c).FillWidth().Children(func() {
-		if d.turnReview != nil {
-			names := make([]string, len(d.turnReview.files))
-			for i, f := range d.turnReview.files {
-				names[i] = f.Path
-			}
-			current := names[d.turnReview.selected]
-			native.Select(c, &current, names).Label("本轮修改的文件").FillWidth().FontSize(12)
-			if current != names[d.turnReview.selected] {
-				for i, name := range names {
-					if name == current {
-						d.turnReview.selected = i
-						a.setTurnReviewFile(d)
-						break
-					}
-				}
-			}
+var diffInlineIcon = icon(`<path d="M4 7h16M4 12h16M4 17h16"/>`)
+var diffSplitIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>`)
+
+func (d *filePage) diffOpenTarget() (string, bool) {
+	path, openable := d.path, true
+	if d.gitCommit != "" {
+		openable = false
+		if len(d.gitCommitFiles) > 0 {
+			entry := d.gitCommitFiles[d.gitCommitFile]
+			path = filepath.Join(d.root, entry.Path)
+			openable = !strings.HasPrefix(entry.XY, "D") && !d.loading
 		}
+	} else if d.gitReview != nil {
+		openable = gitStatusLabel(d.gitReview.Entry, d.gitReview.Staged) != "删除"
+	}
+	return path, openable
+}
+
+func (a *App) gitDiffToolbar(c *native.Context, d *filePage) {
+	native.Column(c).FillWidth().Children(func() {
 		if d.gitCommit != "" && len(d.gitCommitFiles) > 0 {
 			native.Text(c, d.gitCommitInfo.Subject).FontSize(12).Bold().SingleLine().Padding(4, 14)
 			native.Row(c).FillWidth().Padding(0, 14, 4, 14).Gap(6).Children(func() {
@@ -49,77 +49,70 @@ func (a *App) gitDiffToolbar(c *native.Context, d *filePage) {
 				}
 			})
 		}
-		native.Row(c).FillWidth().Height(34).Padding(0, 12).Gap(4).AlignItems(native.Center).Children(func() {
-			native.Text(c, d.compare).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Grow(1).MinWidth(0)
-			if d.gitReview == nil {
-				return
-			}
-			total := len(d.gitReview.Hunks)
-			if total > 0 {
-				d.gitHunk = min(max(d.gitHunk, 0), total-1)
-				native.Text(c, fmt.Sprintf("%d/%d", d.gitHunk+1, total)).FontSize(10).TextColor(c.Theme().TextMuted)
-			}
-			if gitIconButton(c.Key("prev-hunk"), "上一个修改", upIcon, total == 0).Clicked() {
-				a.gitStepHunk(d, -1)
-			}
-			if gitIconButton(c.Key("next-hunk"), "下一个修改", downIcon, total == 0).Clicked() {
-				a.gitStepHunk(d, 1)
-			}
-			layout := "并排"
-			if d.gitSplit {
-				layout = "行内"
-			}
-			if actionButton(c.Key("layout"), layout).Height(26).Clicked() {
-				d.gitSplit = !d.gitSplit
-			}
-			more := gitIconButton(c.Key("more"), "更多差异操作", gitMoreIcon, false)
-			more.Menu(func(m *native.Menu) {
-				if m.Item("上一个文件").Chosen() {
-					a.gitStepFile(d, -1)
-				}
-				if m.Item("下一个文件").Chosen() {
-					a.gitStepFile(d, 1)
-				}
-				m.Separator()
-				if d.turnReview != nil {
-					return
-				}
-				for _, intent := range []string{"解释这些改动", "检查问题", "继续修改"} {
-					if m.Item(intent).Disabled(total == 0).Chosen() {
-						hunk := d.gitReview.Hunks[d.gitHunk]
-						entry := d.gitReview.Entry
-						if d.gitCommit != "" && len(d.gitCommitFiles) > 0 {
-							entry = d.gitCommitFiles[d.gitCommitFile]
-						}
-						a.gitToCodex(w, []gitview.Entry{entry}, d.gitReview.Staged, intent, &hunk)
-					}
-				}
-			})
-		})
 		if d.gitNote != "" {
 			native.Text(c, d.gitNote).FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 14)
 		}
-		if d.gitReview != nil && d.gitReview.Blockable && len(d.gitReview.Hunks) > 0 {
-			native.Row(c).FillWidth().Padding(0, 14, 5, 14).Gap(6).AlignItems(native.Center).Children(func() {
-				label := "暂存此修改块"
-				if d.gitReview.Staged {
-					label = "取消暂存此修改块"
+	})
+}
+
+func (a *App) gitDiffControls(c *native.Context, d *filePage) {
+	w := a.workspace(d.root)
+	total := len(d.gitReview.Hunks)
+	if total > 0 {
+		d.gitHunk = min(max(d.gitHunk, 0), total-1)
+		native.Text(c, fmt.Sprintf("%d/%d", d.gitHunk+1, total)).FontSize(10).TextColor(c.Theme().TextMuted)
+	}
+	if gitIconButton(c.Key("prev-hunk"), "上一个修改", upIcon, total == 0).Clicked() {
+		a.gitStepHunk(d, -1)
+	}
+	if gitIconButton(c.Key("next-hunk"), "下一个修改", downIcon, total == 0).Clicked() {
+		a.gitStepHunk(d, 1)
+	}
+	layout := 0
+	if d.gitSplit {
+		layout = 1
+	}
+	parts := native.SegmentedBase(c.Key("layout"), &layout, 2)
+	t := c.Theme()
+	parts.Track.Label("差异布局").Padding(1).Gap(1).Radius(6).Background(t.Surface).Border(1, t.Border).Children(func() {
+		for index, glyph := range []*native.SVG{diffInlineIcon, diffSplitIcon} {
+			label := "行内"
+			if index == 1 {
+				label = "并排"
+			}
+			segment := parts.Segment(index).Label(label).Tooltip(label).Padding(3, 5).Radius(5).TextColor(t.TextMuted)
+			selectedButtonFace(c, segment, layout == index, 5, 0)
+			segment.Children(func() { native.Icon(c, glyph).Size(13, 13) })
+		}
+	})
+	if (layout == 1) != d.gitSplit {
+		d.gitSplit = layout == 1
+	}
+	path, openable := d.diffOpenTarget()
+	if gitIconButton(c.Key("open-file"), "打开文件", gitOpenFileIcon, !openable).Clicked() {
+		a.openFile(d.root, path)
+	}
+	more := gitIconButton(c.Key("more"), "更多差异操作", gitMoreIcon, false)
+	more.Menu(func(m *native.Menu) {
+		if m.Item("上一个文件").Chosen() {
+			a.gitStepFile(d, -1)
+		}
+		if m.Item("下一个文件").Chosen() {
+			a.gitStepFile(d, 1)
+		}
+		m.Separator()
+		if d.turnReview != nil {
+			return
+		}
+		for _, intent := range []string{"解释这些改动", "检查问题", "继续修改"} {
+			if m.Item(intent).Disabled(total == 0).Chosen() {
+				hunk := d.gitReview.Hunks[d.gitHunk]
+				entry := d.gitReview.Entry
+				if d.gitCommit != "" && len(d.gitCommitFiles) > 0 {
+					entry = d.gitCommitFiles[d.gitCommitFile]
 				}
-				if actionButton(c, label).Height(26).Disabled(w.gitBusy != "" || w.gitPreparing).Clicked() {
-					review, index := *d.gitReview, d.gitHunk
-					apply := func() {
-						a.gitAction(w, label, func(ctx context.Context) error {
-							return gitview.ApplyHunk(ctx, w.root, review, index)
-						}, nil)
-					}
-					if review.Staged {
-						apply()
-					} else {
-						a.gitWithSavedFiles(w, []string{review.Entry.Path}, apply)
-					}
-				}
-				native.Text(c, fmt.Sprintf("+%d −%d", d.gitReview.Added, d.gitReview.Deleted)).FontSize(10).TextColor(c.Theme().TextMuted)
-			})
+				a.gitToCodex(w, []gitview.Entry{entry}, d.gitReview.Staged, intent, &hunk)
+			}
 		}
 	})
 }
