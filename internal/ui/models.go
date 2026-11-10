@@ -247,11 +247,11 @@ func (a *App) modelPicker(c *native.Context) {
 	}
 	if a.kind.Normalized() == agent.Claude {
 		model = "选择模型"
-		for _, entry := range root.models {
-			if entry.Model == a.selectedModel {
-				model = entry.DisplayName
-				break
-			}
+	}
+	for _, entry := range root.models {
+		if entry.Model == a.selectedModel && entry.DisplayName != "" {
+			model = entry.DisplayName
+			break
 		}
 	}
 	effort := a.selectedEffort
@@ -384,6 +384,17 @@ func (a *App) modelMenu(c *native.Context) {
 			a.modelMenuOpen, a.detailsOpen = false, true
 		}
 	})
+}
+
+// modelDisplayName resolves a catalog model id to its display name; unknown or
+// unnamed entries stay as reported.
+func modelDisplayName(models []agent.Model, model string) string {
+	for i := range models {
+		if models[i].Model == model && models[i].DisplayName != "" {
+			return models[i].DisplayName
+		}
+	}
+	return model
 }
 
 func modelHasEffort(m *agent.Model, effort string) bool {

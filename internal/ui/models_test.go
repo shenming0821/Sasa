@@ -206,7 +206,7 @@ func TestModelMenuSelectionIsolationPersistenceAndDetails(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedModel != "provider/one" || a.modelMenuOpen || !tt.HasText("one") {
+	if a.selectedModel != "provider/one" || a.modelMenuOpen || !tt.HasText("Model One") {
 		t.Fatal("model selection did not close/update")
 	}
 	a.newSession("/second")
@@ -363,7 +363,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 			t.Fatal("missing turn option", label)
 		}
 	}
-	if !tt.HasText("one·中") {
+	if !tt.HasText("Model One·中") {
 		t.Fatal("default effort not shown on the model button")
 	}
 	if err := tt.Click("推理强度 高"); err != nil {
@@ -375,7 +375,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if a.selectedEffort != "high" || a.selectedTier != "priority" || !a.modelMenuOpen {
 		t.Fatal("option choice lost or menu closed", a.selectedEffort, a.selectedTier, a.modelMenuOpen)
 	}
-	if !tt.HasText("one·高") {
+	if !tt.HasText("Model One·高") {
 		t.Fatal("chosen effort not shown on the model button")
 	}
 	restored := New(b, "test", "/workspace", nil)
@@ -391,7 +391,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if a.selectedEffort != "" || a.selectedTier != "" {
 		t.Fatal("options survived a model change", a.selectedEffort, a.selectedTier)
 	}
-	if tt.HasText("two·") {
+	if tt.HasText("Model Two·") {
 		t.Fatal("effort shown for a model without catalog entries")
 	}
 	if err := tt.Click("选择模型"); err != nil {
@@ -405,7 +405,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedEffort != "high" || a.selectedTier != "" || !tt.HasText("one·高") {
+	if a.selectedEffort != "high" || a.selectedTier != "" || !tt.HasText("Model One·高") {
 		t.Fatal("remembered model effort was not restored or tier leaked", a.selectedEffort, a.selectedTier)
 	}
 	if err := tt.Click("选择模型"); err != nil {
@@ -414,7 +414,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("推理强度 中"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedEffort != "medium" || !tt.HasText("one·中") {
+	if a.selectedEffort != "medium" || !tt.HasText("Model One·中") {
 		t.Fatal("updated model effort not applied", a.selectedEffort)
 	}
 	if err := tt.Click("选择模型 Model Two"); err != nil {
@@ -426,7 +426,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedEffort != "medium" || !tt.HasText("one·中") {
+	if a.selectedEffort != "medium" || !tt.HasText("Model One·中") {
 		t.Fatal("updated model effort not remembered on reselect", a.selectedEffort)
 	}
 	if err := tt.Click("选择模型"); err != nil {
@@ -627,7 +627,7 @@ func TestModelEffortBindingAcrossSessionsAgentsAndMigration(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if restored.selectedEffort != "medium" || !tt.HasText("one·中") {
+	if restored.selectedEffort != "medium" || !tt.HasText("Model One·中") {
 		t.Fatal("migrated Codex model effort was not restored", restored.selectedEffort)
 	}
 	if err := tt.Click("选择模型"); err != nil {
@@ -638,5 +638,42 @@ func TestModelEffortBindingAcrossSessionsAgentsAndMigration(t *testing.T) {
 	}
 	if restored.selectedEffort != "" {
 		t.Fatal("Claude effort binding leaked across Agent boundary", restored.selectedEffort)
+	}
+}
+
+func TestModelPickerShowsDisplayNameForResolvedModelIDs(t *testing.T) {
+	a := New(&modelCaptureBackend{}, "test", "/workspace", nil)
+	a.models = []codex.Model{
+		{Model: "swe-2-high", DisplayName: "SWE-2",
+			SupportedReasoningEfforts: []agent.ReasoningEffortOption{
+				{ReasoningEffort: "medium"}, {ReasoningEffort: "high"}, {ReasoningEffort: "max"}},
+			DefaultReasoningEffort: "high"},
+		{Model: "swe-2-flash-medium", DisplayName: "SWE-2 Flash",
+			SupportedReasoningEfforts: []agent.ReasoningEffortOption{
+				{ReasoningEffort: "medium"}, {ReasoningEffort: "high"}, {ReasoningEffort: "max"}},
+			DefaultReasoningEffort: "medium"},
+	}
+	a.modelsLoaded = true
+	a.selectedModel = "swe-2-high"
+	tt := native.NewTester(a.view, 1000, 760)
+	if !tt.HasText("SWE-2·高") || tt.HasText("swe-2-high") {
+		t.Fatal("resolved model id leaked into the model button")
+	}
+	if err := tt.Click("选择模型"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("SWE-2 Flash") || tt.HasText("swe-2-flash-medium") {
+		t.Fatal("resolved model id leaked into the model menu")
+	}
+	for _, label := range []string{"中", "高", "最大"} {
+		if !tt.HasText(label) {
+			t.Fatal("missing effort chip", label)
+		}
+	}
+	if err := tt.Click("选择模型 SWE-2 Flash"); err != nil {
+		t.Fatal(err)
+	}
+	if a.selectedModel != "swe-2-flash-medium" || !tt.HasText("SWE-2 Flash·中") {
+		t.Fatal("selection did not apply the catalog display name", a.selectedModel)
 	}
 }

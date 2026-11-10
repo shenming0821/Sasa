@@ -29,7 +29,7 @@
 
 `session/update` 投影：`agent_message_chunk`→消息增量；`tool_call`/`tool_call_update` 按 `kind` 映射（execute→commandExecution、edit/delete/move→fileChange、其余→dynamicToolCall），diff 内容块投影为 `changes`，文本块为聚合输出，`cognition.ai/terminal_exit` 提供退出码；`config_option_update`/`available_commands_update`/`current_mode_update`/`session_info_update` 更新会话缓存。`agent_thought_chunk`、`plan`、`usage_update` 不投影到实时流，仅在恢复重放时生成 reasoning 条目。
 
-配置选项映射：`model`→模型、`thought_level`→推理强度、`speed`→服务档位，均按会话随 `session/new`/`session/load` 返回并支持 `session/set_config_option` 修改；`modes` 保留当前模式名到 `approvalPolicy`。未实现的 ACP 客户端能力（fs、terminal、其他请求方法）在 `initialize` 声明不支持并以 `cancelled` 兜底。
+配置选项映射：`model`→模型、`thought_level`→推理强度、`speed`→服务档位，均按会话随 `session/new`/`session/load` 返回并支持 `session/set_config_option` 修改；`modes` 保留当前模式名到 `approvalPolicy`。`model` 选项值是 `族-基线强度` 形式的 resolved ID（如 `swe-2-high`，裸族名会被服务端拒绝），尾缀属于 `thought_level` 可选值时投影为该模型的默认推理强度；`speed` 的 `standard` 并入应用内置基线档位，选择基线档时按 `standard` 写回。选项展示与 chips 顺序保留服务端返回顺序。未实现的 ACP 客户端能力（fs、terminal、其他请求方法）在 `initialize` 声明不支持并以 `cancelled` 兜底。
 
 ## 事件与故障语义
 

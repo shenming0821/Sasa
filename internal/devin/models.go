@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 )
@@ -29,6 +30,7 @@ func parseConfigOptions(raw json.RawMessage) map[string]*configOption {
 		entry := &configOption{ID: option.ID, Current: option.Current, Choices: make(map[string]string)}
 		for _, choice := range option.Choices {
 			entry.Choices[choice.Value] = choice.Name
+			entry.Order = append(entry.Order, choice.Value)
 		}
 		parsed[option.ID] = entry
 	}
@@ -59,6 +61,15 @@ func (c *Client) applyOptions(ctx context.Context, s *acpSession, options agent.
 		c.mu.Unlock()
 		if option == nil {
 			return fmt.Errorf("Devin 会话不支持选择%s", pair.label)
+		}
+		// The "standard" tier is Fuyu's built-in baseline chip; Devin spells it
+		// out as a regular choice. Other runtimes' "default" means unset, so an
+		// unknown baseline is dropped rather than sent verbatim.
+		if pair.id == optionIDs["tier"] && pair.value == "default" {
+			if _, ok := option.Choices["standard"]; !ok {
+				continue
+			}
+			pair.value = "standard"
 		}
 		if _, ok := option.Choices[pair.value]; !ok && len(option.Choices) > 0 {
 			return fmt.Errorf("Devin 会话不认识%s：%s", pair.label, pair.value)
@@ -145,21 +156,33 @@ func catalogModels(options map[string]*configOption) []agent.Model {
 	}
 	var efforts []agent.ReasoningEffortOption
 	if option := options["thought_level"]; option != nil {
-		for value, name := range option.Choices {
-			efforts = append(efforts, agent.ReasoningEffortOption{ReasoningEffort: value, Description: name})
+		for _, value := range option.Order {
+			efforts = append(efforts, agent.ReasoningEffortOption{ReasoningEffort: value, Description: option.Choices[value]})
 		}
 	}
 	var tiers []agent.ModelServiceTier
 	if option := options["speed"]; option != nil {
-		for value, name := range option.Choices {
-			tiers = append(tiers, agent.ModelServiceTier{ID: value, Name: name})
+		for _, value := range option.Order {
+			if value == "standard" {
+				continue
+			}
+			tiers = append(tiers, agent.ModelServiceTier{ID: value, Name: option.Choices[value]})
 		}
 	}
 	models := make([]agent.Model, 0, len(model.Choices))
-	for value, name := range model.Choices {
+	for _, value := range model.Order {
+		name := model.Choices[value]
 		entry := agent.Model{ID: value, Model: value, DisplayName: name, IsDefault: value == model.Current}
 		if entry.DisplayName == "" {
 			entry.DisplayName = value
+		}
+		// Model values are resolved ids like "swe-2-high"; the trailing effort
+		// is what Devin applies for that model when no effort is picked.
+		for _, effort := range efforts {
+			if strings.HasSuffix(value, "-"+effort.ReasoningEffort) {
+				entry.DefaultReasoningEffort = effort.ReasoningEffort
+				break
+			}
 		}
 		entry.SupportedReasoningEfforts = efforts
 		entry.ServiceTiers = tiers

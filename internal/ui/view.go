@@ -435,6 +435,8 @@ func (a *App) runtimeDetails(c *native.Context) {
 		model := a.State.Model
 		if model == "" {
 			model = "会话建立后确认"
+		} else {
+			model = modelDisplayName(a.session.models, model)
 		}
 		native.Column(c).FillWidth().Padding(10, 12).Gap(5).Radius(8).Background(t.Surface).Children(func() {
 			native.Text(c, "当前模型").FontSize(11).TextColor(t.TextMuted)

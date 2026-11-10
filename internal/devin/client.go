@@ -62,6 +62,7 @@ type configOption struct {
 	ID      string
 	Current string
 	Choices map[string]string // value → display name
+	Order   []string          // choice values in server order
 }
 
 // New connects the Devin ACP subprocess and authenticates it. The handshake is
