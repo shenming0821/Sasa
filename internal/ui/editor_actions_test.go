@@ -11,6 +11,7 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/editor"
+	gitview "github.com/shenming0821/Fuyu/internal/git"
 	"github.com/shenming0821/Fuyu/internal/storage"
 	"github.com/shenming0821/Fuyu/internal/workspace"
 )
@@ -120,6 +121,53 @@ func TestEditorCopyPathWithLineNumber(t *testing.T) {
 	}
 	if slices.Contains(tester.Menu(), "复制路径和行号") {
 		t.Fatal("file tree menu offered a line copy")
+	}
+	tester.CloseMenu()
+}
+
+func TestEditorDiffCopyPathWithLineNumber(t *testing.T) {
+	a, queue, root := p4App(t)
+	path := filepath.Join(root, "file.go")
+	if err := os.WriteFile(path, []byte("ctx1\nadd1\nctx3\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	patch := "diff --git a/file.go b/file.go\n--- a/file.go\n+++ b/file.go\n@@ -1,3 +1,4 @@\n ctx1\n-del\n+add1\n ctx3\n+tail\n"
+	review := gitview.ParsePatch(patch)
+	d := &filePage{id: "diff", root: root, path: path, kind: "diff", compare: "更改",
+		gitDiffState: gitDiffState{gitReview: &review}}
+	a.gitSetDiffText(d, patch, &review)
+	a.files = map[string]*filePage{d.id: d}
+	tester := native.NewTester(func(c *native.Context) {
+		native.Row(c).Fill().Children(func() { a.fileView(c, d, false, false) })
+	}, 1000, 600)
+	p4Wait(t, tester, queue, func() bool { return d.loaded && !d.highlighting })
+	var copied string
+	a.fileAction.copy = func(text string) error { copied = text; return nil }
+	r, ok := tester.Find("文件内容 " + path)
+	if !ok {
+		t.Fatal("diff area not found")
+	}
+	// 行序：ctx1(next=1)、del(old=2)、add1(next=2)、ctx3(next=3)、tail(next=4)
+	for _, tc := range []struct {
+		row, want int
+	}{
+		{2, 2}, // 新增行取新文件行号
+		{1, 2}, // 删除行取旧文件行号
+		{0, 1}, // 上下文行
+	} {
+		tester.RightClickAt(r.X+24, r.Y+8+float32(tc.row)*20+10)
+		if err := tester.ChooseMenuItem("复制路径和行号"); err != nil {
+			t.Fatalf("row %d: %v menu=%v", tc.row, err, tester.Menu())
+		}
+		if want := fmt.Sprintf("%s:%d", path, tc.want); copied != want {
+			t.Fatalf("row %d copied %q, want %q", tc.row, copied, want)
+		}
+	}
+	// 合成路径（提交视图）不提供行号项
+	d.path = filepath.Join(root, "提交 abc12345")
+	tester.RightClickAt(r.X+24, r.Y+8+10)
+	if slices.Contains(tester.Menu(), "复制路径和行号") {
+		t.Fatal("synthetic diff path offered a line copy")
 	}
 	tester.CloseMenu()
 }

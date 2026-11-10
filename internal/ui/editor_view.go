@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -795,10 +796,29 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
 			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
 			var lineAtClick func() int
-			if d.kind == "file" {
+			switch {
+			case d.kind == "file":
 				lineAtClick = func() int {
 					_, caret := area.TextAnchorCaret()
 					return snap.LineAt(caret)
+				}
+			case d.kind == "diff" && len(d.gitRows) > 0:
+				// Single-file diffs carry the file line per row; synthetic
+				// paths like commit views have nothing meaningful to copy.
+				if info, err := os.Stat(d.path); err == nil && info.Mode().IsRegular() {
+					lineAtClick = func() int {
+						_, caret := area.TextAnchorCaret()
+						index := snap.LineAt(caret)
+						if index < len(d.gitRows) {
+							if number := d.gitRows[index].next; number > 0 {
+								return number - 1
+							}
+							if number := d.gitRows[index].old; number > 0 {
+								return number - 1
+							}
+						}
+						return index
+					}
 				}
 			}
 			area.ContextMenu(a.fileMenuAt(d.root, d.path, true, false, lineAtClick))
