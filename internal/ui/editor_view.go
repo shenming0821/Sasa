@@ -881,6 +881,11 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					return true
 				}
 				if k.Mods == native.Cmd && k.Key == native.KeyF {
+					if d.anchor != d.caret {
+						if text := d.buffer.Slice(d.anchor, d.caret); text != "" && !strings.Contains(text, "\n") {
+							d.query = text
+						}
+					}
 					d.findOpen = true
 					d.findFocus = true
 					return true

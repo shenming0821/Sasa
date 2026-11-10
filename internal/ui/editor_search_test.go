@@ -248,6 +248,35 @@ func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
 	}
 }
 
+func TestP4FindSeedsSelectedWord(t *testing.T) {
+	a, q, root := p4App(t)
+	tt := native.NewTester(a.view, 1100, 760)
+	path := filepath.Join(root, "README.md")
+	a.openFile(root, path)
+	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	d := a.currentFile()
+	d.buffer.Set("fuyu one\nfuyu two\n")
+	d.observe()
+	if err := tt.Click("文件内容 " + path); err != nil {
+		t.Fatal(err)
+	}
+	d.pendingSelection = &[2]int{5, 8} // "one"
+	tt.Frame()
+	tt.Key(native.Cmd, native.KeyF)
+	if !d.findOpen || d.query != "one" {
+		t.Fatal("Cmd+F did not seed the selected word", d.findOpen, d.query)
+	}
+	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findMatches) == 1 && d.findResult == "1/1" })
+	// 跨行选区不覆盖既有查询
+	d.query = "keep"
+	d.pendingSelection = &[2]int{0, 10}
+	tt.Frame()
+	tt.Key(native.Cmd, native.KeyF)
+	if d.query != "keep" {
+		t.Fatal("multi-line selection overwrote the query", d.query)
+	}
+}
+
 func TestScanBufferContentMatches(t *testing.T) {
 	snap := native.NewTextBuffer("Fuyu 你好\nfuyu 世界\nFUYU\n").Snapshot()
 	matches, err := scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "fuyu"})
