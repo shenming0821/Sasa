@@ -296,6 +296,7 @@ func replayTurns(updates []json.RawMessage) ([]agent.HistoryTurn, []string) {
 	}
 	tools := map[string]struct {
 		turn, item int
+		state      *toolState
 	}{}
 	for _, raw := range updates {
 		var envelope struct {
@@ -368,6 +369,7 @@ func replayTurns(updates []json.RawMessage) ([]agent.HistoryTurn, []string) {
 				Kind       string          `json:"kind"`
 				Status     string          `json:"status"`
 				Content    []toolContent   `json:"content"`
+				Locations  []toolLocation  `json:"locations"`
 				RawInput   json.RawMessage `json:"rawInput"`
 				Meta       struct {
 					ToolName string `json:"cognition.ai/inferenceToolName"`
@@ -379,6 +381,7 @@ func replayTurns(updates []json.RawMessage) ([]agent.HistoryTurn, []string) {
 			}
 			open()
 			state := &toolState{title: call.Title, cwd: call.Meta.Cwd, command: rawInputCommand(call.RawInput), arguments: call.RawInput}
+			state.changeKind = call.Kind
 			state.status = map[string]string{"completed": "completed", "failed": "failed"}[call.Status]
 			if state.status == "" {
 				state.status = "inProgress"
@@ -388,7 +391,6 @@ func replayTurns(updates []json.RawMessage) ([]agent.HistoryTurn, []string) {
 				state.kind = "commandExecution"
 			case "edit", "delete", "move":
 				state.kind = "fileChange"
-				state.changes = diffChanges(call.Content, call.Kind, nil)
 			default:
 				state.kind = "dynamicToolCall"
 				state.name = firstNonEmpty(call.Meta.ToolName, call.Kind)
@@ -397,13 +399,24 @@ func replayTurns(updates []json.RawMessage) ([]agent.HistoryTurn, []string) {
 				state.command = call.Title
 			}
 			state.output = contentText(call.Content)
+			state.setChanges(call.Content, call.Locations)
 			index := appendItem(state.item(call.ToolCallID))
-			tools[call.ToolCallID] = struct{ turn, item int }{len(turns) - 1, index}
+			state.done = state.status == "completed" || state.status == "failed"
+			if state.done {
+				if item := state.changeItem(call.ToolCallID); item != nil {
+					appendItem(item)
+				}
+			}
+			tools[call.ToolCallID] = struct {
+				turn, item int
+				state      *toolState
+			}{len(turns) - 1, index, state}
 		case "tool_call_update":
 			var u struct {
-				ToolCallID string        `json:"toolCallId"`
-				Status     string        `json:"status"`
-				Content    []toolContent `json:"content"`
+				ToolCallID string         `json:"toolCallId"`
+				Status     string         `json:"status"`
+				Content    []toolContent  `json:"content"`
+				Locations  []toolLocation `json:"locations"`
 			}
 			if json.Unmarshal(raw, &u) != nil {
 				continue
@@ -412,18 +425,26 @@ func replayTurns(updates []json.RawMessage) ([]agent.HistoryTurn, []string) {
 			if !ok || ref.turn >= len(turns) || ref.item >= len(turns[ref.turn].Items) {
 				continue
 			}
-			var item map[string]any
-			if json.Unmarshal(turns[ref.turn].Items[ref.item], &item) != nil {
+			state := ref.state
+			if state.done {
 				continue
 			}
+			state.setChanges(u.Content, u.Locations)
 			if text := contentText(u.Content); text != "" {
-				item["aggregatedOutput"] = text
+				state.output = text
 			}
 			if u.Status == "completed" || u.Status == "failed" {
-				item["status"] = u.Status
+				state.status = u.Status
+				state.done = true
 			}
-			encoded, _ := json.Marshal(item)
+			encoded, _ := json.Marshal(state.item(u.ToolCallID))
 			turns[ref.turn].Items[ref.item] = encoded
+			if state.done {
+				if item := state.changeItem(u.ToolCallID); item != nil {
+					encoded, _ := json.Marshal(item)
+					turns[ref.turn].Items = append(turns[ref.turn].Items, encoded)
+				}
+			}
 		}
 	}
 	return turns, users

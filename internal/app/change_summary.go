@@ -64,6 +64,7 @@ func SummarizeChanges(cwd string, messages []*Message) ChangeSummary {
 				Type     string `json:"type"`
 				MovePath string `json:"move_path"`
 				Region   bool   `json:"region"`
+				Snapshot bool   `json:"snapshot"`
 			}
 			if json.Unmarshal(change.Kind, &kind) != nil {
 				f.exact = false
@@ -90,7 +91,11 @@ func SummarizeChanges(cwd string, messages []*Message) ChangeSummary {
 				f.exact = false
 			}
 			if f.exact {
-				f.exact = f.apply(change.Diff, kind.Type, kind.Region)
+				if kind.Snapshot {
+					f.exact = f.snapshot(change.Diff, kind.Type)
+				} else {
+					f.exact = f.apply(change.Diff, kind.Type, kind.Region)
+				}
 			}
 		}
 	}
@@ -110,6 +115,20 @@ func SummarizeChanges(cwd string, messages []*Message) ChangeSummary {
 		result.Files = append(result.Files, item)
 	}
 	return result
+}
+
+func (f *patchFile) snapshot(patch, kind string) bool {
+	first, _, _ := strings.Cut(patch, "\n")
+	match := turnHunk.FindStringSubmatch(first)
+	if match == nil || match[2] == "" {
+		return false
+	}
+	oldCount, err := strconv.Atoi(match[2])
+	if err != nil || !f.ensure(oldCount) || len(f.current) != oldCount {
+		return false
+	}
+	f.complete = true
+	return f.apply(patch, kind, false)
 }
 
 func rawLines(text string) []string {

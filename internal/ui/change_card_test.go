@@ -101,7 +101,7 @@ func TestChangeCardResponsiveExpansionAndHistoricReview(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if !tt.HasText("已编辑 5 个文件") || !tt.HasText("+10") || !tt.HasText("−5") || !tt.HasText("再显示 2 个文件") || tt.HasText("file_3.go") {
+				if !tt.HasText("已编辑 5 个文件") || !tt.HasText("+2") || !tt.HasText("−1") || tt.HasText("+10") || tt.HasText("−5") || !tt.HasText("再显示 2 个文件") || tt.HasText("file_3.go") {
 					t.Fatal("summary not compact by default", tt.Texts())
 				}
 				for _, text := range tt.Texts() {
@@ -205,7 +205,7 @@ func TestChangeSummaryIncompleteDisplayAndLongPaths(t *testing.T) {
 		native.Column(c).Fill().Children(func() { a.changeCard(c, []*app.Message{m}) })
 	}, 700, 400)
 	if !tt.HasText("统计不完整") || tt.HasText("+1") {
-		t.Fatal("unknown totals displayed as numbers")
+		t.Fatal("unknown file counts displayed as numbers")
 	}
 	for _, width := range []int{320, 700, 320} {
 		tt.SetSize(width, 400)

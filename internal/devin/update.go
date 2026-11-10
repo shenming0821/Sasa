@@ -10,17 +10,18 @@ import (
 
 // toolState accumulates one ACP tool_call across its update notifications.
 type toolState struct {
-	kind      string
-	status    string
-	title     string
-	command   string
-	cwd       string
-	name      string
-	arguments json.RawMessage
-	changes   []map[string]any
-	output    string
-	exitCode  *int
-	done      bool
+	kind       string
+	changeKind string
+	status     string
+	title      string
+	command    string
+	cwd        string
+	name       string
+	arguments  json.RawMessage
+	changes    []map[string]any
+	output     string
+	exitCode   *int
+	done       bool
 }
 
 // permission tracks an inbound session/request_permission until Respond or
@@ -193,9 +194,19 @@ func (c *Client) toolStart(s *acpSession, raw json.RawMessage) {
 	if state.command == "" && state.kind != "fileChange" {
 		state.command = call.Title
 	}
-	state.changes = append(state.changes, diffChanges(call.Content, call.Kind, call.Locations)...)
+	state.changeKind = call.Kind
+	state.setChanges(call.Content, call.Locations)
 	state.status, state.output = "inProgress", contentText(call.Content)
-	c.emit(s, "item/started", map[string]any{"threadId": s.id, "turnId": string(turn.ID), "item": state.item(call.ToolCallID)})
+	method := "item/started"
+	if call.Status == "completed" || call.Status == "failed" {
+		state.status, state.done, method = call.Status, true, "item/completed"
+	}
+	c.emit(s, method, map[string]any{"threadId": s.id, "turnId": string(turn.ID), "item": state.item(call.ToolCallID)})
+	if state.done {
+		if item := state.changeItem(call.ToolCallID); item != nil {
+			c.emit(s, method, map[string]any{"threadId": s.id, "turnId": string(turn.ID), "item": item})
+		}
+	}
 	if state.output != "" && state.kind == "commandExecution" {
 		c.emit(s, "item/commandExecution/outputDelta", map[string]any{
 			"threadId": s.id, "turnId": string(turn.ID), "itemId": call.ToolCallID, "delta": state.output,
@@ -205,10 +216,11 @@ func (c *Client) toolStart(s *acpSession, raw json.RawMessage) {
 
 func (c *Client) toolUpdate(s *acpSession, raw json.RawMessage) {
 	var u struct {
-		ToolCallID string        `json:"toolCallId"`
-		Title      string        `json:"title"`
-		Status     string        `json:"status"`
-		Content    []toolContent `json:"content"`
+		ToolCallID string         `json:"toolCallId"`
+		Title      string         `json:"title"`
+		Status     string         `json:"status"`
+		Content    []toolContent  `json:"content"`
+		Locations  []toolLocation `json:"locations"`
 		Meta       struct {
 			ToolName string `json:"cognition.ai/inferenceToolName"`
 			Cwd      string `json:"cognition.ai/cwd"`
@@ -224,7 +236,7 @@ func (c *Client) toolUpdate(s *acpSession, raw json.RawMessage) {
 	turn := s.turn
 	state := s.tools[u.ToolCallID]
 	c.mu.Unlock()
-	if turn.ID == "" || state == nil {
+	if turn.ID == "" || state == nil || state.done {
 		return
 	}
 	if u.Title != "" {
@@ -239,6 +251,7 @@ func (c *Client) toolUpdate(s *acpSession, raw json.RawMessage) {
 	if u.Meta.Exit != nil && u.Meta.Exit.Code != nil {
 		state.exitCode = u.Meta.Exit.Code
 	}
+	state.setChanges(u.Content, u.Locations)
 	if text := contentText(u.Content); text != "" && !state.done {
 		if strings.HasPrefix(text, state.output) {
 			if state.kind == "commandExecution" && len(text) > len(state.output) {
@@ -257,16 +270,19 @@ func (c *Client) toolUpdate(s *acpSession, raw json.RawMessage) {
 		state.done = true
 		state.status = u.Status
 		c.emit(s, "item/completed", map[string]any{"threadId": s.id, "turnId": string(turn.ID), "item": state.item(u.ToolCallID)})
+		if item := state.changeItem(u.ToolCallID); item != nil {
+			c.emit(s, "item/completed", map[string]any{"threadId": s.id, "turnId": string(turn.ID), "item": item})
+		}
 	case "in_progress", "pending":
 		state.status = "inProgress"
 	}
 }
 
 type toolContent struct {
-	Type    string `json:"type"`
-	Path    string `json:"path"`
-	OldText string `json:"oldText"`
-	NewText string `json:"newText"`
+	Type    string  `json:"type"`
+	Path    string  `json:"path"`
+	OldText *string `json:"oldText"`
+	NewText *string `json:"newText"`
 	Content struct {
 		Text string `json:"text"`
 	} `json:"content"`
@@ -286,9 +302,6 @@ func contentText(blocks []toolContent) string {
 	return text.String()
 }
 
-// diffChanges projects ACP diff content blocks as file-change entries with a
-// line-prefixed region diff; ACP carries region texts rather than positioned
-// unified diffs, so kinds are marked "region" for the summarizer.
 func diffChanges(blocks []toolContent, kind string, locations []toolLocation) []map[string]any {
 	var changes []map[string]any
 	changeKind := map[string]string{"edit": "update", "delete": "delete", "move": "update"}[kind]
@@ -300,20 +313,29 @@ func diffChanges(blocks []toolContent, kind string, locations []toolLocation) []
 		if block.Type != "diff" || block.Path == "" {
 			continue
 		}
-		var diff strings.Builder
-		if block.OldText != "" {
-			for _, line := range strings.Split(strings.TrimSuffix(block.OldText, "\n"), "\n") {
-				diff.WriteString("-" + line + "\n")
-			}
-		}
-		if block.NewText != "" {
-			for _, line := range strings.Split(strings.TrimSuffix(block.NewText, "\n"), "\n") {
-				diff.WriteString("+" + line + "\n")
-			}
-		}
-		change := map[string]any{"type": changeKind, "region": true}
-		if block.OldText == "" && changeKind == "update" {
+		change := map[string]any{"type": changeKind, "snapshot": true}
+		if block.OldText == nil && changeKind == "update" {
 			change["type"] = "add"
+		}
+		var diff strings.Builder
+		if block.NewText == nil || (block.OldText == nil && *block.NewText == "") {
+			change = map[string]any{"type": changeKind, "region": true}
+		} else {
+			oldText := ""
+			if block.OldText != nil {
+				oldText = *block.OldText
+			}
+			oldLines, newLines := snapshotLines(oldText), snapshotLines(*block.NewText)
+			oldStart, newStart := 1, 1
+			if len(oldLines) == 0 {
+				oldStart = 0
+			}
+			if len(newLines) == 0 {
+				newStart = 0
+			}
+			fmt.Fprintf(&diff, "@@ -%d,%d +%d,%d @@\n", oldStart, len(oldLines), newStart, len(newLines))
+			writeSnapshotLines(&diff, "-", oldText, oldLines)
+			writeSnapshotLines(&diff, "+", *block.NewText, newLines)
 		}
 		raw, _ := json.Marshal(change)
 		changes = append(changes, map[string]any{"path": block.Path, "kind": json.RawMessage(raw), "diff": diff.String()})
@@ -326,6 +348,57 @@ func diffChanges(blocks []toolContent, kind string, locations []toolLocation) []
 		}
 	}
 	return changes
+}
+
+func snapshotLines(text string) []string {
+	if text == "" {
+		return nil
+	}
+	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+}
+
+func writeSnapshotLines(diff *strings.Builder, prefix, text string, lines []string) {
+	for index, line := range lines {
+		diff.WriteString(prefix + line + "\n")
+		if index == len(lines)-1 && !strings.HasSuffix(text, "\n") {
+			diff.WriteString("\\ No newline at end of file\n")
+		}
+	}
+}
+
+func (t *toolState) setChanges(content []toolContent, locations []toolLocation) {
+	if t.kind != "fileChange" {
+		locations = nil
+	}
+	changes := diffChanges(content, t.changeKind, locations)
+	provided := map[string]bool{}
+	for _, block := range content {
+		if block.Type == "diff" {
+			provided[block.Path] = true
+		}
+	}
+	for index, change := range changes {
+		path, _ := change["path"].(string)
+		if provided[path] {
+			continue
+		}
+		for _, previous := range t.changes {
+			if previous["path"] == path {
+				changes[index] = previous
+				break
+			}
+		}
+	}
+	if len(changes) > 0 {
+		t.changes = changes
+	}
+}
+
+func (t *toolState) changeItem(id string) map[string]any {
+	if t.kind == "fileChange" || len(t.changes) == 0 {
+		return nil
+	}
+	return map[string]any{"id": id + ":changes", "type": "fileChange", "status": t.status, "changes": t.changes}
 }
 
 func rawInputCommand(raw json.RawMessage) string {
@@ -358,7 +431,7 @@ func (t *toolState) item(id string) map[string]any {
 	if len(t.arguments) > 0 {
 		item["arguments"] = t.arguments
 	}
-	if len(t.changes) > 0 {
+	if len(t.changes) > 0 && t.kind == "fileChange" {
 		item["changes"] = t.changes
 	}
 	if t.output != "" {
