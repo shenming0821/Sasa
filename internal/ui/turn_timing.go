@@ -80,7 +80,10 @@ func (s *session) hasTurnProcess(question *app.Message) bool {
 			continue
 		}
 		if message.Role != "assistant" {
-			return true
+			if !changeRecord(message) {
+				return true
+			}
+			continue
 		}
 		// Empty assistant placeholders are skipped by conversationRows; the
 		// final nonempty reply stays visible even when the process is folded.
@@ -153,6 +156,9 @@ func (s *session) visibleConversationMessages() []*app.Message {
 			for _, candidate := range s.State.Messages[start+1 : end] {
 				if candidate.Role == "assistant" && candidate.Text != "" {
 					result = candidate
+				}
+				if changeRecord(candidate) {
+					visible = append(visible, candidate)
 				}
 			}
 			if result != nil {

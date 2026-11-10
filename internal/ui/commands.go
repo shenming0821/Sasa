@@ -59,7 +59,7 @@ func (s *session) conversationRows() []conversationRow {
 			continue
 		}
 		command := groupableTool(m)
-		change := m.Role == "tool" && m.Interaction == nil && m.Tool != nil && m.Tool.Kind == "fileChange" && m.Tool.Status == "completed" && len(m.Tool.Changes) > 0
+		change := changeRecord(m)
 		owner := ""
 		if m.Tool != nil {
 			owner = m.Tool.ParentToolID
@@ -100,7 +100,11 @@ func (s *session) conversationRows() []conversationRow {
 			}
 			continue
 		}
-		rows[index].processID = question
+		// Change cards stay outside the folded process so edited files remain
+		// visible after the turn collapses to its final reply.
+		if len(rows[index].changes) == 0 {
+			rows[index].processID = question
+		}
 		if question != "" && message.Role == "assistant" {
 			result = index
 		}
@@ -115,6 +119,11 @@ func (s *session) conversationRows() []conversationRow {
 		s.projectedMessages[index] = row.message
 	}
 	return rows
+}
+
+func changeRecord(message *app.Message) bool {
+	return message.Role == "tool" && message.Interaction == nil && message.Tool != nil &&
+		message.Tool.Kind == "fileChange" && message.Tool.Status == "completed" && len(message.Tool.Changes) > 0
 }
 
 func groupableTool(message *app.Message) bool {

@@ -64,6 +64,65 @@ func TestCompletedTurnProcessDisclosure(t *testing.T) {
 	}
 }
 
+func TestCollapsedTurnKeepsChangeCard(t *testing.T) {
+	desktop := New(stubBackend{}, "test", "/tmp", nil)
+	desktop.sidebarOpen = false
+	started := time.Now().Add(-time.Minute)
+	timing := &app.TurnTiming{Started: started, Finished: started.Add(time.Minute)}
+	desktop.State.Messages = []*app.Message{
+		{ID: "question", Role: "user", Text: "修改文件", Timing: timing},
+		commandMessage("read", "completed"),
+		changeMessage("edit", "turn", "/tmp/a.go", "@@ -1 +1 @@\n-old\n+new\n"),
+		{ID: "result", Role: "assistant", Text: "修改完成", Done: true},
+	}
+	tester := native.NewTester(desktop.view, 1000, 700)
+	tester.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
+	tester.Frame()
+	assertFolded := func() {
+		t.Helper()
+		if !tester.HasText("已编辑 1 个文件") || !tester.HasText("a.go") || !tester.HasText("修改完成") {
+			t.Fatalf("collapsed turn dropped the change summary: %v", tester.Texts())
+		}
+		if tester.HasText("命令组 read") {
+			t.Fatal("collapsed turn leaked the command group")
+		}
+	}
+	assertFolded()
+	if err := tester.Click("展开执行过程 question"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if !tester.HasText("命令组 read") || !tester.HasText("已编辑 1 个文件") {
+		t.Fatal("expansion lost the card or the process")
+	}
+	if err := tester.Click("收起执行过程 question"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	assertFolded()
+}
+
+func TestChangeOnlyTurnHasNoProcessDisclosure(t *testing.T) {
+	desktop := New(stubBackend{}, "test", "/tmp", nil)
+	started := time.Now().Add(-time.Minute)
+	question := &app.Message{ID: "question", Role: "user", Timing: &app.TurnTiming{Started: started, Finished: started.Add(time.Minute)}}
+	desktop.State.Messages = []*app.Message{
+		question,
+		changeMessage("edit", "turn", "/tmp/a.go", "@@ -1 +1 @@\n-old\n+new\n"),
+		{ID: "result", Role: "assistant", Text: "修改完成", Done: true},
+	}
+	tester := native.NewTester(func(c *native.Context) {
+		desktop.session.turnTiming(c, question)
+	}, 400, 100)
+	tester.Frame()
+	if !tester.HasText("用时 1分钟 0秒") {
+		t.Fatal("duration disappeared")
+	}
+	if _, found := tester.Find("展开执行过程 question"); found {
+		t.Fatal("an always-visible change card was offered as a folded process")
+	}
+}
+
 func TestTurnProcessDisclosureRequiresContent(t *testing.T) {
 	for _, example := range []struct {
 		name     string
