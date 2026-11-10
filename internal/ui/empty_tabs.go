@@ -37,6 +37,7 @@ func (a *App) emptyTab(c *native.Context, tab storage.Tab) {
 			row.ScrollIntoView()
 		}
 	}
+	a.tabDropZone(c, row, tab.ID, tab.ID == a.activeTab)
 	row.Children(func() {
 		label, closeLabel := "新标签页", "关闭新标签页"
 		if tab.ID != "" {

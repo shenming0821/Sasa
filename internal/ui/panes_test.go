@@ -147,6 +147,134 @@ func TestPaneTabDragDropAndCancel(t *testing.T) {
 	}
 }
 
+func TestPaneTabReorderByDragAndRestore(t *testing.T) {
+	a := New(stubBackend{}, "test", "/project", nil)
+	store := imageStore(t, a)
+	first := a.session
+	a.newSession("/project")
+	second := a.session
+	a.newSession("/project")
+	third := a.session
+	pane := focusedPane(a.layoutFor("/project"))
+	tester := native.NewTester(a.view, 1600, 900)
+	tester.Frame()
+	label := func(s *session) string { return fmt.Sprintf("会话标签 %d", s.id) }
+	initial := []string{sessionTabID(first.id), sessionTabID(second.id), sessionTabID(third.id)}
+	if !slices.Equal(pane.Tabs, initial) {
+		t.Fatalf("unexpected initial order: %+v", pane.Tabs)
+	}
+	dragOnto := func(source, target string, rightHalf, cancel bool) {
+		t.Helper()
+		from, found := tester.Find(source)
+		if !found {
+			t.Fatalf("source tab %q missing", source)
+		}
+		onto, found := tester.Find(target)
+		if !found {
+			t.Fatalf("target %q missing", target)
+		}
+		x := onto.X + 40
+		if rightHalf {
+			x = onto.X + onto.W - 40
+		}
+		y := onto.Y + onto.H/2
+		tester.Press(from.X+30, from.Y+from.H/2)
+		tester.Move(from.X+45, from.Y+from.H/2)
+		tester.Move(x, y)
+		if cancel {
+			tester.Key(0, native.KeyEscape)
+		}
+		tester.Release(x, y)
+		tester.Frame()
+	}
+	flatOrder := func() []string {
+		var ids []string
+		for _, tab := range a.folderTabs("/project") {
+			ids = append(ids, tab.ID)
+		}
+		return ids
+	}
+	// Before its left edge: [third, first, second].
+	dragOnto(label(third), label(first), false, false)
+	want := []string{sessionTabID(third.id), sessionTabID(first.id), sessionTabID(second.id)}
+	if !slices.Equal(pane.Tabs, want) || a.activeTab != sessionTabID(third.id) {
+		t.Fatalf("drop on left half did not reorder and select: %+v active=%s", pane.Tabs, a.activeTab)
+	}
+	if !slices.Equal(flatOrder(), want) {
+		t.Fatalf("flat order did not follow the strip: %+v", flatOrder())
+	}
+	// After the last tab's right edge moves it last: [third, second, first].
+	dragOnto(label(first), label(second), true, false)
+	want = []string{sessionTabID(third.id), sessionTabID(second.id), sessionTabID(first.id)}
+	if !slices.Equal(pane.Tabs, want) || a.activeTab != sessionTabID(first.id) {
+		t.Fatalf("drop on right half did not reorder and select: %+v active=%s", pane.Tabs, a.activeTab)
+	}
+	// Dropping on itself and cancelling keep the order.
+	dragOnto(label(second), label(second), false, false)
+	dragOnto(label(third), label(first), false, true)
+	if !slices.Equal(pane.Tabs, want) {
+		t.Fatalf("self-drop or Escape changed the order: %+v", pane.Tabs)
+	}
+	// The strip's tail moves a tab last: [third, second, first] -> [second, first, third].
+	blank, found := tester.Find("新建标签页空白处 " + pane.ID)
+	if !found {
+		t.Fatal("tab strip blank missing")
+	}
+	from, _ := tester.Find(label(third))
+	tester.Press(from.X+30, from.Y+from.H/2)
+	tester.Move(from.X+45, from.Y+from.H/2)
+	tester.Move(blank.X+40, blank.Y+blank.H/2)
+	tester.Release(blank.X+40, blank.Y+blank.H/2)
+	tester.Frame()
+	want = []string{sessionTabID(second.id), sessionTabID(first.id), sessionTabID(third.id)}
+	if !slices.Equal(pane.Tabs, want) || a.activeTab != sessionTabID(third.id) {
+		t.Fatalf("tail drop did not move the tab last: %+v active=%s", pane.Tabs, a.activeTab)
+	}
+	// A positioned drop into the other pane fills its empty placeholder.
+	right := a.splitPane("/project", pane, "horizontal")
+	left := paneLeaves(a.layoutFor("/project").Root)[0]
+	tester.Frame()
+	emptyRow, found := tester.Find("新标签页 " + right.Tabs[0])
+	if !found || !a.isEmptyTab(right.Active) {
+		t.Fatal("split pane did not offer its empty tab")
+	}
+	from, _ = tester.Find(label(first))
+	x, y := emptyRow.X+40, emptyRow.Y+emptyRow.H/2
+	tester.Press(from.X+30, from.Y+from.H/2)
+	tester.Move(from.X+45, from.Y+from.H/2)
+	tester.Move(x, y)
+	tester.Release(x, y)
+	tester.Frame()
+	if !slices.Equal(right.Tabs, []string{sessionTabID(first.id)}) || right.Active != sessionTabID(first.id) || a.activeTab != sessionTabID(first.id) || len(left.Tabs) != 2 || len(a.tabs) != 3 {
+		t.Fatalf("positional drop did not fill the placeholder: right=%+v left=%+v tabs=%+v", right.Tabs, left.Tabs, a.tabs)
+	}
+	// Dropping between two tabs of the other pane inserts at that position.
+	a.newSession("/project")
+	fourth := a.session
+	if !slices.Equal(right.Tabs, []string{sessionTabID(first.id), sessionTabID(fourth.id)}) {
+		t.Fatalf("new session did not append to the focused pane: %+v", right.Tabs)
+	}
+	tester.Frame()
+	dragOnto(label(third), label(fourth), false, false)
+	if !slices.Equal(right.Tabs, []string{sessionTabID(first.id), sessionTabID(third.id), sessionTabID(fourth.id)}) || !slices.Equal(left.Tabs, []string{sessionTabID(second.id)}) || left.Active != sessionTabID(second.id) || a.activeTab != sessionTabID(third.id) {
+		t.Fatalf("cross-pane positioned drop failed: right=%+v left=%+v active=%s", right.Tabs, left.Tabs, a.activeTab)
+	}
+	if !slices.Equal(flatOrder(), []string{sessionTabID(second.id), sessionTabID(first.id), sessionTabID(third.id), sessionTabID(fourth.id)}) {
+		t.Fatalf("flat order did not follow both strips: %+v", flatOrder())
+	}
+	if err := a.persist(); err != nil {
+		t.Fatal(err)
+	}
+	restored := New(stubBackend{}, "test", "", nil)
+	if err := restored.AttachStore(store); err != nil {
+		t.Fatal(err)
+	}
+	leaves := paneLeaves(restored.layouts["/project"].Root)
+	if len(leaves) != 2 || !slices.Equal(leaves[0].Tabs, left.Tabs) || !slices.Equal(leaves[1].Tabs, right.Tabs) || restored.activeTab != sessionTabID(third.id) {
+		t.Fatalf("restart lost reordered tabs: %+v active=%s", restored.layouts["/project"], restored.activeTab)
+	}
+}
+
 func TestPaneSnapshotMigrationRepairAndFolderSwitch(t *testing.T) {
 	a := New(stubBackend{}, "test", "/first", nil)
 	store := imageStore(t, a)

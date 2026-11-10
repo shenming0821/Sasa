@@ -10,20 +10,21 @@ import (
 )
 
 type paneState struct {
-	layouts          map[string]storage.WorkspaceLayout
-	paneSerial       int
-	emptyTabSerial   int
-	renderingPane    *storage.PaneNode
-	paneHandles      map[string]*native.Handle
-	paneBounds       map[string]native.Rect
-	paneErrors       map[string]string
-	visibleTerms     map[string]bool
-	paneFocusPending string
-	workspaceAliases map[string]string
-	paneNativeFocus  string
-	paneTabDragging  bool
-	paneClosing      map[string]bool
-	paneClosePending *paneCloseRequest
+	layouts           map[string]storage.WorkspaceLayout
+	paneSerial        int
+	emptyTabSerial    int
+	renderingPane     *storage.PaneNode
+	paneHandles       map[string]*native.Handle
+	paneBounds        map[string]native.Rect
+	paneErrors        map[string]string
+	visibleTerms      map[string]bool
+	paneFocusPending  string
+	workspaceAliases  map[string]string
+	paneNativeFocus   string
+	paneTabDragging   bool
+	paneClosing       map[string]bool
+	paneClosePending  *paneCloseRequest
+	tabReorderPending *paneTabReorder
 }
 
 type paneCloseRequest struct {
@@ -35,6 +36,12 @@ type paneTabDrag struct {
 	Workspace string
 	Pane      string
 	Tab       string
+}
+
+type paneTabReorder struct {
+	pane   *storage.PaneNode
+	source paneTabDrag
+	index  int
 }
 
 func paneLeaves(node *storage.PaneNode) []*storage.PaneNode {
@@ -279,7 +286,108 @@ func (a *App) movePaneTab(root string, target *storage.PaneNode, source paneTabD
 	a.setPaneSelection(target)
 	a.paneFocusPending = target.ID
 	delete(a.paneErrors, target.ID)
+	a.syncFolderTabOrder(root)
 	return true
+}
+
+// movePaneTabAt inserts the dragged tab into target at index: a reorder when
+// it already belongs there, otherwise a positioned move from its pane. A drop
+// past the last tab reuses movePaneTab's append behaviour.
+func (a *App) movePaneTabAt(root string, target *storage.PaneNode, source paneTabDrag, index int) bool {
+	if source.Workspace != root {
+		return false
+	}
+	layout := a.layoutFor(root)
+	leaves := paneLeaves(layout.Root)
+	if !slices.Contains(leaves, target) {
+		return false
+	}
+	var origin *storage.PaneNode
+	for _, pane := range leaves {
+		if pane.ID == source.Pane && slices.Contains(pane.Tabs, source.Tab) {
+			origin = pane
+			break
+		}
+	}
+	if origin == nil {
+		return false
+	}
+	index = max(0, min(index, len(target.Tabs)))
+	if origin == target {
+		from := slices.Index(target.Tabs, source.Tab)
+		if from < 0 || from == index || from+1 == index {
+			return false
+		}
+		target.Tabs = slices.Delete(target.Tabs, from, from+1)
+		if from < index {
+			index--
+		}
+		target.Tabs = slices.Insert(target.Tabs, index, source.Tab)
+		target.Active = source.Tab
+		a.focusPane(root, target)
+		a.syncFolderTabOrder(root)
+		return true
+	}
+	if index == len(target.Tabs) {
+		return a.movePaneTab(root, target, source)
+	}
+	origin.Tabs = slices.DeleteFunc(origin.Tabs, func(id string) bool { return id == source.Tab })
+	if origin.Active == source.Tab {
+		origin.Active = ""
+		if len(origin.Tabs) > 0 {
+			origin.Active = origin.Tabs[0]
+		}
+	}
+	if !a.isEmptyTab(source.Tab) && a.isEmptyTab(target.Active) {
+		emptyID := target.Active
+		if at := slices.Index(target.Tabs, emptyID); at >= 0 {
+			target.Tabs = slices.Delete(target.Tabs, at, at+1)
+			if at < index {
+				index--
+			}
+		}
+		a.tabs = slices.DeleteFunc(a.tabs, func(tab storage.Tab) bool { return tab.ID == emptyID })
+		for folder, selected := range a.folderSelectedTabs {
+			if selected == emptyID {
+				delete(a.folderSelectedTabs, folder)
+			}
+		}
+	}
+	index = min(index, len(target.Tabs))
+	target.Tabs = slices.Insert(target.Tabs, index, source.Tab)
+	target.Active = source.Tab
+	a.focusPane(root, target)
+	a.paneFocusPending = target.ID
+	delete(a.paneErrors, target.ID)
+	a.syncFolderTabOrder(root)
+	return true
+}
+
+// syncFolderTabOrder rewrites the flat order of root's tabs to match the
+// panes' displayed order, so neighbour selection, restore and the saved
+// workspace tab order agree with the tab strips.
+func (a *App) syncFolderTabOrder(root string) {
+	var order []string
+	for _, pane := range paneLeaves(a.layoutFor(root).Root) {
+		order = append(order, pane.Tabs...)
+	}
+	byID := make(map[string]storage.Tab, len(a.tabs))
+	for _, tab := range a.tabs {
+		byID[tab.ID] = tab
+	}
+	next := 0
+	for i := range a.tabs {
+		if next >= len(order) {
+			return
+		}
+		if folder, valid := a.tabFolder(a.tabs[i]); !valid || folder != root {
+			continue
+		}
+		if tab, ok := byID[order[next]]; ok {
+			a.tabs[i] = tab
+		}
+		next++
+	}
 }
 
 func (a *App) paneMenu(root string, pane *storage.PaneNode) func(*native.Menu) {

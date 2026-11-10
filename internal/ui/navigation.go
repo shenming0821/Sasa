@@ -182,6 +182,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 							row.ScrollIntoView()
 						}
 					}
+					a.tabDropZone(c, row, tab.ID, tab.ID == a.activeTab)
 					row.Children(func() {
 						label := "文件标签 " + tab.Path
 						closeLabel := "关闭文件标签 " + tab.Path
@@ -271,6 +272,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 				}
 				if pane := a.renderingPane; pane != nil {
 					blank := native.Box(c.Key("tab-blank")).Label("新建标签页空白处 " + pane.ID).Grow(1).FillHeight()
+					a.tabEndDropZone(c, blank, pane)
 					if blank.DoubleClicked() {
 						a.newEmptyTab(a.activeWorkspace, pane)
 						c.AnimationFrame()

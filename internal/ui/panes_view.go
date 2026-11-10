@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"slices"
+
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/storage"
@@ -93,6 +95,60 @@ func (a *App) workspacePanes(c *native.Context, leftShown, rightShown bool) {
 	}
 	if destination != nil && a.movePaneTab(root, destination, dropped) {
 		c.AnimationFrame()
+	}
+	if request := a.tabReorderPending; request != nil {
+		a.tabReorderPending = nil
+		if a.movePaneTabAt(root, request.pane, request.source, request.index) {
+			c.AnimationFrame()
+		}
+	}
+}
+
+// tabDropZone makes a tab row take dragged tabs: hovering shows a bar at the
+// edge it would insert before or after, and a drop is applied once the panes
+// finish rendering. active asks the bar to keep the selected underline.
+func (a *App) tabDropZone(c *native.Context, row native.Element, tabID string, active bool) {
+	pane, root := a.renderingPane, a.activeWorkspace
+	if pane == nil {
+		return
+	}
+	index := slices.Index(pane.Tabs, tabID)
+	if index < 0 {
+		return
+	}
+	x, _, _ := row.PointerPosition()
+	after := x >= row.Bounds().W/2
+	if after {
+		index++
+	}
+	if source, ok := native.DragOver[paneTabDrag](row); ok && source.Workspace == root && source.Tab != tabID {
+		theme := c.Theme()
+		row.DrawOver(func(painter *native.Painter, bounds native.Rect) {
+			if active {
+				painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, theme.TextMuted, 0)
+			}
+			edge := bounds.X
+			if after {
+				edge += bounds.W - 2
+			}
+			painter.Fill(native.Rect{X: edge, Y: bounds.Y + 4, W: 2, H: bounds.H - 8}, theme.Accent, 0)
+		})
+	}
+	if source, ok := native.Drop[paneTabDrag](row); ok && source.Workspace == root {
+		a.tabReorderPending = &paneTabReorder{pane: pane, source: source, index: index}
+	}
+}
+
+// tabEndDropZone makes the empty area past the last tab an append target.
+func (a *App) tabEndDropZone(c *native.Context, blank native.Element, pane *storage.PaneNode) {
+	if source, ok := native.DragOver[paneTabDrag](blank); ok && source.Workspace == a.activeWorkspace {
+		accent := c.Theme().Accent
+		blank.DrawOver(func(painter *native.Painter, bounds native.Rect) {
+			painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + 4, W: 2, H: bounds.H - 8}, accent, 0)
+		})
+	}
+	if source, ok := native.Drop[paneTabDrag](blank); ok && source.Workspace == a.activeWorkspace {
+		a.tabReorderPending = &paneTabReorder{pane: pane, source: source, index: len(pane.Tabs)}
 	}
 }
 
