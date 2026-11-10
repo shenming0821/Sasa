@@ -119,6 +119,12 @@ type filePage struct {
 	bracketStart, bracketEnd, bracketCaret                              int
 	bracketBuffer                                                       *native.TextBuffer
 	bracketVersion                                                      uint64
+	words                                                               []findMatch
+	wordSel                                                             [2]int
+	wordFirst, wordLast                                                 int
+	wordBlocked                                                         bool
+	wordBuffer                                                          *native.TextBuffer
+	wordVersion                                                         uint64
 	pendingSelection                                                    *[2]int
 	pendingLocation                                                     *fileLocation
 	highlights                                                          []syntaxToken

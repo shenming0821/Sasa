@@ -115,6 +115,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 				input := native.TextInputBase(c, &w.query).Label("搜索文件内容").Placeholder("搜索文件内容").Grow(1).MinWidth(0).FontSize(12).Padding(4)
 				if w.searchFocus {
 					input.Focus()
+					input.SetTextSelection(0, len([]rune(w.query)))
 					w.searchFocus = false
 				}
 				composing := input.Composing()
@@ -895,7 +896,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 				if k.Mods == native.Cmd && k.Key == native.KeyF {
 					if d.anchor != d.caret {
-						if text := d.buffer.Slice(d.anchor, d.caret); text != "" && !strings.Contains(text, "\n") {
+						if text := d.buffer.Slice(d.anchor, d.caret); text != "" && len(text) < 200 && !strings.Contains(text, "\n") {
 							d.query = text
 						}
 					}
@@ -938,6 +939,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 						}
 					}
 				}
+				a.paintWordMatches(p, r, d, snap, palette)
 				a.paintFileMatches(p, r, d, snap, palette)
 				a.paintBracketPair(p, r, d, snap, palette)
 			})
@@ -973,6 +975,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 						input := native.TextInputBase(c, &d.query).Label("文件内查找").Placeholder("查找文本").Grow(1).MinWidth(0).FontSize(12).Padding(4)
 						if d.findFocus {
 							input.Focus()
+							input.SetTextSelection(0, len([]rune(d.query)))
 							d.findFocus = false
 						}
 						composing := input.Composing()
@@ -1448,6 +1451,85 @@ func utf16Len(rs []rune) int {
 		n += utf16.RuneLen(r)
 	}
 	return n
+}
+
+// matchWords caches the visible occurrences of the text selected on one
+// line, painted quietly by paintWordMatches. An open find with its own
+// matches wins.
+func (d *filePage) matchWords(snap native.TextSnapshot, first, last int) {
+	sel := [2]int{d.anchor, d.caret}
+	blocked := d.findOpen && len(d.findMatches) > 0
+	if d.wordBuffer == d.buffer && d.wordVersion == snap.Version() && d.wordSel == sel && d.wordFirst == first && d.wordLast == last && d.wordBlocked == blocked {
+		return
+	}
+	d.wordBuffer, d.wordVersion, d.wordSel = d.buffer, snap.Version(), sel
+	d.wordFirst, d.wordLast, d.wordBlocked = first, last, blocked
+	d.words = d.words[:0]
+	a0, b0 := min(sel[0], sel[1]), max(sel[0], sel[1])
+	a0, b0 = min(a0, snap.Len()), min(b0, snap.Len())
+	if d.kind != "file" || blocked || a0 == b0 || b0-a0 > 200 || snap.LineAt(a0) != snap.LineAt(b0) {
+		return
+	}
+	word := snap.Slice(a0, b0)
+	if strings.TrimSpace(word) == "" {
+		return
+	}
+	for i := first; i <= last && len(d.words) <= 400; i++ {
+		s, e := snap.LineRange(i)
+		if e-s > 2000 {
+			continue
+		}
+		text := snap.Slice(s, e)
+		for at := 0; ; {
+			k := strings.Index(text[at:], word)
+			if k < 0 {
+				break
+			}
+			k += at
+			start := s + utf8.RuneCountInString(text[:k])
+			d.words = append(d.words, findMatch{start: start, end: start + utf8.RuneCountInString(word)})
+			at = k + len(word)
+		}
+	}
+}
+
+// paintWordMatches fills the occurrences matchWords found with a quiet
+// text-tinted block, lighter than the find-match accent blocks.
+func (a *App) paintWordMatches(p *native.Painter, r native.Rect, d *filePage, snap native.TextSnapshot, palette editorPalette) {
+	first := max(0, d.lines.At(d.scroll.Y-8)-1)
+	last := min(snap.LineCount()-1, d.lines.At(d.scroll.Y+r.H-8)+2)
+	d.matchWords(snap, first, last)
+	if len(d.words) == 0 || d.wordBuffer != d.buffer || d.wordVersion != snap.Version() {
+		return
+	}
+	textX := r.X + 58
+	font := native.Font{Family: a.codeFontFamily(), Size: 13}
+	sel0, sel1 := min(d.wordSel[0], d.wordSel[1]), max(d.wordSel[0], d.wordSel[1])
+	line, lineStart, lineEnd := -1, 0, 0
+	var lineRunes []rune
+	var layout *native.TextLayout
+	for _, m := range d.words {
+		if sel0 != sel1 && m.start == sel0 && m.end == sel1 {
+			continue // the selection itself
+		}
+		l := snap.LineAt(m.start)
+		if l != line {
+			lineStart, lineEnd = snap.LineRange(l)
+			lineRunes = []rune(snap.Slice(lineStart, lineEnd))
+			layout = nil
+			line = l
+		}
+		if layout == nil {
+			layout = native.ShapeText(string(lineRunes), font, 0)
+		}
+		x0 := textX + layout.Caret(utf16Len(lineRunes[:m.start-lineStart])).X
+		x1 := textX + layout.Caret(utf16Len(lineRunes[:m.end-lineStart])).X
+		if x1 <= textX {
+			continue
+		}
+		y := r.Y + 8 + d.lines.Top(l) - d.scroll.Y
+		p.Fill(native.Rect{X: max(x0, textX) - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}, palette.text.Alpha(.14), 3)
+	}
 }
 func (a *App) confirmFile(d *filePage, title, detail string, fn func()) {
 	if a.quitDialog {

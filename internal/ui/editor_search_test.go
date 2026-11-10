@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
@@ -190,6 +191,43 @@ func TestP4SearchFiltersCollapseAndFolderSearchReveal(t *testing.T) {
 	}
 }
 
+func TestP4SearchInFolderSeedsEditorSelection(t *testing.T) {
+	a, q, root := p4App(t)
+	a.historyOpen, a.rightTab = true, "files"
+	w := a.workspace(root)
+	tt := native.NewTester(a.view, 1100, 760)
+	path := filepath.Join(root, "README.md")
+	a.openFile(root, path)
+	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	d := a.currentFile()
+	d.buffer.Set("fuyu one\nfuyu two\n")
+	d.observe()
+	if err := tt.Click("文件内容 " + path); err != nil {
+		t.Fatal(err)
+	}
+	d.pendingSelection = &[2]int{5, 8} // "one"
+	tt.Frame()
+	a.searchInFolder(root, filepath.Join(root, "internal"))
+	tt.Frame()
+	if w.query != "one" {
+		t.Fatal("folder search did not seed the editor selection", w.query)
+	}
+	// 搜索框获得焦点时查询全选，键入即整体替换
+	tt.Type("x")
+	tt.Frame()
+	if w.query != "x" {
+		t.Fatal("typing did not replace the selected query", w.query)
+	}
+	// 跨行选区保留既有查询
+	w.query = "keep"
+	d.pendingSelection = &[2]int{0, 10}
+	tt.Frame()
+	a.searchInFolder(root, filepath.Join(root, "internal"))
+	if w.query != "keep" {
+		t.Fatal("multi-line selection overwrote the query", w.query)
+	}
+}
+
 func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
 	a, q, root := p4App(t)
 	tt := native.NewTester(a.view, 1100, 760)
@@ -267,6 +305,12 @@ func TestP4FindSeedsSelectedWord(t *testing.T) {
 		t.Fatal("Cmd+F did not seed the selected word", d.findOpen, d.query)
 	}
 	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findMatches) == 1 && d.findResult == "1/1" })
+	// 打开时查询全选，键入即整体替换
+	tt.Type("x")
+	tt.Frame()
+	if d.query != "x" {
+		t.Fatal("typing did not replace the selected query", d.query)
+	}
 	// 跨行选区不覆盖既有查询
 	d.query = "keep"
 	d.pendingSelection = &[2]int{0, 10}
@@ -275,6 +319,71 @@ func TestP4FindSeedsSelectedWord(t *testing.T) {
 	if d.query != "keep" {
 		t.Fatal("multi-line selection overwrote the query", d.query)
 	}
+}
+
+func TestP4SelectionWordHighlights(t *testing.T) {
+	a, q, root := p4App(t)
+	tt := native.NewTester(a.view, 1100, 760)
+	path := filepath.Join(root, "README.md")
+	a.openFile(root, path)
+	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	d := a.currentFile()
+	d.buffer.Set("fuyu one\nfuyu two\nfuyu one\n")
+	d.observe()
+	if err := tt.Click("文件内容 " + path); err != nil {
+		t.Fatal(err)
+	}
+	// 选中单行文本立即高亮缓冲内所有出现（含选区自身，绘制时跳过）
+	d.pendingSelection = &[2]int{5, 8} // "one"
+	tt.Frame()
+	if len(d.words) != 2 || d.words[0] != (findMatch{5, 8}) || d.words[1] != (findMatch{23, 26}) {
+		t.Fatal("selection occurrences not matched", d.words)
+	}
+	// 跨行选区不高亮
+	d.pendingSelection = &[2]int{0, 10}
+	tt.Frame()
+	if len(d.words) != 0 {
+		t.Fatal("multi-line selection kept word highlights", d.words)
+	}
+	// 超长选区不高亮
+	long := strings.Repeat("ab", 110)
+	d.buffer.Set(long + "\n" + long + "\n")
+	d.observe()
+	d.pendingSelection = &[2]int{0, 201}
+	tt.Frame()
+	if len(d.words) != 0 {
+		t.Fatal("oversized selection kept word highlights", len(d.words))
+	}
+	// 纯空白选区不高亮
+	d.buffer.Set("fuyu one\n   x\nfuyu one\n")
+	d.observe()
+	d.pendingSelection = &[2]int{9, 12} // "   "
+	tt.Frame()
+	if len(d.words) != 0 {
+		t.Fatal("whitespace selection kept word highlights", d.words)
+	}
+	// 只有光标没有选区不高亮
+	d.pendingSelection = &[2]int{1, 1} // caret inside "fuyu"
+	tt.Frame()
+	if len(d.words) != 0 {
+		t.Fatal("bare caret highlighted the word under it", d.words)
+	}
+	// 查找栏有匹配时让位给搜索高亮
+	d.buffer.Set("fuyu one\nfuyu two\n")
+	d.observe()
+	d.pendingSelection = &[2]int{5, 8} // "one"
+	tt.Frame()
+	if len(d.words) != 1 {
+		t.Fatal("selection occurrences not matched before find", d.words)
+	}
+	d.findOpen, d.query = true, "fuyu"
+	a.findInFile(d, false)
+	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findMatches) == 2 })
+	tt.Frame()
+	if len(d.words) != 0 {
+		t.Fatal("find did not take over word highlights", d.words)
+	}
+	d.findOpen = false
 }
 
 func TestScanBufferContentMatches(t *testing.T) {

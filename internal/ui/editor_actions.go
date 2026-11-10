@@ -92,6 +92,11 @@ func (a *App) searchInFolder(root, path string) {
 	if rel, err := filepath.Rel(w.root, path); err == nil && rel != "." {
 		w.searchInclude = "./" + filepath.ToSlash(rel)
 	}
+	if d := a.currentFile(); d != nil && d.anchor != d.caret {
+		if text := d.buffer.Slice(d.anchor, d.caret); text != "" && len(text) < 200 && !strings.Contains(text, "\n") {
+			w.query = text
+		}
+	}
 	w.searchFocus = true
 	a.rightTab = "files"
 	a.historyOpen = true
