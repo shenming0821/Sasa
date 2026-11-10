@@ -45,6 +45,8 @@ type acpSession struct {
 	cwd       string
 	title     string
 	mode      string
+	modes     []agent.SessionMode
+	modeAck   chan string
 	catalog   bool
 	loaded    bool
 	loading   bool
@@ -134,7 +136,7 @@ func (c *Client) Home() string { return c.home }
 func (c *Client) Version() string { return c.version }
 
 func (c *Client) Capabilities() agent.Capabilities {
-	return agent.Capabilities{Models: true, Commands: true, Images: true, Approval: true, History: true, Resume: true, Reconcile: true}
+	return agent.Capabilities{Models: true, Commands: true, Images: true, Approval: true, PermissionMode: true, History: true, Resume: true, Reconcile: true}
 }
 
 func (c *Client) Events() <-chan agent.Event { return c.queue.events }
@@ -145,6 +147,25 @@ func (c *Client) sessionKey(id string) agent.SessionKey {
 
 func (c *Client) emit(s *acpSession, method string, value any) {
 	c.emitID(s, method, nil, value)
+}
+
+// emitRuntime reports the session's model, version and permission state; the
+// UI refreshes the runtime row and the mode picker from each emission.
+func (c *Client) emitRuntime(s *acpSession) {
+	c.mu.Lock()
+	model := ""
+	if option := s.options["model"]; option != nil {
+		model = option.Current
+	}
+	params := map[string]any{
+		"threadId": s.id, "model": model, "version": c.version,
+		"mode": s.mode, "policy": "devin:" + s.mode,
+	}
+	if len(s.modes) > 0 {
+		params["modes"] = append([]agent.SessionMode(nil), s.modes...)
+	}
+	c.mu.Unlock()
+	c.emit(s, "fuyu/runtime", params)
 }
 
 func (c *Client) emitID(s *acpSession, method string, id json.RawMessage, value any) {
@@ -207,15 +228,17 @@ func (c *Client) StartThread(ctx context.Context, cwd string) (agent.Thread, err
 	var created struct {
 		SessionID string `json:"sessionId"`
 		Modes     struct {
-			Current string `json:"currentModeId"`
+			Current   string              `json:"currentModeId"`
+			Available []agent.SessionMode `json:"availableModes"`
 		} `json:"modes"`
 		ConfigOptions json.RawMessage `json:"configOptions"`
 	}
 	if json.Unmarshal(result, &created) != nil || created.SessionID == "" {
 		return thread, fmt.Errorf("Devin 会话响应不完整")
 	}
-	s := &acpSession{id: created.SessionID, cwd: path, mode: created.Modes.Current, loaded: true,
+	s := &acpSession{id: created.SessionID, cwd: path, mode: created.Modes.Current, modes: created.Modes.Available, loaded: true,
 		options: parseConfigOptions(created.ConfigOptions), tools: make(map[string]*toolState), state: c.loadState(created.SessionID)}
+	syncModes(s)
 	s.state.Cwd = path
 	c.mu.Lock()
 	if c.closed || c.failed {
@@ -224,13 +247,16 @@ func (c *Client) StartThread(ctx context.Context, cwd string) (agent.Thread, err
 	}
 	c.sessions[s.id] = s
 	c.mu.Unlock()
-	model := ""
+	c.applyDefaultMode(ctx, s)
+	c.emitRuntime(s)
+	c.mu.Lock()
+	model, mode := "", s.mode
 	if s.options["model"] != nil {
 		model = s.options["model"].Current
 	}
-	c.emit(s, "fuyu/runtime", map[string]any{"threadId": s.id, "model": model, "version": c.version})
+	c.mu.Unlock()
 	thread.Thread.ID, thread.Cwd, thread.Model = s.id, path, model
-	thread.ApprovalPolicy = json.RawMessage(fmt.Sprintf("%q", "devin:"+s.mode))
+	thread.ApprovalPolicy = json.RawMessage(fmt.Sprintf("%q", "devin:"+mode))
 	thread.Sandbox = json.RawMessage(`{"type":"devinAcp"}`)
 	return thread, nil
 }

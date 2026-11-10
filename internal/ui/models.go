@@ -570,6 +570,9 @@ func readablePolicy(raw string) string {
 	if json.Unmarshal([]byte(raw), &value) != nil {
 		return raw
 	}
+	if rest, ok := strings.CutPrefix(value, "devin:"); ok {
+		return rest
+	}
 	switch value {
 	case "default":
 		return "Claude 标准审批"

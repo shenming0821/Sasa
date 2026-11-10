@@ -57,6 +57,8 @@ type session struct {
 	readingContext    *native.Context
 	restoreOffset     bool
 	detailsOpen       bool
+	modeChanging      bool
+	modeError         string
 	copiedID          string
 	snapshotPending   bool
 	followResponses   map[string]bool

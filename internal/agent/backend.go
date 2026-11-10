@@ -59,6 +59,19 @@ type IntentResponder interface {
 	RespondApproval(context.Context, ApprovalIntent) error
 }
 
+// SessionMode is one permission/autonomy mode the runtime advertises per
+// session (ACP availableModes); Name is the server-provided label.
+type SessionMode struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// PermissionModeChanger switches a session's permission mode immediately.
+// The new state arrives through the backend's own events, not the return value.
+type PermissionModeChanger interface {
+	SetPermissionMode(context.Context, PermissionModeChange) error
+}
+
 type HistoryBackend interface {
 	ResumeThread(context.Context, string) (ResumedThread, error)
 	ListTurns(context.Context, string, *string) (TurnsPage, error)

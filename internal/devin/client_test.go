@@ -26,6 +26,12 @@ func init() {
 }
 
 var fakeOptions = []any{
+	map[string]any{"id": "mode", "name": "Session Mode", "type": "select", "currentValue": "accept-edits", "options": []any{
+		map[string]any{"value": "accept-edits", "name": "Code"},
+		map[string]any{"value": "smart", "name": "Smart"},
+		map[string]any{"value": "plan", "name": "Plan"},
+		map[string]any{"value": "bypass", "name": "Bypass Permissions"},
+	}},
 	map[string]any{"id": "model", "name": "Model", "type": "select", "currentValue": "m1", "options": []any{
 		map[string]any{"value": "m1", "name": "Model One"},
 		map[string]any{"value": "m2", "name": "Model Two"},
@@ -38,6 +44,22 @@ var fakeOptions = []any{
 		map[string]any{"value": "standard", "name": "Standard"},
 		map[string]any{"value": "fast", "name": "Fast"},
 	}},
+}
+
+// fakeModes mirrors the mode option's choices as ACP availableModes.
+func fakeModes() []any {
+	modes := []any{}
+	for _, raw := range fakeOptions {
+		option := raw.(map[string]any)
+		if option["id"] != "mode" {
+			continue
+		}
+		for _, choice := range option["options"].([]any) {
+			entry := choice.(map[string]any)
+			modes = append(modes, map[string]any{"id": entry["value"], "name": entry["name"]})
+		}
+	}
+	return modes
 }
 
 func fakeConfigOptions() []any {
@@ -57,6 +79,27 @@ func runFakeACP() {
 	var pendingPrompt json.RawMessage
 	pendingPermission := 0
 	currentOptions := fakeConfigOptions()
+	currentMode := "accept-edits"
+	modes := func() map[string]any {
+		return map[string]any{"currentModeId": currentMode, "availableModes": fakeModes()}
+	}
+	setMode := func(sessionID, modeID string) {
+		currentMode = "accept-edits"
+		for _, raw := range currentOptions {
+			option := raw.(map[string]any)
+			if option["id"] != "mode" {
+				continue
+			}
+			for _, choice := range option["options"].([]any) {
+				if choice.(map[string]any)["value"] == modeID {
+					currentMode = modeID
+				}
+			}
+			option["currentValue"] = currentMode
+		}
+		update(sessionID, map[string]any{"sessionUpdate": "config_option_update", "configOptions": currentOptions})
+		update(sessionID, map[string]any{"sessionUpdate": "current_mode_update", "currentModeId": currentMode})
+	}
 	for in.Scan() {
 		var frame struct {
 			ID     json.RawMessage `json:"id"`
@@ -91,6 +134,7 @@ func runFakeACP() {
 			} `json:"prompt"`
 			ConfigID string `json:"configId"`
 			Value    string `json:"value"`
+			ModeID   string `json:"modeId"`
 		}
 		_ = json.Unmarshal(frame.Params, &params)
 		switch frame.Method {
@@ -108,7 +152,10 @@ func runFakeACP() {
 			}
 			respond(map[string]any{})
 		case "session/new":
-			respond(map[string]any{"sessionId": "acp-session-1", "modes": map[string]any{"currentModeId": "default"}, "configOptions": currentOptions})
+			respond(map[string]any{"sessionId": "acp-session-1", "modes": modes(), "configOptions": currentOptions})
+		case "session/set_mode":
+			setMode(params.SessionID, params.ModeID)
+			respond(map[string]any{})
 		case "session/set_config_option":
 			for _, raw := range currentOptions {
 				option := raw.(map[string]any)
@@ -175,7 +222,7 @@ func runFakeACP() {
 			update(params.SessionID, map[string]any{"sessionUpdate": "user_message_chunk", "content": map[string]any{"type": "text", "text": "previous question"}})
 			update(params.SessionID, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "previous "}})
 			update(params.SessionID, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]any{"type": "text", "text": "answer"}})
-			respond(map[string]any{"modes": map[string]any{"currentModeId": "default"}, "configOptions": fakeConfigOptions()})
+			respond(map[string]any{"modes": modes(), "configOptions": fakeConfigOptions()})
 		case "session/close", "session/delete":
 			respond(map[string]any{})
 		case "debug/exit":
@@ -249,6 +296,9 @@ func TestClientHandshakeAndPrompt(t *testing.T) {
 	resolvedTmp, _ := filepath.EvalSymlinks("/tmp")
 	if thread.Thread.ID != "acp-session-1" || thread.Cwd != resolvedTmp || thread.Model != "m1" {
 		t.Fatalf("unexpected thread: %+v", thread)
+	}
+	if string(thread.ApprovalPolicy) != `"devin:bypass"` {
+		t.Fatalf("默认权限模式应为 bypass: %s", thread.ApprovalPolicy)
 	}
 	collectUntil(t, c, "fuyu/runtime")
 	turn, err := c.Send(ctx, thread.Thread.ID, "hello")
@@ -426,6 +476,9 @@ func TestClientHistory(t *testing.T) {
 	if resumed.ThreadMeta.ID != "old-1" || resumed.Cwd != "/tmp" || resumed.Model != "m1" || resumed.ThreadMeta.Preview != "Earlier session" {
 		t.Fatalf("resumed %+v", resumed)
 	}
+	if string(resumed.Policy) != `"devin:bypass"` {
+		t.Fatalf("恢复会话默认权限模式应为 bypass: %s", resumed.Policy)
+	}
 	if raw, err := os.ReadFile(filepath.Join(c.stateDir, "old-1.json")); err != nil || !strings.Contains(string(raw), `"cwd":"/tmp"`) {
 		t.Fatalf("检查点未保存会话目录: %s err=%v", raw, err)
 	}
@@ -509,6 +562,59 @@ func TestClientOptions(t *testing.T) {
 	var submitted *agent.NotSubmittedError
 	if _, err := c.SendWithOptions(ctx, thread.Thread.ID, "hi", nil, nil, agent.TurnOptions{Model: "unknown"}); !errors.As(err, &submitted) {
 		t.Fatalf("未知模型应返回未提交错误: %v", err)
+	}
+}
+
+func TestClientPermissionModeSwitch(t *testing.T) {
+	c := newTestClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	thread, err := c.StartThread(ctx, "/tmp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimeMode := func(events []agent.Event) (mode, policy string, modes []agent.SessionMode) {
+		for _, event := range events {
+			if event.Method != "fuyu/runtime" {
+				continue
+			}
+			var p struct {
+				Mode   string              `json:"mode"`
+				Policy string              `json:"policy"`
+				Modes  []agent.SessionMode `json:"modes"`
+			}
+			if json.Unmarshal(event.Params, &p) == nil {
+				mode, policy, modes = p.Mode, p.Policy, p.Modes
+			}
+		}
+		return
+	}
+	events := collectUntil(t, c, "fuyu/runtime")
+	mode, policy, modes := runtimeMode(events)
+	if mode != "bypass" || policy != "devin:bypass" || len(modes) == 0 {
+		t.Fatalf("运行时权限投影 mode=%q policy=%q modes=%v", mode, policy, modes)
+	}
+	key := agent.PermissionModeChange{Session: agent.SessionKey{Agent: agent.Devin, Runtime: c.home, SessionID: thread.Thread.ID}, Mode: "plan"}
+	if err := c.SetPermissionMode(ctx, key); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.After(10 * time.Second)
+	for mode != "plan" {
+		select {
+		case event := <-c.Events():
+			mode, policy, _ = runtimeMode([]agent.Event{event})
+		case <-deadline:
+			t.Fatalf("等待模式切换事件超时，当前 %q", mode)
+		}
+	}
+	if policy != "devin:plan" {
+		t.Fatalf("切换后策略 %q", policy)
+	}
+	if err := c.SetPermissionMode(ctx, agent.PermissionModeChange{Session: key.Session, Mode: "nonsense"}); err == nil {
+		t.Fatal("未提供的模式应明确报错")
+	}
+	if err := c.SetPermissionMode(ctx, agent.PermissionModeChange{Session: agent.SessionKey{SessionID: "ghost"}, Mode: "plan"}); err == nil {
+		t.Fatal("未知会话应明确报错")
 	}
 }
 

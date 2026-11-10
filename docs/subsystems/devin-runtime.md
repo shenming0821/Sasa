@@ -16,6 +16,7 @@
 |---|---|
 | `StartThread` | `session/new`（cwd、mcpServers） |
 | `Send`/`SendWithImages`/`SendWithOptions` | `session/set_config_option`（变更项）+ `session/prompt` |
+| `SetPermissionMode` | `session/set_mode`，以 `current_mode_update` 为生效确认 |
 | `Interrupt` | `session/cancel` 通知 |
 | `Events()` | ← `session/update` 通知投影 |
 | 审批 `Respond` | ← `session/request_permission` → `outcome` |
@@ -29,7 +30,7 @@
 
 `session/update` 投影：`agent_message_chunk`→消息增量；`tool_call`/`tool_call_update` 按 `kind` 映射（execute→commandExecution、edit/delete/move→fileChange、其余→dynamicToolCall），diff 内容块投影为 `changes`，文本块为聚合输出，`cognition.ai/terminal_exit` 提供退出码；`config_option_update`/`available_commands_update`/`current_mode_update`/`session_info_update` 更新会话缓存。`agent_thought_chunk`、`plan`、`usage_update` 不投影到实时流，仅在恢复重放时生成 reasoning 条目。
 
-配置选项映射：`model`→模型、`thought_level`→推理强度、`speed`→服务档位，均按会话随 `session/new`/`session/load` 返回并支持 `session/set_config_option` 修改；`modes` 保留当前模式名到 `approvalPolicy`。`model` 选项值是 `族-基线强度` 形式的 resolved ID（如 `swe-2-high`，裸族名会被服务端拒绝），尾缀属于 `thought_level` 可选值时投影为该模型的默认推理强度；`speed` 的 `standard` 并入应用内置基线档位，选择基线档时按 `standard` 写回。选项展示与 chips 顺序保留服务端返回顺序。未实现的 ACP 客户端能力（fs、terminal、其他请求方法）在 `initialize` 声明不支持并以 `cancelled` 兜底。
+配置选项映射：`model`→模型、`thought_level`→推理强度、`speed`→服务档位，均按会话随 `session/new`/`session/load` 返回并支持 `session/set_config_option` 修改；`modes` 保留当前模式名到 `approvalPolicy`。权限模式（accept-edits/smart/ask/plan/bypass 等）经 `modes.availableModes` 与 `mode` 配置选项取得展示名，`session/set_mode` 切换并以 `current_mode_update` 确认为准；空响应不证明生效，未知 id 会被服务端静默回退，因此本地校验可选集合并比对确认值。每次附着（`session/new`/`session/load`）默认申请 `bypass`，未广告或失败时保留服务端实际模式；`fuyu/runtime` 事件携带 `policy`/`mode`/`modes` 供运行详情的模式切换 chips 与外部切换（如 `/bypass` 命令）同步显示。`model` 选项值是 `族-基线强度` 形式的 resolved ID（如 `swe-2-high`，裸族名会被服务端拒绝），尾缀属于 `thought_level` 可选值时投影为该模型的默认推理强度；`speed` 的 `standard` 并入应用内置基线档位，选择基线档时按 `standard` 写回。选项展示与 chips 顺序保留服务端返回顺序。未实现的 ACP 客户端能力（fs、terminal、其他请求方法）在 `initialize` 声明不支持并以 `cancelled` 兜底。
 
 ## 事件与故障语义
 
@@ -48,4 +49,4 @@
 
 ## 验证入口
 
-`internal/devin/client_test.go` 用 `FUYU_DEVIN_HELPER` 环境变量重入测试二进制充当脚本化 ACP server，覆盖握手鉴权、会话创建、消息增量、工具生命周期、审批选择与回写、中断、忙会话互斥、历史列表/重放续发、配置选项更新与未提交错误、断线终态。
+`internal/devin/client_test.go` 用 `FUYU_DEVIN_HELPER` 环境变量重入测试二进制充当脚本化 ACP server，覆盖握手鉴权、会话创建、消息增量、工具生命周期、审批选择与回写、中断、忙会话互斥、历史列表/重放续发、配置选项更新与未提交错误、断线终态、权限模式默认 bypass 与会话切换（含未知模式/会话报错）。UI 侧 chips 入口与错误展示见 `internal/ui/view_test.go` 的 `TestRuntimeDetailsPermissionModes`。

@@ -32,7 +32,7 @@
 
 `TurnMap.Begin` 在发送前生成应用 TurnID 及独立 user UUID，每 session 仅允许一个在途发送；即使进程重建，未核验旧任务仍阻止重复发送。`Bind` 分开关联 native turn、transcript UUID 和模型 message.id；`Lookup` 供归属核验使用，`Complete` 以 generation + 应用 ID 保护重复和迟到终态。完成后下一次 Begin 替换当前映射，不将内存表当作持久历史。Codex 保持原生 ID 路径；Claude 已接入 Begin/Bind/Complete，并独立持久化发送和终态检查点；Devin 同样接入 Begin/Complete，并以用户输入前缀持久化 turn 身份用于重放匹配。
 
-`ApprovalIntent` 只表达本次 allow/deny、可选反馈和停止。`RuleSuggestion` 保留原始对象，只有精确建议已经验证且 destination=session 时才允许附带，拒绝不能扩大权限；`setMode` 不作为审批规则。`PermissionModeChange` 是独立设置类型，永久规则首版不开放。Claude 使用可选 Respond 接口映射单次审批/反馈/问答，应用请求身份编码 session/generation/native request ID；缺工具 ID 仍需审批。pending 去重/撤销、迟到响应及写入不确定保护均由 Claude adapter 实现；未开放 session 规则。Devin 通过 Respond 把应用决定映射到 ACP 选项的收窄子集（accept→allow_once、acceptForSession→allow_always、decline→reject、cancel→cancelled），无匹配选项按取消处理，turn 结束或断连时未决审批以 cancelled 回写。
+`ApprovalIntent` 只表达本次 allow/deny、可选反馈和停止。`RuleSuggestion` 保留原始对象，只有精确建议已经验证且 destination=session 时才允许附带，拒绝不能扩大权限；`setMode` 不作为审批规则。`PermissionModeChange` 是独立设置类型，永久规则首版不开放。Claude 使用可选 Respond 接口映射单次审批/反馈/问答，应用请求身份编码 session/generation/native request ID；缺工具 ID 仍需审批。pending 去重/撤销、迟到响应及写入不确定保护均由 Claude adapter 实现；未开放 session 规则。Devin 通过 Respond 把应用决定映射到 ACP 选项的收窄子集（accept→allow_once、acceptForSession→allow_always、decline→reject、cancel→cancelled），无匹配选项按取消处理，turn 结束或断连时未决审批以 cancelled 回写。`PermissionModeChange` 由 `PermissionModeChanger` 接口承载，Devin 经 `session/set_mode` 实现并按 `current_mode_update` 确认生效，会话附着时默认申请 `bypass`。
 
 ## 资源与兼容
 

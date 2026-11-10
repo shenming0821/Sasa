@@ -95,7 +95,8 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 	}
 	var response struct {
 		Modes struct {
-			Current string `json:"currentModeId"`
+			Current   string              `json:"currentModeId"`
+			Available []agent.SessionMode `json:"availableModes"`
 		} `json:"modes"`
 		ConfigOptions json.RawMessage `json:"configOptions"`
 	}
@@ -116,12 +117,14 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 	}
 	s.loaded = true
 	s.mode = response.Modes.Current
+	s.modes = response.Modes.Available
 	if s.options == nil {
 		s.options = map[string]*configOption{}
 	}
 	for optionID, option := range parseConfigOptions(response.ConfigOptions) {
 		s.options[optionID] = option
 	}
+	syncModes(s)
 	s.replay = turns
 	newCwd := s.state.Cwd != s.cwd
 	s.state.Cwd = s.cwd
@@ -129,14 +132,17 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 	if newCwd {
 		_ = c.saveState(s.state)
 	}
-	model := ""
+	c.applyDefaultMode(ctx, s)
+	c.emitRuntime(s)
+	c.mu.Lock()
+	model, mode := "", s.mode
 	if s.options["model"] != nil {
 		model = s.options["model"].Current
 	}
-	c.emit(s, "fuyu/runtime", map[string]any{"threadId": s.id, "model": model, "version": c.version})
+	c.mu.Unlock()
 	return agent.ResumedThread{
 		ThreadMeta: agent.ThreadMeta{ID: s.id, Cwd: s.cwd, Preview: s.title, Status: agent.ThreadStatus{Type: "idle"}},
-		Model:      model, Cwd: s.cwd, Policy: json.RawMessage(fmt.Sprintf("%q", "devin:"+s.mode)),
+		Model:      model, Cwd: s.cwd, Policy: json.RawMessage(fmt.Sprintf("%q", "devin:"+mode)),
 		Sandbox: json.RawMessage(`{"type":"devinAcp"}`), RuntimeVersion: c.version,
 	}, ctx.Err()
 }

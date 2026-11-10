@@ -40,6 +40,8 @@ type State struct {
 	Model               string
 	RuntimeVersion      string
 	Policy              string
+	Mode                string
+	Modes               []agent.SessionMode
 	Sandbox             string
 	Draft               string
 	Error               string
@@ -90,12 +92,24 @@ func (s *State) Apply(event agent.Event) {
 	}
 	if event.Method == "fuyu/runtime" {
 		var runtime struct {
-			ThreadID string `json:"threadId"`
-			Model    string `json:"model"`
-			Version  string `json:"version"`
+			ThreadID string              `json:"threadId"`
+			Model    string              `json:"model"`
+			Version  string              `json:"version"`
+			Policy   string              `json:"policy"`
+			Mode     string              `json:"mode"`
+			Modes    []agent.SessionMode `json:"modes"`
 		}
 		if json.Unmarshal(event.Params, &runtime) == nil && runtime.ThreadID == s.ThreadID {
 			s.Model, s.RuntimeVersion = runtime.Model, runtime.Version
+			if runtime.Policy != "" {
+				s.Policy = runtime.Policy
+			}
+			if runtime.Mode != "" {
+				s.Mode = runtime.Mode
+			}
+			if runtime.Modes != nil {
+				s.Modes = runtime.Modes
+			}
 		}
 		return
 	}

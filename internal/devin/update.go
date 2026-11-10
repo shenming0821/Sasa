@@ -97,13 +97,14 @@ func (c *Client) onUpdate(sessionID string, raw json.RawMessage) {
 		for id, option := range parseConfigOptions(u.Options) {
 			s.options[id] = option
 		}
+		syncModes(s)
 		current := ""
 		if s.options["model"] != nil {
 			current = s.options["model"].Current
 		}
 		c.mu.Unlock()
 		if current != "" && current != previous {
-			c.emit(s, "fuyu/runtime", map[string]any{"threadId": s.id, "model": current, "version": c.version})
+			c.emitRuntime(s)
 		}
 	case "current_mode_update":
 		var u struct {
@@ -112,7 +113,14 @@ func (c *Client) onUpdate(sessionID string, raw json.RawMessage) {
 		if json.Unmarshal(raw, &u) == nil && u.Mode != "" {
 			c.mu.Lock()
 			s.mode = u.Mode
+			if s.modeAck != nil {
+				select {
+				case s.modeAck <- u.Mode:
+				default:
+				}
+			}
 			c.mu.Unlock()
+			c.emitRuntime(s)
 		}
 	case "session_info_update":
 		var u struct {
@@ -135,12 +143,12 @@ var toolKinds = map[string]bool{
 
 func (c *Client) toolStart(s *acpSession, raw json.RawMessage) {
 	var call struct {
-		ToolCallID string        `json:"toolCallId"`
-		Title      string        `json:"title"`
-		Kind       string        `json:"kind"`
-		Status     string        `json:"status"`
-		Content    []toolContent `json:"content"`
-		Locations  []toolLocation `json:"locations"`
+		ToolCallID string          `json:"toolCallId"`
+		Title      string          `json:"title"`
+		Kind       string          `json:"kind"`
+		Status     string          `json:"status"`
+		Content    []toolContent   `json:"content"`
+		Locations  []toolLocation  `json:"locations"`
 		RawInput   json.RawMessage `json:"rawInput"`
 		Meta       struct {
 			ToolName string `json:"cognition.ai/inferenceToolName"`
