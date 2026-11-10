@@ -100,12 +100,10 @@ class ReleaseTests(unittest.TestCase):
 
     def test_promotes_exact_candidate_without_rebuilding_or_overwriting_preview(self):
         before = release.inventory(self.source)
-        platform = FakePlatform()
-        release.promote(self.build_id, self.app, self.data, 1, platform=platform)
+        release.promote(self.build_id, self.app, self.data)
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'tested-program')
         self.assertEqual(release.inventory(self.source), before)
         self.assertEqual(release.read_json(self.app / release.IDENTITY)['channel'], 'stable')
-        self.assertEqual(platform.launches[0]['buildID'], self.build_id)
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
         with (self.app / 'Contents/Info.plist').open('rb') as handle:
             self.assertEqual(plistlib.load(handle)['CFBundleIdentifier'], 'com.shenming.fuyu')
@@ -130,15 +128,13 @@ class ReleaseTests(unittest.TestCase):
             self.assertEqual(connection.execute('PRAGMA quick_check').fetchone()[0], 'ok')
             self.assertEqual(connection.execute('SELECT value FROM sample').fetchone()[0], 'checkpointed')
 
-    def test_changed_candidate_is_rejected_before_stopping_stable(self):
+    def test_changed_candidate_is_rejected_before_replacing_stable(self):
         (self.source / release.EXECUTABLE).write_bytes(b'untested')
-        platform = FakePlatform()
         with self.assertRaisesRegex(RuntimeError, '校验失败'):
-            release.promote(self.build_id, self.app, self.data, 1, platform=platform)
-        self.assertEqual(platform.stops, [])
+            release.promote(self.build_id, self.app, self.data)
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
 
-    def test_copy_is_verified_before_stopping_stable(self):
+    def test_copy_is_verified_before_replacing_stable(self):
         copytree = release.shutil.copytree
 
         def changed_copy(source, destination, *args, **kwargs):
@@ -147,38 +143,23 @@ class ReleaseTests(unittest.TestCase):
                 (destination / release.EXECUTABLE).write_bytes(b'changed-during-copy')
             return result
 
-        platform = FakePlatform()
         with patch.object(release.shutil, 'copytree', side_effect=changed_copy):
             with self.assertRaisesRegex(RuntimeError, '复制期间'):
-                release.promote(self.build_id, self.app, self.data, 1, platform=platform)
-        self.assertEqual(platform.stops, [])
+                release.promote(self.build_id, self.app, self.data)
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
 
-    def test_startup_failure_restores_app_database_and_drafts(self):
-        with self.assertRaisesRegex(RuntimeError, '已恢复升级前'):
-            release.promote(self.build_id, self.app, self.data, 1, platform=FakePlatform(True))
-        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
-        self.assertFalse((self.data / 'new-file').exists())
-        self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
-        with sqlite3.connect(self.data / 'fuyu.db') as database:
-            self.assertEqual(database.execute('PRAGMA user_version').fetchone()[0], 4)
-            self.assertEqual(database.execute('SELECT value FROM sample').fetchone()[0], 'original')
-
-    def test_cancelled_quit_keeps_original_application(self):
-        platform = FakePlatform()
-        platform.stop = lambda *args: (_ for _ in ()).throw(RuntimeError('quit cancelled'))
-        with self.assertRaisesRegex(RuntimeError, 'quit cancelled'):
-            release.promote(self.build_id, self.app, self.data, 1, platform=platform)
-        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
-
-    def test_active_data_lock_prevents_install(self):
+    def test_promote_installs_while_data_is_locked(self):
         with release.locked(self.data / 'fuyu.lock'):
-            with self.assertRaisesRegex(RuntimeError, '正在使用'):
-                release.promote(self.build_id, self.app, self.data, 1, platform=FakePlatform())
-        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
+            release.promote(self.build_id, self.app, self.data)
+        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'tested-program')
+        transaction = release.read_json(self.app.parent / '.Fuyu-releases/latest.json')['transaction']
+        receipt = release.read_json(self.app.parent / '.Fuyu-releases' / transaction / 'receipt.json')
+        self.assertEqual(receipt['state'], 'installed')
+        self.assertTrue((self.app.parent / '.Fuyu-releases' / transaction / 'previous.app').exists())
+        self.assertTrue((self.app.parent / '.Fuyu-releases' / transaction / 'data-before/fuyu.db').exists())
 
     def test_manual_rollback_keeps_new_data_when_schema_compatible(self):
-        release.promote(self.build_id, self.app, self.data, 1, platform=FakePlatform())
+        release.promote(self.build_id, self.app, self.data)
         (self.data / 'draft').write_text('newer draft')
         release.rollback(self.app, self.data, 1, platform=FakePlatform())
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
@@ -188,14 +169,14 @@ class ReleaseTests(unittest.TestCase):
         legacy = self.bin / 'Fuyu.app'
         release.shutil.copytree(self.app, legacy)
         with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
-            release.promote(self.build_id, self.app, self.data, 1, platform=FakePlatform())
+            release.promote(self.build_id, self.app, self.data)
         self.assertTrue(legacy.is_symlink())
         self.assertEqual(legacy.resolve(), self.app.resolve())
         self.assertEqual((legacy / release.EXECUTABLE).read_bytes(), b'tested-program')
         self.assertTrue(list((self.bin / '.stable-backups').glob('*/Fuyu.app/Contents/MacOS/Fuyu')))
 
     def test_schema_rollback_requires_explicit_restore_and_preserves_newer_backup(self):
-        release.promote(self.build_id, self.app, self.data, 1, platform=FakePlatform())
+        release.promote(self.build_id, self.app, self.data)
         with sqlite3.connect(self.data / 'fuyu.db') as database:
             database.execute('PRAGMA user_version=5')
         (self.data / 'draft').write_text('newer draft')
@@ -209,9 +190,9 @@ class ReleaseTests(unittest.TestCase):
     def test_preview_or_candidate_cannot_be_install_target(self):
         for target in [release.PREVIEW_APP, self.source]:
             with self.assertRaises(RuntimeError):
-                release.promote(self.build_id, target, self.data, 1, platform=FakePlatform())
+                release.promote(self.build_id, target, self.data)
         with self.assertRaises(RuntimeError):
-            release.promote(self.build_id, self.app, self.app.parent / '.Fuyu-releases', 1, platform=FakePlatform())
+            release.promote(self.build_id, self.app, self.app.parent / '.Fuyu-releases')
 
 
 if __name__ == '__main__':

@@ -347,13 +347,12 @@ def point_legacy_to_installed(app, transaction):
         command.symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
 
 
-def promote(build_id, app, data, timeout, check=False, platform=None):
+def promote(build_id, app, data, check=False):
     source, identity, expected_files = candidate(build_id)
     validate_destination(app, data)
     if check:
         print(json.dumps({'candidate': identity, 'app': str(app), 'data': str(data)}, ensure_ascii=False, indent=2))
         return
-    platform = platform or MacOS()
     app.parent.mkdir(parents=True, exist_ok=True)
     releases = app.parent / '.Fuyu-releases'
     releases.mkdir(mode=0o700, exist_ok=True)
@@ -368,53 +367,34 @@ def promote(build_id, app, data, timeout, check=False, platform=None):
         sign(stage)
         if executable_payload(source) != executable_payload(stage):
             raise RuntimeError('晋升后的程序与候选版本不一致。')
-        platform.stop(app, timeout)
+        snapshot_data(data, work / 'data-before')
+        receipt = {'buildID': build_id, 'app': str(app), 'data': str(data), 'identity': dict(identity, channel='stable'), 'state': 'prepared'}
+        write_json(work / 'receipt.json', receipt)
         legacy = BIN / 'Fuyu.app'
-        if data == DEFAULT_DATA and legacy != app and legacy.exists():
-            platform.stop(legacy, timeout)
-        with locked(data / 'fuyu.lock'):
-            snapshot_data(data, work / 'data-before')
-            receipt = {'buildID': build_id, 'app': str(app), 'data': str(data), 'identity': dict(identity, channel='stable'), 'state': 'prepared'}
-            write_json(work / 'receipt.json', receipt)
-            if app.exists():
-                app.rename(work / 'previous.app')
-            elif data == DEFAULT_DATA and legacy != app and legacy.exists():
-                shutil.copytree(legacy, work / 'previous.app')
-            try:
-                stage.rename(app)
-            except BaseException:
-                if (work / 'previous.app').exists():
-                    (work / 'previous.app').rename(app)
-                raise
+        if app.exists():
+            app.rename(work / 'previous.app')
+        elif data == DEFAULT_DATA and legacy != app and legacy.exists():
+            shutil.copytree(legacy, work / 'previous.app')
         try:
-            register(app)
-            platform.launch(app, data, receipt['identity'], timeout, work)
-        except BaseException as failure:
-            try:
-                platform.stop(app, timeout)
-                with locked(data / 'fuyu.lock'):
-                    app.rename(work / 'failed.app')
-                    if (work / 'previous.app').exists():
-                        (work / 'previous.app').rename(app)
-                    restore_data(data, work / 'data-before')
-                receipt['state'] = 'reverted'
-                write_json(work / 'receipt.json', receipt)
-                if app.exists():
-                    register(app)
-                    platform.reopen(app, data, work)
-            except BaseException as recovery:
-                raise RuntimeError(f'升级失败：{failure}；自动恢复未完成：{recovery}。保留的恢复资料：{work}') from failure
-            raise RuntimeError(f'升级失败，已恢复升级前的应用和数据：{failure}。记录：{work}') from failure
+            stage.rename(app)
+        except BaseException:
+            if (work / 'previous.app').exists():
+                (work / 'previous.app').rename(app)
+            raise
         receipt['state'] = 'installed'
         receipt['installedFiles'] = inventory(app)
         write_json(work / 'receipt.json', receipt)
         write_json(releases / 'latest.json', {'transaction': work.name})
+        try:
+            register(app)
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f'正式版已就位，启动服务注册失败：{error}。', file=sys.stderr)
         if app == DEFAULT_APP and data == DEFAULT_DATA:
             try:
                 point_legacy_to_installed(app, work.name)
             except OSError as alias_error:
                 print(f'正式版已更新，旧入口同步失败：{alias_error}。请从 {app} 启动。', file=sys.stderr)
-        print(f'正式版已启动：{build_id}\n应用：{app}\n恢复资料：{work}')
+        print(f'正式版已就位，将在下次启动时生效：{build_id}\n应用：{app}\n恢复资料：{work}')
 
 
 def rollback(app, data, timeout, restore=False, platform=None):
@@ -491,7 +471,8 @@ def main():
         action = commands.add_parser(command)
         if command != 'rollback':
             action.add_argument('build_id', nargs='?' if command == 'run-preview' else None)
-        action.add_argument('--timeout', type=float, default=30)
+        if command != 'promote':
+            action.add_argument('--timeout', type=float, default=30)
         if command != 'run-preview':
             action.add_argument('--app', type=Path, default=DEFAULT_APP)
             action.add_argument('--data-dir', type=Path, default=DEFAULT_DATA)
@@ -500,7 +481,7 @@ def main():
         if command == 'rollback':
             action.add_argument('--restore-data', action='store_true')
     args = parser.parse_args()
-    if hasattr(args, 'timeout') and args.timeout <= 0:
+    if getattr(args, 'timeout', 1) <= 0:
         parser.error('--timeout 必须大于 0。')
     if args.command == 'build':
         with locked(BIN / 'build.lock'):
@@ -514,7 +495,7 @@ def main():
             build_id = entries[-1]
         run_preview(build_id, args.timeout)
     elif args.command == 'promote':
-        promote(args.build_id, args.app.expanduser().absolute(), args.data_dir.expanduser().absolute(), args.timeout, args.check)
+        promote(args.build_id, args.app.expanduser().absolute(), args.data_dir.expanduser().absolute(), args.check)
     else:
         rollback(args.app.expanduser().absolute(), args.data_dir.expanduser().absolute(), args.timeout, args.restore_data)
 

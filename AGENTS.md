@@ -15,7 +15,7 @@ Fuyu 使用 Go + MyGo Native UI，macOS 优先，接入 Codex 与 Claude Code �
 - 涉及多个组件时，沿输入、协议、状态到最终结果核对调用链；契约或行为变化时，按需更新所属设计与验证记录。
 - 按风险选择验证，自动化测试隔离配置与数据；分别报告自动化、真实 Runtime 和原生 UI 的结果及未验证项。
 - 发现来源不明的并行修改时，暂停写入相关文件，向用户确认归属。
-- 构建 Preview 使用 `./scripts/build preview`，通过 `./scripts/run-preview <构建ID>` 重启并确认窗口可用；每次功能开发或代码修改完成后，先自动构建并运行 Preview 验证窗口可用，再向用户报告完成。用户验收并要求发布后，用 `./scripts/promote <构建ID>` 晋升候选。替换 Preview 时旧实例因未保存内容或活动任务提示未退出，直接强制结束 Preview 进程后重试，无需确认；正式版退出遇到同类提示时保留提示并告知用户。渠道隔离、备份与恢复见[发布说明](docs/subsystems/releases.md)。
+- 构建 Preview 使用 `./scripts/build preview`，通过 `./scripts/run-preview <构建ID>` 重启并确认窗口可用；每次功能开发或代码修改完成后，先自动构建并运行 Preview 验证窗口可用，再向用户报告完成。用户验收并要求发布后，用 `./scripts/promote <构建ID>` 晋升候选；晋升固定为延迟生效：不请求运行中的正式版退出，安装后于下次启动进入新版。替换 Preview 时旧实例因未保存内容或活动任务提示未退出，直接强制结束 Preview 进程后重试，无需确认。渠道隔离、备份与恢复见[发布说明](docs/subsystems/releases.md)。
 
 ## Git 操作
 
