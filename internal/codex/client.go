@@ -117,7 +117,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 	select {
 	case msg := <-response:
 		if msg.Error != nil {
-			return msg.Error
+			return fmt.Errorf("Codex %w", msg.Error)
 		}
 		if result != nil {
 			return json.Unmarshal(msg.Result, result)
@@ -130,7 +130,7 @@ func (c *Client) Call(ctx context.Context, method string, params, result any) er
 		select {
 		case msg := <-response:
 			if msg.Error != nil {
-				return msg.Error
+				return fmt.Errorf("Codex %w", msg.Error)
 			}
 			if result != nil {
 				return json.Unmarshal(msg.Result, result)

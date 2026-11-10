@@ -35,6 +35,12 @@ func (a *App) occupiedCard(c *native.Context) {
 			if actionButton(c, retry).Disabled(disabled).Clicked() {
 				a.recoverSession(a.session)
 			}
+			_, canFork := a.sessionBackend().(interface {
+				ForkThread(context.Context, string) (agent.ResumedThread, error)
+			})
+			if !canFork {
+				return
+			}
 			label := "创建聊天分叉"
 			if a.forking {
 				label = "正在创建…"

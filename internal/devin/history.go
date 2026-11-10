@@ -67,27 +67,25 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 		c.mu.Unlock()
 		return agent.ResumedThread{}, fmt.Errorf("Devin 会话正在恢复中")
 	}
+	if s.cwd == "" {
+		s.cwd = s.state.Cwd
+	}
 	needsMeta := s.cwd == "" || s.title == ""
 	s.loading, s.replayBuf = true, nil
 	c.mu.Unlock()
 	if needsMeta {
-		if entries, _, err := c.listSessions(ctx, nil); err == nil {
-			for _, entry := range entries {
-				if entry.SessionID == id {
-					c.mu.Lock()
-					if s.cwd == "" {
-						s.cwd = entry.Cwd
-					}
-					if s.title == "" {
-						s.title = entry.Title
-					}
-					c.mu.Unlock()
-					break
-				}
-			}
-		}
+		c.lookupSessionMeta(ctx, s)
 	}
-	result, err := link.call(ctx, "session/load", map[string]any{"sessionId": id})
+	c.mu.Lock()
+	cwd := s.cwd
+	c.mu.Unlock()
+	if cwd == "" {
+		c.mu.Lock()
+		s.replayBuf, s.loading = nil, false
+		c.mu.Unlock()
+		return agent.ResumedThread{}, fmt.Errorf("Devin 会话 %s 的工作目录未知", id)
+	}
+	result, err := link.call(ctx, "session/load", map[string]any{"sessionId": id, "cwd": cwd, "mcpServers": []any{}})
 	c.mu.Lock()
 	replay := append([]json.RawMessage(nil), s.replayBuf...)
 	s.replayBuf, s.loading = nil, false
@@ -125,7 +123,12 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 		s.options[optionID] = option
 	}
 	s.replay = turns
+	newCwd := s.state.Cwd != s.cwd
+	s.state.Cwd = s.cwd
 	c.mu.Unlock()
+	if newCwd {
+		_ = c.saveState(s.state)
+	}
 	model := ""
 	if s.options["model"] != nil {
 		model = s.options["model"].Current
@@ -136,6 +139,39 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 		Model:      model, Cwd: s.cwd, Policy: json.RawMessage(fmt.Sprintf("%q", "devin:"+s.mode)),
 		Sandbox: json.RawMessage(`{"type":"devinAcp"}`), RuntimeVersion: c.version,
 	}, ctx.Err()
+}
+
+// lookupSessionMeta fills a session's title and directory from the paged
+// native index; session/load requires the recorded cwd even when loading by
+// id, so the lookup keeps paging until the entry appears or the index ends.
+func (c *Client) lookupSessionMeta(ctx context.Context, s *acpSession) {
+	var cursor *string
+	for pages := 0; pages < 20; pages++ {
+		entries, next, err := c.listSessions(ctx, cursor)
+		if err != nil {
+			return
+		}
+		found := false
+		for _, entry := range entries {
+			if entry.SessionID != s.id {
+				continue
+			}
+			found = true
+			c.mu.Lock()
+			if s.cwd == "" {
+				s.cwd = entry.Cwd
+			}
+			if s.title == "" {
+				s.title = entry.Title
+			}
+			c.mu.Unlock()
+			break
+		}
+		if found || next == nil || *next == "" {
+			return
+		}
+		cursor = next
+	}
 }
 
 // ListTurns pages the recorded replay; the cursor is the count of turns kept
@@ -321,11 +357,11 @@ func replayTurns(updates []json.RawMessage) ([]agent.HistoryTurn, []string) {
 			appendItem(map[string]any{"id": fmt.Sprintf("turn-%d-reasoning-%d", len(turns), len(turn.Items)), "type": "reasoning", "status": "completed", "text": chunk.Content.Text})
 		case "tool_call":
 			var call struct {
-				ToolCallID string        `json:"toolCallId"`
-				Title      string        `json:"title"`
-				Kind       string        `json:"kind"`
-				Status     string        `json:"status"`
-				Content    []toolContent `json:"content"`
+				ToolCallID string          `json:"toolCallId"`
+				Title      string          `json:"title"`
+				Kind       string          `json:"kind"`
+				Status     string          `json:"status"`
+				Content    []toolContent   `json:"content"`
 				RawInput   json.RawMessage `json:"rawInput"`
 				Meta       struct {
 					ToolName string `json:"cognition.ai/inferenceToolName"`

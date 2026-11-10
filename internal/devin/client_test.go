@@ -82,8 +82,10 @@ func runFakeACP() {
 			write(map[string]any{"jsonrpc": "2.0", "id": frame.ID, "error": map[string]any{"code": -32602, "message": message}})
 		}
 		var params struct {
-			SessionID string `json:"sessionId"`
-			Prompt    []struct {
+			SessionID  string          `json:"sessionId"`
+			Cwd        string          `json:"cwd"`
+			McpServers json.RawMessage `json:"mcpServers"`
+			Prompt     []struct {
 				Type string `json:"type"`
 				Text string `json:"text"`
 			} `json:"prompt"`
@@ -151,10 +153,22 @@ func runFakeACP() {
 		case "session/list":
 			respond(map[string]any{"sessions": []any{
 				map[string]any{"sessionId": "old-1", "cwd": "/tmp", "title": "Earlier session", "updatedAt": "2026-01-01T00:00:00Z"},
+				map[string]any{"sessionId": "locked-1", "cwd": "/tmp", "title": "Busy session", "updatedAt": "2026-01-01T00:00:00Z"},
 			}})
 		case "session/load":
+			if params.SessionID == "locked-1" {
+				write(map[string]any{"jsonrpc": "2.0", "id": frame.ID, "error": map[string]any{
+					"code": -32015, "message": "Session 'locked-1' is already open in another process (PID 4242). Close the other instance before opening it here.",
+					"data": map[string]any{"cognition.ai/errorKind": "session_locked", "cognition.ai/lockHolderPid": 4242, "cognition.ai/retryable": true},
+				}})
+				continue
+			}
 			if params.SessionID != "old-1" {
 				respondErr("session not found")
+				continue
+			}
+			if params.Cwd != "/tmp" || params.McpServers == nil {
+				respondErr("missing field `cwd` or `mcpServers`")
 				continue
 			}
 			update(params.SessionID, map[string]any{"sessionUpdate": "session_info_update", "title": "Earlier session"})
@@ -252,10 +266,10 @@ func TestClientHandshakeAndPrompt(t *testing.T) {
 		case "turn/started", "item/completed":
 			var p struct {
 				Item struct {
-					Type      string `json:"type"`
-					Status    string `json:"status"`
-					Command   string `json:"command"`
-					Output    *string `json:"aggregatedOutput"`
+					Type    string  `json:"type"`
+					Status  string  `json:"status"`
+					Command string  `json:"command"`
+					Output  *string `json:"aggregatedOutput"`
 				} `json:"item"`
 			}
 			if event.Method == "turn/started" {
@@ -399,7 +413,7 @@ func TestClientHistory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	page, err := c.ListThreads(ctx, nil)
-	if err != nil || len(page.Data) != 1 {
+	if err != nil || len(page.Data) != 2 {
 		t.Fatalf("list: %+v err=%v", page, err)
 	}
 	if page.Data[0].ID != "old-1" || page.Data[0].Preview != "Earlier session" || page.Data[0].Cwd != "/tmp" {
@@ -411,6 +425,9 @@ func TestClientHistory(t *testing.T) {
 	}
 	if resumed.ThreadMeta.ID != "old-1" || resumed.Cwd != "/tmp" || resumed.Model != "m1" || resumed.ThreadMeta.Preview != "Earlier session" {
 		t.Fatalf("resumed %+v", resumed)
+	}
+	if raw, err := os.ReadFile(filepath.Join(c.stateDir, "old-1.json")); err != nil || !strings.Contains(string(raw), `"cwd":"/tmp"`) {
+		t.Fatalf("检查点未保存会话目录: %s err=%v", raw, err)
 	}
 	turns, err := c.ListTurns(ctx, "old-1", nil)
 	if err != nil || len(turns.Data) != 1 {
@@ -439,6 +456,25 @@ func TestClientHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	collectUntil(t, c, "turn/completed")
+}
+
+func TestClientResumeUnknownCwd(t *testing.T) {
+	c := newTestClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := c.ResumeThread(ctx, "ghost"); err == nil || !strings.Contains(err.Error(), "工作目录未知") {
+		t.Fatalf("目录未知的会话应明确报错: %v", err)
+	}
+}
+
+func TestClientResumeLockedSession(t *testing.T) {
+	c := newTestClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := c.ResumeThread(ctx, "locked-1")
+	if err == nil || !agent.IsActiveWriter(err, "locked-1") || !strings.Contains(err.Error(), "Devin RPC") {
+		t.Fatalf("被占用会话应归类为外部写入并保留 Devin 前缀: %v", err)
+	}
 }
 
 func TestClientOptions(t *testing.T) {

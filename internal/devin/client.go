@@ -204,8 +204,8 @@ func (c *Client) StartThread(ctx context.Context, cwd string) (agent.Thread, err
 		return thread, err
 	}
 	var created struct {
-		SessionID     string `json:"sessionId"`
-		Modes         struct {
+		SessionID string `json:"sessionId"`
+		Modes     struct {
 			Current string `json:"currentModeId"`
 		} `json:"modes"`
 		ConfigOptions json.RawMessage `json:"configOptions"`
@@ -215,6 +215,7 @@ func (c *Client) StartThread(ctx context.Context, cwd string) (agent.Thread, err
 	}
 	s := &acpSession{id: created.SessionID, cwd: path, mode: created.Modes.Current, loaded: true,
 		options: parseConfigOptions(created.ConfigOptions), tools: make(map[string]*toolState), state: c.loadState(created.SessionID)}
+	s.state.Cwd = path
 	c.mu.Lock()
 	if c.closed || c.failed {
 		c.mu.Unlock()

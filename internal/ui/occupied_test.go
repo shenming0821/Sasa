@@ -138,6 +138,26 @@ func TestForkFailureRetainsCardAndPreventsUncertainDuplicate(t *testing.T) {
 	}
 }
 
+func TestOccupiedCardOffersRetryOnlyWithoutForkSupport(t *testing.T) {
+	b := recoveredBackend("completed")
+	b.err = &codex.RPCError{Code: -32015, Message: "Session 'native' is already open in another process (PID 42). Close the other instance before opening it here."}
+	a := New(b, "test", "/first", nil)
+	a.State.ThreadID = "native"
+	queue := make(chan func(), 8)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.recoverSession(a.session)
+	pumpUpdate(t, queue)
+	if !a.writerOccupied || !a.recoveryBlocked {
+		t.Fatal("devin lock not classified as occupied")
+	}
+	tt := native.NewTester(a.view, 1000, 480)
+	_, retry := tt.Find("重试")
+	_, fork := tt.Find("创建聊天分叉")
+	if !tt.HasText("已在另一个应用中打开") || !retry || fork {
+		t.Fatal("occupied card should keep retry and hide unsupported fork")
+	}
+}
+
 func TestOtherRecoveryErrorsDoNotClaimExternalWriter(t *testing.T) {
 	for _, err := range []error{
 		errors.New("already has an active writer"),

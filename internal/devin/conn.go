@@ -209,7 +209,7 @@ func (c *conn) read() {
 			}
 			result := rpcResult{result: frame.Result}
 			if frame.Error != nil {
-				result.err = frame.Error
+				result.err = fmt.Errorf("Devin %w", frame.Error)
 			}
 			c.calls.Route(key, result)
 		}

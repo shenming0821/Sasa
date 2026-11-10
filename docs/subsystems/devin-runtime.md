@@ -19,9 +19,11 @@
 | `Interrupt` | `session/cancel` 通知 |
 | `Events()` | ← `session/update` 通知投影 |
 | 审批 `Respond` | ← `session/request_permission` → `outcome` |
-| `HistoryBackend` | `session/list`、`session/load`（重放更新） |
+| `HistoryBackend` | `session/list`、`session/load`（sessionId + cwd + mcpServers，重放更新） |
 | `IdleThreadReleaser` | `session/close` + 解除附着 |
 | `Reconciler` | 已捕获重放投影为 `{"thread":{id,turns}}` |
+
+`session/load` 的 `cwd` 与 `mcpServers` 为必填；目录依次取 `session/list` 分页索引与会话检查点 `state.Cwd`，恢复成功回写检查点，仍无法取得时明确报错而不发送请求。会话被其他进程持有时返回 `-32015 session_locked`（含 `lockHolderPid`），`agent.IsActiveWriter` 归入"已在另一个应用中打开"占用态，仅提供重试；`session/close` 的 `_meta` `cognition.ai/force` 接管能力未接入。
 
 `session/prompt` 在轮次结束时才返回，`stopReason` 映射：`end_turn`→completed、`cancelled`→interrupted，其余（refusal/max_tokens/max_turn_requests/未知）→failed 并附错误。turn 身份由 `TurnMap` 在本地分配（ACP 不返回 turn ID），会话检查点按用户输入前缀匹配重放轮次并回填应用 TurnID。
 

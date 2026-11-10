@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type Event struct {
@@ -21,10 +22,17 @@ type RPCError struct {
 	Message string `json:"message"`
 }
 
-func (e *RPCError) Error() string { return fmt.Sprintf("Codex RPC %d: %s", e.Code, e.Message) }
+func (e *RPCError) Error() string { return fmt.Sprintf("RPC %d: %s", e.Code, e.Message) }
 
 func IsActiveWriter(err error, id string) bool {
 	var rpc *RPCError
-	return errors.As(err, &rpc) && rpc.Code == -32600 &&
-		rpc.Message == "thread "+id+" already has an active writer"
+	if !errors.As(err, &rpc) {
+		return false
+	}
+	if rpc.Code == -32600 && rpc.Message == "thread "+id+" already has an active writer" {
+		return true
+	}
+	// Devin ACP reports a live lock holder as session_locked.
+	return rpc.Code == -32015 && strings.Contains(rpc.Message, "'"+id+"'") &&
+		strings.Contains(rpc.Message, "already open in another process")
 }
