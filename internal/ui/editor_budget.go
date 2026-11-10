@@ -76,6 +76,7 @@ func (a *App) trimEditorCaches() {
 			d.undo = nil
 			d.redo = nil
 			d.gitReview, d.gitLeft, d.gitRight, d.gitConflict = nil, nil, nil, nil
+			d.gitLeftLines, d.gitRightLines = native.TextLines{}, native.TextLines{}
 			d.gitRows, d.gitPairs = nil, nil
 			d.gitLeftHighlights, d.gitRightHighlights = nil, nil
 		}

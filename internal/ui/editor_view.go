@@ -904,8 +904,8 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			}))
 			area.Draw(func(p *native.Painter, r native.Rect) {
 				if d.kind == "diff" {
-					first := max(0, int(d.scroll.Y/20))
-					last := min(len(d.gitRows), first+int(r.H/20)+3)
+					first := max(0, d.lines.At(d.scroll.Y-8)-1)
+					last := min(len(d.gitRows), d.lines.At(d.scroll.Y+r.H-8)+2)
 					for i := first; i < last; i++ {
 						row := d.gitRows[i]
 						var color native.Color
@@ -916,10 +916,11 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 							color = palette.deletedBackground
 						}
 						if color.A != 0 {
-							y := r.Y + 8 + float32(i)*20 - d.scroll.Y
-							p.Fill(native.Rect{X: r.X + 48, Y: y, W: r.W - 48, H: 20}, color, 0)
+							y := r.Y + 8 + d.lines.Top(i) - d.scroll.Y
+							height := d.lines.Top(i+1) - d.lines.Top(i)
+							p.Fill(native.Rect{X: r.X + 48, Y: y, W: r.W - 48, H: height}, color, 0)
 							if row.hunk == d.gitHunk {
-								p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: 20}, palette.accent, 0)
+								p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: height}, palette.accent, 0)
 							}
 						}
 					}
@@ -928,10 +929,10 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				a.paintBracketPair(p, r, d, snap, palette)
 			})
 			area.DrawOver(func(p *native.Painter, r native.Rect) {
-				first := max(0, int(d.scroll.Y/20))
-				last := min(snap.LineCount(), first+int(r.H/20)+3)
+				first := max(0, d.lines.At(d.scroll.Y-8)-1)
+				last := min(snap.LineCount(), d.lines.At(d.scroll.Y+r.H-8)+2)
 				for i := first; i < last; i++ {
-					y := r.Y + 8 + float32(i)*20 - d.scroll.Y
+					y := r.Y + 8 + d.lines.Top(i) - d.scroll.Y
 					if y >= r.Y && y < r.Y+r.H {
 						number := i + 1
 						if d.kind == "diff" {
@@ -1242,8 +1243,8 @@ func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, sn
 		return
 	}
 	textX := r.X + 58
-	first := max(0, int(d.scroll.Y/20)-1)
-	last := min(snap.LineCount()-1, first+int(r.H/20)+3)
+	first := max(0, d.lines.At(d.scroll.Y-8)-1)
+	last := min(snap.LineCount()-1, d.lines.At(d.scroll.Y+r.H-8)+2)
 	lo, _ := snap.LineRange(first)
 	_, hi := snap.LineRange(last)
 	i := sort.Search(len(d.findMatches), func(i int) bool { return d.findMatches[i].end > lo })
@@ -1279,7 +1280,7 @@ func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, sn
 			if x1 <= textX {
 				continue
 			}
-			y := r.Y + 8 + float32(l)*20 - d.scroll.Y
+			y := r.Y + 8 + d.lines.Top(l) - d.scroll.Y
 			box := native.Rect{X: max(x0, textX) - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}
 			if cur {
 				p.Fill(box, palette.accent.Alpha(.45), 3)
@@ -1404,8 +1405,8 @@ func (a *App) paintBracketPair(p *native.Painter, r native.Rect, d *filePage, sn
 	if d.bracketEnd <= 0 || d.bracketBuffer != d.buffer || d.bracketVersion != snap.Version() {
 		return
 	}
-	first := max(0, int(d.scroll.Y/20)-1)
-	last := min(snap.LineCount()-1, first+int(r.H/20)+3)
+	first := max(0, d.lines.At(d.scroll.Y-8)-1)
+	last := min(snap.LineCount()-1, d.lines.At(d.scroll.Y+r.H-8)+2)
 	font := native.Font{Family: a.codeFontFamily(), Size: 13}
 	textX := r.X + 58
 	for _, pos := range [2]int{d.bracketStart, d.bracketEnd} {
@@ -1421,7 +1422,7 @@ func (a *App) paintBracketPair(p *native.Painter, r native.Rect, d *filePage, sn
 		layout := native.ShapeText(string(lineRunes), font, 0)
 		x0 := textX + layout.Caret(utf16Len(lineRunes[:pos-lineStart])).X
 		x1 := textX + layout.Caret(utf16Len(lineRunes[:pos+1-lineStart])).X
-		y := r.Y + 8 + float32(line)*20 - d.scroll.Y
+		y := r.Y + 8 + d.lines.Top(line) - d.scroll.Y
 		box := native.Rect{X: x0 - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}
 		p.Fill(box, palette.accent.Alpha(.15), 3)
 		p.Stroke(box, palette.accent.Alpha(.6), 3, 1)

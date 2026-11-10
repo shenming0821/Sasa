@@ -64,6 +64,7 @@ type gitDiffState struct {
 	gitLeft, gitRight                     *native.TextBuffer
 	gitLeftScroll                         native.ScrollState
 	gitRightScroll                        native.ScrollState
+	gitLeftLines, gitRightLines           native.TextLines
 	gitLeftHScroll                        native.ScrollState
 	gitRightHScroll                       native.ScrollState
 	gitLeftWidth                          float32
@@ -497,6 +498,7 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	d.observed = d.buffer.Snapshot()
 	d.loaded, d.resync = true, true
 	d.gitLeft, d.gitRight = nil, nil
+	d.gitLeftLines, d.gitRightLines = native.TextLines{}, native.TextLines{}
 }
 
 func (a *App) gitRefreshStats(w *workspacePage) {

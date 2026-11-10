@@ -240,15 +240,16 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 			name    string
 			buffer  *native.TextBuffer
 			scroll  *native.ScrollState
+			lines   *native.TextLines
 			hscroll *native.ScrollState
 			width   float32
 			color   native.Color
-		}{{"原版本", d.gitLeft, &d.gitLeftScroll, &d.gitLeftHScroll, d.gitLeftWidth, palette.deletedBackground}, {"新版本", d.gitRight, &d.gitRightScroll, &d.gitRightHScroll, d.gitRightWidth, palette.addedBackground}} {
+		}{{"原版本", d.gitLeft, &d.gitLeftScroll, &d.gitLeftLines, &d.gitLeftHScroll, d.gitLeftWidth, palette.deletedBackground}, {"新版本", d.gitRight, &d.gitRightScroll, &d.gitRightLines, &d.gitRightHScroll, d.gitRightWidth, palette.addedBackground}} {
 			native.Column(c.Key(side.name)).Grow(1).FillHeight().MinWidth(0).Background(palette.background).Children(func() {
 				native.Text(c, side.name).FontSize(10).TextColor(t.TextMuted).Padding(5, 10)
 				native.ScrollHorizontal(c.Key("horizontal")).TrackScroll(side.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
 					area := palette.area(native.TextAreaBufferBase(c, side.buffer)).Label("差异 "+side.name).ReadOnly(true).Font(a.codeFontFamily()).FontSize(12).
-						FixedLineHeight(20).NoWrap().Width(max((available-1)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10, 6, 58).TrackScroll(side.scroll)
+						FixedLineHeight(20).NoWrap().Width(max((available-1)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10, 6, 58).TrackScroll(side.scroll).TrackLines(side.lines)
 					highlights := d.gitLeftHighlights
 					if sideIndex == 1 {
 						highlights = d.gitRightHighlights
@@ -269,24 +270,26 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 						}
 					}
 					area.Draw(func(p *native.Painter, r native.Rect) {
-						first := max(0, int(side.scroll.Y/20))
-						last := min(len(d.gitPairs), first+int(r.H/20)+2)
+						first := max(0, side.lines.At(side.scroll.Y-6)-1)
+						last := min(len(d.gitPairs), side.lines.At(side.scroll.Y+r.H-6)+2)
 						for i := first; i < last; i++ {
 							row := d.gitPairs[i].left
 							if sideIndex == 1 {
 								row = d.gitPairs[i].right
 							}
 							if row.kind == '-' || row.kind == '+' {
-								p.Fill(native.Rect{X: r.X, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: r.W, H: 20}, side.color, 0)
+								y := r.Y + 6 + side.lines.Top(i) - side.scroll.Y
+								height := side.lines.Top(i+1) - side.lines.Top(i)
+								p.Fill(native.Rect{X: r.X, Y: y, W: r.W, H: height}, side.color, 0)
 								if row.hunk == d.gitHunk {
-									p.Fill(native.Rect{X: r.X + 50, Y: r.Y + 6 + float32(i)*20 - side.scroll.Y, W: 2, H: 20}, palette.accent, 0)
+									p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: height}, palette.accent, 0)
 								}
 							}
 						}
 					})
 					area.DrawOver(func(p *native.Painter, r native.Rect) {
-						first := max(0, int(side.scroll.Y/20))
-						last := min(len(d.gitPairs), first+int(r.H/20)+2)
+						first := max(0, side.lines.At(side.scroll.Y-6)-1)
+						last := min(len(d.gitPairs), side.lines.At(side.scroll.Y+r.H-6)+2)
 						for index := first; index < last; index++ {
 							row := d.gitPairs[index].left
 							if sideIndex == 1 {
@@ -296,7 +299,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 							if sideIndex == 1 {
 								number = row.next
 							}
-							y := r.Y + 6 + float32(index)*20 - side.scroll.Y
+							y := r.Y + 6 + side.lines.Top(index) - side.scroll.Y
 							drawDiffLineNumber(p, r.X+10, y, number, row.kind, palette.lineTheme())
 						}
 					})

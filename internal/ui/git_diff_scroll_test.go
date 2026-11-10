@@ -99,3 +99,96 @@ func TestGitDiffInitialCenterWaitsForLayoutAndClamps(t *testing.T) {
 		}
 	}
 }
+
+func TestGitDiffScrolledRowAlignment(t *testing.T) {
+	for _, mode := range []string{"inline", "left", "right", "narrow"} {
+		t.Run(mode, func(t *testing.T) {
+			split := mode == "left" || mode == "right"
+			a, queue, root := p4App(t)
+			var before strings.Builder
+			for line := 1; line <= 600; line++ {
+				if line%7 == 0 {
+					before.WriteString("// 🧑‍💻 修改记录\n")
+					continue
+				}
+				fmt.Fprintf(&before, "const value%d = '436821081002393600'; // 转介绍挂号校验患者挂号记录\n", line)
+			}
+			old := "const value494 = '436821081002393600'; // 转介绍挂号校验患者挂号记录"
+			patch := "@@ -494 +494 @@\n-" + old + "\n+" + strings.Replace(old, "436821081002393600", "554738962583736320", 1) + "\n"
+			review := gitview.ParsePatch(patch)
+			review.BeforeKnown, review.BeforeText = true, before.String()
+			d := &filePage{id: "alignment", root: root, path: filepath.Join(root, "source.js"), kind: "diff", gitSplit: mode != "inline"}
+			a.gitSetDiffText(d, patch, &review)
+			a.files = map[string]*filePage{d.id: d}
+			width := 1400
+			if mode == "narrow" {
+				width = 480
+			}
+			tester := native.NewTester(func(c *native.Context) {
+				native.Row(c).Fill().Children(func() { a.fileView(c, d, false, false) })
+			}, width, 600)
+			p4Wait(t, tester, queue, func() bool { return !d.highlighting && d.contentWidth > 0 })
+			label, scroll, lines, padding := "文件内容 "+d.path, &d.scroll, &d.lines, float32(8)
+			if split {
+				label, scroll, lines, padding = "差异 新版本", &d.gitRightScroll, &d.gitRightLines, 6
+			}
+			if mode == "left" {
+				label, scroll, lines = "差异 原版本", &d.gitLeftScroll, &d.gitLeftLines
+			}
+			area, ok := tester.Find(label)
+			if !ok {
+				t.Fatal("missing diff")
+			}
+			tester.Scroll(area.X+150, area.Y+100, 0, -800)
+			tester.Scroll(area.X+150, area.Y+100, 0, 800)
+			row := 494
+			if split {
+				row = 493
+			}
+			scroll.Y = max(0, lines.Top(row)-area.H/2)
+			tester.Frame()
+			for _, delta := range []float32{0, 113, -57, 51, -127, 43} {
+				tester.Scroll(area.X+150, area.Y+100, 0, delta)
+				tester.Frame()
+				image := tester.Image()
+				palette := githubEditorPalette(false)
+				background, kind := palette.addedBackground, byte('+')
+				if mode == "left" {
+					background, kind = palette.deletedBackground, '-'
+				}
+				changedY := -1
+				for y := int(area.Y + padding); y < int(area.Y+area.H)-20; y++ {
+					pixel := image.RGBAAt(int(area.X+area.W-30), y)
+					if pixel.R == background.R && pixel.G == background.G && pixel.B == background.B {
+						changedY = y
+						break
+					}
+				}
+				if changedY < 0 {
+					t.Fatalf("changed row missing at scroll %v", scroll.Y)
+				}
+				textY := area.Y + padding + lines.Top(row) - scroll.Y
+				if math.Abs(float64(textY-float32(changedY))) > 1 {
+					t.Fatalf("background and text differ at scroll %v: background=%v text=%v", scroll.Y, changedY, textY)
+				}
+				reference := native.NewTester(func(c *native.Context) {
+					base := palette.background
+					if split {
+						base = background
+					}
+					native.Box(c).Fill().Background(base).Draw(func(p *native.Painter, r native.Rect) {
+						drawDiffLineNumber(p, area.X+10, textY, 494, kind, palette.lineTheme())
+					})
+				}, width, 600)
+				expected := reference.Image()
+				for y := int(math.Ceil(float64(textY))); y < int(textY+18); y++ {
+					for x := int(area.X + 10); x < int(area.X+45); x++ {
+						if image.RGBAAt(x, y) != expected.RGBAAt(x, y) {
+							t.Fatalf("line number differs from text position at (%d,%d), scroll=%v", x, y, scroll.Y)
+						}
+					}
+				}
+			}
+		})
+	}
+}
