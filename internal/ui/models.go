@@ -267,9 +267,9 @@ func (a *App) modelPicker(c *native.Context) {
 		}
 		break
 	}
-	label := shortModel(model)
+	label := modelButtonLabel(model)
 	if effort != "" {
-		label += "·" + effortLabel(effort)
+		label += " " + effortLabel(effort)
 	}
 	trigger := quietButton(c, "选择模型").Gap(5).MinWidth(0).Shrink(1)
 	trigger.Children(func() {
@@ -384,6 +384,17 @@ func (a *App) modelMenu(c *native.Context) {
 			a.modelMenuOpen, a.detailsOpen = false, true
 		}
 	})
+}
+
+// modelButtonLabel shortens a catalog display name for the picker trigger:
+// path prefixes and " · provider" suffixes are dropped. Menu rows keep the
+// full name so providers can still disambiguate identical models.
+func modelButtonLabel(name string) string {
+	name = shortModel(name)
+	if i := strings.LastIndex(name, " · "); i > 0 {
+		name = name[:i]
+	}
+	return name
 }
 
 // modelDisplayName resolves a catalog model id to its display name; unknown or
