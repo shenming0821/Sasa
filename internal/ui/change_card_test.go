@@ -34,14 +34,14 @@ func TestChangeSummaryTurnPlacementAndAnchors(t *testing.T) {
 	next := changeMessage("next", "second", "b.go", "@@ -1 +1 @@\n-b\n+c\n")
 	a.State.Messages = []*app.Message{one, {ID: "explain", Role: "assistant", Text: "progress", TurnID: "first"}, two, bad, {ID: "answer", Role: "assistant", Text: "done", Done: true, TurnID: "first"}, {ID: "user", Role: "user", Text: "next"}, next, {ID: "answer2", Role: "assistant", Text: "done2", Done: true, TurnID: "second"}}
 	rows := a.conversationRows()
-	if len(rows) != 8 || len(rows[0].changes) != 1 || rows[1].message.ID != "explain" || len(rows[2].changes) != 1 || rows[3].message != bad || rows[4].message.ID != "answer" || len(rows[6].changes) != 1 || rows[7].message.ID != "answer2" {
+	if len(rows) != 7 || rows[0].message.ID != "explain" || rows[1].message != bad || rows[2].message.ID != "answer" || len(rows[3].changes) != 2 || rows[3].message != one || rows[4].message.ID != "user" || rows[5].message.ID != "answer2" || len(rows[6].changes) != 1 {
 		t.Fatalf("turn projection=%+v", rows)
 	}
 	a.saved.Anchor = "two"
 	a.saved.AnchorOffset = 30
 	a.restoreReading()
-	if a.saved.Anchor != "two" || a.saved.AnchorOffset != 30 {
-		t.Fatal("file anchor crossed an assistant body boundary")
+	if a.saved.Anchor != "one" || a.saved.AnchorOffset != 0 {
+		t.Fatal("change child anchor did not return to its summary card")
 	}
 	summary := a.summarizeChanges([]*app.Message{one, two})
 	if len(summary.Files) != 1 || summary.Added != 1 || summary.Deleted != 1 {
@@ -51,6 +51,30 @@ func TestChangeSummaryTurnPlacementAndAnchors(t *testing.T) {
 	summary = a.summarizeChanges([]*app.Message{one, two})
 	if summary.Added != 0 || summary.Deleted != 0 {
 		t.Fatal("cached stats did not refresh after protocol update")
+	}
+}
+
+func TestChangeCardWaitsForTurnEnd(t *testing.T) {
+	a := New(nil, "test", "/workspace", nil)
+	running := &app.Message{ID: "q", Role: "user", Text: "修改", Timing: &app.TurnTiming{Started: time.Now()}}
+	edit := changeMessage("edit", "turn", "a.go", "@@ -1 +1 @@\n-old\n+new\n")
+	a.State.Messages = []*app.Message{running, commandMessage("read", "completed"), edit}
+	if rows := a.conversationRows(); len(rows) != 2 {
+		t.Fatalf("running turn leaked the pending summary: %+v", rows)
+	}
+	running.Timing.Finished = time.Now()
+	if rows := a.conversationRows(); len(rows) != 2 || len(rows[1].changes) != 1 || rows[1].message != edit {
+		t.Fatalf("collapsed finished turn missing the trailing summary: %+v", a.conversationRows())
+	}
+	a.expandedProcesses = map[string]bool{"q": true}
+	if rows := a.conversationRows(); len(rows) != 3 || len(rows[2].changes) != 1 || rows[2].message != edit {
+		t.Fatalf("expanded finished turn missing the trailing summary: %+v", a.conversationRows())
+	}
+	following := &app.Message{ID: "q2", Role: "user", Text: "继续"}
+	a.State.Messages = []*app.Message{{ID: "q0", Role: "user", Text: "无计时"}, edit, following, {ID: "later", Role: "assistant", Text: "好"}}
+	rows := a.conversationRows()
+	if len(rows) != 4 || len(rows[1].changes) != 1 || rows[2].message != following {
+		t.Fatalf("a following question did not close the summary: %+v", rows)
 	}
 }
 

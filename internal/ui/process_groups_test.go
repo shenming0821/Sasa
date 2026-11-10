@@ -46,8 +46,8 @@ func TestInterleavedCommandsAndChangesShareRowsUntilBody(t *testing.T) {
 			body := &app.Message{ID: "body", Role: "assistant", Text: "接下来验证", TurnID: "turn"}
 			a.State.Messages = append(a.State.Messages, body, command("four"), changeMessage("fourth", "turn", "c.go", "@@ -1 +1 @@\n-old\n+new\n"))
 			rows = a.conversationRows()
-			if len(rows) != 5 || rows[2].message != body || len(rows[3].commands) != 1 || len(rows[4].changes) != 1 || !*a.commandGroupOpen("one") {
-				t.Fatalf("body did not end the previous groups: %+v", rows)
+			if len(rows) != 4 || rows[1].message != body || len(rows[2].commands) != 1 || len(rows[3].changes) != 4 || !*a.commandGroupOpen("one") {
+				t.Fatalf("turn edits did not collect into the trailing card: %+v", rows)
 			}
 		})
 	}
@@ -84,12 +84,25 @@ func TestInterleavedProcessGroupsKeepBoundaries(t *testing.T) {
 			}
 			a.State.Messages = append(a.State.Messages, next, command)
 			rows := a.conversationRows()
-			want := 4
+			if boundary == "user" {
+				// A user message ends the turn: each side keeps its own trailing card.
+				if len(rows) != 5 || len(rows[0].commands) != 1 || len(rows[1].changes) != 1 || rows[1].changes[0] != first || rows[2].message != middle || len(rows[3].commands) != 1 || len(rows[4].changes) != 1 || rows[4].changes[0] != next {
+					t.Fatalf("user boundary did not split summaries: %+v", rows)
+				}
+				return
+			}
+			want := 3
 			if middle != nil {
 				want++
 			}
-			if len(rows) != want || len(rows[0].commands) != 1 || len(rows[1].changes) != 1 || len(rows[want-2].changes) != 1 || len(rows[want-1].commands) != 1 {
-				t.Fatalf("merged across %s: %+v", boundary, rows)
+			// Successful edits always collect into one card at the end;
+			// other records keep their own rows and boundaries.
+			last := rows[len(rows)-1]
+			if len(rows) != want || len(rows[0].commands) != 1 || len(rows[want-2].commands) != 1 || len(last.changes) != 2 || last.changes[0] != first || last.changes[1] != next {
+				t.Fatalf("%s boundary kept edits inline: %+v", boundary, rows)
+			}
+			if middle != nil && rows[1].message != middle {
+				t.Fatalf("%s boundary lost its own row: %+v", boundary, rows)
 			}
 		})
 	}

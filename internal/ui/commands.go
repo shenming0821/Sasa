@@ -52,11 +52,28 @@ func (s *session) conversationRows() []conversationRow {
 		return s.projectedRows
 	}
 	var rows []conversationRow
-	commandRow, changeRow := -1, -1
+	var pendingChanges []*app.Message
+	var turnQuestion *app.Message
+	commandRow := -1
 	turn, parent := "", ""
+	flushChanges := func(final bool) {
+		if len(pendingChanges) == 0 {
+			return
+		}
+		// The summary stays hidden until its turn finishes streaming; reaching
+		// the next question also proves the turn is over.
+		if !final || turnQuestion == nil || turnQuestion.Timing == nil || !turnQuestion.Timing.Finished.IsZero() {
+			rows = append(rows, conversationRow{message: pendingChanges[0], changes: pendingChanges})
+		}
+		pendingChanges = nil
+	}
 	for _, m := range s.visibleConversationMessages() {
 		if m.Role == "assistant" && m.Text == "" {
 			continue
+		}
+		if m.Role == "user" {
+			flushChanges(false)
+			turnQuestion = m
 		}
 		command := groupableTool(m)
 		change := changeRecord(m)
@@ -65,11 +82,12 @@ func (s *session) conversationRows() []conversationRow {
 			owner = m.Tool.ParentToolID
 		}
 		if !command && !change || m.TurnID != turn || owner != parent {
-			commandRow, changeRow = -1, -1
+			commandRow = -1
 		}
 		turn, parent = m.TurnID, owner
-		// Between body messages, interleaved commands and successful edits
-		// update their own rows. Keep each row's first ID for saved anchors.
+		// Between body messages, interleaved commands update their own row,
+		// while successful edits collect into one card at the end of the turn.
+		// Keep each row's first ID for saved anchors.
 		switch {
 		case command:
 			if commandRow < 0 {
@@ -78,15 +96,12 @@ func (s *session) conversationRows() []conversationRow {
 			}
 			rows[commandRow].commands = append(rows[commandRow].commands, m)
 		case change:
-			if changeRow < 0 {
-				changeRow = len(rows)
-				rows = append(rows, conversationRow{message: m})
-			}
-			rows[changeRow].changes = append(rows[changeRow].changes, m)
+			pendingChanges = append(pendingChanges, m)
 		default:
 			rows = append(rows, conversationRow{message: m})
 		}
 	}
+	flushChanges(true)
 	question, result := "", -1
 	for index := range rows {
 		message := rows[index].message

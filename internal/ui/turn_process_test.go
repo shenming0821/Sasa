@@ -86,6 +86,11 @@ func TestCollapsedTurnKeepsChangeCard(t *testing.T) {
 		if tester.HasText("命令组 read") {
 			t.Fatal("collapsed turn leaked the command group")
 		}
+		reply, replyOK := tester.Find("修改完成")
+		card, cardOK := tester.Find("已编辑 1 个文件")
+		if !replyOK || !cardOK || card.Y <= reply.Y {
+			t.Fatal("summary card is not placed after the final reply")
+		}
 	}
 	assertFolded()
 	if err := tester.Click("展开执行过程 question"); err != nil {
