@@ -146,24 +146,21 @@ func (a *App) gitSwitchBranch(w *workspacePage, name string, create bool) {
 	do()
 }
 
-func (a *App) gitDiscard(w *workspacePage, entries []gitview.Entry) {
-	if len(entries) == 0 || w.gitBusy != "" {
-		return
-	}
-	var names []string
-	for _, e := range entries {
-		names = append(names, e.Path)
-	}
+func (a *App) gitDiscardGuard(w *workspacePage, entries []gitview.Entry) bool {
 	for _, d := range a.files {
 		rel, _ := filepath.Rel(w.root, d.path)
-		for _, name := range names {
-			if d.root == w.root && d.dirty() && rel == name {
-				w.gitActionError = "请先保存或撤销 " + name + " 的未保存编辑，再撤销磁盘改动"
-				return
+		for _, e := range entries {
+			if d.root == w.root && d.dirty() && rel == e.Path {
+				w.gitActionError = "请先保存或撤销 " + e.Path + " 的未保存编辑，再撤销磁盘改动"
+				return false
 			}
 		}
 	}
-	// Read exact versions before confirmation. A later change invalidates it.
+	return true
+}
+
+// Read exact versions before confirmation. A later change invalidates it.
+func (a *App) gitDiscardReview(w *workspacePage, entries []gitview.Entry, done func([]gitview.Review)) {
 	var reviews []gitview.Review
 	a.gitAction(w, "核对撤销范围", func(ctx context.Context) error {
 		for _, entry := range entries {
@@ -174,28 +171,89 @@ func (a *App) gitDiscard(w *workspacePage, entries []gitview.Entry) {
 			reviews = append(reviews, review)
 		}
 		return nil
-	}, func() {
+	}, func() { done(reviews) })
+}
+
+func (a *App) gitDiscardExec(w *workspacePage, entries []gitview.Entry, reviews []gitview.Review) {
+	recovery := filepath.Join(a.recoveryDir(), "discarded")
+	a.gitAction(w, "撤销改动", func(ctx context.Context) error {
+		for _, review := range reviews {
+			latest, err := gitview.ReadReview(ctx, w.root, review.Entry, false)
+			if err != nil {
+				return err
+			}
+			if latest.Token != review.Token {
+				return fmt.Errorf("%s 已变化，请重新核对撤销范围", review.Entry.Path)
+			}
+		}
+		return gitview.Discard(ctx, w.root, entries, recovery)
+	}, nil)
+}
+
+func (a *App) gitDiscard(w *workspacePage, entries []gitview.Entry) {
+	if len(entries) == 0 || w.gitBusy != "" || !a.gitDiscardGuard(w, entries) {
+		return
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Path)
+	}
+	a.gitDiscardReview(w, entries, func(reviews []gitview.Review) {
 		w.gitDecision = &gitDecision{
 			title:  fmt.Sprintf("撤销 %d 个文件的改动？", len(entries)),
 			detail: strings.Join(names, "\n") + "\n已跟踪文件恢复至暂存版本；未跟踪文件移至 Fuyu 回收目录。",
 			labels: []string{"取消", "撤销改动"},
 			actions: []func(){nil, func() {
-				recovery := filepath.Join(a.recoveryDir(), "discarded")
-				a.gitAction(w, "撤销改动", func(ctx context.Context) error {
-					for _, review := range reviews {
-						latest, err := gitview.ReadReview(ctx, w.root, review.Entry, false)
-						if err != nil {
-							return err
-						}
-						if latest.Token != review.Token {
-							return fmt.Errorf("%s 已变化，请重新核对撤销范围", review.Entry.Path)
-						}
-					}
-					return gitview.Discard(ctx, w.root, entries, recovery)
-				}, nil)
+				a.gitDiscardExec(w, entries, reviews)
 			}},
 		}
 	})
+}
+
+// gitDiscardArmDelay is how long a discard button stays in its confirm state.
+var gitDiscardArmDelay = 4 * time.Second
+
+func (a *App) gitDiscardButton(w *workspacePage, key string, entries []gitview.Entry) {
+	if w.gitArmed != nil && w.gitArmed.key == key && len(w.gitArmed.reviews) > 0 {
+		a.gitDiscardConfirm(w, w.gitArmed)
+		return
+	}
+	a.gitDiscardArm(w, key, entries)
+}
+
+func (a *App) gitDiscardArm(w *workspacePage, key string, entries []gitview.Entry) {
+	if len(entries) == 0 || w.gitBusy != "" || !a.gitDiscardGuard(w, entries) {
+		return
+	}
+	armed := &gitArm{key: key}
+	w.gitArmed = armed
+	a.gitDiscardReview(w, entries, func(reviews []gitview.Review) {
+		if w.gitArmed == armed {
+			armed.reviews = reviews
+		}
+	})
+	time.AfterFunc(gitDiscardArmDelay, func() {
+		a.update(func() {
+			if w.gitArmed == armed {
+				w.gitArmed = nil
+			}
+		})
+	})
+}
+
+func (a *App) gitDiscardConfirm(w *workspacePage, armed *gitArm) {
+	if w.gitBusy != "" || w.gitArmed != armed {
+		return
+	}
+	w.gitArmed = nil
+	var entries []gitview.Entry
+	for _, review := range armed.reviews {
+		entries = append(entries, review.Entry)
+	}
+	if !a.gitDiscardGuard(w, entries) {
+		return
+	}
+	a.gitDiscardExec(w, entries, armed.reviews)
 }
 
 func (a *App) gitAbort(w *workspacePage) {

@@ -19,6 +19,11 @@ type gitDecision struct {
 	actions       []func()
 }
 
+type gitArm struct {
+	key     string
+	reviews []gitview.Review
+}
+
 type gitCommitTree struct {
 	expanded, loaded, loading bool
 	entries                   []gitview.Entry
@@ -30,6 +35,7 @@ type gitWorkflow struct {
 	gitSelection                                   map[string]bool
 	gitAnchor                                      string
 	gitDecision                                    *gitDecision
+	gitArmed                                       *gitArm
 	gitBranches                                    []gitview.Branch
 	gitRemotes                                     []string
 	gitRemote                                      string
@@ -109,6 +115,12 @@ func isGitIndexAction(label string) bool {
 	return label == "暂存" || label == "取消暂存"
 }
 
+// isGitCheckAction labels background verification that runs as part of another
+// flow; it reports errors but never surfaces progress or completion messages.
+func isGitCheckAction(label string) bool {
+	return label == "核对撤销范围"
+}
+
 func (a *App) gitAction(w *workspacePage, label string, fn func(context.Context) error, done func()) {
 	if w.gitBusy != "" || w.gitPreparing || a.gitQuitPending && !w.gitAfterSave || a.quitStopping || a.fileQuitPending || !a.canAsync() {
 		return
@@ -133,7 +145,7 @@ func (a *App) gitAction(w *workspacePage, label string, fn func(context.Context)
 			if err != nil {
 				w.gitActionError = label + "失败：" + err.Error()
 			} else {
-				if !indexOnly {
+				if !indexOnly && !isGitCheckAction(label) {
 					w.gitNotice = label + "完成"
 				}
 				w.gitSelection = nil

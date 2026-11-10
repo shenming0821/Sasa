@@ -424,6 +424,75 @@ func TestGitDiscardRechecksConfirmationAndProtectsUnsavedEditor(t *testing.T) {
 	}
 }
 
+func TestGitGroupDiscardAllRestoresEveryUnstagedChange(t *testing.T) {
+	a, q, root, git := gitWorkflowApp(t)
+	os.WriteFile(filepath.Join(root, "README.md"), []byte("changed readme\n"), 0600)
+	os.WriteFile(filepath.Join(root, "internal/main.go"), []byte("package main\n// changed\n"), 0600)
+	w := a.workspace(root)
+	tt := native.NewTester(a.view, 1280, 800)
+	p4Wait(t, tt, q, func() bool { return len(gitEntries(w, "更改")) == 2 })
+	header, ok := tt.Find("折叠 更改")
+	if !ok {
+		t.Fatal("missing 更改 group header")
+	}
+	tt.Move(header.X+10, header.Y+10)
+	if err := tt.Click("撤销全部改动"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return w.gitArmed != nil && len(w.gitArmed.reviews) == 2 })
+	if err := tt.Click("确认撤销 2 个文件"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && len(gitEntries(w, "更改")) == 0 })
+	if out := strings.TrimSpace(git("status", "--porcelain")); out != "" {
+		t.Fatal("group discard left workspace changes", out)
+	}
+}
+
+func TestGitRowDiscardArmsThenConfirmsAndExpires(t *testing.T) {
+	old := gitDiscardArmDelay
+	gitDiscardArmDelay = 2 * time.Second
+	defer func() { gitDiscardArmDelay = old }()
+	a, q, root, git := gitWorkflowApp(t)
+	readme := filepath.Join(root, "README.md")
+	os.WriteFile(readme, []byte("changed readme\n"), 0600)
+	os.WriteFile(filepath.Join(root, "internal/main.go"), []byte("package main\n// changed\n"), 0600)
+	w := a.workspace(root)
+	tt := native.NewTester(a.view, 1280, 800)
+	p4Wait(t, tt, q, func() bool { return len(gitEntries(w, "更改")) == 2 })
+	r, ok := tt.Find("Git 更改 README.md")
+	if !ok {
+		t.Fatal("missing README.md row")
+	}
+	tt.Move(r.X+10, r.Y+10)
+	if err := tt.Click("撤销改动 README.md"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return w.gitArmed != nil && len(w.gitArmed.reviews) == 1 })
+	if data, _ := os.ReadFile(readme); string(data) != "changed readme\n" {
+		t.Fatal("arming discard changed the file")
+	}
+	p4Wait(t, tt, q, func() bool { return w.gitArmed == nil })
+	if _, ok := tt.Find("撤销改动 README.md"); !ok {
+		t.Fatal("discard button did not revert after the armed window")
+	}
+	gitDiscardArmDelay = time.Minute
+	if err := tt.Click("撤销改动 README.md"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return w.gitArmed != nil && len(w.gitArmed.reviews) == 1 })
+	if err := tt.Click("确认撤销改动 README.md"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && len(gitEntries(w, "更改")) == 1 })
+	if data, _ := os.ReadFile(readme); string(data) != "# Fuyu\n原生工作区编辑器\n" {
+		t.Fatal("confirmed discard did not restore the file", string(data))
+	}
+	if out := strings.TrimSpace(git("status", "--porcelain")); !strings.Contains(out, "internal/main.go") || strings.Contains(out, "README") {
+		t.Fatal("discard touched other entries", out)
+	}
+}
+
 func TestGitSaveThenBranchSwitchAndQuitPreparationGate(t *testing.T) {
 	a, q, root, git := gitWorkflowApp(t)
 	a.openFile(root, filepath.Join(root, "README.md"))

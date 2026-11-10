@@ -30,6 +30,15 @@ func gitIconButton(c *native.Context, label string, glyph *native.SVG, disabled 
 	return b
 }
 
+func gitDangerIconButton(c *native.Context, label string, glyph *native.SVG, disabled bool) native.Element {
+	t := c.Theme()
+	b := native.ButtonBase(c).Label(label).Tooltip(label).Radius(8).Padding(0).TextColor(t.Danger)
+	buttonFace(c, b, t.Danger.Alpha(.12), t.Danger.Alpha(.18), t.Danger.Alpha(.26), 8, 0)
+	b = b.Size(24, 24).AlignItems(native.Center).Justify(native.Center).Disabled(disabled)
+	b.Children(func() { native.Icon(c, glyph).Size(13, 13).TextColor(t.Danger) })
+	return b
+}
+
 func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 	a.startWatcher(w)
 	t := c.Theme()
@@ -38,7 +47,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 	}
 	initialLoading := w.gitLoading && w.gitFingerprint == ""
 	disabled := w.gitPreparing || initialLoading || a.gitQuitPending || a.quitStopping ||
-		w.gitBusy != "" && !isGitIndexAction(w.gitBusy)
+		w.gitBusy != "" && !isGitIndexAction(w.gitBusy) && !isGitCheckAction(w.gitBusy)
 	busy := disabled || w.gitBusy != ""
 	var branchProgress float32
 	native.Row(c.Key("git-toolbar")).FillWidth().Height(36).Padding(0, 12).Gap(2).AlignItems(native.Center).Children(func() {
@@ -146,7 +155,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		})
 	}
 	message, col := w.gitNotice, t.TextMuted
-	if w.gitBusy != "" && !isGitIndexAction(w.gitBusy) {
+	if w.gitBusy != "" && !isGitIndexAction(w.gitBusy) && !isGitCheckAction(w.gitBusy) {
 		message = "正在" + w.gitBusy + "…"
 	}
 	if w.gitActionError != "" {
@@ -248,8 +257,22 @@ func (a *App) gitGroup(c *native.Context, w *workspacePage, group string, entrie
 			if header.Clicked() {
 				w.collapsed[group] = !w.collapsed[group]
 			}
-			native.Row(c.Key("group-actions")).Width(24).FillHeight().AlignItems(native.Center).Children(func() {
+			native.Row(c.Key("group-actions")).Width(48).FillHeight().AlignItems(native.Center).Justify(native.End).Children(func() {
 				if len(entries) > 0 && group != "冲突" && (shown || header.FocusVisible()) {
+					if group == "更改" {
+						key := gitKey(group, "")
+						if w.gitArmed != nil && w.gitArmed.key == key {
+							n := len(w.gitArmed.reviews)
+							if n == 0 {
+								n = len(entries)
+							}
+							if gitDangerIconButton(c.Key("discard-all"), fmt.Sprintf("确认撤销 %d 个文件", n), gitUndoIcon, busy).Clicked() {
+								a.gitDiscardButton(w, key, entries)
+							}
+						} else if gitIconButton(c.Key("discard-all"), "撤销全部改动", gitUndoIcon, busy).Clicked() {
+							a.gitDiscardButton(w, key, entries)
+						}
+					}
 					label, glyph := "全部暂存", gitPlusIcon
 					if group == "已暂存的更改" {
 						label, glyph = "全部取消暂存", gitMinusIcon
@@ -418,8 +441,19 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 						a.openFile(w.root, filepath.Join(w.root, entry.Path))
 					}
 					if group == "更改" {
-						if gitIconButton(c.Key("discard"), "撤销改动 "+entry.Path, gitUndoIcon, busy, "撤销改动").Clicked() {
-							a.gitDiscard(w, a.gitChosen(w, group, entry))
+						key := gitKey(group, entry.Path)
+						if w.gitArmed != nil && w.gitArmed.key == key {
+							label := "确认撤销改动 " + entry.Path
+							if n := len(w.gitArmed.reviews); n > 1 {
+								label = fmt.Sprintf("确认撤销 %d 个文件", n)
+							}
+							if gitDangerIconButton(c.Key("discard"), label, gitUndoIcon, busy).Clicked() {
+								a.gitDiscardButton(w, key, a.gitChosen(w, group, entry))
+							}
+						} else {
+							if gitIconButton(c.Key("discard"), "撤销改动 "+entry.Path, gitUndoIcon, busy, "撤销改动").Clicked() {
+								a.gitDiscardButton(w, key, a.gitChosen(w, group, entry))
+							}
 						}
 					} else {
 						native.Box(c).Width(24)
