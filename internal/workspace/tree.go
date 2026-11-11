@@ -2,6 +2,7 @@
 package workspace
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -142,12 +143,62 @@ var searchSkipDirs = map[string]bool{"node_modules": true, ".next": true, ".cach
 
 var errSearchLimit = errors.New("workspace search result limit")
 
+// ignoreSet marks entries ignored by Git: dirs are matched exactly or as a
+// prefix of a deeper ignored path, files only by exact path.
+type ignoreSet struct {
+	dirs  map[string]bool
+	files map[string]bool
+}
+
+func (s *ignoreSet) ignored(v Entry) bool {
+	if v.Dir {
+		return s.dirs[v.Path]
+	}
+	return s.files[v.Path]
+}
+
+// snapshotIgnored collects every ignored file and collapsed ignored directory
+// in one git ls-files call. When git fails or reports no deeper ignored paths,
+// dir coverage falls back to per-directory git check-ignore.
+func snapshotIgnored(ctx context.Context, root string) (*ignoreSet, bool) {
+	s := &ignoreSet{dirs: map[string]bool{}, files: map[string]bool{}}
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z", "--cached", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory").Output()
+	if err != nil {
+		return s, true
+	}
+	deep := false
+	for _, raw := range bytes.Split(out, []byte{0}) {
+		if len(raw) == 0 {
+			continue
+		}
+		p := filepath.Join(root, filepath.FromSlash(string(raw)))
+		if raw[len(raw)-1] == '/' {
+			s.dirs[p] = true
+			continue
+		}
+		s.files[p] = true
+		for parent := filepath.Dir(p); parent != root && Contains(root, parent); parent = filepath.Dir(parent) {
+			if s.dirs[parent] {
+				break
+			}
+			s.dirs[parent] = true
+			deep = true
+		}
+	}
+	return s, !deep
+}
+
 // walkEntries visits the entries under dir in tree order, applying the shared
 // traversal bounds. With respectIgnore, Git-ignored entries and common
 // dependency directories are skipped. visit reports whether a directory should
 // be descended into; returning errSearchLimit stops the walk and marks the
 // result truncated.
 func walkEntries(ctx context.Context, root, dir string, respectIgnore bool, visit func(Entry) (bool, error)) (bool, error) {
+	var snapshot *ignoreSet
+	fallback := false
+	if respectIgnore {
+		snapshot, fallback = snapshotIgnored(ctx, root)
+	}
 	count, bytes := 0, 0
 	truncated := false
 	var walk func(string) error
@@ -156,7 +207,7 @@ func walkEntries(ctx context.Context, root, dir string, respectIgnore bool, visi
 		if err != nil {
 			return err
 		}
-		if respectIgnore {
+		if respectIgnore && fallback {
 			MarkIgnored(ctx, root, entries)
 		}
 		for _, v := range entries {
@@ -166,7 +217,11 @@ func walkEntries(ctx context.Context, root, dir string, respectIgnore bool, visi
 				truncated = true
 				return nil
 			}
-			if v.Ignored || v.Link {
+			ignored := v.Ignored
+			if !fallback && snapshot != nil && snapshot.ignored(v) {
+				ignored = true
+			}
+			if ignored || v.Link {
 				continue
 			}
 			descend, err := visit(v)

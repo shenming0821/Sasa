@@ -3,8 +3,10 @@ package workspace
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -71,6 +73,11 @@ func SearchContent(ctx context.Context, root string, q ContentQuery) (ContentSea
 	if err != nil {
 		return result, err
 	}
+	if matches, truncated, ok := searchContentRipgrep(ctx, root, q); ok {
+		result.Matches = matches
+		result.Truncated = truncated
+		return result, nil
+	}
 	for _, dir := range include.roots(root) {
 		truncated, err := walkEntries(ctx, root, dir, !q.SearchIgnored, func(v Entry) (bool, error) {
 			rel := slashRel(root, v.Path)
@@ -124,6 +131,177 @@ func CompileContentQuery(q ContentQuery) (*regexp.Regexp, error) {
 func slashRel(root, path string) string {
 	rel, _ := filepath.Rel(root, path)
 	return filepath.ToSlash(rel)
+}
+
+// searchContentRipgrep runs one ripgrep process for the whole query and
+// returns ok=false when rg is unavailable or fails, letting the Go walker
+// serve as the portable fallback.
+func searchContentRipgrep(ctx context.Context, root string, q ContentQuery) ([]ContentMatch, bool, bool) {
+	rg, err := exec.LookPath("rg")
+	if err != nil {
+		return nil, false, false
+	}
+	includes, err := rgPatterns(q.Include, true)
+	if err != nil {
+		return nil, false, false
+	}
+	excludes, err := rgPatterns(q.Exclude, false)
+	if err != nil {
+		return nil, false, false
+	}
+	args := []string{"--json", "--max-count", fmt.Sprintf("%d", contentSearchMaxFileMatch+1)}
+	if !q.MatchCase {
+		args = append(args, "-i")
+	}
+	if !q.Regex {
+		args = append(args, "-F")
+	}
+	if !q.SearchIgnored {
+		for dir := range searchSkipDirs {
+			args = append(args, "-g", "!"+dir)
+		}
+	} else {
+		args = append(args, "--no-ignore")
+	}
+	for _, p := range includes {
+		args = append(args, "--iglob", p)
+	}
+	for _, p := range excludes {
+		args = append(args, "--iglob", "!"+p)
+	}
+	args = append(args, "-e", q.Text, ".")
+	cmd := exec.CommandContext(ctx, rg, args...)
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
+			return nil, false, true // no matches
+		}
+		return nil, false, false
+	}
+	var matches []ContentMatch
+	truncated := false
+	perFile := map[string]int{}
+	for _, raw := range bytes.Split(out, []byte{'\n'}) {
+		var ev rgEvent
+		if len(raw) == 0 || json.Unmarshal(raw, &ev) != nil || ev.Type != "match" {
+			continue
+		}
+		path := filepath.Join(root, filepath.FromSlash(ev.Data.Path.Text))
+		if perFile[path] >= contentSearchMaxFileMatch {
+			truncated = true
+			continue
+		}
+		line := strings.TrimSuffix(ev.Data.Lines.Text, "\n")
+		var spans [][]int
+		for _, sm := range ev.Data.Submatches {
+			spans = append(spans, []int{sm.Start, sm.End})
+		}
+		if q.WholeWord {
+			var kept [][]int
+			for _, s := range spans {
+				if IsWholeWord(line, s[0], s[1]) {
+					kept = append(kept, s)
+				}
+			}
+			spans = kept
+		}
+		if len(spans) == 0 {
+			continue
+		}
+		if len(matches) >= contentSearchMaxMatches {
+			truncated = true
+			break
+		}
+		perFile[path]++
+		col := utf8.RuneCountInString(line[:spans[0][0]]) + 1
+		text, ranges := matchPreview(line, spans)
+		matches = append(matches, ContentMatch{Path: path, Line: ev.Data.LineNumber, Col: col, Text: text, Ranges: ranges})
+	}
+	sortSearchMatches(matches, root)
+	return matches, truncated, true
+}
+
+// sortSearchMatches orders matches the same way walkEntries lists the tree:
+// at each path level directories sort before files in natural name order.
+func sortSearchMatches(matches []ContentMatch, root string) {
+	// Precompute dir-ness of every path prefix: a part that has children in
+	// the result set is a directory. Root-level names are compared with
+	// directories first, matching ReadDir's ordering.
+	hasChildren := map[string]bool{}
+	for _, m := range matches {
+		rel := slashRel(root, m.Path)
+		parts := strings.Split(rel, "/")
+		for i := 1; i < len(parts); i++ {
+			hasChildren[strings.Join(parts[:i], "/")] = true
+		}
+	}
+	less := func(p, q string) bool {
+		pp, qp := strings.Split(p, "/"), strings.Split(q, "/")
+		for i := 0; i < len(pp) && i < len(qp); i++ {
+			if pp[i] != qp[i] {
+				pDir := i < len(pp)-1 || hasChildren[strings.Join(pp[:i+1], "/")]
+				qDir := i < len(qp)-1 || hasChildren[strings.Join(qp[:i+1], "/")]
+				if pDir != qDir {
+					return pDir
+				}
+				return naturalLess(pp[i], qp[i])
+			}
+		}
+		return len(pp) < len(qp)
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		a, b := slashRel(root, matches[i].Path), slashRel(root, matches[j].Path)
+		if a != b {
+			return less(a, b)
+		}
+		return matches[i].Line < matches[j].Line
+	})
+}
+
+type rgEvent struct {
+	Type string `json:"type"`
+	Data struct {
+		Path       struct{ Text string } `json:"path"`
+		Lines      struct{ Text string } `json:"lines"`
+		LineNumber int                   `json:"line_number"`
+		Submatches []struct {
+			Start int `json:"start"`
+			End   int `json:"end"`
+		} `json:"submatches"`
+	} `json:"data"`
+}
+
+// rgPatterns translates the raw comma-separated pattern text into ripgrep
+// --iglob patterns: "./x" anchors at root as "/x", a name without glob
+// metacharacters also covers its subtree as "x/**", matching the walker
+// semantics where matching a directory includes its contents.
+func rgPatterns(text string, include bool) ([]string, error) {
+	var out []string
+	for _, raw := range splitPatterns(text) {
+		p := filepath.ToSlash(strings.TrimSpace(raw))
+		if p == "" {
+			continue
+		}
+		anchored := false
+		if rest, ok := strings.CutPrefix(p, "./"); ok {
+			anchored, p = true, rest
+		} else if rest, ok := strings.CutPrefix(p, "/"); ok {
+			anchored, p = true, rest
+		}
+		p = strings.Trim(p, "/")
+		if p == "" || p == "." {
+			p = "**"
+		}
+		if anchored {
+			p = "/" + p
+		}
+		out = append(out, p)
+		if !strings.ContainsAny(p, "*?[{") && !strings.HasSuffix(p, "/**") {
+			out = append(out, p+"/**")
+		}
+	}
+	return out, nil
 }
 
 type glob struct {
@@ -302,33 +480,77 @@ func searchFileContent(path string, pattern *regexp.Regexp, wholeWord bool, limi
 	if info.Size() > contentSearchMaxFileBytes {
 		return nil, true
 	}
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) > contentSearchMaxFileBytes {
+	f, err := os.Open(path)
+	if err != nil {
 		return nil, true
 	}
-	if bytes.IndexByte(data, 0) >= 0 || !utf8.Valid(data) || !pattern.Match(data) {
-		return nil, false
-	}
+	defer f.Close()
 	var matches []ContentMatch
-	for i, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSuffix(line, "\r")
-		var spans [][]int
-		for _, span := range pattern.FindAllStringIndex(line, contentSearchMaxLineRanges) {
-			if span[1] > span[0] && (!wholeWord || IsWholeWord(line, span[0], span[1])) {
-				spans = append(spans, span)
-			}
+	var line strings.Builder
+	lineNo := 0
+	buf := make([]byte, 128*1024)
+	total := 0
+	flush := func() bool {
+		if lineNo > 0 && len(matches) < limit {
+			appendLineMatch(&matches, path, line.String(), lineNo, pattern, wholeWord)
 		}
-		if len(spans) == 0 {
-			continue
+		line.Reset()
+		return len(matches) >= limit
+	}
+	for {
+		n, readErr := f.Read(buf)
+		chunk := buf[:n]
+		if total == 0 && bytes.IndexByte(chunk, 0) >= 0 {
+			return nil, false
 		}
-		if len(matches) >= limit {
+		total += n
+		if total > contentSearchMaxFileBytes {
 			return matches, true
 		}
-		col := utf8.RuneCountInString(line[:spans[0][0]]) + 1
-		text, ranges := matchPreview(line, spans)
-		matches = append(matches, ContentMatch{Path: path, Line: i + 1, Col: col, Text: text, Ranges: ranges})
+		for len(chunk) > 0 {
+			i := bytes.IndexByte(chunk, '\n')
+			if i < 0 {
+				line.Write(chunk)
+				break
+			}
+			line.Write(chunk[:i])
+			chunk = chunk[i+1:]
+			lineNo++
+			if flush() {
+				return matches, true
+			}
+		}
+		if readErr != nil {
+			break
+		}
 	}
-	return matches, false
+	if line.Len() > 0 {
+		lineNo++
+		flush()
+	}
+	return matches, len(matches) >= limit
+}
+
+// appendLineMatch decodes one raw line (valid UTF-8 only), applies the pattern
+// and whole-word filter, and appends the display match when found.
+func appendLineMatch(matches *[]ContentMatch, path, raw string, lineNo int, pattern *regexp.Regexp, wholeWord bool) bool {
+	line := strings.TrimSuffix(raw, "\r")
+	if !utf8.ValidString(line) {
+		return false
+	}
+	var spans [][]int
+	for _, span := range pattern.FindAllStringIndex(line, contentSearchMaxLineRanges) {
+		if span[1] > span[0] && (!wholeWord || IsWholeWord(line, span[0], span[1])) {
+			spans = append(spans, span)
+		}
+	}
+	if len(spans) == 0 {
+		return false
+	}
+	col := utf8.RuneCountInString(line[:spans[0][0]]) + 1
+	text, ranges := matchPreview(line, spans)
+	*matches = append(*matches, ContentMatch{Path: path, Line: lineNo, Col: col, Text: text, Ranges: ranges})
+	return true
 }
 
 func isWordRune(r rune) bool { return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) }
