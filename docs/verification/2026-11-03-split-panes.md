@@ -87,3 +87,11 @@
 
 - 新增 `TestCloseShortcutRemovesEmptyFocusedPane`：空聚焦面板 `⌘W` 移除并保留会话面板，单面板 `⌘W` 回退关闭页签，最后一个空面板不移除；`TestCloseShortcutClosesSingleTabPane`：两页签面板 `⌘W` 只关当前页签，剩一页签时 `⌘W` 同时关闭页签与面板。
 - `./scripts/go test ./internal/ui -count=1`、`./scripts/go vet ./...`、`./scripts/build`、`git diff --check` 通过；原生快捷键验收待用户核对。
+
+## 2026-11-11 全局唯一高亮页签
+
+按用户要求，多分屏时窗口全局只高亮一个页签：仅聚焦面板为其当前页签绘制选中底色与底边标记并滚入可见，其余面板的当前页签按未选中样式显示；点击其他面板页签或输入区切换焦点后，高亮随之移动，`⌘W` 关闭的是该高亮页签（聚焦面板的当前页签）。
+
+- 新增 `TestPaneActiveTabHighlightFollowsFocus`：分屏后两面板页签不再同时高亮，点击左面板页签后高亮移到左面板，`⌘W` 关闭左面板页签并保留右面板会话；浅深色均验证。
+- 该回归在旧实现下失败（两面板同时高亮），修复后通过。
+- `./scripts/go test ./...` 通过（UI 26.483 秒）、`./scripts/go vet ./...` 通过；Preview 候选 `20261111T144357Z-b6f8c8fe94-a91bfb` 构建启动后原生截图确认：左右分屏时仅聚焦面板页签高亮，点击左面板页签后高亮切换，`⌘W` 关闭左聚焦面板并保留右面板。

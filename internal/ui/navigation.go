@@ -176,13 +176,14 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 					}
 					tc := c.Key(tab.ID)
 					row := native.Row(tc).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
-					if tab.ID == a.activeTab {
+					focused := a.paneIsFocused()
+					if focused && tab.ID == a.activeTab {
 						activeTabFace(c, row)
 						if a.tabsSelected != a.activeTab {
 							row.ScrollIntoView()
 						}
 					}
-					a.tabDropZone(c, row, tab.ID, tab.ID == a.activeTab)
+					a.tabDropZone(c, row, tab.ID, focused && tab.ID == a.activeTab)
 					row.Children(func() {
 						label := "文件标签 " + tab.Path
 						closeLabel := "关闭文件标签 " + tab.Path
@@ -292,7 +293,9 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 	})
 	// A click in this pass can change activeTab after its row was built.
 	// Retain the rendered selection so the following pass reveals the new row.
-	a.tabsSelected = renderedActive
+	if a.paneIsFocused() {
+		a.tabsSelected = renderedActive
+	}
 }
 
 func (a *App) effectiveRightPanelWidth(width float32) float32 {

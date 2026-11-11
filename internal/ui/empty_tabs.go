@@ -31,13 +31,14 @@ func (a *App) emptyTab(c *native.Context, tab storage.Tab) {
 	pane, root := a.renderingPane, a.activeWorkspace
 	theme := c.Theme()
 	row := native.Row(c).Width(168).Shrink(0).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
-	if tab.ID == a.activeTab {
+	focused := a.paneIsFocused()
+	if focused && tab.ID == a.activeTab {
 		activeTabFace(c, row)
 		if tab.ID != "" && a.tabsSelected != tab.ID {
 			row.ScrollIntoView()
 		}
 	}
-	a.tabDropZone(c, row, tab.ID, tab.ID == a.activeTab)
+	a.tabDropZone(c, row, tab.ID, focused && tab.ID == a.activeTab)
 	row.Children(func() {
 		label, closeLabel := "新标签页", "关闭新标签页"
 		if tab.ID != "" {

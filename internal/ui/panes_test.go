@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -527,6 +528,46 @@ func TestPaneCloseUsesFocusedTabSelection(t *testing.T) {
 	a.closeCurrentPage()
 	if !leftSession.open || !firstRight.open || secondRight.open || right.Active != sessionTabID(firstRight.id) {
 		t.Fatal("close action used a stale rendered tab instead of the focused pane selection")
+	}
+}
+
+func TestPaneActiveTabHighlightFollowsFocus(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprint(dark), func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/project", nil)
+			leftSession := a.session
+			a.splitPane("/project", focusedPane(a.layoutFor("/project")), "horizontal")
+			a.newSession("/project")
+			rightSession := a.session
+			tester := native.NewTester(a.view, 1600, 1000)
+			tester.SetDark(dark)
+			tester.Frame()
+			face := func(label string) color.RGBA {
+				t.Helper()
+				r, found := tester.Find(label)
+				if !found {
+					t.Fatalf("tab %q missing", label)
+				}
+				return tester.Image().RGBAAt(int(r.X+6), int(r.Y+r.H/2))
+			}
+			leftLabel := fmt.Sprintf("会话标签 %d", leftSession.id)
+			rightLabel := fmt.Sprintf("会话标签 %d", rightSession.id)
+			if face(leftLabel) == face(rightLabel) {
+				t.Fatal("split panes highlight more than one tab")
+			}
+			focusedFace, unfocusedFace := face(rightLabel), face(leftLabel)
+			if err := tester.Click(leftLabel); err != nil {
+				t.Fatal(err)
+			}
+			tester.Frame()
+			if face(leftLabel) != focusedFace || face(rightLabel) != unfocusedFace {
+				t.Fatal("moving pane focus did not move the single active tab face")
+			}
+			tester.Key(native.Cmd, native.KeyW)
+			if leftSession.open || !rightSession.open || a.activeTab != sessionTabID(rightSession.id) {
+				t.Fatal("Cmd+W did not close the single active tab of the focused pane")
+			}
+		})
 	}
 }
 
