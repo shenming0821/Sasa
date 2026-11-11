@@ -10,6 +10,7 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
+	"github.com/egoist/mygo/ui/markdown/parser"
 	"github.com/shenming0821/Fuyu/internal/app"
 	"github.com/shenming0821/Fuyu/internal/workspace"
 )
@@ -23,6 +24,8 @@ type fileLocation struct {
 
 func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
 	a.md.Theme.Strong = c.Theme().Danger
+	a.md.Theme.Mark = findMarkColor(c.Theme())
+	text := message.Text
 	owner := a.session
 	cwd := owner.State.Cwd
 	a.md.OnLink = func(destination string) {
@@ -48,6 +51,22 @@ func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
 			}
 		}
 	}
+	opts := &a.md
+	var o *markdown.Options
+	var fm *findMarks
+	if a.find.open {
+		cur := [2]int{-1, -1}
+		if c := a.sessionFindCurrent(message); c != nil {
+			cur = *c
+		}
+		fm = sessionFindMarks(message.Text, a.find.query, cur)
+		text = applyMarkEdits(message.Text, fm.edits)
+		o = findMessageOptions(&a.md)
+		o.CodeBlock = func(cc *native.Context, b *markdown.CodeBlockView) {
+			a.findCodeBlock(cc, message, b)
+		}
+		opts = o
+	}
 	// Stream's reveal lives on the element; a row that unmounts and
 	// rebuilds would type what it already showed. Only the first mounted
 	// view of a message streams; later views show it as it is.
@@ -55,9 +74,25 @@ func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
 	armed := native.Local(box, streamArmedKey{}, func() bool { return false })
 	box.Children(func() {
 		if owner.streamReveal(message, armed) {
-			markdown.Stream(c, message.Text, &a.md)
+			markdown.Stream(c, text, opts)
 		} else {
-			markdown.View(c, message.Text, &a.md)
+			// The current match brightens through a transparent overlay
+			// painting only its mark, laid over the block holding it.
+			if fm != nil && fm.curSrc != "" {
+				ov := findOverlayOptions(opts, c.Theme())
+				cb, src := fm.curBlock, fm.curSrc
+				o.Block = func(cc *native.Context, d *parser.Document, i int) bool {
+					if i != cb {
+						return false
+					}
+					if k := d.Block(i).Kind; k != parser.Paragraph && k != parser.Heading {
+						return false
+					}
+					markdown.View(cc, src, ov).Absolute().Top(0).Left(0).Right(0).PassThrough()
+					return false
+				}
+			}
+			markdown.View(c, text, opts)
 		}
 	})
 }

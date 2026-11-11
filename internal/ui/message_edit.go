@@ -335,7 +335,7 @@ func (a *App) userMessage(c *native.Context, message *app.Message) {
 		}
 		if text != "" {
 			native.Row(c).FillWidth().Justify(native.End).Children(func() {
-				native.Text(c, text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
+				a.markedMessageText(c, message, text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
 					MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(theme.Surface)
 			})
 		}

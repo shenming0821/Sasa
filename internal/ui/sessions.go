@@ -54,6 +54,8 @@ type session struct {
 	changeSummaries   map[string]cachedChangeSummary
 	streamedMessages  map[string]bool
 	completion        inputCompletion
+	find              conversationFind
+	selSeed           string
 	composerFocus     bool
 	readingContext    *native.Context
 	restoreOffset     bool

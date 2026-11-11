@@ -116,6 +116,35 @@ def main():
         "case st.o.OnLink != nil:",
         'case st.o.OnLink != nil && !strings.HasPrefix(dest, "#"):',
     ))
+    # Search marks split inline code into differently colored spans. Keep the
+    # rounded padding at the outer ends, and join adjacent backgrounds at the
+    # glyph boundary so their translucent fills never overlap.
+    edits["ui/richtext.go"] = [(
+        "sp.runs(line, func(k, i, _ int, x0, x1 float32) {",
+        "sp.runs(line, func(k, i, j int, x0, x1 float32) {",
+    ), (
+        "\t\t\tp.Fill(Rect{x + x0 - px, y + line.Baseline - size*0.98, x1 - x0 + 2*px, size * 1.32}, sp.spans[k].Background, r)",
+        """            joins := func(g int) bool {
+                if g < 0 || g >= len(line.Glyphs) {
+                    return false
+                }
+                n := sp.at(line.Glyphs[g].Cluster)
+                return n >= 0 && sp.spans[n].Background.A > 0 &&
+                    sp.spans[n].Radius > 0 && line.Glyphs[g].Size == size
+            }
+            left, right := x0-px, x1+px
+            clipLeft, clipRight := left, right
+            if joins(i-1) {
+                left, clipLeft = x0-max(px, r), x0
+            }
+            if joins(j) {
+                right, clipRight = x1+max(px, r), x1
+            }
+            rect := Rect{x + left, y + line.Baseline - size*0.98, right-left, size * 1.32}
+            p.Clip(Rect{x + clipLeft, rect.Y, clipRight-clipLeft, rect.H}, 0, func() {
+                p.Fill(rect, sp.spans[k].Background, r)
+            })""",
+    )]
     edits["ui/split.go"] = [(
         "line := t.Border\n\t\t\t\tif held || handle.Hovered() {\n\t\t\t\t\tline = t.Accent\n\t\t\t\t}\n\t\t\t\tp.Fill(r, line, 0)",
         "p.Fill(r, t.Border, 0)",

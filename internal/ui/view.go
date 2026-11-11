@@ -55,6 +55,9 @@ func (a *App) view(c *native.Context) {
 	if c.Shortcut(native.Cmd, native.KeyW) {
 		a.closeCurrentPage()
 	}
+	if a.sessionViewActive() && c.Shortcut(native.Cmd, native.KeyF) {
+		a.openSessionFind()
+	}
 	width, _ := c.Size()
 	a.sidebarWidth = min(max(a.sidebarWidth, 200), 320)
 	sidebar := a.sidebarVisible(width)
@@ -209,6 +212,9 @@ func (a *App) conversation(c *native.Context) {
 	a.session.restoreRowOffset(c)
 	rows := a.session.conversationRows()
 	messages := a.session.projectedMessages
+	if a.find.open {
+		a.sessionFindRescan(messages)
+	}
 	entries := a.session.navigationEntries
 	padding := float32(24)
 	if len(entries) > 1 {
@@ -245,7 +251,7 @@ func (a *App) conversation(c *native.Context) {
 	}
 	native.Box(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
 		// Keep the latest content clear of the floating control, even while it is hidden.
-		native.List(c, &a.list, count, func(i int) {
+		list := native.List(c, &a.list, count, func(i int) {
 			gap := conversationSpacing(rows, i)
 			if i == len(messages) {
 				native.Column(c).FillWidth().Padding(gap, 0, 0, 0).Children(func() {
@@ -280,7 +286,18 @@ func (a *App) conversation(c *native.Context) {
 					}
 				}
 			}
-		}).Fill().Padding(24, padding, scrollFadeHeight, padding).Gap(0).TrackScroll(&a.scroll)
+		})
+		list.Selectable().Fill().Padding(24, padding, scrollFadeHeight, padding).Gap(0).TrackScroll(&a.scroll)
+		if a.renderingPane != nil {
+			// A Selectable container takes over its text's context menus:
+			// give it the pane's, with the text's editing items on top.
+			root, pane := a.activeWorkspace, a.renderingPane
+			list.ContextMenu(func(menu *native.Menu) {
+				menu.EditItems()
+				a.paneMenu(root, pane)(menu)
+			})
+		}
+		a.selSeed = findSeed(list.SelectedTexts())
 		a.loadHistoryNearTop()
 		if !a.list.AtEnd() {
 			// The tint fades into the composer surface without intercepting scrolling.
@@ -299,6 +316,7 @@ func (a *App) conversation(c *native.Context) {
 			})
 		}
 		a.conversationNavigator(c, entries)
+		a.conversationFindBar(c)
 	})
 }
 
@@ -576,7 +594,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 			} else {
 				native.Column(c).FillWidth().Gap(6).Padding(12, 14).Radius(10).Background(t.Surface).Children(func() {
 					native.Text(c, "工具").FontSize(11).TextColor(t.TextMuted)
-					native.Text(c, m.Text).Selectable().Font(a.codeFontFamily()).FontSize(12)
+					a.markedMessageText(c, m, m.Text).Selectable().Font(a.codeFontFamily()).FontSize(12)
 				})
 			}
 		})

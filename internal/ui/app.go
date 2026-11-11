@@ -114,6 +114,9 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 	// the local Markdown patch caps unordered marker columns at 1.4 em.
 	a.md.Theme = &markdown.Theme{ListIndent: 3, FontSize: 15, LineHeight: 1.5, Font: textFont, CodeFont: codeFont}
 	a.md.Theme.Headings[1].Size = 1.2
+	// Message views share the conversation's one selection, which the find
+	// bar's selected-text seeding reads through a.selSeed.
+	a.md.ShareSelection = true
 	if startupErr != nil {
 		a.State.Error, a.State.Phase = "连接 Agent 失败，请核对可执行路径和配置后重新启动 Fuyu："+startupErr.Error(), "连接失败"
 		a.State.Disconnected = true
