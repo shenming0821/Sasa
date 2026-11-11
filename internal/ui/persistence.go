@@ -60,6 +60,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		}
 	}
 	a.modelEfforts = maps.Clone(snapshot.ModelEfforts)
+	a.modelDisplayNames = maps.Clone(snapshot.ModelDisplayNames)
 	if a.modelEfforts == nil {
 		a.modelEfforts = map[string]string{}
 		for _, saved := range snapshot.Sessions {
@@ -194,13 +195,14 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 
 func (a *App) snapshot() storage.Snapshot {
 	result := storage.Snapshot{
-		DeletedThreads:   slices.Clone(a.deletedThreads),
-		LastClaudeModels: maps.Clone(a.lastModels),
-		ModelEfforts:     maps.Clone(a.modelEfforts),
-		DefaultAgent:     a.defaultAgent.Normalized(),
-		Preferences:      &a.preferences,
-		Repositories:     a.repositories,
-		ProjectOrder:     slices.Clone(a.projectOrder), HiddenProjects: maps.Clone(a.hiddenProjects),
+		DeletedThreads:    slices.Clone(a.deletedThreads),
+		LastClaudeModels:  maps.Clone(a.lastModels),
+		ModelEfforts:      maps.Clone(a.modelEfforts),
+		ModelDisplayNames: maps.Clone(a.modelDisplayNames),
+		DefaultAgent:      a.defaultAgent.Normalized(),
+		Preferences:       &a.preferences,
+		Repositories:      a.repositories,
+		ProjectOrder:      slices.Clone(a.projectOrder), HiddenProjects: maps.Clone(a.hiddenProjects),
 		WorktreeNames: maps.Clone(a.worktreeNames),
 		OpenTabs:      []int{},
 		Selected:      a.session.id, SidebarOpen: a.sidebarOpen, SidebarWidth: a.sidebarWidth,

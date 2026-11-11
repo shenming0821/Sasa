@@ -275,7 +275,9 @@ func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
 	w := a.workspace(root)
 	w.query = "two"
 	anchor, caret := d.anchor, d.caret
-	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findKey) > 0 && d.findKey[0] == 's' && len(d.findMatches) == 1 })
+	p4Wait(t, tt, q, func() bool {
+		return d.findScanned && len(d.findKey) > 0 && d.findKey[0] == 's' && len(d.findMatches) == 1
+	})
 	if d.findMatches[0] != (findMatch{14, 17}) || d.pendingSelection != nil || d.anchor != anchor || d.caret != caret {
 		t.Fatal("workspace highlight changed selection or mismatched", d.findMatches, d.anchor, d.caret)
 	}
@@ -424,13 +426,13 @@ func TestFindBracketPair(t *testing.T) {
 		caret int
 		want  [2]int
 	}{
-		{1, [2]int{1, 9}},   // on "("
-		{2, [2]int{1, 9}},   // just after "("
-		{9, [2]int{1, 9}},   // on ")"
-		{10, [2]int{1, 9}},  // just after ")"
-		{4, [2]int{4, 6}},   // on "{"
-		{7, [2]int{4, 6}},   // just after "}"
-		{5, [2]int{4, 6}},   // between "{" and "b"
+		{1, [2]int{1, 9}},    // on "("
+		{2, [2]int{1, 9}},    // just after "("
+		{9, [2]int{1, 9}},    // on ")"
+		{10, [2]int{1, 9}},   // just after ")"
+		{4, [2]int{4, 6}},    // on "{"
+		{7, [2]int{4, 6}},    // just after "}"
+		{5, [2]int{4, 6}},    // between "{" and "b"
 		{12, [2]int{12, 17}}, // "(" with a [] pair inside
 		{14, [2]int{14, 16}},
 		{18, [2]int{12, 17}},

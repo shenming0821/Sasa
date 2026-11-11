@@ -14,10 +14,10 @@ import (
 // option id; other types are kept out rather than guessed.
 func parseConfigOptions(raw json.RawMessage) map[string]*configOption {
 	var options []struct {
-		ID       string `json:"id"`
-		Type     string `json:"type"`
-		Current  string `json:"currentValue"`
-		Choices  []struct {
+		ID      string `json:"id"`
+		Type    string `json:"type"`
+		Current string `json:"currentValue"`
+		Choices []struct {
 			Value string `json:"value"`
 			Name  string `json:"name"`
 		} `json:"options"`

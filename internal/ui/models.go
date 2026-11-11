@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -79,6 +80,18 @@ func (a *App) loadModels() {
 		} else {
 			models, err = backend.ListModels(ctx)
 		}
+		if err == nil {
+			available := false
+			for _, model := range models {
+				if model.Model != "" && !model.Hidden {
+					available = true
+					break
+				}
+			}
+			if !available {
+				err = errors.New("当前运行时未返回可用模型，请刷新模型列表重试")
+			}
+		}
 		select {
 		case <-root.shutdown:
 			return
@@ -108,6 +121,7 @@ func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
 		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
 		owner.models, owner.modelsLoaded = entry.models, entry.loaded
 		owner.modelsLoading, owner.modelsError = entry.loading, entry.error
+		a.forSession(owner).rememberModelDisplayName(owner.selectedModel)
 		if key.Agent != agent.Claude || !entry.loaded || len(entry.models) == 0 || entry.loading {
 			continue
 		}
@@ -122,6 +136,7 @@ func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
 			if owner.selectedEffort == "" {
 				owner.selectedEffort = a.rememberedModelEffort(owner.kind, owner.runtimeKey, owner.selectedModel)
 			}
+			a.forSession(owner).rememberModelDisplayName(owner.selectedModel)
 			selected = append(selected, owner)
 		}
 	}
@@ -159,6 +174,7 @@ func modelPreferenceKey(kind agent.AgentKind, runtime string) string {
 }
 
 func (a *App) rememberModel(model string) {
+	a.rememberModelDisplayName(model)
 	if model == "" || model == "default" {
 		return
 	}
@@ -167,6 +183,39 @@ func (a *App) rememberModel(model string) {
 		root.lastModels = map[string]string{}
 	}
 	root.lastModels[modelPreferenceKey(a.kind, a.runtimeKey)] = model
+}
+
+func modelDisplayNameKey(key agent.CacheKey, model string) string {
+	return modelPreferenceKey(key.Agent, key.Runtime) + "\x00" + key.Cwd + "\x00" + model
+}
+
+func (a *App) rememberModelDisplayName(model string) {
+	for _, entry := range a.models {
+		if entry.Model != model || entry.DisplayName == "" || entry.Hidden {
+			continue
+		}
+		root := a.application()
+		if root.modelDisplayNames == nil {
+			root.modelDisplayNames = map[string]string{}
+		}
+		root.modelDisplayNames[modelDisplayNameKey(a.completionCacheKey(), model)] = entry.DisplayName
+		return
+	}
+}
+
+func (a *App) selectedModelDisplayName() string {
+	for _, entry := range a.models {
+		if entry.Model == a.selectedModel && entry.DisplayName != "" && !entry.Hidden {
+			return entry.DisplayName
+		}
+	}
+	if name := a.application().modelDisplayNames[modelDisplayNameKey(a.completionCacheKey(), a.selectedModel)]; name != "" {
+		return name
+	}
+	if a.modelsLoaded {
+		return a.selectedModel
+	}
+	return ""
 }
 
 func modelEffortKey(kind agent.AgentKind, runtime, model string) string {
@@ -219,6 +268,7 @@ func (a *App) resolveInitialModel() {
 				return
 			}
 			s.selectedModel, s.modelError = model, ""
+			a.forSession(s).rememberModelDisplayName(model)
 			if s.selectedEffort == "" {
 				s.selectedEffort = a.rememberedModelEffort(s.kind, s.runtimeKey, model)
 			}
@@ -242,17 +292,10 @@ func (a *App) modelPicker(c *native.Context) {
 		}
 	}
 	model := "选择模型"
-	if a.selectedModel != "" {
-		model = a.selectedModel
-	}
-	if a.kind.Normalized() == agent.Claude {
-		model = "选择模型"
-	}
-	for _, entry := range root.models {
-		if entry.Model == a.selectedModel && entry.DisplayName != "" {
-			model = entry.DisplayName
-			break
-		}
+	if name := a.selectedModelDisplayName(); name != "" {
+		model = name
+	} else if root.modelsLoading {
+		model = "读取模型…"
 	}
 	effort := a.selectedEffort
 	for i := range root.models {
@@ -279,7 +322,8 @@ func (a *App) modelPicker(c *native.Context) {
 	if trigger.Clicked() {
 		a.modelMenuOpen = !a.modelMenuOpen
 		if a.modelMenuOpen {
-			if !root.modelsLoaded {
+			entry := a.application().modelCatalogs[root.completionCacheKey()]
+			if !root.modelsLoaded || root.modelsError != "" || entry != nil && time.Since(entry.checked) >= completionCatalogTTL {
 				a.loadModels()
 			}
 			if pinner, ok := a.sessionBackend().(interface{ PinnedEffort(string) string }); ok {
@@ -351,7 +395,11 @@ func (a *App) modelMenu(c *native.Context) {
 					row(name, m.Model)
 				}
 				if a.selectedModel != "" && !seen[a.selectedModel] && a.kind.Normalized() != agent.Claude {
-					row(shortModel(a.selectedModel)+"（当前选择）", a.selectedModel)
+					name := a.selectedModelDisplayName()
+					if name == "" {
+						name = "当前模型"
+					}
+					row(modelButtonLabel(name)+"（当前选择）", a.selectedModel)
 				}
 			})
 		})
@@ -361,9 +409,13 @@ func (a *App) modelMenu(c *native.Context) {
 		}
 		if root.modelsError != "" {
 			native.Text(c, root.modelsError).FontSize(11).TextColor(c.Theme().Danger)
-			if quietButton(c, "重试读取模型").Disabled(root.modelsLoading).Clicked() {
-				a.loadModels()
-			}
+		}
+		refreshLabel := "刷新模型列表"
+		if root.modelsError != "" {
+			refreshLabel = "重试读取模型"
+		}
+		if quietButton(c, refreshLabel).Disabled(root.modelsLoading || a.State.Disconnected).Clicked() {
+			a.loadModels()
 		}
 		if a.modelError != "" {
 			native.Text(c, a.modelError).FontSize(11).TextColor(c.Theme().Danger)
