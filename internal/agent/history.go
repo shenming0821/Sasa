@@ -2,6 +2,20 @@ package agent
 
 import "encoding/json"
 
+// NormalizeUpdatedAtMillis returns the timestamp in milliseconds or nil when
+// the value is absent or implausible. Native backends report either seconds
+// or milliseconds; a threshold at year 2001 in milliseconds separates them.
+func NormalizeUpdatedAtMillis(stamp *int64) *int64 {
+	if stamp == nil || *stamp <= 0 {
+		return nil
+	}
+	value := *stamp
+	if value < 978307200000 {
+		value *= 1000
+	}
+	return &value
+}
+
 type HistoryTurn struct {
 	ID        string            `json:"id"`
 	Status    string            `json:"status"`

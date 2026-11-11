@@ -453,6 +453,7 @@ func (a *App) loadThreadList() {
 					}
 				}
 			}
+			sortThreadsByActivity(threads)
 			tl.threads = threads
 			if tl.sources == nil {
 				tl.sources = make(map[backendKey]threadSource)
@@ -543,6 +544,7 @@ func (a *App) refreshThreadHead() {
 			}
 			if len(fresh) > 0 {
 				tl.threads = append(fresh, tl.threads...)
+				sortThreadsByActivity(tl.threads)
 				tl.layoutPending = true
 			}
 		})
@@ -602,9 +604,12 @@ func (a *App) historyBrowser(c *native.Context) {
 				}
 				count++
 				rowKey := string(sourceKey.kind) + "\x00" + sourceKey.runtime + "\x00" + thread.ID
+				var stamp time.Time
+				if ms := agent.NormalizeUpdatedAtMillis(thread.UpdatedAt); ms != nil {
+					stamp = time.UnixMilli(*ms).Local()
+				}
 				tooltip := sourceKey.kind.String() + " · " + thread.Cwd
-				if thread.UpdatedAt != nil {
-					stamp := time.UnixMilli(*thread.UpdatedAt).Local()
+				if !stamp.IsZero() {
 					tooltip += " · 最后交互 " + stamp.Format("2006-01-02 15:04:05")
 				}
 				b := treeButton(c.Key(rowKey), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(tooltip)
@@ -614,8 +619,7 @@ func (a *App) historyBrowser(c *native.Context) {
 						native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
 							agentIcon(c, sourceKey.kind, 12).Label("历史 Agent " + sourceKey.kind.String())
 							native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)
-							if thread.UpdatedAt != nil {
-								stamp := time.UnixMilli(*thread.UpdatedAt).Local()
+							if !stamp.IsZero() {
 								native.Text(c, relativeHistoryTime(stamp)).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Shrink(0)
 							}
 						})
@@ -690,6 +694,21 @@ func relativeHistoryTime(stamp time.Time) string {
 		return stamp.Format("01-02")
 	}
 	return stamp.Format("2006-01-02")
+}
+
+// sortThreadsByActivity orders the merged catalog newest first; entries
+// without a usable timestamp keep their relative order at the end.
+func sortThreadsByActivity(threads []agent.ThreadMeta) {
+	sort.SliceStable(threads, func(first, second int) bool {
+		a, b := agent.NormalizeUpdatedAtMillis(threads[first].UpdatedAt), agent.NormalizeUpdatedAtMillis(threads[second].UpdatedAt)
+		if a == nil {
+			return false
+		}
+		if b == nil {
+			return true
+		}
+		return *a > *b
+	})
 }
 
 func (s *session) bufferRecovery(e agent.Event) bool {

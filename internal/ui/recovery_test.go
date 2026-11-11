@@ -563,3 +563,41 @@ func TestThreadHistoryLoadsFilteredPagesWithoutLoadingText(t *testing.T) {
 		t.Fatal("unexpected repeated page requests", b.cursors)
 	}
 }
+
+func TestThreadHistorySortsByLastActivityAndSkipsEpoch(t *testing.T) {
+	now := time.Now()
+	recent := now.Add(-2 * time.Hour).Unix()
+	older := now.AddDate(0, 0, -2).UnixMilli()
+	zero := int64(0)
+	b := &threadPagesBackend{threadPages: []codex.ThreadsPage{{Data: []codex.ThreadMeta{
+		{ID: "older", Cwd: "/first", Preview: "older title", UpdatedAt: &older},
+		{ID: "epoch", Cwd: "/first", Preview: "epoch title", UpdatedAt: &zero},
+		{ID: "recent", Cwd: "/first", Preview: "recent title", UpdatedAt: &recent},
+		{ID: "missing", Cwd: "/first", Preview: "missing title"},
+	}}}}
+	a := New(b, "test", "/first", nil)
+	queue := make(chan func(), 4)
+	a.dispatch = func(fn func()) { queue <- fn }
+	a.loadThreadList()
+	pumpUpdate(t, queue)
+	if len(a.threadList.threads) != 4 || a.threadList.threads[0].ID != "recent" || a.threadList.threads[1].ID != "older" {
+		t.Fatal("history did not sort newest first", a.threadList.threads)
+	}
+	if a.threadList.threads[2].ID != "epoch" || a.threadList.threads[3].ID != "missing" {
+		t.Fatal("entries without a usable timestamp should keep order at the end", a.threadList.threads)
+	}
+	tt := native.NewTester(func(c *native.Context) {
+		native.Column(c).Fill().Children(func() { a.historyBrowser(c) })
+	}, 360, 600)
+	for _, text := range tt.Texts() {
+		if strings.Contains(text, "1970") {
+			t.Fatal("epoch timestamp rendered as 1970", text)
+		}
+	}
+	if !tt.HasText(time.Unix(recent, 0).Local().Format("15:04")) {
+		t.Fatal("recent row did not show today time", tt.Texts())
+	}
+	if !tt.HasText(time.UnixMilli(older).Local().Format("01-02")) {
+		t.Fatal("older row did not show date", tt.Texts())
+	}
+}
