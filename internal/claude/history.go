@@ -109,6 +109,35 @@ func (c *Client) transcript(id string) ([]byte, error) {
 	return raw, nil
 }
 
+// transcriptModTime locates the native record and returns its modification
+// time, which tracks the last interaction Claude wrote to the transcript.
+func (c *Client) transcriptModTime(id string) (time.Time, error) {
+	if !validID(id) {
+		return time.Time{}, fmt.Errorf("Claude 会话标识无效")
+	}
+	projects, err := os.ReadDir(filepath.Join(c.home, "projects"))
+	if err != nil {
+		return time.Time{}, err
+	}
+	var info os.FileInfo
+	for _, project := range projects {
+		if !project.IsDir() {
+			continue
+		}
+		path := filepath.Join(c.home, "projects", project.Name(), id+".jsonl")
+		if stat, err := os.Lstat(path); err == nil && stat.Mode().IsRegular() {
+			if info != nil {
+				return time.Time{}, fmt.Errorf("Claude 同一会话存在多个原生记录，请核验来源")
+			}
+			info = stat
+		}
+	}
+	if info == nil {
+		return time.Time{}, fmt.Errorf("Claude 原生记录不存在：%s", id)
+	}
+	return info.ModTime(), nil
+}
+
 func digest(raw []byte) string { sum := sha256.Sum256(raw); return hex.EncodeToString(sum[:]) }
 
 func (c *Client) transcriptDigest(id string) (string, error) {
@@ -522,7 +551,12 @@ func (c *Client) ListThreads(ctx context.Context, cursor *string) (agent.Threads
 		if len(s.Turns) == 0 {
 			continue
 		}
-		page.Data = append(page.Data, agent.ThreadMeta{ID: s.ID, Cwd: s.Cwd, Preview: s.Title, Status: agent.ThreadStatus{Type: "notLoaded"}})
+		meta := agent.ThreadMeta{ID: s.ID, Cwd: s.Cwd, Preview: s.Title, Status: agent.ThreadStatus{Type: "notLoaded"}}
+		if mod, err := c.transcriptModTime(s.ID); err == nil {
+			ms := mod.UnixMilli()
+			meta.UpdatedAt = &ms
+		}
+		page.Data = append(page.Data, meta)
 	}
 	sort.Slice(page.Data, func(first, second int) bool { return page.Data[first].ID > page.Data[second].ID })
 	return page, ctx.Err()

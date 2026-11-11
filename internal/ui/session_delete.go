@@ -29,6 +29,9 @@ func (a *App) canDeleteSession(target *session) bool {
 
 func (a *App) sessionMenu(target *session) func(*native.Menu) {
 	return func(menu *native.Menu) {
+		if menu.Item("复制会话ID").Disabled(target == nil || target.State.ThreadID == "").Chosen() {
+			mygo.Clipboard.WriteText(target.State.ThreadID)
+		}
 		if menu.Item("重命名").Disabled(target == nil || a.quitting || a.quitDialog).Chosen() {
 			a.beginSessionRename(target)
 		}

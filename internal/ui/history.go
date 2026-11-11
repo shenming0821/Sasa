@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -559,7 +560,8 @@ func (a *App) recordThreadHistory() {
 	if _, exists := root.threadList.sources[source]; !exists {
 		return
 	}
-	thread := agent.ThreadMeta{Agent: source.kind, Runtime: source.runtime, ID: a.State.ThreadID, Cwd: a.State.Cwd, Preview: a.session.title(), Status: agent.ThreadStatus{Type: "notLoaded"}}
+	now := time.Now().UnixMilli()
+	thread := agent.ThreadMeta{Agent: source.kind, Runtime: source.runtime, ID: a.State.ThreadID, Cwd: a.State.Cwd, Preview: a.session.title(), Status: agent.ThreadStatus{Type: "notLoaded"}, UpdatedAt: &now}
 	threads := []agent.ThreadMeta{thread}
 	for _, existing := range root.threadList.threads {
 		if existing.ID != thread.ID || a.threadSourceKey(existing) != source {
@@ -600,15 +602,26 @@ func (a *App) historyBrowser(c *native.Context) {
 				}
 				count++
 				rowKey := string(sourceKey.kind) + "\x00" + sourceKey.runtime + "\x00" + thread.ID
-				b := treeButton(c.Key(rowKey), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(sourceKey.kind.String() + " · " + thread.Cwd)
+				tooltip := sourceKey.kind.String() + " · " + thread.Cwd
+				if thread.UpdatedAt != nil {
+					stamp := time.UnixMilli(*thread.UpdatedAt).Local()
+					tooltip += " · 最后交互 " + stamp.Format("2006-01-02 15:04:05")
+				}
+				b := treeButton(c.Key(rowKey), "打开历史 "+thread.ID).FillWidth().Padding(12).Tooltip(tooltip)
 				b.ContextMenu(a.sessionMenu(target))
 				b.Children(func() {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
 						native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
 							agentIcon(c, sourceKey.kind, 12).Label("历史 Agent " + sourceKey.kind.String())
 							native.Text(c, title).FontSize(12).TextColor(c.Theme().Text).SingleLine().Shrink(1).MinWidth(0)
+							if thread.UpdatedAt != nil {
+								stamp := time.UnixMilli(*thread.UpdatedAt).Local()
+								native.Text(c, relativeHistoryTime(stamp)).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Shrink(0)
+							}
 						})
-						native.Text(c, thread.Cwd).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Shrink(1).MinWidth(0)
+						if a.historyScope != 0 {
+							native.Text(c, thread.Cwd).FontSize(10).TextColor(c.Theme().TextMuted).SingleLine().Shrink(1).MinWidth(0)
+						}
 					})
 				})
 				if b.Clicked() {
@@ -652,6 +665,31 @@ func (a *App) historyBrowser(c *native.Context) {
 			a.loadThreadList()
 		}
 	}
+}
+
+// relativeHistoryTime compresses a stamp for the row's trailing corner: times
+// inside today stay readable ("14:05"), older rows fall back to dates.
+func relativeHistoryTime(stamp time.Time) string {
+	now := time.Now()
+	if stamp.After(now) {
+		return "刚刚"
+	}
+	if stamp.Year() == now.Year() && stamp.YearDay() == now.YearDay() {
+		if elapsed := now.Sub(stamp); elapsed < time.Minute {
+			return "刚刚"
+		} else if elapsed < time.Hour {
+			return fmt.Sprintf("%d 分钟前", int(elapsed.Minutes()))
+		}
+		return stamp.Format("15:04")
+	}
+	yesterday := now.AddDate(0, 0, -1)
+	if stamp.Year() == yesterday.Year() && stamp.YearDay() == yesterday.YearDay() {
+		return "昨天"
+	}
+	if stamp.Year() == now.Year() {
+		return stamp.Format("01-02")
+	}
+	return stamp.Format("2006-01-02")
 }
 
 func (s *session) bufferRecovery(e agent.Event) bool {

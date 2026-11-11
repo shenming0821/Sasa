@@ -12,14 +12,15 @@ type HistoryTurn struct {
 }
 
 type ThreadMeta struct {
-	Agent   AgentKind     `json:"-"`
-	Runtime string        `json:"-"`
-	ID      string        `json:"id"`
-	Cwd     string        `json:"cwd"`
-	Preview string        `json:"preview"`
-	Name    *string       `json:"name"`
-	Status  ThreadStatus  `json:"status"`
-	Turns   []HistoryTurn `json:"turns"`
+	Agent     AgentKind     `json:"-"`
+	Runtime   string        `json:"-"`
+	ID        string        `json:"id"`
+	Cwd       string        `json:"cwd"`
+	Preview   string        `json:"preview"`
+	Name      *string       `json:"name"`
+	Status    ThreadStatus  `json:"status"`
+	UpdatedAt *int64        `json:"updatedAt,omitempty"`
+	Turns     []HistoryTurn `json:"turns"`
 }
 
 type ThreadStatus struct {

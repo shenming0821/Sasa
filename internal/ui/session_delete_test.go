@@ -191,7 +191,7 @@ func TestDeleteHistoryMenusFilterAndLateOpen(t *testing.T) {
 	if err := tt.RightClick("打开历史 delete"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(tt.Menu(), []string{"重命名", "删除会话"}) {
+	if !slices.Equal(tt.Menu(), []string{"复制会话ID", "重命名", "删除会话"}) {
 		t.Fatal("history delete menu missing", tt.Menu())
 	}
 	tt.Key(0, native.KeyEscape)
@@ -213,7 +213,7 @@ func TestDeleteHistoryMenusFilterAndLateOpen(t *testing.T) {
 	if err := tt.RightClick("会话标签 1"); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(tt.Menu(), []string{"重命名", "删除会话"}) {
+	if !slices.Equal(tt.Menu(), []string{"复制会话ID", "重命名", "删除会话"}) {
 		t.Fatal("tab delete menu missing")
 	}
 }

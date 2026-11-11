@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 )
@@ -229,7 +230,12 @@ func (c *Client) ListThreads(ctx context.Context, cursor *string) (agent.Threads
 		if title == "" {
 			title = "新会话"
 		}
-		page.Data = append(page.Data, agent.ThreadMeta{ID: entry.SessionID, Cwd: entry.Cwd, Preview: title, Status: agent.ThreadStatus{Type: "notLoaded"}})
+		meta := agent.ThreadMeta{ID: entry.SessionID, Cwd: entry.Cwd, Preview: title, Status: agent.ThreadStatus{Type: "notLoaded"}}
+		if stamp, err := time.Parse(time.RFC3339, entry.UpdatedAt); err == nil {
+			ms := stamp.UnixMilli()
+			meta.UpdatedAt = &ms
+		}
+		page.Data = append(page.Data, meta)
 	}
 	return page, nil
 }
