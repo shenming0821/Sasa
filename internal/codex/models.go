@@ -2,7 +2,9 @@ package codex
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 )
@@ -10,6 +12,29 @@ import (
 type Model = agent.Model
 
 func (c *Client) ListModels(ctx context.Context) ([]Model, error) {
+	started := time.Now()
+	for attempt := 0; attempt < 2; attempt++ {
+		models, err := c.listModels(ctx)
+		if err != nil || len(models) > 0 {
+			return models, err
+		}
+		if attempt == 0 {
+			timer := time.NewTimer(250 * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
+	if message := c.modelDiagnostics.since(started); message != "" {
+		return nil, errors.New(message)
+	}
+	return nil, errors.New("Codex 未返回可用模型，请刷新模型列表重试")
+}
+
+func (c *Client) listModels(ctx context.Context) ([]Model, error) {
 	var models []Model
 	var cursor *string
 	seen := map[string]bool{}

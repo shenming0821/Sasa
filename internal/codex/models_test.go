@@ -2,13 +2,62 @@ package codex
 
 import (
 	"context"
+	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
 )
+
+func TestEmptyModelCatalogRetriesAndRecovers(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client := fixture(t, "models-empty-recover")
+	models, err := client.ListModels(ctx)
+	if err != nil || len(models) != 1 || models[0].Model != "recovered-model" {
+		t.Fatalf("models=%v err=%v", models, err)
+	}
+	if client.nextID.Load() != 2 {
+		t.Fatal("expected one retry")
+	}
+}
+
+func TestEmptyModelCatalogStopsAfterOneRetry(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client := fixture(t, "models-empty")
+	if _, err := client.ListModels(ctx); err == nil || !strings.Contains(err.Error(), "Codex 未返回可用模型") {
+		t.Fatal(err)
+	}
+	if client.nextID.Load() != 2 {
+		t.Fatal("unbounded model retries")
+	}
+}
+
+func TestEmptyModelCatalogRetryHonorsCancellation(t *testing.T) {
+	client := fixture(t, "models-empty")
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, err := client.ListModels(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+	if client.nextID.Load() != 1 {
+		t.Fatal("retried after cancellation")
+	}
+}
+
+func TestEmptyModelCatalogReportsNativeRefreshTimeout(t *testing.T) {
+	client := fixture(t, "models-empty-timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := client.ListModels(ctx)
+	if err == nil || !strings.Contains(err.Error(), "请求超时") || strings.Contains(err.Error(), "secret-token") {
+		t.Fatal(err)
+	}
+}
 
 func TestModelCatalogDefaultAndMixedInput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

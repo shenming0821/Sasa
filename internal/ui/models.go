@@ -344,7 +344,28 @@ func (a *App) modelMenu(c *native.Context) {
 		disabled = true
 	}
 	native.Column(c).Width(280).Gap(4).Children(func() {
-		native.Text(c, "选择模型").FontSize(12).TextColor(c.Theme().TextMuted).Padding(4, 8)
+		native.Row(c).FillWidth().Padding(0, 4, 0, 8).AlignItems(native.Center).Children(func() {
+			native.Text(c, "选择模型").FontSize(12).TextColor(c.Theme().TextMuted).Grow(1)
+			label := "刷新模型列表"
+			if root.modelsError != "" {
+				label = "重试读取模型"
+			}
+			if root.modelsLoading {
+				label = "正在刷新模型列表"
+			}
+			refresh := quietIconButton(c.Key("model-refresh"), label).Size(26, 26).
+				Disabled(root.modelsLoading || a.State.Disconnected)
+			refresh.Children(func() {
+				if root.modelsLoading {
+					native.Spinner(c).Size(14, 14)
+				} else {
+					native.Icon(c, refreshProjectIcon).Size(14, 14)
+				}
+			})
+			if refresh.Clicked() {
+				a.loadModels()
+			}
+		})
 		row := func(label, value string) {
 			b := treeButton(c.Key(value), "选择模型 "+label).FillWidth().Padding(8).Disabled(disabled)
 			b.Children(func() {
@@ -409,13 +430,6 @@ func (a *App) modelMenu(c *native.Context) {
 		}
 		if root.modelsError != "" {
 			native.Text(c, root.modelsError).FontSize(11).TextColor(c.Theme().Danger)
-		}
-		refreshLabel := "刷新模型列表"
-		if root.modelsError != "" {
-			refreshLabel = "重试读取模型"
-		}
-		if quietButton(c, refreshLabel).Disabled(root.modelsLoading || a.State.Disconnected).Clicked() {
-			a.loadModels()
 		}
 		if a.modelError != "" {
 			native.Text(c, a.modelError).FontSize(11).TextColor(c.Theme().Danger)

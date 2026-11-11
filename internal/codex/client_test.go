@@ -33,6 +33,20 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "models-empty", "models-empty-recover", "models-empty-timeout":
+			if m.Method != "model/list" {
+				os.Exit(11)
+			}
+			models := []any{}
+			if scenario == "models-empty-timeout" {
+				os.Stderr.WriteString("ERROR codex_models_manager::manager: failed to refresh available models: request timed out https://private.example/secret-token\n")
+			}
+			if scenario == "models-empty-recover" && modelPage > 0 {
+				models = append(models, map[string]any{"model": "recovered-model", "displayName": "Recovered model"})
+			}
+			modelPage++
+			enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"data": models, "nextCursor": nil}})
+			continue
 		case "models", "models-default", "models-cycle":
 			var result any
 			switch m.Method {

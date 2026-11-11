@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os/exec"
 	"sync"
 	"sync/atomic"
@@ -29,15 +28,16 @@ type envelope struct {
 }
 
 type Client struct {
-	process *process.Process
-	writeMu sync.Mutex
-	mu      sync.Mutex
-	pending agent.RequestTable[envelope]
-	server  map[string]*serverRequest
-	nextID  atomic.Int64
-	done    chan struct{}
-	abort   chan struct{}
-	close   sync.Once
+	process          *process.Process
+	modelDiagnostics *modelDiagnostics
+	writeMu          sync.Mutex
+	mu               sync.Mutex
+	pending          agent.RequestTable[envelope]
+	server           map[string]*serverRequest
+	nextID           atomic.Int64
+	done             chan struct{}
+	abort            chan struct{}
+	close            sync.Once
 
 	queueMu    sync.Mutex
 	queue      []Event
@@ -76,13 +76,13 @@ func Version(ctx context.Context, executable string) (string, error) {
 }
 
 func startProcess(executable string, args []string, cwd string) (*Client, error) {
-	// stderr may contain private configuration or tool output; do not persist it.
-	p, err := process.Start(executable, args, cwd, io.Discard)
+	diagnostics := &modelDiagnostics{}
+	p, err := process.Start(executable, args, cwd, diagnostics)
 	if err != nil {
 		return nil, fmt.Errorf("start Codex: %w", err)
 	}
 	c := &Client{
-		process: p, server: make(map[string]*serverRequest), done: make(chan struct{}), abort: make(chan struct{}),
+		process: p, modelDiagnostics: diagnostics, server: make(map[string]*serverRequest), done: make(chan struct{}), abort: make(chan struct{}),
 		wake: make(chan struct{}, 1), events: make(chan Event),
 	}
 	go c.dispatch()
