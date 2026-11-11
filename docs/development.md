@@ -52,7 +52,7 @@ Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。
 
 入口为 `cmd/desktop/main.go`。现有包与状态/进程边界见[子系统索引](subsystems/README.md)和[运行时说明](subsystems/codex-runtime.md)。
 
-构建在写完资源和 Info.plist 后，先签名内嵌 libghostty，再以当前渠道的 Bundle ID 签名整个应用（正式版 `com.shenming.fuyu`、Preview `com.shenming.fuyu.preview`），并严格核验包签名。本地默认 `FUYU_CODESIGN_IDENTITY=-`，使用 ad hoc 签名；已有 Apple 签发的代码签名证书时，通过 `FUYU_CODESIGN_IDENTITY` 指定钥匙串中的身份。Info.plist 包含局域网模型服务用途说明。macOS 按负责的 GUI 应用身份判定其子进程的局域网权限，终端 CLI 则自动获准访问；仅在 CLI 中连通不能证明 Fuyu 已获准。ad hoc 签名仍不能保证跨构建的权限身份稳定；可靠追踪需要 Apple 签发的身份。此前本机阻断与验证边界见[网络验证](verification/2026-11-02-local-network.md)。
+构建在写完资源和 Info.plist 后，先签名内嵌 libghostty，再以当前渠道的 Bundle ID 签名整个应用（正式版 `com.shenming.fuyu`、Preview `com.shenming.fuyu.preview`），并严格核验包签名。`FUYU_CODESIGN_IDENTITY` 可指定钥匙串中的身份；未设置时，若登录钥匙串存在名为 `Fuyu Dev` 的自签代码签名证书则自动使用，否则回退 ad hoc 签名（`FUYU_CODESIGN_IDENTITY=-`）。Info.plist 包含局域网模型服务用途说明。macOS 按负责的 GUI 应用身份判定其子进程的局域网权限，终端 CLI 则自动获准访问；仅在 CLI 中连通不能证明 Fuyu 已获准。ad hoc 签名不能保证跨构建的权限身份稳定；`Fuyu Dev` 自签证书在本地构建间提供稳定签名身份，可靠追踪仍需 Apple 签发的身份。此前本机阻断与验证边界见[网络验证](verification/2026-11-02-local-network.md)。
 
 ## 3. 验证方式
 

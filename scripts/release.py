@@ -117,7 +117,10 @@ def configure_channel(app, identity, channel):
 
 
 def sign(app):
-    signing = os.environ.get('FUYU_CODESIGN_IDENTITY', '-')
+    signing = os.environ.get('FUYU_CODESIGN_IDENTITY')
+    if signing is None:
+        probe = subprocess.run(['security', 'find-certificate', '-c', 'Fuyu Dev', '-Z', os.path.expanduser('~/Library/Keychains/login.keychain-db')], capture_output=True)
+        signing = 'Fuyu Dev' if probe.returncode == 0 else '-'
     with (app / 'Contents/Info.plist').open('rb') as handle:
         identifier = plistlib.load(handle)['CFBundleIdentifier']
     run('codesign', '--force', '--sign', signing, '--timestamp=none', app / 'Contents/Frameworks/libghostty.dylib')
