@@ -47,6 +47,7 @@ func (a *App) addImages(refs []attachment.Image) {
 	}
 	if len(refs)+len(a.State.DraftImages)+a.importingImages+len(a.queuedImages) > attachment.MaxImages {
 		a.imageError = "每条消息最多添加 8 张图片"
+		a.focusComposer()
 		return
 	}
 	if a.imagesImporting {
@@ -56,6 +57,7 @@ func (a *App) addImages(refs []attachment.Image) {
 	dir, err := a.imageDirectory()
 	if err != nil {
 		a.imageError = err.Error()
+		a.focusComposer()
 		return
 	}
 	bound := a.forSession(a.session)
@@ -90,8 +92,18 @@ func (a *App) addImages(refs []attachment.Image) {
 			if previousError != "" {
 				bound.imageError = previousError
 			}
+			if bound.application().session == bound.session {
+				bound.focusComposer()
+			}
 		})
 	}()
+}
+
+// focusComposer moves the caret back to the composer so the user can keep
+// typing or paste the next image right after adding one.
+func (a *App) focusComposer() {
+	a.completion.caret = len([]rune(a.State.Draft))
+	a.completion.focus = true
 }
 
 func imageName(ref attachment.Image) string {

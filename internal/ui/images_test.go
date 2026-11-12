@@ -77,15 +77,32 @@ func TestImagePasteDropAndSessionDraftRecovery(t *testing.T) {
 	if !a.imagesImporting || a.canSend() {
 		t.Fatal("image import was not gated")
 	}
-	a.newSession("/second")
 	pumpUpdate(t, queue)
-	if len(owner.State.DraftImages) != 1 || len(a.State.DraftImages) != 0 {
+	tt.Frame()
+	if !tt.Focused("任务输入") {
+		t.Fatal("pasted image did not refocus the composer")
+	}
+	if err := tt.Click("任务输入"); err != nil {
+		t.Fatal(err)
+	}
+	other := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	var otherBuf bytes.Buffer
+	if err := png.Encode(&otherBuf, other); err != nil {
+		t.Fatal(err)
+	}
+	tt.SetClipboardData(transfer.New(transfer.NewItem(transfer.Bytes(transfer.PNG, otherBuf.Bytes()))))
+	tt.Key(native.Cmd, native.KeyV)
+	a.newSession("/second")
+	for len(owner.State.DraftImages) != 2 {
+		pumpUpdate(t, queue)
+	}
+	if len(a.State.DraftImages) != 0 {
 		t.Fatal("paste changed the selected session instead of owner")
 	}
 	a.selectSession(owner)
 	a.dispatch = nil
 	tt.Frame()
-	if !tt.HasText("预览附件 1") {
+	if !tt.HasText("预览附件 2") {
 		t.Fatal("attachment preview missing")
 	}
 	a.dispatch = func(fn func()) { queue <- fn }
@@ -94,7 +111,7 @@ func TestImagePasteDropAndSessionDraftRecovery(t *testing.T) {
 		t.Fatal("file drop was not accepted")
 	}
 	pumpUpdate(t, queue)
-	if len(a.State.DraftImages) != 1 {
+	if len(a.State.DraftImages) != 2 {
 		t.Fatal("same-content file drop duplicated screenshot")
 	}
 	a.dispatch = nil
@@ -108,7 +125,7 @@ func TestImagePasteDropAndSessionDraftRecovery(t *testing.T) {
 	if err := reopened.AttachStore(store); err != nil {
 		t.Fatal(err)
 	}
-	if len(reopened.State.DraftImages) != 1 || reopened.State.Draft != owner.State.Draft {
+	if len(reopened.State.DraftImages) != 2 || reopened.State.Draft != owner.State.Draft {
 		t.Fatal("image draft did not survive restart")
 	}
 	if _, err := attachment.Read(reopened.State.DraftImages[0]); err != nil {
