@@ -104,6 +104,8 @@ func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 			state.Model, state.Policy, state.Sandbox = resumed.Model, string(resumed.Policy), string(resumed.Sandbox)
 			state.RuntimeVersion = resumed.RuntimeVersion
 			s.State, s.loaded, s.historyCursor = state, true, page.NextCursor
+			bound.settleInputs()
+			bound.restorePendingMessages()
 			bound.restoreMessageEdit()
 			// On a new transport an active/unfinished snapshot is evidence to
 			// investigate, not authority to replay a turn or revive an approval.

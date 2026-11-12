@@ -193,14 +193,21 @@ func (a *App) Run() error {
 }
 
 func (a *App) canSend() bool {
-	return a.edit == nil && a.canSubmitTask() && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
+	return a.edit == nil && a.canComposeTask() && len(a.pendingInputs) < 16 && (strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) > 0)
 }
 
 func (a *App) canSubmitTask() bool {
+	return !a.State.Busy && a.canComposeTask()
+}
+
+func (a *App) canComposeTask() bool {
+	if !a.State.Busy && (a.snapshotPending || a.State.NeedsSnapshot) {
+		return false
+	}
 	if a.State.PendingSubmission() != nil && (a.snapshotPending || a.State.NeedsSnapshot || a.State.Incomplete) {
 		return false
 	}
-	return a.open && a.sessionBackend() != nil && !a.releasing && !a.editPreparing && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Busy && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
+	return a.open && a.sessionBackend() != nil && !a.releasing && !a.editPreparing && !a.application().quitting && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Stopping() && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
 		!a.imagesImporting && a.State.Cwd != ""
 }
 
@@ -232,6 +239,14 @@ func (a *App) send() {
 	}
 	a.composerFocus = true
 	text := strings.TrimSpace(a.State.Draft)
+	if a.isClearCommand(text) && a.State.Busy {
+		a.State.Error = "请在当前任务结束后清空上下文"
+		return
+	}
+	if a.State.Busy || len(a.pendingInputs) > 0 {
+		a.enqueueInput(text, slices.Clone(a.State.DraftImages))
+		return
+	}
 	if (len(a.State.DraftImages) == 0 || a.isClearCommand(text)) && a.runSlashCommand(text) {
 		return
 	}
@@ -239,6 +254,10 @@ func (a *App) send() {
 }
 
 func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
+	a.sendInputForMessage(text, images, edited, "")
+}
+
+func (a *App) sendInputForMessage(text string, images []attachment.Image, edited bool, messageID string) {
 	if !a.canSubmitTask() || strings.TrimSpace(text) == "" && len(images) == 0 {
 		return
 	}
@@ -267,7 +286,7 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 		a.removeEditPlaceholder()
 	}
 	a.State.DraftImages = images
-	a.State.Begin(text)
+	a.State.BeginMessage(text, messageID)
 	if edited {
 		a.State.Draft, a.State.DraftImages = draft, draftImages
 		message := a.State.Messages[len(a.State.Messages)-1]
@@ -301,6 +320,7 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 						a.submitCancel = nil
 						a.submitStop = false
 						a.State.Busy = false
+						a.pauseInputs()
 						a.State.FinishTiming()
 						a.State.RejectSubmission()
 						a.State.Error, a.State.Phase = "读取默认模型失败，本次未发送："+err.Error(), "未发送"
@@ -403,12 +423,14 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 						a.State.Phase = "正在执行"
 					}
 				}
+				a.drainInputs()
 			}
 		})
 	}()
 }
 
 func (a *App) abortBeforeTurn(text string, err error) {
+	a.pauseInputs()
 	a.State.FinishTiming()
 	a.State.Busy = false
 	a.State.RejectSubmission()
@@ -430,6 +452,7 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 	if a.State.Sequence != sequence {
 		return
 	}
+	a.pauseInputs()
 	a.State.FinishTiming()
 	var rpc *agent.RPCError
 	var notSubmitted *agent.NotSubmittedError
@@ -464,6 +487,7 @@ func (a *App) stop() {
 		return
 	}
 	a.State.BeginStop()
+	a.pauseInputs()
 	threadID, turnID := a.State.ThreadID, a.State.TurnID
 	if turnID == "" && a.submitCancel != nil {
 		a.submitStop = true
@@ -572,6 +596,7 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 			continue
 		}
 		if e.Method == "fuyu/disconnected" {
+			a.pauseInputs()
 			a.recoveryEpoch++
 			a.recovering, a.recoveryBlocked = false, true
 			a.recoveryEvents, a.recoveryBytes = nil, 0
@@ -583,6 +608,9 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		a.State.Apply(e)
 		a.finishMessageEdit()
 		if e.Method == "turn/completed" && wasBusy && !a.State.Busy && !a.State.Disconnected {
+			if a.State.Phase != "本轮已完成" {
+				a.pauseInputs()
+			}
 			delete(a.application().quitTargets, a.session.id)
 			a.notifyCompletion(e)
 			a.recordThreadHistory()
@@ -605,7 +633,10 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 	if follow {
 		a.list.ScrollToEnd()
 	}
+	a.settleInputs()
+	a.reconcileInputDelivery()
 	a.reconcileIfNeeded()
+	a.drainInputs()
 }
 
 func (a *App) answer(r *app.Interaction, result any) {
@@ -680,6 +711,8 @@ func (a *App) reconcileIfNeeded() {
 				a.State.Notice = fmt.Sprintf("原生记录无法校准：%v；结果可能不完整。", err)
 			}
 			a.finishMessageEdit()
+			a.settleInputs()
+			a.drainInputs()
 		})
 	}()
 }

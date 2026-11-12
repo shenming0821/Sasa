@@ -63,6 +63,10 @@ type State struct {
 func New(cwd string) State { return State{Cwd: cwd, Phase: "就绪"} }
 
 func (s *State) Begin(text string) {
+	s.BeginMessage(text, "")
+}
+
+func (s *State) BeginMessage(text, messageID string) {
 	for index := len(s.Messages) - 1; index >= 0; index-- {
 		if message := s.Messages[index]; message.Role == "user" {
 			if message.Delivery == "unsent" {
@@ -72,11 +76,24 @@ func (s *State) Begin(text string) {
 		}
 	}
 	s.Sequence++
-	s.Messages = append(s.Messages, &Message{
-		ID: fmt.Sprintf("user-%d", s.Sequence), Role: "user", Text: text, Done: true, Images: slices.Clone(s.DraftImages), Timing: &TurnTiming{Started: time.Now()},
-	})
+	var submitted *Message
+	for _, message := range s.Messages {
+		if messageID != "" && message.ID == messageID && message.Role == "user" && message.NativeID == "" {
+			submitted = message
+			break
+		}
+	}
+	if submitted == nil {
+		submitted = &Message{
+			ID: fmt.Sprintf("user-%d", s.Sequence), Role: "user", Text: text, Done: true, Images: slices.Clone(s.DraftImages), Timing: &TurnTiming{Started: time.Now()},
+		}
+		s.Messages = append(s.Messages, submitted)
+	} else {
+		submitted.Timing = &TurnTiming{Started: time.Now()}
+		submitted.TurnID, submitted.Delivery = "", ""
+	}
 	if s.Agent.Normalized() == agent.Codex {
-		s.Messages[len(s.Messages)-1].Delivery = "pending"
+		submitted.Delivery = "pending"
 	}
 	s.DraftImages = nil
 	s.Draft, s.Error, s.TurnID, s.retryError = "", "", "", ""
@@ -161,6 +178,7 @@ func (s *State) Apply(event agent.Event) {
 		} `json:"error"`
 		Turn agent.Turn `json:"turn"`
 		Item struct {
+			Content          json.RawMessage `json:"content"`
 			ID               string          `json:"id"`
 			Type             string          `json:"type"`
 			Text             string          `json:"text"`
@@ -239,14 +257,8 @@ func (s *State) Apply(event agent.Event) {
 	case "item/started", "item/completed":
 		switch p.Item.Type {
 		case "userMessage":
-			for index := len(s.Messages) - 1; index >= 0; index-- {
-				message := s.Messages[index]
-				if message.Role == "user" {
-					if id != "" && p.Item.ID != "" && message.TurnID == id {
-						message.Delivery, message.NativeID = "sent", p.Item.ID
-					}
-					break
-				}
+			if id != "" && p.Item.ID != "" {
+				s.acceptUserItem(p.Item.ID, id, p.Item.Content)
 			}
 		case "agentMessage":
 			m := s.item(p.Item.ID, "assistant")

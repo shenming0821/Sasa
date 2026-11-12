@@ -259,7 +259,7 @@ func (a *App) restoreSubmittedImages(text string) {
 		return
 	}
 	for i := len(a.State.Messages) - 1; i >= 0; i-- {
-		if m := a.State.Messages[i]; m.Role == "user" {
+		if m := a.State.Messages[i]; m.Role == "user" && m.Delivery != "queued" && m.Text == text {
 			if m.Edited {
 				return
 			}

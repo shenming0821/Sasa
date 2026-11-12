@@ -84,7 +84,7 @@ func (a *App) changeCard(c *native.Context, messages []*app.Message) {
 		Border(1, theme.Border.Alpha(.6)).Background(theme.Surface).Clip().Children(func() {
 		native.Row(c.Key("header")).FillWidth().Padding(14).Gap(10).AlignItems(native.Center).
 			BorderWidth(0, 0, 1, 0).BorderColor(theme.Border.Alpha(.6)).Children(func() {
-			native.Box(c).Size(36, 36).Shrink(0).Radius(10).Background(theme.Surface).AlignItems(native.Center).Justify(native.Center).Children(func() { native.Icon(c, changeIcon).Size(20, 20).TextColor(theme.TextMuted) })
+			native.Box(c).Size(36, 36).Shrink(0).Radius(10).Background(theme.Background).AlignItems(native.Center).Justify(native.Center).Children(func() { native.Icon(c, changeIcon).Size(20, 20).TextColor(theme.TextMuted) })
 			native.Text(c, fmt.Sprintf("已编辑 %d 个文件", len(summary.Files))).FontSize(14).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 		})
 		limit := min(3, len(summary.Files))

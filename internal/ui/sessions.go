@@ -82,6 +82,8 @@ type session struct {
 	forkUncertain     bool
 	submitCancel      context.CancelFunc
 	submitStop        bool
+	pendingInputs     []storage.PendingInput
+	followupSending   bool
 	releaseAfter      time.Time
 	releasing         bool
 }
@@ -144,10 +146,13 @@ func (a *App) selectSession(s *session) {
 	if !s.loaded && !s.releasing && (a.win != nil || a.dispatch != nil) {
 		a.recoverSession(s)
 	}
+	if a.canAsync() {
+		a.forSession(s).drainInputs()
+	}
 }
 
 func (a *App) clearConversation() {
-	if !a.canSend() {
+	if !a.canSend() || !a.canSubmitTask() || len(a.pendingInputs) > 0 {
 		return
 	}
 	if len(a.State.DraftImages) > 0 {

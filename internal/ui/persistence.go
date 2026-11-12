@@ -23,7 +23,7 @@ func (a *App) application() *App {
 
 func isBlankUnboundSession(saved storage.Session) bool {
 	return saved.Cwd == "" && saved.ThreadID == "" && saved.Draft == "" && len(saved.DraftImages) == 0 &&
-		saved.EditDraft == nil && !saved.Active && saved.CustomTitle == ""
+		saved.EditDraft == nil && len(saved.PendingInputs) == 0 && !saved.Active && saved.CustomTitle == ""
 }
 
 func (s *session) isBlankUnbound() bool {
@@ -116,6 +116,16 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		s.open = slices.Contains(snapshot.OpenTabs, saved.ID) && !isBlankUnboundSession(saved)
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
 		s.State.DraftImages = slices.Clone(saved.DraftImages)
+		s.pendingInputs = slices.Clone(saved.PendingInputs)
+		for index := range s.pendingInputs {
+			pending := &s.pendingInputs[index]
+			if pending.Status == "sending" || pending.Status == "accepted" {
+				pending.Status, pending.Error = "uncertain", "发送结果待核验，请先检查会话记录"
+			} else if pending.Status == "queued" {
+				pending.Status = "paused"
+			}
+		}
+		a.forSession(s).restorePendingMessages()
 		if saved.EditDraft != nil {
 			draft := *saved.EditDraft
 			draft.Images = slices.Clone(draft.Images)
@@ -218,6 +228,7 @@ func (a *App) snapshot() storage.Snapshot {
 			result.OpenTabs = append(result.OpenTabs, s.id)
 		}
 		item := s.saved
+		item.PendingInputs = slices.Clone(s.pendingInputs)
 		item.EditDraft = nil
 		if s.edit != nil {
 			draft := *s.edit

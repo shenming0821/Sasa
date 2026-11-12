@@ -33,6 +33,21 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "steer":
+			var wire struct {
+				ThreadID            string                                    `json:"threadId"`
+				ExpectedTurnID      string                                    `json:"expectedTurnId"`
+				ClientUserMessageID string                                    `json:"clientUserMessageId"`
+				Input               []struct{ Type, Text, Name, Path string } `json:"input"`
+			}
+			if m.Method != "turn/steer" || json.Unmarshal(m.Params, &wire) != nil || wire.ThreadID != "thread" || wire.ExpectedTurnID != "active" || wire.ClientUserMessageID != "message" || len(wire.Input) != 3 {
+				os.Exit(21)
+			}
+			if wire.Input[0].Text != "supplement" || wire.Input[1].Type != "skill" || wire.Input[1].Name != "design" || wire.Input[2].Path != "/owned/image.png" {
+				os.Exit(22)
+			}
+			enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"turnId": "active"}})
+			continue
 		case "models-empty", "models-empty-recover", "models-empty-timeout":
 			if m.Method != "model/list" {
 				os.Exit(11)

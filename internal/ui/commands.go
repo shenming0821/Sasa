@@ -71,7 +71,7 @@ func (s *session) conversationRows() []conversationRow {
 		if m.Role == "assistant" && m.Text == "" {
 			continue
 		}
-		if m.Role == "user" {
+		if m.Role == "user" && (turnQuestion == nil || m.TurnID == "" || m.TurnID != turnQuestion.TurnID) {
 			flushChanges(false)
 			turnQuestion = m
 		}
@@ -102,25 +102,28 @@ func (s *session) conversationRows() []conversationRow {
 		}
 	}
 	flushChanges(true)
-	question, result := "", -1
+	question, questionTurn, result := "", "", -1
 	for index := range rows {
 		message := rows[index].message
 		if message.Role == "user" {
+			if message.Timing == nil && message.TurnID != "" && message.TurnID == questionTurn && question != "" {
+				continue
+			}
 			if result >= 0 {
 				rows[result].processID = ""
 			}
-			question, result = "", -1
+			question, questionTurn, result = "", "", -1
 			if message.Timing != nil && !message.Timing.Finished.IsZero() {
-				question = message.ID
+				question, questionTurn = message.ID, message.TurnID
 			}
 			continue
 		}
 		// Change cards stay outside the folded process so edited files remain
 		// visible after the turn collapses to its final reply.
-		if len(rows[index].changes) == 0 {
+		if len(rows[index].changes) == 0 && (questionTurn == "" || message.TurnID == "" || message.TurnID == questionTurn) {
 			rows[index].processID = question
 		}
-		if question != "" && message.Role == "assistant" {
+		if question != "" && message.Role == "assistant" && (questionTurn == "" || message.TurnID == "" || message.TurnID == questionTurn) {
 			result = index
 		}
 	}

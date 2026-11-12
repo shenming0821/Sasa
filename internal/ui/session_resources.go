@@ -12,7 +12,7 @@ func (s *session) canReleaseRuntime() bool {
 		s.State.ThreadID == "" || s.State.TurnID == "" || s.State.Busy || s.State.Disconnected ||
 		s.recovering || s.recoveryBlocked || s.historyLoading || s.forking ||
 		s.forkUncertain || s.reviewRequired || s.writerOccupied || s.imagesImporting ||
-		s.submitCancel != nil || s.snapshotPending || s.State.Incomplete || s.State.NeedsSnapshot ||
+		s.submitCancel != nil || s.followupSending || s.snapshotPending || s.State.Incomplete || s.State.NeedsSnapshot ||
 		len(s.State.PendingInteractions()) != 0 {
 		return false
 	}

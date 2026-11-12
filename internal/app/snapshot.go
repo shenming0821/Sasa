@@ -40,8 +40,6 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		// state; the live state's completed-turn guard remains intact.
 		projected := New(s.Cwd)
 		projected.ThreadID, projected.TurnID = s.ThreadID, s.TurnID
-		delivered := false
-		nativeID := ""
 		for _, item := range turn.Items {
 			var input struct {
 				Type string `json:"type"`
@@ -53,14 +51,14 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 			if input.Type == "" || input.ID == "" {
 				return fmt.Errorf("原生任务条目不完整")
 			}
-			if input.Type == "userMessage" {
-				delivered = true
-				nativeID = input.ID
-			}
 			params, _ := json.Marshal(map[string]any{"threadId": s.ThreadID, "turnId": s.TurnID, "item": item})
 			projected.Apply((agent.Event{Method: "item/completed", Params: params}).ForDisplay())
 		}
 		for _, m := range projected.Messages {
+			if m.Role == "user" {
+				s.AcceptUserInput(m.NativeID, m.TurnID, m.Text, m.Images)
+				continue
+			}
 			target := s.item(m.ID, m.Role)
 			if target.Tool != nil && m.Tool != nil {
 				m.Tool.Expanded = target.Tool.Expanded
@@ -80,11 +78,7 @@ func (s *State) Reconcile(raw json.RawMessage) error {
 		s.clearUnfinishedToolError(turn.ID)
 		s.Notice = "已按原生记录核验本轮终态；显示内容仍受容量上限约束。"
 		if message := s.PendingSubmission(); message != nil && message.TurnID == turn.ID {
-			if delivered {
-				message.Delivery, message.NativeID = "sent", nativeID
-			} else {
-				s.RejectSubmission()
-			}
+			s.RejectSubmission()
 		}
 		s.limitDisplay()
 		return nil

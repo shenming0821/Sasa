@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -425,14 +426,17 @@ func (a *App) composer(c *native.Context) {
 			a.modelPicker(c)
 			native.Spacer(c)
 			hint := "Enter 发送 · ⌘ Enter 换行"
-			disabled := !a.canSend()
-			if a.State.Busy {
-				hint = "Esc 停止当前任务"
-				disabled = a.State.TurnID == "" && a.submitCancel == nil || a.State.Phase == "正在停止"
+			if len(a.pendingInputs) >= 16 {
+				hint = "最多保留 16 条待发送消息，请先处理已有消息"
 			}
-			button := taskSendButton(c, a.State.Busy, disabled, hint)
-			if button.Clicked() {
-				if a.State.Busy {
+			stopping := a.State.Busy && strings.TrimSpace(a.State.Draft) == ""
+			disabled := !a.canSend()
+			if stopping {
+				hint = "Esc 停止当前任务"
+				disabled = a.State.TurnID == "" && a.submitCancel == nil || a.State.Stopping()
+			}
+			if taskSendButton(c.Key("task-action"), stopping, disabled, hint).Clicked() {
+				if stopping {
 					a.stop()
 				} else {
 					a.submit()

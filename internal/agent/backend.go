@@ -47,6 +47,10 @@ type OptionSender interface {
 	SendWithOptions(context.Context, string, string, []Skill, []attachment.Image, TurnOptions) (Turn, error)
 }
 
+type TurnSteerer interface {
+	Steer(context.Context, string, string, string, string, []Skill, []attachment.Image) error
+}
+
 type SkillCatalog interface {
 	ListSkills(context.Context, string) ([]SkillsEntry, error)
 }

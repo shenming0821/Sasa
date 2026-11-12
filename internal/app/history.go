@@ -21,6 +21,7 @@ func History(cwd, threadID string, turns []agent.HistoryTurn) (State, bool, erro
 			return s, false, fmt.Errorf("历史任务标识或完整度无法确认")
 		}
 		s.TurnID = turn.ID
+		hasUser := false
 		for _, raw := range turn.Items {
 			var item struct {
 				ID      string `json:"id"`
@@ -52,7 +53,12 @@ func History(cwd, threadID string, turns []agent.HistoryTurn) (State, bool, erro
 				if sentAt.IsZero() && turn.StartedAt != nil {
 					sentAt = time.Unix(*turn.StartedAt, 0)
 				}
-				s.Messages = append(s.Messages, &Message{ID: item.ID, NativeID: item.ID, SentAt: sentAt, Role: "user", Images: images, Text: bounded(strings.Join(texts, "\n")), TurnID: turn.ID, Done: true})
+				delivery := "sent"
+				if hasUser {
+					delivery = "appended"
+				}
+				hasUser = true
+				s.Messages = append(s.Messages, &Message{ID: item.ID, NativeID: item.ID, SentAt: sentAt, Role: "user", Images: images, Text: bounded(strings.Join(texts, "\n")), TurnID: turn.ID, Done: true, Delivery: delivery})
 				continue
 			}
 			params, _ := json.Marshal(map[string]any{"threadId": threadID, "turnId": turn.ID, "item": raw})

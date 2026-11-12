@@ -33,7 +33,7 @@ func (a *App) messageEditReason(message *app.Message) string {
 	if a.edit != nil && a.edit.ID != message.ID {
 		return "请先完成当前消息编辑"
 	}
-	if a.State.Busy || a.editPreparing || a.editSending {
+	if a.State.Busy || a.editPreparing || a.editSending || len(a.pendingInputs) > 0 {
 		return "任务结束后可编辑"
 	}
 	if !a.canSubmitTask() || a.historyLoading || a.snapshotPending || a.State.Incomplete || a.State.NeedsSnapshot || a.forkUncertain || a.reviewRequired || a.State.PendingSubmission() != nil {
@@ -41,6 +41,11 @@ func (a *App) messageEditReason(message *app.Message) string {
 	}
 	if message.NativeID == "" || message.TurnID == "" || message.Delivery == "unsent" {
 		return "此消息尚无已确认的原生记录"
+	}
+	for _, other := range a.State.Messages {
+		if other != message && other.Role == "user" && other.TurnID == message.TurnID {
+			return "本轮包含追加消息，暂不支持单独编辑历史"
+		}
 	}
 	if strings.HasPrefix(strings.TrimSpace(message.Text), "/") {
 		return "命令消息暂不支持历史编辑"
@@ -388,11 +393,12 @@ func (a *App) userMessage(c *native.Context, message *app.Message) {
 				}
 			}
 		})
-		if message.Delivery == "unsent" {
+		if message.Delivery == "unsent" && !slices.ContainsFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == message.ID }) {
 			native.Row(c).FillWidth().Justify(native.End).Children(func() {
 				native.Text(c, "未发送").FontSize(11).TextColor(theme.TextMuted)
 			})
 		}
+		a.inputFeedback(c, message.ID)
 	})
 }
 

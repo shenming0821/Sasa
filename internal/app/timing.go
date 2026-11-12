@@ -9,7 +9,7 @@ type TurnTiming struct {
 
 func (s *State) BindTiming(turnID string) {
 	for index := len(s.Messages) - 1; index >= 0; index-- {
-		if message := s.Messages[index]; message.Role == "user" {
+		if message := s.Messages[index]; message.Role == "user" && message.Timing != nil {
 			if message.Timing != nil && message.Timing.Finished.IsZero() && message.TurnID == "" {
 				message.TurnID = turnID
 			}
@@ -24,16 +24,18 @@ func (s *State) FinishTiming() {
 		if message.Role == "user" {
 			if message.Timing != nil && message.Timing.Finished.IsZero() {
 				message.Timing.Finished = time.Now()
+				return
 			}
-			return
 		}
 	}
 }
 
 func (s *State) RestoreTimings(timings map[string]TurnTiming) {
+	restored := make(map[string]bool)
 	for _, message := range s.Messages {
-		if timing, ok := timings[message.TurnID]; ok && message.Role == "user" {
+		if timing, ok := timings[message.TurnID]; ok && message.Role == "user" && !restored[message.TurnID] {
 			message.Timing = &timing
+			restored[message.TurnID] = true
 		}
 	}
 }

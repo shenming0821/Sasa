@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
@@ -21,6 +22,7 @@ import (
 // Only application-owned metadata belongs here. Messages and credentials stay
 // with Codex; pending protocol requests and secret form answers are never saved.
 type Session struct {
+	PendingInputs   []PendingInput            `json:",omitempty"`
 	EditDraft       *MessageEdit              `json:",omitempty"`
 	ReplacedThreads []string                  `json:",omitempty"`
 	TurnTimings     map[string]app.TurnTiming `json:",omitempty"`
@@ -45,6 +47,15 @@ type Session struct {
 	ScrollY         float32
 	AnchorOffset    float32
 	Expanded        map[string]bool
+}
+
+type PendingInput struct {
+	CreatedAt                       time.Time
+	ID, Text, Status, Error, TurnID string
+	KnownIDs                        []string
+	Images                          []attachment.Image
+	Skills                          []agent.Skill
+	Options                         agent.TurnOptions
 }
 
 type MessageEdit struct {

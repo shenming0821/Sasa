@@ -71,6 +71,9 @@ func (s *session) hasTurnProcess(question *app.Message) bool {
 	for _, message := range s.State.Messages {
 		if message.Role == "user" {
 			if inTurn {
+				if question.TurnID != "" && message.TurnID == question.TurnID {
+					continue
+				}
 				break
 			}
 			inTurn = message == question
@@ -145,7 +148,7 @@ func (s *session) visibleConversationMessages() []*app.Message {
 			continue
 		}
 		end := start + 1
-		for end < len(s.State.Messages) && s.State.Messages[end].Role != "user" {
+		for end < len(s.State.Messages) && (s.State.Messages[end].Role != "user" || message.TurnID != "" && s.State.Messages[end].TurnID == message.TurnID) {
 			end++
 		}
 		if message.Timing == nil || message.Timing.Finished.IsZero() {
@@ -157,6 +160,18 @@ func (s *session) visibleConversationMessages() []*app.Message {
 		// collapsed view; Devin accumulates one reply from its first chunk, so
 		// tool records would otherwise expand below the answer.
 		folded := !s.expandedProcesses[message.ID] && s.processProgress[message.ID] <= 0
+		foreignTurn := false
+		for _, candidate := range s.State.Messages[start+1 : end] {
+			if message.TurnID != "" && candidate.Role != "user" && candidate.TurnID != "" && candidate.TurnID != message.TurnID {
+				foreignTurn = true
+				break
+			}
+		}
+		if foreignTurn {
+			visible = append(visible, s.State.Messages[start:end]...)
+			start = end
+			continue
+		}
 		visible = append(visible, message)
 		resultIndex := -1
 		for index, candidate := range s.State.Messages[start+1 : end] {
@@ -170,7 +185,7 @@ func (s *session) visibleConversationMessages() []*app.Message {
 				result = candidate
 				continue
 			}
-			if !folded || changeRecord(candidate) {
+			if !folded || changeRecord(candidate) || candidate.Role == "user" {
 				visible = append(visible, candidate)
 			}
 		}
@@ -186,7 +201,7 @@ func (a *App) conversationTimings(rows []conversationRow) map[int]*app.TurnTimin
 	timings := make(map[int]*app.TurnTiming)
 	current := -1
 	for index, row := range rows {
-		if row.message.Role == "user" {
+		if row.message.Role == "user" && row.message.Timing != nil {
 			current = index
 			if timing := row.message.Timing; timing != nil && !timing.Finished.IsZero() {
 				timings[index] = timing

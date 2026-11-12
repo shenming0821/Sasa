@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/attachment"
@@ -40,17 +41,7 @@ func (c *Client) SendWithModel(ctx context.Context, threadID, text string, skill
 }
 
 func (c *Client) SendWithOptions(ctx context.Context, threadID, text string, skills []Skill, images []attachment.Image, options agent.TurnOptions) (Turn, error) {
-	input := []any{map[string]any{"type": "text", "text": text, "textElements": []any{}}}
-	for _, skill := range skills {
-		input = append(input, map[string]any{"type": "skill", "name": skill.Name, "path": skill.Path})
-	}
-	for _, image := range images {
-		if image.Path != "" {
-			input = append(input, map[string]any{"type": "localImage", "path": image.Path})
-		} else {
-			input = append(input, map[string]any{"type": "image", "url": image.URL})
-		}
-	}
+	input := userInput(text, skills, images)
 	var result struct {
 		Turn Turn `json:"turn"`
 	}
@@ -66,4 +57,33 @@ func (c *Client) SendWithOptions(ctx context.Context, threadID, text string, ski
 	}
 	err := c.Call(ctx, "turn/start", params, &result)
 	return result.Turn, err
+}
+
+func (c *Client) Steer(ctx context.Context, threadID, turnID, messageID, text string, skills []Skill, images []attachment.Image) error {
+	var result struct {
+		TurnID string `json:"turnId"`
+	}
+	err := c.Call(ctx, "turn/steer", map[string]any{
+		"threadId": threadID, "expectedTurnId": turnID, "clientUserMessageId": messageID,
+		"input": userInput(text, skills, images),
+	}, &result)
+	if err == nil && result.TurnID != turnID {
+		return fmt.Errorf("追加响应的任务标识不匹配：%s", result.TurnID)
+	}
+	return err
+}
+
+func userInput(text string, skills []Skill, images []attachment.Image) []any {
+	input := []any{map[string]any{"type": "text", "text": text, "textElements": []any{}}}
+	for _, skill := range skills {
+		input = append(input, map[string]any{"type": "skill", "name": skill.Name, "path": skill.Path})
+	}
+	for _, image := range images {
+		if image.Path != "" {
+			input = append(input, map[string]any{"type": "localImage", "path": image.Path})
+		} else {
+			input = append(input, map[string]any{"type": "image", "url": image.URL})
+		}
+	}
+	return input
 }

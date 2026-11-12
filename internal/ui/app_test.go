@@ -122,14 +122,14 @@ func TestComposerAndSendGates(t *testing.T) {
 	a.State.Draft = "wait"
 	tt.Frame()
 	tt.Key(0, native.KeyEnter)
-	if count != 1 {
-		t.Fatal("sent during active turn")
+	if count != 2 {
+		t.Fatal("could not submit a follow-up during active turn")
 	}
 	a.State.Busy = false
 	a.State.Disconnected = true
 	tt.Frame()
 	tt.Key(0, native.KeyEnter)
-	if count != 1 {
+	if count != 2 {
 		t.Fatal("sent while disconnected")
 	}
 	for _, dark := range []bool{false, true} {
