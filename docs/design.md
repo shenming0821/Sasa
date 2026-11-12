@@ -19,6 +19,8 @@ Fuyu 使用 Go + MyGo Native UI，为 Codex 与 Claude Code 原生 Runtime 提�
 
 终端使用固定版本 Ghostty 1.3.1 的完整原生嵌入接口：AppKit 子视图承载 Metal 渲染，终端解析、字体、键盘编码、PTY 与 shell 生命周期由 libghostty 管理。原生库通过 Ghostty 自身的默认及递归配置加载器读取本机配置；字体、配色、光标、shell、终端键位等沿用 Ghostty 配置，cwd 由当前 Fuyu 工作区指定。窗口、标签、设置和退出动作由 Fuyu 管理，Ghostty 独立应用的窗口外观不接管 Fuyu。
 
+创建交互终端时，通过 Ghostty surface 的环境覆盖将 `NO_COLOR` 设为空字符串，使终端恢复自动彩色输出，隔离启动 Fuyu 的命令行或自动化环境中继承的禁色设置。该覆盖仅作用于新建终端，Fuyu 主进程及 Agent Runtime 的环境保持原值；用户仍可在 shell 配置或具体命令中显式设置 `NO_COLOR=1`。`TERM` 与 `COLORTERM` 继续由 Ghostty 根据终端能力设置。
+
 所有 AppKit 与 libghostty UI 操作在主线程执行；隐藏标签通过 occlusion 通知暂停不可见绘制，保留 shell。应用内弹窗期间隐藏原生子视图，恢复时交还焦点。关闭终端直接结束其 shell 并释放原生 surface；退出应用时确认仍在运行的任务。重启仅恢复标签目录及引擎，点击“启动终端”创建新 shell；进程和输出历史不跨进程恢复。构建依赖、兼容边界和验收结果见[终端验证](verification/2026-11-01-terminal.md)。
 
 ### 1.1 当前需要实现

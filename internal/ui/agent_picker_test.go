@@ -29,8 +29,7 @@ func TestAgentSessionButtonsPreserveOriginalSession(t *testing.T) {
 					tester := native.NewTester(a.view, int(width), 760)
 					codex, codexOK := tester.Find("使用 Codex 新建会话")
 					claude, claudeOK := tester.Find("使用 Claude Code 新建会话")
-					tab, tabOK := tester.Find(fmt.Sprintf("会话标签 %d", original.id))
-					if !codexOK || !claudeOK || !tabOK || tab.Y > 1 || codex.Y > tab.Y+tab.H || claude.Y != codex.Y || codex.X+codex.W > claude.X || claude.X+claude.W > width || codex.W != 30 || claude.W != 30 {
+					if !codexOK || !claudeOK || codex.Y >= 44 || claude.Y != codex.Y || codex.X+codex.W > claude.X || claude.X+claude.W > width || codex.W != 30 || claude.W != 30 {
 						t.Fatal("Agent create buttons missing or outside the upper-right toolbar", codex, claude)
 					}
 					if _, exists := tester.Find("工作目录"); exists {

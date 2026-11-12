@@ -74,21 +74,10 @@ func (s *session) navigationStatus() string {
 func (a *App) sidebar(c *native.Context) {
 	t := c.Theme()
 	native.Column(c).Fill().Background(t.Surface).Children(func() {
-		native.Row(c).FillWidth().Height(46).Padding(0, 12).Gap(4).AlignItems(native.Center).Children(func() {
-			native.Text(c, "Fuyu").FontSize(15).Bold()
-			native.Spacer(c)
-			settings := quietIconButton(c, "设置").Size(28, 28)
-			settings.Children(func() { native.Icon(c, settingsIcon).Size(16, 16) })
-			if settings.Clicked() {
-				a.openSettings()
-			}
-			b := quietIconButton(c, "重启 Fuyu").Size(28, 28).Tooltip("重启 Fuyu（保留当前工作区）")
-			b.Children(func() { native.Icon(c, restartIcon).Size(16, 16) })
-			if b.Clicked() {
-				a.restartApp()
-			}
-			a.sidebarToggle(c, true)
-		})
+		// The title bar's left lane covers the traffic lights; the sidebar
+		// keeps the same room and drags the window by it.
+		bar := c.TitleBar()
+		native.Row(c).FillWidth().Height(max(44, bar.Height)).DragWindow()
 		native.Column(c).FillWidth().Padding(8, 12).Gap(10).Children(func() {
 			native.TextInput(c, &a.sessionQuery).Label("搜索会话").Placeholder("搜索项目与会话").FillWidth().FontSize(12)
 		})
@@ -143,7 +132,7 @@ func activeTabFace(c *native.Context, row native.Element) {
 	})
 }
 
-func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
+func (a *App) sessionTabs(c *native.Context, _, _ bool) {
 	t := c.Theme()
 	renderedActive := a.activeTab
 	tabs := a.paneTabs()
@@ -152,9 +141,6 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 		row.ContextMenu(a.paneMenu(a.activeWorkspace, a.renderingPane))
 	}
 	row.Children(func() {
-		if !leftShown {
-			a.sidebarToggle(c, true)
-		}
 		scroll := native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0)
 		scroll.Children(func() {
 			native.Row(c).MinWidth(scroll.Bounds().W).Shrink(0).FillHeight().AlignItems(native.Center).Children(func() {
@@ -281,15 +267,6 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 				}
 			})
 		})
-		a.agentSessionButtons(c)
-		if pane := a.renderingPane; pane != nil {
-			button := quietIconButton(c, "面板操作").Size(28, 28).Tooltip("分屏与面板操作")
-			button.Children(func() { native.Icon(c, paneMenuIcon).Size(16, 16) })
-			button.Menu(a.paneMenu(a.activeWorkspace, pane))
-		}
-		if !rightShown {
-			a.sidebarToggle(c, false)
-		}
 	})
 	// A click in this pass can change activeTab after its row was built.
 	// Retain the rendered selection so the following pass reveals the new row.

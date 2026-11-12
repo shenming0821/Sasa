@@ -69,7 +69,10 @@ func (a *App) view(c *native.Context) {
 	native.Box(c).Fill().Children(func() {
 		center := func() {
 			main := func() {
-				a.workspacePanes(c, leftShown, rightShown)
+				native.Column(c).Fill().MinWidth(0).Children(func() {
+					a.titleBar(c, leftShown, rightShown)
+					native.Box(c).Grow(1).MinHeight(0).Children(func() { a.workspacePanes(c, leftShown, rightShown) })
+				})
 			}
 			if rightShown {
 				available := width
@@ -126,12 +129,51 @@ func (a *App) emptyWorkspace(c *native.Context, leftShown, rightShown bool) {
 	})
 }
 
+// titleBar draws the app's own title bar under the hidden native one: it
+// clears the traffic lights on the left, shows the active page's title in
+// the middle, puts the window-level actions on the right, and drags the
+// window by its spare room.
+func (a *App) titleBar(c *native.Context, leftShown, rightShown bool) {
+	t := c.Theme()
+	bar := c.TitleBar()
+	title := a.windowTitle()
+	if pane := a.renderingPane; pane != nil {
+		for _, tab := range a.paneTabs() {
+			if tab.ID == pane.Active {
+				title = a.tabTitle(tab)
+				break
+			}
+		}
+	}
+	native.Row(c).FillWidth().Height(max(44, bar.Height)).AlignItems(native.Center).
+		Padding(0, 8, 0, max(8, bar.Left)).Gap(4).
+		Background(t.Background).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(.5)).
+		DragWindow().Children(func() {
+		a.sidebarToggle(c, true)
+		native.Box(c).Grow(1).MinWidth(0).FillHeight().DragWindow().Children(func() {
+			native.Row(c).FillHeight().Justify(native.Center).AlignItems(native.Center).PassThrough().Children(func() {
+				native.Text(c, title).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+			})
+		})
+		a.agentSessionButtons(c)
+		if pane := a.renderingPane; pane != nil {
+			button := quietIconButton(c, "面板操作").Size(28, 28).Tooltip("分屏与面板操作")
+			button.Children(func() { native.Icon(c, paneMenuIcon).Size(16, 16) })
+			button.Menu(a.paneMenu(a.activeWorkspace, pane))
+		}
+		a.sidebarToggle(c, false)
+	})
+}
+
 func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	a.list.FollowEnd = !a.processScrollHold && a.edit == nil && a.editScrollHold == 0
 	if a.editScrollHold > 0 {
 		a.editScrollHold--
 		c.Invalidate()
+	}
+	if a.thinking() {
+		a.list.ScrollToEnd()
 	}
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 		a.sessionTabs(c, leftShown, rightShown)

@@ -83,11 +83,11 @@ func TestLiveNativeMetalTerminal(t *testing.T) {
 	defer cancel()
 	command := exec.CommandContext(ctx, executable)
 	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "HOME=") && !strings.HasPrefix(entry, "XDG_CONFIG_HOME=") && !strings.HasPrefix(entry, "FUYU_TERMINAL_HELPER=") {
+		if !strings.HasPrefix(entry, "HOME=") && !strings.HasPrefix(entry, "XDG_CONFIG_HOME=") && !strings.HasPrefix(entry, "FUYU_TERMINAL_HELPER=") && !strings.HasPrefix(entry, "NO_COLOR=") {
 			command.Env = append(command.Env, entry)
 		}
 	}
-	command.Env = append(command.Env, "HOME="+filepath.Join(root, "home"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "FUYU_TERMINAL_HELPER=1", "FUYU_TERMINAL_PROBE_ROOT="+root)
+	command.Env = append(command.Env, "HOME="+filepath.Join(root, "home"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "FUYU_TERMINAL_HELPER=1", "FUYU_TERMINAL_PROBE_ROOT="+root, "NO_COLOR=1")
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("native Metal terminal probe: %v\n%s", err, output)
@@ -149,6 +149,21 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	cwd, _ := os.ReadFile(filepath.Join(root, "cwd"))
 	if strings.TrimSpace(string(cwd)) != root {
 		return fmt.Errorf("wrong shell directory: %s", cwd)
+	}
+	first.probeText("printf '%s' \"$NO_COLOR\" > no-color; printf '%s' \"$COLORTERM\" > colorterm; echo ready > color-env-ready\r")
+	if err := probeWait(func() bool { return fileExists(filepath.Join(root, "color-env-ready")) }); err != nil {
+		return fmt.Errorf("terminal color environment: %w; screen=%s", err, first.probeScreen())
+	}
+	noColor, err := os.ReadFile(filepath.Join(root, "no-color"))
+	if err != nil || len(noColor) != 0 {
+		return fmt.Errorf("terminal inherited NO_COLOR=%q: %v", noColor, err)
+	}
+	colorTerm, err := os.ReadFile(filepath.Join(root, "colorterm"))
+	if err != nil || string(colorTerm) != "truecolor" {
+		return fmt.Errorf("terminal COLORTERM=%q: %v", colorTerm, err)
+	}
+	if os.Getenv("NO_COLOR") != "1" {
+		return fmt.Errorf("terminal creation changed the host NO_COLOR")
 	}
 	first.probeText("stty raw -echo; printf 'RAW_%s\\n' READY; dd bs=1 count=1 of=key 2>/dev/null; stty sane; printf 'RAW_%s\\n' DONE\r")
 	if err := probeWait(func() bool { return strings.Contains(first.probeScreen(), "RAW_READY") }); err != nil {
@@ -232,7 +247,7 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	if err := probeWait(second.Exited); err != nil {
 		return fmt.Errorf("native shell exit not reported: %w", err)
 	}
-	fmt.Printf("NATIVE_TERMINAL_PASS cwd, Chinese/ANSI terminal state, raw keyboard input, mutable composition commit, backing scale restoration without animation, native view resize %dx%d -> %dx%d, hidden/visible surfaces, independent shells, process cleanup, shell exit\n", columns, rows, newColumns, newRows)
+	fmt.Printf("NATIVE_TERMINAL_PASS cwd, Chinese/ANSI terminal state, isolated NO_COLOR with host preserved and COLORTERM=truecolor, raw keyboard input, mutable composition commit, backing scale restoration without animation, native view resize %dx%d -> %dx%d, hidden/visible surfaces, independent shells, process cleanup, shell exit\n", columns, rows, newColumns, newRows)
 	fmt.Printf("NATIVE_OUTPUT_SAMPLE 20000 lines observed in %s (local sample, includes shell/awk/polling; not a renderer benchmark)\n", bulkDuration.Round(time.Millisecond))
 	return nil
 }

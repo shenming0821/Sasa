@@ -206,9 +206,9 @@ func TestP4ClickingPartlyVisibleTabRevealsWholeTab(t *testing.T) {
 	first := a.session
 	a.newSession("/workspace")
 	a.newSession("/workspace")
-	tt := native.NewTester(func(c *native.Context) { a.sessionTabs(c, true, true) }, 520, 38)
+	tt := native.NewTester(func(c *native.Context) { a.sessionTabs(c, true, true) }, 410, 38)
 	before, ok := tt.Find("会话标签 1")
-	if !ok || before.W >= 100 || before.X+before.W <= 20 {
+	if !ok || before.W >= 100 || before.X > 20 {
 		t.Fatal("fixture does not contain a partly visible tab", before)
 	}
 	tt.ClickAt(20, 18)
