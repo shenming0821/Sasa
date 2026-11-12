@@ -88,6 +88,7 @@ type App struct {
 	quitDialog         bool
 	quitStopping       bool
 	restarting         bool
+	restartLaunch      func() error
 	quitDeadline       time.Time
 	quitSent           map[string]bool
 	quitTargets        map[int]bool
@@ -128,7 +129,12 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 	return a
 }
 
-func (a *App) Run() error {
+func (a *App) Run() (runErr error) {
+	defer func() {
+		if runErr == nil {
+			runErr = a.finishRestart()
+		}
+	}()
 	var readyErr error
 	stopControl := func() {}
 	defer func() { stopControl() }()
@@ -154,8 +160,9 @@ func (a *App) Run() error {
 		a.applySystemTheme()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: a.windowTitle(), Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
-			StateKey: "main",
-			Content:  native.View(a.view),
+			TitleBarStyle: mygo.TitleBarHiddenInset,
+			StateKey:      "main",
+			Content:       native.View(a.view),
 		})
 		a.installLifecycle()
 		a.installSettingsMenu()

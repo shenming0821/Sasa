@@ -225,6 +225,8 @@ func TestP4HistoryFilterIsPerWorkspace(t *testing.T) {
 
 func TestP4CanceledExitAfterTaskStopKeepsDraftAndExternalDiskVersion(t *testing.T) {
 	a, q, root := p4App(t)
+	a.restarting = true
+	a.restartLaunch = func() error { t.Error("canceled restart launched replacement"); return nil }
 	b := &quitBackend{stops: make(chan string, 1)}
 	a.backend = b
 	owner := a.session
@@ -279,6 +281,9 @@ func TestP4CanceledExitAfterTaskStopKeepsDraftAndExternalDiskVersion(t *testing.
 	})
 	if exited || a.quitting || a.quitStopping || !d.dirty() || d.buffer.String() != "local draft before stopping task\n" {
 		t.Fatal("canceled exit lost the unsaved version")
+	}
+	if a.restarting || a.restartLaunch != nil {
+		t.Fatal("canceled exit retained a pending restart")
 	}
 	records, err := editor.Recoveries(a.recoveryDir())
 	if err != nil || len(records) != 1 || records[0].Text != d.buffer.String() || records[0].DiskText != d.savedText {

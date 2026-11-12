@@ -42,6 +42,8 @@ func (a *App) requestFileExit() {
 		if a.persist() == nil {
 			a.quitting = true
 			a.quitApp()
+		} else {
+			a.cancelRestart()
 		}
 		return
 	}
@@ -52,12 +54,14 @@ func (a *App) requestFileExit() {
 		a.update(func() {
 			a.quitDialog = false
 			if err != nil || r.Button == 0 {
+				a.cancelRestart()
 				a.fileQuitPending = false
 				return
 			}
 			if r.Button == 1 {
 				for _, d := range dirty {
 					if !a.clearRecovery(d) {
+						a.cancelRestart()
 						a.fileQuitPending = false
 						a.selectFile(d)
 						return
@@ -67,6 +71,8 @@ func (a *App) requestFileExit() {
 				if a.persist() == nil {
 					a.quitting = true
 					a.quitApp()
+				} else {
+					a.cancelRestart()
 				}
 				return
 			}
@@ -75,18 +81,22 @@ func (a *App) requestFileExit() {
 				if i >= len(dirty) {
 					a.fileQuitPending = false
 					if a.hasUnsavedFiles() {
+						a.cancelRestart()
 						a.storageError = "保存期间有新的编辑，请核对后再次退出"
 						return
 					}
 					if a.persist() == nil {
 						a.quitting = true
 						a.quitApp()
+					} else {
+						a.cancelRestart()
 					}
 					return
 				}
 				d := dirty[i]
 				a.saveFile(d, false, false, func(ok bool) {
 					if !ok || d.dirty() {
+						a.cancelRestart()
 						a.fileQuitPending = false
 						a.selectFile(d)
 						return
@@ -135,6 +145,7 @@ func (a *App) fileExitNotice(c *native.Context) {
 		native.Text(c, "正在等待文件保存完成…").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
 		if actionButton(c, "取消退出").Clicked() {
 			a.fileExitRequested = false
+			a.cancelRestart()
 		}
 	})
 }

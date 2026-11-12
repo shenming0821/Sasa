@@ -168,6 +168,7 @@ func (a *App) installLifecycle() {
 			return
 		}
 		if a.awakeSaving {
+			a.cancelRestart()
 			e.PreventDefault()
 			a.settingsOpen = true
 			a.settingsError = "请先完成或取消系统电源授权，再退出 Fuyu。"
@@ -183,6 +184,7 @@ func (a *App) installLifecycle() {
 			return
 		}
 		if err := a.persist(); err != nil {
+			a.cancelRestart()
 			e.PreventDefault()
 			a.win.Show()
 			a.win.Invalidate()
@@ -214,12 +216,15 @@ func (a *App) installLifecycle() {
 			a.update(func() {
 				a.quitDialog = false
 				if err != nil {
+					a.cancelRestart()
 					a.State.Error = "退出确认失败：" + err.Error()
 					return
 				}
 				if result.Button == 1 {
 					a.beginQuit()
 					a.advanceQuit()
+				} else {
+					a.cancelRestart()
 				}
 			})
 		}()
@@ -242,6 +247,8 @@ func (a *App) advanceQuit() {
 		if a.persist() == nil {
 			a.quitting = true
 			a.quitApp()
+		} else {
+			a.cancelRestart()
 		}
 		return
 	}
@@ -268,6 +275,8 @@ func (a *App) advanceQuit() {
 			a.quitDialog = false
 			if err == nil && result.Button == 1 {
 				a.requestFileExit()
+			} else {
+				a.cancelRestart()
 			}
 		})
 	}()
