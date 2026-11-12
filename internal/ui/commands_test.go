@@ -298,3 +298,43 @@ func TestCommandGroupTitleKeepsContentWidthAndAdjacentArrow(t *testing.T) {
 		})
 	}
 }
+
+func TestCommandGroupCaptionVerticallyCentersWithIcon(t *testing.T) {
+	a := New(nil, "test", "/tmp", nil)
+	command := commandMessage("title", "completed")
+	tt := native.NewTester(func(c *native.Context) {
+		native.Column(c).Fill().Background(c.Theme().Background).Children(func() {
+			a.commandGroup(c, []*app.Message{command}, false)
+		})
+	}, 400, 60)
+	img := tt.Image()
+	caption, ok := tt.Find("执行了命令")
+	if !ok {
+		t.Fatal("caption missing")
+	}
+	row, _ := tt.Find("命令组 title")
+	glyphCenter := func(x0, x1 int) float64 {
+		var sum, count float64
+		for y := int(row.Y); y < int(row.Y+row.H); y++ {
+			for x := x0; x < x1; x++ {
+				p := img.RGBAAt(x, y)
+				if int(p.R)+int(p.G)+int(p.B) < 650 && p.A > 30 {
+					sum += float64(y)
+					count++
+				}
+			}
+		}
+		if count == 0 {
+			return -1
+		}
+		return sum / count
+	}
+	iconCenter := glyphCenter(int(caption.X)-16-8, int(caption.X)-8)
+	textCenter := glyphCenter(int(caption.X), int(caption.X+caption.W))
+	if iconCenter < 0 || textCenter < 0 {
+		t.Fatalf("glyphs missing: icon=%v text=%v", iconCenter, textCenter)
+	}
+	if diff := textCenter - iconCenter; diff < -1.5 || diff > 2 {
+		t.Fatalf("caption not centered on icon: icon=%.1f text=%.1f diff=%.1f", iconCenter, textCenter, diff)
+	}
+}
