@@ -82,10 +82,10 @@ func (a *App) sidebar(c *native.Context) {
 			if settings.Clicked() {
 				a.openSettings()
 			}
-			b := quietIconButton(c, "新建会话").Size(28, 28)
-			b.Children(func() { native.Icon(c, newIcon).Size(16, 16) })
+			b := quietIconButton(c, "重启 Fuyu").Size(28, 28).Tooltip("重启 Fuyu（保留当前工作区）")
+			b.Children(func() { native.Icon(c, restartIcon).Size(16, 16) })
 			if b.Clicked() {
-				a.newSession(a.workspaceCwd())
+				a.restartApp()
 			}
 			a.sidebarToggle(c, true)
 		})

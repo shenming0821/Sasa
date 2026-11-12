@@ -18,7 +18,7 @@ const (
 
 var (
 	folderIcon      = icon(`<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 1h18"/>`)
-	newIcon         = icon(`<path d="M12 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M15 3l6 6M10 14l2-5 7-7 4 4-7 7-6 1Z"/>`)
+	restartIcon     = icon(`<path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12.9V9a3 3 0 0 1 3-3h15"/><path d="m7 21.9-4-3.9 4-3.9"/><path d="M21 11.1V15a3 3 0 0 1-3 3H3"/>`)
 	upIcon          = icon(`<path d="M12 19V5m-6 6 6-6 6 6"/>`)
 	downIcon        = icon(`<path d="M12 5v14m-6-6 6 6 6-6"/>`)
 	stopIcon        = icon(`<rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor" stroke="none"/>`)

@@ -84,9 +84,8 @@ func TestRepositoryImportGroupsBranchesAndSessions(t *testing.T) {
 	if err := tt.Click("打开工作区 " + repo.Worktrees[1].Path); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("新建会话"); err != nil {
-		t.Fatal(err)
-	}
+	a.newSession(repo.Worktrees[1].Path)
+	tt.Frame()
 	if a.session == second || a.State.Cwd != second.State.Cwd || second.State.Draft != "feature draft" {
 		t.Fatal("worktree cannot own multiple conversations")
 	}
@@ -356,9 +355,8 @@ func TestWorktreeHidesBlankSessionRowsUntilConversationStarts(t *testing.T) {
 	if !tt.HasText("打开工作区 /feature") || tt.HasText("切换会话 1") {
 		t.Fatal("submitted task did not become a sidebar conversation")
 	}
-	if err := tt.Click("新建会话"); err != nil {
-		t.Fatal(err)
-	}
+	a.newSession("/feature")
+	tt.Frame()
 	if tt.HasText("切换会话 3") || !tt.HasText("打开工作区 /feature") {
 		t.Fatal("new blank session duplicated placeholder beside real task")
 	}

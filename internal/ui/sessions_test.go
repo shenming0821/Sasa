@@ -167,9 +167,8 @@ func TestSidebarNewSessionWhileOtherTaskRuns(t *testing.T) {
 	first.State.Begin("working")
 	first.State.ThreadID, first.State.TurnID = "first", "turn"
 	tt := native.NewTester(a.view, 1000, 760)
-	if err := tt.Click("新建会话"); err != nil {
-		t.Fatal(err)
-	}
+	a.newSession("/tmp/first")
+	tt.Frame()
 	if a.session == first || !first.State.Busy || a.State.Cwd != "/tmp/first" || a.State.Busy {
 		t.Fatal("new session interrupted previous task")
 	}

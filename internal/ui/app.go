@@ -87,6 +87,7 @@ type App struct {
 	quitting           bool
 	quitDialog         bool
 	quitStopping       bool
+	restarting         bool
 	quitDeadline       time.Time
 	quitSent           map[string]bool
 	quitTargets        map[int]bool
