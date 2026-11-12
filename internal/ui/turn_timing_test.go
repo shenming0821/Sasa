@@ -135,10 +135,10 @@ func TestTimingLayoutBelowQuestionBeforeCommands(t *testing.T) {
 					var runningTiming, runningCommand native.Rect
 					for _, running := range []bool{true, false} {
 						desktop.State.Busy = running
-						label := "第 1 轮 · 用时 52秒"
+						label := "用时 52秒"
 						if running {
 							desktop.State.Messages[0].Timing.Finished = time.Time{}
-							label = "第 1 轮 · 已处理 52秒"
+							label = "已处理 52秒"
 						} else {
 							desktop.State.Messages[0].Timing.Finished = started.Add(52 * time.Second)
 						}

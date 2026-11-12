@@ -274,7 +274,7 @@ func (a *App) conversation(c *native.Context) {
 						if timings[i] != nil {
 							readingColumn(c, func() {
 								native.Column(c).FillWidth().Padding(16, 0, 0, 0).Children(func() {
-									a.session.turnTiming(c.Key(messages[i].ID), messages[i], turnIndex(entries, messages[i]))
+									a.session.turnTiming(c.Key(messages[i].ID), messages[i])
 								})
 							})
 						}
