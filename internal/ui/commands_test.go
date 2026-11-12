@@ -302,33 +302,38 @@ func TestCommandGroupTitleKeepsContentWidthAndAdjacentArrow(t *testing.T) {
 
 func TestCommandGroupCaptionVerticallyCentersWithIcon(t *testing.T) {
 	for _, dark := range []bool{false, true} {
-		for _, live := range []bool{false, true} {
-			for _, open := range []bool{false, true} {
-				t.Run(fmt.Sprintf("dark=%v/live=%v/open=%v", dark, live, open), func(t *testing.T) {
-					assertCommandGroupCaptionCentered(t, dark, live, open)
-				})
+		for _, status := range []string{"completed", "inProgress", "failed", "mixed", "declined"} {
+			for _, scale := range []float32{1, 2} {
+				for _, open := range []bool{false, true} {
+					for _, reduced := range []bool{false, true} {
+						t.Run(fmt.Sprintf("dark=%v/status=%s/scale=%v/open=%v/reduced=%v", dark, status, scale, open, reduced), func(t *testing.T) {
+							assertCommandGroupCaptionCentered(t, dark, status, scale, open, reduced)
+						})
+					}
+				}
 			}
 		}
 	}
 }
 
-func assertCommandGroupCaptionCentered(t *testing.T, dark, live, open bool) {
+func assertCommandGroupCaptionCentered(t *testing.T, dark bool, status string, scale float32, open, reduced bool) {
 	t.Helper()
 	a := New(nil, "test", "/tmp", nil)
-	command := commandMessage("title", "completed")
-	captionText := "执行了命令"
-	if live {
-		command.Tool.Status = "inProgress"
-		captionText = "正在执行命令"
+	commands := []*app.Message{commandMessage("title", status)}
+	if status == "mixed" {
+		commands[0].Tool.Status = "completed"
+		commands = append(commands, commandMessage("failure", "failed"))
 	}
+	captionText, _, _ := commandSummary(commands, false)
 	*a.commandGroupOpen("title") = open
 	tt := native.NewTester(func(c *native.Context) {
 		native.Column(c).Fill().Background(c.Theme().Background).Children(func() {
-			a.commandGroup(c, []*app.Message{command}, false)
+			a.commandGroup(c, commands, false)
 		})
 	}, 400, 60)
 	tt.SetDark(dark)
-	tt.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
+	tt.SetScale(scale)
+	tt.SetPreferences(native.Preferences{ReduceMotion: reduced, TextScale: 1})
 	tt.Move(30, 15)
 	img := tt.Image()
 	caption, ok := tt.Find(captionText)
@@ -336,7 +341,9 @@ func assertCommandGroupCaptionCentered(t *testing.T, dark, live, open bool) {
 		t.Fatal("caption missing")
 	}
 	row, _ := tt.Find("命令组 title")
-	background := img.RGBAAt(399, 0)
+	caption = native.Rect{X: caption.X * scale, Y: caption.Y * scale, W: caption.W * scale, H: caption.H * scale}
+	row = native.Rect{X: row.X * scale, Y: row.Y * scale, W: row.W * scale, H: row.H * scale}
+	background := img.RGBAAt(img.Bounds().Max.X-1, 0)
 	glyphCenter := func(x0, x1 int) float64 {
 		top, bottom := int(row.Y+row.H), -1
 		for y := int(row.Y); y < int(row.Y+row.H); y++ {
@@ -354,10 +361,10 @@ func assertCommandGroupCaptionCentered(t *testing.T, dark, live, open bool) {
 		}
 		return float64(top+bottom) / 2
 	}
-	iconCenter := glyphCenter(int(caption.X)-16-8, int(caption.X)-8)
+	iconCenter := glyphCenter(int(caption.X-24*scale), int(caption.X-8*scale))
 	iconBounds := image.Rectangle{}
 	for vertical := int(row.Y); vertical < int(row.Y+row.H); vertical++ {
-		for horizontal := int(caption.X) - 24; horizontal < int(caption.X)-8; horizontal++ {
+		for horizontal := int(caption.X - 24*scale); horizontal < int(caption.X-8*scale); horizontal++ {
 			pixel := img.RGBAAt(horizontal, vertical)
 			contrast := max(math.Abs(float64(pixel.R)-float64(background.R)), math.Abs(float64(pixel.G)-float64(background.G)), math.Abs(float64(pixel.B)-float64(background.B)))
 			if contrast > 50 {
@@ -365,22 +372,22 @@ func assertCommandGroupCaptionCentered(t *testing.T, dark, live, open bool) {
 			}
 		}
 	}
-	if iconBounds.Dx() != 12 || iconBounds.Dy() != 12 {
-		t.Fatalf("command icon must paint a 12x12 pixel square: %v", iconBounds)
+	if iconBounds.Dx() != int(12*scale) || iconBounds.Dy() != int(12*scale) {
+		t.Fatalf("command icon must paint a square at scale %v: %v", scale, iconBounds)
 	}
 	textCenter := glyphCenter(int(caption.X), int(caption.X+caption.W))
 	if iconCenter < 0 || textCenter < 0 {
 		t.Fatalf("glyphs missing: icon=%v text=%v", iconCenter, textCenter)
 	}
-	if diff := textCenter - iconCenter; math.Abs(diff) > .5 {
-		t.Fatalf("caption not centered on icon: icon=%.1f text=%.1f diff=%.1f", iconCenter, textCenter, diff)
+	if math.Abs(iconCenter-textCenter-float64(scale)) > .5*float64(scale) {
+		t.Fatalf("command icon lost its one-pixel optical offset: icon=%.1f text=%.1f", iconCenter, textCenter)
 	}
 	arrow, ok := tt.Find("命令组 title箭头")
 	if !ok {
 		t.Fatal("arrow missing")
 	}
-	arrowCenter := glyphCenter(int(arrow.X), int(arrow.X+arrow.W))
-	if arrowCenter < 0 || math.Abs(arrowCenter-textCenter-1) > .5 {
-		t.Fatalf("arrow lost optical alignment below caption center: arrow=%.1f text=%.1f", arrowCenter, textCenter)
+	arrowCenter := glyphCenter(int(arrow.X*scale), int((arrow.X+arrow.W)*scale))
+	if arrowCenter < 0 || math.Abs(arrowCenter-textCenter-1.5*float64(scale)) > .5*float64(scale) {
+		t.Fatalf("arrow not centered on caption: arrow=%.1f text=%.1f", arrowCenter, textCenter)
 	}
 }
