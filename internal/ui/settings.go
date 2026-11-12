@@ -85,9 +85,36 @@ func (a *App) applyAppearance(c *native.Context) {
 	if root.win == nil && root.preferences.Theme == "dark" {
 		t = *native.DarkTheme()
 	}
+	if !t.Dark {
+		// Codex-style light grays: near-white sidebar, barely darker
+		// selection, and a hairline border.
+		t.Background = native.Hex("#fefefe")
+		t.Surface = native.Hex("#fafafa")
+		t.SurfaceHover = native.Hex("#efefef")
+		t.SurfacePressed = native.Hex("#e4e4e4")
+		t.Border = native.Hex("#e4e4e4")
+	}
 	t.Font = root.preferences.EnglishFont + ", " + root.preferences.ChineseFont + ", system-ui"
 	c.SetTheme(&t)
 	root.md.Theme.Font, root.md.Theme.CodeFont = t.Font, root.codeFontFamily()
+}
+
+// userBubbleColor fills the user's message bubble: one step off-white in
+// light mode, the control face in dark mode.
+func userBubbleColor(t *native.Theme) native.Color {
+	if t.Dark {
+		return t.Surface
+	}
+	return native.Hex("#f0f0f1")
+}
+
+// composerBackground fills the chat input card: pure white on the light
+// theme so it lifts off the #fefefe conversation floor.
+func composerBackground(t *native.Theme) native.Color {
+	if t.Dark {
+		return t.Background
+	}
+	return native.Hex("#ffffff")
 }
 
 func (a *App) applySystemTheme() {
