@@ -28,8 +28,8 @@ func TestInterleavedCommandsAndChangesShareRowsUntilBody(t *testing.T) {
 			if len(rows) != 2 || rows[0].message != one || len(rows[0].commands) != 3 || rows[1].message != first || len(rows[1].changes) != 3 {
 				t.Fatalf("interleaved operations were split: %+v", rows)
 			}
-			if caption, failed, _ := commandSummary(rows[0].commands, false); !failed || caption != "执行了命令 · 1失败" {
-				t.Fatal("merged command group lost failure", caption)
+			if caption, failed, _ := commandSummary(rows[0].commands, false); !failed || caption != "执行了命令" {
+				t.Fatal("merged command group should omit failure summary and preserve failure state", caption)
 			}
 			summary := a.summarizeChanges(rows[1].changes)
 			if len(summary.Files) != 2 || summary.Added != 2 || summary.Deleted != 2 {
@@ -120,7 +120,7 @@ func TestInterleavedProcessGroupsRenderOnceAndRefresh(t *testing.T) {
 	tt.Frame()
 	commands, cards := 0, 0
 	for _, text := range tt.Texts() {
-		if text == "执行了命令 · 1失败" {
+		if text == "执行了命令" {
 			commands++
 		}
 		if text == "已编辑 2 个文件" {

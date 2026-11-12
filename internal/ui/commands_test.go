@@ -182,12 +182,12 @@ func copyRegion(img *image.RGBA, r native.Rect) []byte {
 }
 func equalPixels(a, b []byte) bool { return string(a) == string(b) }
 
-func TestCommandSummaryKeepsFailureAndAwaitingFinalVisible(t *testing.T) {
+func TestCommandSummaryOmitsFailuresAndKeepsAwaitingFinalVisible(t *testing.T) {
 	one, two := commandMessage("one", "completed"), commandMessage("two", "inProgress")
 	exit := 1
 	one.Tool.ExitCode = &exit
 	text, failed, running := commandSummary([]*app.Message{one, two}, false)
-	if !failed || !running || text != "正在执行命令 · 1失败" {
+	if !failed || !running || text != "正在执行命令" {
 		t.Fatalf("lost mixed state: %s %v", text, failed)
 	}
 	two.Tool.Status = "completed"
@@ -198,14 +198,14 @@ func TestCommandSummaryKeepsFailureAndAwaitingFinalVisible(t *testing.T) {
 	}
 	two.Tool.AwaitingFinal = false
 	text, failed, _ = commandSummary([]*app.Message{one, two}, false)
-	if text != "执行了命令 · 1失败" || !failed {
-		t.Fatal("failure disappeared")
+	if text != "执行了命令" || !failed {
+		t.Fatal("mixed group should omit failure summary")
 	}
 	one.Tool.Status = "failed"
 	two.Tool.Status = "failed"
 	text, failed, _ = commandSummary([]*app.Message{one, two}, false)
-	if text != "命令执行失败" || !failed {
-		t.Fatal("all-failed group lost failure summary")
+	if text != "执行了命令" || !failed {
+		t.Fatal("all-failed group should omit failure summary")
 	}
 	one.Tool.Status = "completed"
 	two.Tool.Status = "completed"
@@ -300,6 +300,32 @@ func TestCommandGroupTitleKeepsContentWidthAndAdjacentArrow(t *testing.T) {
 	}
 }
 
+func TestCommandSummaryKeepsRegularWeightUnderBoldParent(t *testing.T) {
+	for _, live := range []bool{false, true} {
+		t.Run(fmt.Sprint(live), func(t *testing.T) {
+			desktop := New(nil, "test", "/tmp", nil)
+			inheritedOpen, regularOpen := false, false
+			tester := native.NewTester(func(context *native.Context) {
+				native.Column(context).Fill().Background(context.Theme().Background).Children(func() {
+					native.Column(context).FillWidth().FontWeight(700).Children(func() {
+						desktop.processDisclosure(context, "inherited", "执行了命令", &inheritedOpen, terminalIcon, live, nil, func() {})
+					})
+					native.Column(context).FillWidth().FontWeight(400).Children(func() {
+						desktop.processDisclosure(context, "regular", "执行了命令", &regularOpen, terminalIcon, live, nil, func() {})
+					})
+				})
+			}, 400, 100)
+			tester.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
+			tester.Move(399, 99)
+			inherited, _ := tester.Find("inherited")
+			regular, _ := tester.Find("regular")
+			if !equalPixels(copyRegion(tester.Image(), inherited), copyRegion(tester.Image(), regular)) {
+				t.Fatal("summary inherited bold weight instead of keeping uniform regular text")
+			}
+		})
+	}
+}
+
 func TestCommandGroupCaptionVerticallyCentersWithIcon(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		for _, status := range []string{"completed", "inProgress", "failed", "mixed", "declined"} {
@@ -379,15 +405,15 @@ func assertCommandGroupCaptionCentered(t *testing.T, dark bool, status string, s
 	if iconCenter < 0 || textCenter < 0 {
 		t.Fatalf("glyphs missing: icon=%v text=%v", iconCenter, textCenter)
 	}
-	if math.Abs(iconCenter-textCenter-float64(scale)) > .5*float64(scale) {
-		t.Fatalf("command icon lost its one-pixel optical offset: icon=%.1f text=%.1f", iconCenter, textCenter)
+	if math.Abs(iconCenter-textCenter) > .5*float64(scale) {
+		t.Fatalf("command icon not centered on caption: icon=%.1f text=%.1f", iconCenter, textCenter)
 	}
 	arrow, ok := tt.Find("命令组 title箭头")
 	if !ok {
 		t.Fatal("arrow missing")
 	}
 	arrowCenter := glyphCenter(int(arrow.X*scale), int((arrow.X+arrow.W)*scale))
-	if arrowCenter < 0 || math.Abs(arrowCenter-textCenter-1.5*float64(scale)) > .5*float64(scale) {
+	if arrowCenter < 0 || math.Abs(arrowCenter-textCenter-.5*float64(scale)) > .5*float64(scale) {
 		t.Fatalf("arrow not centered on caption: arrow=%.1f text=%.1f", arrowCenter, textCenter)
 	}
 }

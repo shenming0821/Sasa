@@ -117,8 +117,8 @@ func TestMixedToolGroupDetailsAndStates(t *testing.T) {
 		t.Fatal("completion reset group")
 	}
 	read.Tool.Output = `{"isError":true,"content":[{"type":"text","text":"missing file"}]}`
-	if summary, failed, _ := commandSummary(messages, false); summary != "执行了命令 · 1失败" || !failed {
-		t.Fatal("tool result error hidden", summary)
+	if summary, failed, _ := commandSummary(messages, false); summary != "执行了命令" || !failed {
+		t.Fatal("tool group should omit failure summary and preserve failure state", summary)
 	}
 	command.Tool.AwaitingFinal = true
 	if summary, _, _ := commandSummary(messages, false); !strings.HasPrefix(summary, "等待确认 Bash") {

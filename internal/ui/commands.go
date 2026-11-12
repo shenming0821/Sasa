@@ -192,40 +192,27 @@ func commandSummary(commands []*app.Message, continuing bool) (text string, fail
 		return "等待确认 " + toolCaption(active), failed, false
 	}
 	if active != nil || continuing {
-		if failed {
-			return fmt.Sprintf("正在执行命令 · %d失败", failures), true, true
-		}
-		return "正在执行命令", false, true
-	}
-	if failed {
-		if failures == len(commands) {
-			return "命令执行失败", true, false
-		}
-		return fmt.Sprintf("执行了命令 · %d失败", failures), true, false
+		return "正在执行命令", failed, true
 	}
 	if declined == len(commands) {
 		return "命令已拒绝", false, false
 	}
-	return "执行了命令", false, false
+	return "执行了命令", failed, false
 }
 
 // Process records share the same hierarchy, hover affordance and keyboard disclosure.
 func (a *App) processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, live bool, suffix, content func()) {
 	theme := c.Theme()
-	glyphOffsetY := float32(0)
-	if glyph == terminalIcon {
-		glyphOffsetY = 1
-	}
 	caption := func() native.Element {
 		if live {
-			return shimmerText(c, text, 13)
+			return shimmerText(c, text, 13).FontWeight(400)
 		}
-		return native.Text(c, text).FontSize(13).TextColor(theme.TextMuted)
+		return native.Text(c, text).FontSize(13).FontWeight(400).TextColor(theme.TextMuted)
 	}
 	if content == nil {
 		native.Row(c).Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).Children(func() {
 			if glyph != nil {
-				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, glyphOffsetY)
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
 			}
 			caption().SingleLine().MinWidth(0).Shrink(1)
 			if suffix != nil {
@@ -241,14 +228,14 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 		hover := trigger.Hovered() || trigger.FocusVisible()
 		trigger.Children(func() {
 			if glyph != nil {
-				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, glyphOffsetY)
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
 			}
 			caption().SingleLine().MinWidth(0).Shrink(1)
 			opacity := float32(0)
 			if hover {
 				opacity = 1
 			}
-			native.Icon(c, chevron).Label(label+"箭头").Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, 1.5).
+			native.Icon(c, chevron).Label(label+"箭头").Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, .5).
 				Rotate(-90 * (1 - parts.Progress())).Opacity(opacity)
 			if suffix != nil {
 				native.Spacer(c)
