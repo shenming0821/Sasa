@@ -3,6 +3,7 @@ from contextlib import closing
 from pathlib import Path
 import plistlib
 import sqlite3
+import struct
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -10,6 +11,53 @@ from unittest.mock import patch
 SPEC = importlib.util.spec_from_file_location('fuyu_release', Path(__file__).with_name('release.py'))
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
+
+
+class ExecutableUUIDTests(unittest.TestCase):
+    def executable(self, directory, commands=None, payload=b'program'):
+        if commands is None:
+            commands = struct.pack('<II', 0x1b, 24) + bytes(range(16))
+        path = Path(directory) / release.EXECUTABLE
+        path.parent.mkdir(parents=True)
+        path.write_bytes(struct.pack('<IIIIIIII', 0xfeedfacf, 0x100000c, 0, 2, 1, len(commands), 0, 0) + commands + payload)
+        return path
+
+    def test_channels_and_builds_have_distinct_repeatable_uuid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory)
+            path = self.executable(app)
+            (app / release.IDENTITY).parent.mkdir(parents=True)
+            identity = {'buildID': 'one', 'buildNumber': '1', 'version': '0.1.0'}
+            original = path.read_bytes()
+            release.configure_channel(app, identity, 'preview')
+            preview = path.read_bytes()
+            release.configure_channel(app, identity, 'stable')
+            stable = path.read_bytes()
+            release.configure_channel(app, identity, 'preview')
+            self.assertEqual(path.read_bytes(), preview)
+            release.configure_channel(app, dict(identity, buildID='two'), 'preview')
+            self.assertNotEqual(path.read_bytes()[40:56], preview[40:56])
+            self.assertNotEqual(stable[40:56], preview[40:56])
+            self.assertEqual(stable[:40] + stable[56:], original[:40] + original[56:])
+
+    def test_payload_ignores_uuid_but_detects_program_changes(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(release, 'run'):
+            app = Path(directory)
+            path = self.executable(app)
+            expected = release.executable_payload(app)
+            release.set_executable_uuid(path, b'x' * 16)
+            self.assertEqual(release.executable_payload(app), expected)
+            path.write_bytes(path.read_bytes() + b'changed')
+            self.assertNotEqual(release.executable_payload(app), expected)
+
+    def test_invalid_commands_fail_without_changing_executable(self):
+        for commands in [b'', struct.pack('<II', 0x1b, 8), struct.pack('<II', 0x1b, 48)]:
+            with self.subTest(commands=commands), tempfile.TemporaryDirectory() as directory:
+                path = self.executable(directory, commands)
+                original = path.read_bytes()
+                with self.assertRaises(RuntimeError):
+                    release.set_executable_uuid(path, bytes(16))
+                self.assertEqual(path.read_bytes(), original)
 
 
 class FakePlatform:
@@ -69,6 +117,9 @@ class MacOSLaunchTests(unittest.TestCase):
 
 class ReleaseTests(unittest.TestCase):
     def setUp(self):
+        uuid_patch = patch.object(release, 'set_executable_uuid')
+        uuid_patch.start()
+        self.addCleanup(uuid_patch.stop)
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)

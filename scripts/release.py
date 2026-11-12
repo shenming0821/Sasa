@@ -12,6 +12,7 @@ import plistlib
 import shutil
 import socket
 import sqlite3
+import struct
 import subprocess
 import sys
 import tempfile
@@ -61,11 +62,38 @@ def digest_file(path):
     return digest.hexdigest()
 
 
+def set_executable_uuid(executable, value):
+    content = bytearray(executable.read_bytes())
+    if len(value) != 16 or len(content) < 32 or content[:4] != b'\xcf\xfa\xed\xfe':
+        raise RuntimeError('主程序必须是包含 UUID 的 64 位 Mach-O。')
+    commands, size = struct.unpack_from('<II', content, 16)
+    end = 32 + size
+    if end > len(content):
+        raise RuntimeError('主程序 Mach-O 加载命令不完整。')
+    offset, uuid_offset = 32, None
+    for _ in range(commands):
+        if offset + 8 > end:
+            raise RuntimeError('主程序 Mach-O 加载命令不完整。')
+        command, length = struct.unpack_from('<II', content, offset)
+        if length < 8 or offset + length > end:
+            raise RuntimeError('主程序 Mach-O 加载命令长度无效。')
+        if command == 0x1b:
+            if length != 24 or uuid_offset is not None:
+                raise RuntimeError('主程序必须只包含一个有效 UUID。')
+            uuid_offset = offset + 8
+        offset += length
+    if offset != end or uuid_offset is None:
+        raise RuntimeError('主程序必须只包含一个有效 UUID。')
+    content[uuid_offset:uuid_offset + 16] = value
+    executable.write_bytes(content)
+
+
 def executable_payload(app):
     with tempfile.TemporaryDirectory(prefix='fuyu-payload-') as temporary:
         executable = Path(temporary) / 'Fuyu'
         shutil.copy2(app / EXECUTABLE, executable)
         run('codesign', '--remove-signature', executable)
+        set_executable_uuid(executable, bytes(16))
         return digest_file(executable)
 
 
@@ -104,6 +132,7 @@ def configure_channel(app, identity, channel):
     preview = channel == 'preview'
     name = 'Fuyu Preview' if preview else 'Fuyu'
     bundle_id = 'com.shenming.fuyu.preview' if preview else 'com.shenming.fuyu'
+    set_executable_uuid(app / EXECUTABLE, uuid.uuid5(uuid.NAMESPACE_URL, bundle_id + '/' + identity['buildID']).bytes)
     metadata = {
         'CFBundleExecutable': 'Fuyu', 'CFBundleIdentifier': bundle_id,
         'CFBundleName': name, 'CFBundleDisplayName': name,
