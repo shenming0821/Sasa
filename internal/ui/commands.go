@@ -7,7 +7,7 @@ import (
 	"github.com/shenming0821/Fuyu/internal/app"
 )
 
-var terminalIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 8h18M7 12h6M7 16h10"/>`)
+var terminalIcon = native.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="m5 6 2 2-2 2m4 0h2"/></svg>`))
 
 type conversationRow struct {
 	message   *app.Message
@@ -218,7 +218,7 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 	if content == nil {
 		native.Row(c).Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).Children(func() {
 			if glyph != nil {
-				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, 1)
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
 			}
 			caption().SingleLine().MinWidth(0).Shrink(1)
 			if suffix != nil {
@@ -234,7 +234,7 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 		hover := trigger.Hovered() || trigger.FocusVisible()
 		trigger.Children(func() {
 			if glyph != nil {
-				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, 1)
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
 			}
 			caption().SingleLine().MinWidth(0).Shrink(1)
 			opacity := float32(0)
