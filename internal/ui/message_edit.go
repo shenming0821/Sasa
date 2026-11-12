@@ -338,20 +338,22 @@ func (a *App) userMessage(c *native.Context, message *app.Message) {
 				a.markedMessageText(c, message, text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
 					MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(theme.Surface)
 			})
+			sentAt := message.SentAt
+			if sentAt.IsZero() && message.Timing != nil {
+				sentAt = message.Timing.Started
+			}
+			if !sentAt.IsZero() {
+				native.Row(c).FillWidth().Justify(native.End).Padding(0, 6).Children(func() {
+					native.Text(c, sentAt.Local().Format("15:04")).FontSize(11).TextColor(theme.TextMuted).
+						Tooltip(sentAt.Local().Format("2006-01-02 15:04:05 MST"))
+				})
+			}
 		}
 		bar := native.Row(c.Key("message-actions")).FillWidth().Height(28).Gap(8).Justify(native.End).AlignItems(native.Center)
 		if !shown {
 			bar.Opacity(0)
 		}
 		bar.Children(func() {
-			sentAt := message.SentAt
-			if sentAt.IsZero() && message.Timing != nil {
-				sentAt = message.Timing.Started
-			}
-			if !sentAt.IsZero() {
-				native.Text(c, sentAt.Local().Format("15:04")).FontSize(12).TextColor(theme.TextMuted).
-					Tooltip(sentAt.Local().Format("2006-01-02 15:04:05 MST"))
-			}
 			glyph, label := copyIcon, "复制消息"
 			if a.userCopiedID == message.ID && time.Now().Before(a.userCopiedUntil) {
 				glyph, label = checkIcon, "消息已复制"

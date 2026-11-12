@@ -138,8 +138,8 @@ var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 
 func activeTabFace(c *native.Context, row native.Element) {
 	theme := c.Theme()
-	row.Background(theme.Surface).DrawOver(func(painter *native.Painter, bounds native.Rect) {
-		painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, theme.TextMuted, 0)
+	row.Background(theme.Background).DrawOver(func(painter *native.Painter, bounds native.Rect) {
+		painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, theme.Accent, 0)
 	})
 }
 
@@ -409,6 +409,9 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 				b.ContextMenu(a.sessionMenu(s))
 				if a.activeTab == sessionTabID(s.id) && s.open {
 					b.Background(t.SurfacePressed)
+					b.DrawOver(func(painter *native.Painter, bounds native.Rect) {
+						painter.Fill(native.Rect{X: bounds.X + 2, Y: bounds.Y + 6, W: 3, H: bounds.H - 12}, t.Accent, 1.5)
+					})
 				}
 				b.Children(func() {
 					native.Column(gc).FillWidth().Gap(4).Children(func() {

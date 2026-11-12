@@ -171,7 +171,7 @@ func (a *App) conversationNavigator(c *native.Context, entries []conversationEnt
 		for index, width := range widths {
 			color := t.TextMuted.Alpha(.38)
 			if index == selected || selected < 0 && index == current {
-				color = t.Text
+				color = t.Accent
 			}
 			height := min(float32(2), step*.6)
 			painter.Fill(native.Rect{X: rect.X + (rect.W-8)/2, Y: rect.Y + start + (float32(index)+.5)*step - height/2, W: width, H: height}, color, height/2)

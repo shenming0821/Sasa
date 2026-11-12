@@ -23,8 +23,8 @@ func TestTabSelectionKeepsTitleAndCloseButtonGeometry(t *testing.T) {
 			pane := focusedPane(a.layoutFor("/project"))
 			var lineColor color.RGBA
 			tester := native.NewTester(func(c *native.Context) {
-				muted := c.Theme().TextMuted
-				lineColor = color.RGBA{R: muted.R, G: muted.G, B: muted.B, A: muted.A}
+				accent := c.Theme().Accent
+				lineColor = color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: accent.A}
 				a.withPane("/project", pane, func() {
 					native.Column(c).Fill().Children(func() { a.sessionTabs(c, true, true) })
 				})

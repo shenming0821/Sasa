@@ -330,6 +330,9 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 				card := native.Column(wc).FillWidth().Gap(0).Radius(10)
 				if a.activeWorkspace == w.Path {
 					card.Background(t.SurfacePressed)
+					card.DrawOver(func(painter *native.Painter, bounds native.Rect) {
+						painter.Fill(native.Rect{X: bounds.X + 2, Y: bounds.Y + 6, W: 3, H: bounds.H - 12}, t.Accent, 1.5)
+					})
 				} else if card.Hovered() {
 					card.Background(t.SurfaceHover)
 				}

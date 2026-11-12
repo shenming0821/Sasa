@@ -14,8 +14,8 @@ var lockIcon = icon(`<rect x="5" y="10" width="14" height="11" rx="2"/><path d="
 
 func (a *App) occupiedCard(c *native.Context) {
 	t := c.Theme()
-	native.Column(c).FillWidth().Padding(18).Gap(12).Radius(20).
-		Border(1, t.Border.Alpha(.7)).Background(t.Surface).Children(func() {
+	native.Column(c).FillWidth().Padding(14).Gap(12).Radius(12).
+		Border(1, t.Border.Alpha(.6)).Background(t.Surface).Children(func() {
 		native.Row(c).FillWidth().Gap(12).AlignItems(native.Center).Children(func() {
 			native.Icon(c, lockIcon).Size(20, 20).TextColor(t.TextMuted)
 			native.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {

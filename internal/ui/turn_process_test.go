@@ -149,7 +149,7 @@ func TestChangeOnlyTurnHasNoProcessDisclosure(t *testing.T) {
 		{ID: "result", Role: "assistant", Text: "修改完成", Done: true},
 	}
 	tester := native.NewTester(func(c *native.Context) {
-		desktop.session.turnTiming(c, question)
+		desktop.session.turnTiming(c, question, 0)
 	}, 400, 100)
 	tester.Frame()
 	if !tester.HasText("用时 1分钟 0秒") {
@@ -182,7 +182,7 @@ func TestTurnProcessDisclosureRequiresContent(t *testing.T) {
 				desktop.State.Messages = append([]*app.Message{message}, example.messages...)
 				desktop.expandedProcesses = map[string]bool{"question": expanded}
 				tester := native.NewTester(func(c *native.Context) {
-					desktop.session.turnTiming(c, message)
+					desktop.session.turnTiming(c, message, 0)
 				}, 400, 100)
 				tester.Frame()
 				if !tester.HasText("用时 6秒") {
@@ -415,7 +415,7 @@ func TestTurnTimingArrowVisualAlignment(t *testing.T) {
 			tester := native.NewTester(func(c *native.Context) {
 				desktop.applyAppearance(c)
 				native.Column(c).Fill().Padding(10).Background(c.Theme().Background).Children(func() {
-					desktop.session.turnTiming(c, message)
+					desktop.session.turnTiming(c, message, 0)
 				})
 			}, 400, 100)
 			tester.SetDark(dark)
@@ -467,7 +467,7 @@ func TestTurnTimingTextClickAndHover(t *testing.T) {
 			tester := native.NewTester(func(c *native.Context) {
 				muted, primary = c.Theme().TextMuted, c.Theme().Text
 				native.Column(c).Fill().Padding(10).Background(c.Theme().Background).Children(func() {
-					desktop.session.turnTiming(c, message)
+					desktop.session.turnTiming(c, message, 0)
 				})
 			}, 400, 100)
 			tester.SetDark(dark)

@@ -548,7 +548,7 @@ func TestPaneActiveTabHighlightFollowsFocus(t *testing.T) {
 				if !found {
 					t.Fatalf("tab %q missing", label)
 				}
-				return tester.Image().RGBAAt(int(r.X+6), int(r.Y+r.H/2))
+				return tester.Image().RGBAAt(int(r.X+6), int(r.Y+r.H-1))
 			}
 			leftLabel := fmt.Sprintf("会话标签 %d", leftSession.id)
 			rightLabel := fmt.Sprintf("会话标签 %d", rightSession.id)

@@ -26,6 +26,27 @@ func detailText(c *native.Context, label, value string) {
 	native.Text(c, value).Selectable().FontSize(12).FillWidth()
 }
 
+// statusPill renders a tool's status as a tinted pill: green on success, red on
+// failure, neutral while running or otherwise.
+func statusPill(c *native.Context, t *app.Tool) {
+	theme := c.Theme()
+	fg, bg := theme.TextMuted, theme.SurfacePressed
+	switch {
+	case t.Status == "failed" || t.ExitCode != nil && *t.ExitCode != 0 || t.Status == "declined":
+		fg = theme.Danger
+		bg = theme.Danger.Alpha(.10)
+	case t.Status == "completed":
+		fg = theme.Success
+		bg = theme.Success.Alpha(.10)
+	case t.Status == "inProgress":
+		fg = theme.Accent
+		bg = theme.Accent.Alpha(.10)
+	}
+	native.Box(c).Label("工具状态 "+t.StatusLabel()).Radius(99).Padding(1, 8).Background(bg).Children(func() {
+		native.Text(c, t.StatusLabel()).FontSize(10.5).TextColor(fg).SingleLine()
+	})
+}
+
 func pretty(raw json.RawMessage) string {
 	var out bytes.Buffer
 	if json.Indent(&out, raw, "", "  ") == nil {
@@ -41,13 +62,10 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 	}
 	theme := c.Theme()
 	native.Column(c).FillWidth().Gap(8).Padding(12, 14).Radius(12).
-		Border(1, theme.Border.Alpha(.65)).Background(theme.Surface).Clip().Children(func() {
+		Border(1, theme.Border.Alpha(.6)).Background(theme.Surface).Clip().Children(func() {
 		native.Row(c).FillWidth().Gap(8).Children(func() {
 			native.Text(c, t.Title()).FontSize(12).Grow(1)
-			status := native.Text(c, t.StatusLabel()).FontSize(11).TextColor(theme.TextMuted)
-			if t.Status == "failed" || (t.ExitCode != nil && *t.ExitCode != 0) {
-				status.TextColor(theme.Danger)
-			}
+			statusPill(c, t)
 		})
 		if t.Command != "" {
 			native.Text(c, t.Command).Label("命令预览").Selectable().Font(a.codeFontFamily()).FontSize(12).FillWidth().MaxLines(4)
@@ -128,7 +146,18 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 		title = a.kind.String() + " 向你提问"
 	}
 	native.Column(c).FillWidth().Gap(10).Padding(14).Radius(12).
-		Border(1, t.Border).Background(t.Surface).Children(func() {
+		Border(1, t.Border.Alpha(.6)).Background(t.Surface).Clip().DrawOver(func(painter *native.Painter, bounds native.Rect) {
+			bar := native.Color{}
+			switch {
+			case r.Active():
+				bar = t.Warning
+			case request.Method == "item/tool/requestUserInput":
+				bar = t.Accent
+			}
+			if bar != (native.Color{}) {
+				painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y, W: 3, H: bounds.H}, bar, 0)
+			}
+		}).Children(func() {
 		native.Row(c).FillWidth().Gap(8).Children(func() {
 			native.Text(c, title).FontSize(14).Grow(1)
 			native.Text(c, r.Status).FontSize(11).TextColor(t.TextMuted)

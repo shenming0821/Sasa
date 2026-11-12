@@ -274,7 +274,7 @@ func (a *App) conversation(c *native.Context) {
 						if timings[i] != nil {
 							readingColumn(c, func() {
 								native.Column(c).FillWidth().Padding(16, 0, 0, 0).Children(func() {
-									a.session.turnTiming(c.Key(messages[i].ID), messages[i])
+									a.session.turnTiming(c.Key(messages[i].ID), messages[i], turnIndex(entries, messages[i]))
 								})
 							})
 						}
@@ -324,7 +324,13 @@ func (a *App) composer(c *native.Context) {
 	t := c.Theme()
 	box := native.Column(c).FillWidth().Padding(14, 14, 10, 14).Gap(8).Radius(22).
 		Border(1, t.Border.Alpha(0.7)).Background(t.Background).
-		Shadow(0, 2, 12, 0, native.RGBA(0, 0, 0, 0.04)).Children(func() {
+		Shadow(0, 2, 12, 0, native.RGBA(0, 0, 0, 0.04))
+	if box.FocusWithin() {
+		box.Border(1, t.Accent).DrawOver(func(painter *native.Painter, bounds native.Rect) {
+			painter.Stroke(native.Rect{X: bounds.X - 2, Y: bounds.Y - 2, W: bounds.W + 4, H: bounds.H + 4}, t.Accent.Alpha(.14), 24, 4)
+		})
+	}
+	box.Children(func() {
 		a.draftImageStrip(c)
 		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
 			Placeholder("与 "+a.kind.String()+" 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)

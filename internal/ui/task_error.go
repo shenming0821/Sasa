@@ -62,7 +62,7 @@ func (a *App) taskFailureCard(c *native.Context) {
 	theme := c.Theme()
 	native.Column(c.Key("task-failure")).FillWidth().MinWidth(0).Padding(0, 0, 10, 0).Children(func() {
 		native.Column(c).FillWidth().MinWidth(0).Padding(12).Gap(8).Radius(12).
-			Background(theme.Surface).Border(1, theme.Border).Children(func() {
+			Background(theme.Surface).Border(1, theme.Border.Alpha(.6)).Children(func() {
 			native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
 				native.Icon(c, taskErrorIcon).Size(16, 16).Shrink(0).TextColor(theme.Danger)
 				native.Text(c, "任务未完成").FontSize(13).Bold().Grow(1)

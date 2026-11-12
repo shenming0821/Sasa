@@ -97,9 +97,23 @@ func (s *session) hasTurnProcess(question *app.Message) bool {
 	return false
 }
 
-func (s *session) turnTiming(c *native.Context, message *app.Message) {
+// turnIndex returns the 1-based turn number of a user message among the
+// conversation entries, 0 when it is not an entry's question.
+func turnIndex(entries []conversationEntry, message *app.Message) int {
+	for i, entry := range entries {
+		if entry.user == message {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+func (s *session) turnTiming(c *native.Context, message *app.Message, turn int) {
 	timing := message.Timing
 	if text := timingText(timing, time.Now()); text != "" {
+		if turn > 0 {
+			text = fmt.Sprintf("第 %d 轮 · %s", turn, text)
+		}
 		native.Column(c).FillWidth().Gap(10).Children(func() {
 			native.Row(c).Gap(8).AlignItems(native.Center).Children(func() {
 				if !timing.Finished.IsZero() && s.hasTurnProcess(message) {
@@ -130,7 +144,7 @@ func (s *session) turnTiming(c *native.Context, message *app.Message) {
 					native.Text(c, text).FontSize(13).TextColor(c.Theme().TextMuted).SingleLine()
 				}
 			})
-			native.Box(c).FillWidth().Height(1).Background(c.Theme().Border)
+			native.Box(c).FillWidth().Height(1).Background(c.Theme().Border.Alpha(.6))
 		})
 	}
 }
