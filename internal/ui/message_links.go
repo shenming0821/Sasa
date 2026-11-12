@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/egoist/mygo/ui/markdown/parser"
 	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Fuyu/internal/attachment"
 	"github.com/shenming0821/Fuyu/internal/workspace"
 )
 
@@ -28,7 +29,15 @@ func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
 	text := message.Text
 	owner := a.session
 	cwd := owner.State.Cwd
+	a.md.LoadImage = markdown.FileImages(cwd)
 	a.md.OnLink = func(destination string) {
+		if path, ok := messageImageDestination(cwd, destination); ok {
+			root := a.application()
+			root.viewerImage = attachment.Image{Path: path}
+			root.viewerOpen, root.viewerZoom = true, 1
+			root.viewerScroll = native.ScrollState{}
+			return
+		}
 		if native.SafeToOpen(destination) {
 			c.OpenURLThen(destination, func(err error) {
 				if err != nil {
@@ -197,4 +206,38 @@ func messageFileLink(cwd, destination string) (string, string, error) {
 		root = filepath.Dir(path)
 	}
 	return root, path, nil
+}
+
+// messageImageDestination resolves a clicked image destination to a local
+// path for the in-app viewer; other schemes and non-image links return false.
+func messageImageDestination(cwd, destination string) (string, bool) {
+	path, _, _ := strings.Cut(destination, "#")
+	if decoded, err := url.PathUnescape(path); err == nil {
+		path = decoded
+	}
+	parsed, err := url.Parse(path)
+	if err != nil {
+		return "", false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "" && scheme != "file" {
+		return "", false
+	}
+	if parsed.Host != "" && parsed.Host != "localhost" {
+		return "", false
+	}
+	local := parsed.Path
+	if local == "" {
+		local = parsed.Opaque
+	}
+	if local == "" || strings.ContainsAny(local, "\x00\r\n") || !isImagePath(local) {
+		return "", false
+	}
+	if !filepath.IsAbs(local) {
+		if !filepath.IsAbs(cwd) {
+			return "", false
+		}
+		local = filepath.Join(cwd, local)
+	}
+	return filepath.Clean(local), true
 }
