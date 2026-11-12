@@ -47,6 +47,7 @@ func (a *App) rightPanel(c *native.Context) {
 				}
 			}
 			native.Spacer(c)
+			a.sidebarToggle(c, false)
 		})
 		if a.rightTab == "history" {
 			native.Column(c).FillWidth().Padding(12).Gap(12).Children(func() {

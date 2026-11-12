@@ -160,9 +160,10 @@ func (a *App) Run() (runErr error) {
 		a.applySystemTheme()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: a.windowTitle(), Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
-			TitleBarStyle: mygo.TitleBarHiddenInset,
-			StateKey:      "main",
-			Content:       native.View(a.view),
+			TitleBarStyle:       mygo.TitleBarHiddenInset,
+			TrafficLightPosition: &mygo.Point{X: 12, Y: 16},
+			StateKey:            "main",
+			Content:             native.View(a.view),
 		})
 		a.installLifecycle()
 		a.installSettingsMenu()

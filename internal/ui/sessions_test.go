@@ -178,8 +178,9 @@ func TestSidebarNewSessionWhileOtherTaskRuns(t *testing.T) {
 	if a.session != first || !tt.HasText("停止") {
 		t.Fatal("cannot return to background task")
 	}
-	a.sidebarOpen = false
-	tt.Frame()
+	if err := tt.Click("切换左侧边栏"); err != nil {
+		t.Fatal(err)
+	}
 	if tt.HasText("切换会话 1") || !tt.HasText("任务输入") {
 		t.Fatal("sidebar collapse lost composer")
 	}

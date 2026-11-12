@@ -209,7 +209,7 @@ func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
 	tt := native.NewTester(a.view, 1400, 760)
 	toggle := func() native.Rect {
 		t.Helper()
-		r, ok := tt.Find("搜索历史")
+		r, ok := tt.Find("切换右侧边栏")
 		if !ok {
 			t.Fatal("missing right panel")
 		}
@@ -245,7 +245,7 @@ func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
 	}
 	before := toggle().X
 	drag(-80)
-	if a.rightPanelWidth != 400 || toggle().X+toggle().W == before {
+	if a.rightPanelWidth != 400 || toggle().X != before {
 		t.Fatalf("right panel did not grow from its left edge: width=%v", a.rightPanelWidth)
 	}
 	// A drag focuses this divider; arrow keys must move the same boundary.
@@ -293,7 +293,7 @@ func TestSelectedTabRemainsVisibleAndSidebarResizesWithKeyboard(t *testing.T) {
 		tt.Frame()
 	}
 	tab, ok := tt.Find(fmt.Sprintf("会话标签 %d", a.session.id))
-	if !ok || tab.X < 241 || tab.X+tab.W > 1000 {
+	if !ok || tab.X < 241 || tab.X+tab.W > 963 {
 		t.Fatalf("selected tab outside viewport: %+v", tab)
 	}
 	if err := tt.Click("Divider"); err != nil {
@@ -326,12 +326,23 @@ func TestSidebarTogglesMoveBetweenPanelHeadersAndConversation(t *testing.T) {
 					}
 				}
 				left, _ := tt.Find("切换左侧边栏")
-				if left.Y >= 46 {
-					t.Fatalf("left toggle not in title bar: %+v", left)
+				project, projectShown := tt.Find("搜索会话")
+				if projectShown {
+					if left.X+left.W > a.sidebarWidth || left.Y >= project.Y {
+						t.Fatalf("left toggle outside panel header: toggle=%+v search=%+v", left, project)
+					}
+				} else if left.X > 40 || left.Y >= 46 {
+					t.Fatalf("collapsed left toggle not in conversation toolbar: %+v", left)
 				}
 				right, _ := tt.Find("切换右侧边栏")
-				if right.Y >= 46 {
-					t.Fatalf("right toggle not in title bar: %+v", right)
+				history, historyShown := tt.Find("搜索历史")
+				create, _ := tt.Find("使用 Claude Code 新建会话")
+				if historyShown {
+					if right.X < history.X || right.Y >= history.Y || create.X+create.W >= history.X {
+						t.Fatalf("right toggle outside panel header: toggle=%+v search=%+v", right, history)
+					}
+				} else if right.Y >= 46 {
+					t.Fatalf("collapsed right toggle not in conversation toolbar: %+v", right)
 				}
 			}
 			check()
