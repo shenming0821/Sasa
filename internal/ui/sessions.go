@@ -30,6 +30,9 @@ type session struct {
 	selectedModel     string
 	selectedEffort    string
 	selectedTier      string
+	selectedMode      agent.InteractionMode
+	activeMode        agent.InteractionMode
+	executedPlanID    string
 	effortPin         string
 	modelResolving    bool
 	modelResolvedCwd  string

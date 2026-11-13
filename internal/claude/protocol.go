@@ -239,6 +239,12 @@ func (c *Client) spawn(ctx context.Context, s *session, identity agent.TurnIdent
 		run.stopProcess()
 		return nil, nil, fmt.Errorf("Claude 未确认实际权限模式，未发送任务")
 	}
+	c.mu.Lock()
+	run.connection.permissionMode = settings.Mode
+	if settings.Mode != "plan" {
+		s.BasePermissionMode = settings.Mode
+	}
+	c.mu.Unlock()
 	return run, raw, nil
 }
 
@@ -456,22 +462,25 @@ func (c *Client) Send(ctx context.Context, id, text string) (agent.Turn, error) 
 }
 
 func (c *Client) SendWithModel(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, model string) (agent.Turn, error) {
-	return c.send(ctx, id, text, skills, images, model, "")
+	return c.send(ctx, id, text, skills, images, model, "", "")
 }
 
 // SendWithOptions passes the per-send model and effort picks to the CLI.
 // Claude reports no service tiers, so TurnOptions.ServiceTier is ignored.
 func (c *Client) SendWithOptions(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, options agent.TurnOptions) (agent.Turn, error) {
-	return c.send(ctx, id, text, skills, images, options.Model, options.Effort)
+	return c.send(ctx, id, text, skills, images, options.Model, options.Effort, options.Mode)
 }
 
-func (c *Client) send(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, model, effort string) (turn agent.Turn, sendErr error) {
+func (c *Client) send(ctx context.Context, id, text string, skills []agent.Skill, images []attachment.Image, model, effort string, mode agent.InteractionMode) (turn agent.Turn, sendErr error) {
 	attempted := false
 	defer func() {
 		if sendErr != nil && !attempted {
 			sendErr = &agent.NotSubmittedError{Err: sendErr}
 		}
 	}()
+	if !mode.Valid() {
+		return turn, fmt.Errorf("无效的协作模式：%s", mode)
+	}
 	if len(skills) > 0 {
 		return turn, fmt.Errorf("Claude 命令应使用 /命令名 输入")
 	}
@@ -564,6 +573,12 @@ func (c *Client) send(ctx context.Context, id, text string, skills []agent.Skill
 	}
 	if run == nil && err == nil {
 		run, _, err = c.spawn(ctx, s, identity, model, effort)
+	}
+	if err == nil {
+		err = run.setMode(ctx, mode)
+		if err != nil {
+			run.stopProcess()
+		}
 	}
 	if err == nil && ctx.Err() != nil {
 		run.stopProcess()

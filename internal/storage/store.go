@@ -32,6 +32,8 @@ type Session struct {
 	SelectedModel   string
 	SelectedEffort  string
 	SelectedTier    string
+	SelectedMode    agent.InteractionMode `json:",omitempty"`
+	ExecutedPlanID  string                `json:",omitempty"`
 	DraftImages     []attachment.Image
 	ID              int
 	ThreadID        string

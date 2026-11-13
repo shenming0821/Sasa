@@ -41,6 +41,19 @@ type TurnOptions struct {
 	Model       string
 	Effort      string
 	ServiceTier string
+	Mode        InteractionMode
+}
+
+// Empty preserves native configuration; Default explicitly leaves plan mode.
+type InteractionMode string
+
+const (
+	ModePlan    InteractionMode = "plan"
+	ModeDefault InteractionMode = "default"
+)
+
+func (mode InteractionMode) Valid() bool {
+	return mode == "" || mode == ModePlan || mode == ModeDefault
 }
 
 type OptionSender interface {

@@ -509,7 +509,21 @@ func (c *Client) ResumeThread(ctx context.Context, id string) (agent.ResumedThre
 	if model == "" {
 		model = s.Model
 	}
-	return agent.ResumedThread{ThreadMeta: agent.ThreadMeta{ID: id, Cwd: s.Cwd, Preview: s.Title, Status: agent.ThreadStatus{Type: status}}, Cwd: s.Cwd, Model: model, RuntimeVersion: s.Version, Policy: json.RawMessage(`"default"`), Sandbox: json.RawMessage(`{"type":"claudePermissions"}`)}, ctx.Err()
+	policy := json.RawMessage(`"default"`)
+	if s.PermissionMode != "" {
+		policy, _ = json.Marshal(s.PermissionMode)
+	}
+	result := agent.ResumedThread{ThreadMeta: agent.ThreadMeta{ID: id, Cwd: s.Cwd, Preview: s.Title, Status: agent.ThreadStatus{Type: status}}, Cwd: s.Cwd, Model: model, RuntimeVersion: s.Version, Policy: policy, Sandbox: json.RawMessage(`{"type":"claudePermissions"}`)}
+	if s.PermissionMode != "" {
+		mode := agent.ModeDefault
+		if s.PermissionMode == "plan" {
+			mode = agent.ModePlan
+		}
+		result.CollaborationMode = &struct {
+			Mode agent.InteractionMode `json:"mode"`
+		}{Mode: mode}
+	}
+	return result, ctx.Err()
 }
 
 func (c *Client) ListTurns(ctx context.Context, id string, cursor *string) (agent.TurnsPage, error) {

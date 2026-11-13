@@ -25,6 +25,7 @@ type Message struct {
 	Delivery    string
 	Text        string
 	Done        bool
+	Plan        bool
 	TurnID      string
 	Tool        *Tool
 	Interaction *Interaction
@@ -150,7 +151,7 @@ func (s *State) Apply(event agent.Event) {
 		return
 	}
 	switch event.Method {
-	case "turn/started", "turn/completed", "item/agentMessage/delta",
+	case "turn/started", "turn/completed", "item/agentMessage/delta", "item/plan/delta",
 		"item/commandExecution/outputDelta", "item/fileChange/outputDelta",
 		"item/started", "item/completed", "serverRequest/resolved", "error":
 	default:
@@ -226,10 +227,14 @@ func (s *State) Apply(event agent.Event) {
 		if s.stopRequested {
 			s.Phase = "正在停止"
 		}
-	case "item/agentMessage/delta":
+	case "item/agentMessage/delta", "item/plan/delta":
 		s.clearRetry()
 		m := s.item(p.ItemID, "assistant")
+		if m.Plan && m.Done {
+			return
+		}
 		m.TurnID = id
+		m.Plan = event.Method == "item/plan/delta"
 		m.Text = bounded(m.Text + p.Delta)
 	case "item/commandExecution/outputDelta", "item/fileChange/outputDelta":
 		if !lateTool {
@@ -250,10 +255,11 @@ func (s *State) Apply(event agent.Event) {
 			if id != "" && p.Item.ID != "" {
 				s.acceptUserItem(p.Item.ID, id, p.Item.Content)
 			}
-		case "agentMessage":
+		case "agentMessage", "plan":
 			m := s.item(p.Item.ID, "assistant")
 			m.TurnID = id
-			if p.Item.Text != "" {
+			m.Plan = p.Item.Type == "plan"
+			if p.Item.Text != "" || m.Plan && event.Method == "item/completed" {
 				m.Text = bounded(p.Item.Text)
 				if event.Truncated {
 					m.Text += "\n\n[显示已截断]"

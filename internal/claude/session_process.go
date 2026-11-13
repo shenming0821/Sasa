@@ -26,6 +26,7 @@ type nextExecution struct {
 type sessionProcess struct {
 	next                  chan nextExecution
 	model, effort, config string
+	permissionMode        string
 }
 
 func (c *Client) ReleaseIdleThread(ctx context.Context, id string) (bool, error) {

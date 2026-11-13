@@ -55,6 +55,7 @@ var slashCommands = []completionItem{
 	{name: "/resume", description: "打开历史会话"},
 	{name: "/status", description: "查看当前模型、权限与运行状态"},
 	{name: "/skills", description: "选择当前目录可用的技能"},
+	{name: "/plan", description: "切换计划模式，先讨论方案再执行"},
 }
 
 func queryCompletion(text string, anchor, caret int, kind agent.AgentKind) (completionQuery, bool) {
@@ -105,6 +106,9 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 	if q.kind == '/' {
 		if a.kind.Normalized() != agent.Codex {
 			for _, command := range a.completion.commands {
+				if command.Name == "plan" {
+					continue
+				}
 				if a.kind.Normalized() == agent.Claude && !command.IsSkill {
 					continue
 				}
@@ -115,6 +119,9 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 			}
 			if strings.Contains("/clear", query) {
 				items = append(items, completionItem{name: "/clear", description: "清空上下文，开始新对话；保留旧历史"})
+			}
+			if strings.Contains("/plan", query) {
+				items = append(items, completionItem{name: "/plan", description: "切换计划模式，先讨论方案再执行"})
 			}
 			return items
 		}
@@ -170,6 +177,13 @@ func (a *App) isClearCommand(text string) bool {
 }
 
 func (a *App) runSlashCommand(text string) bool {
+	if strings.TrimSpace(text) == "/plan" {
+		if a.setPlanMode(a.selectedMode != agent.ModePlan) {
+			a.State.Draft = ""
+			a.completion.focus, a.completion.caret = true, 0
+		}
+		return true
+	}
 	if a.isClearCommand(text) {
 		if strings.TrimSpace(text) != "/clear" {
 			a.State.Error = "/clear 不接受参数，请单独发送该命令"
@@ -207,7 +221,9 @@ func (a *App) runSlashCommand(text string) bool {
 
 func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 	a.completion.dismissed = ""
-	if a.kind.Normalized() != agent.Codex && q.kind != '@' {
+	if q.kind == '/' && item.name == "/plan" {
+		a.runSlashCommand(item.name)
+	} else if a.kind.Normalized() != agent.Codex && q.kind != '@' {
 		a.State.Draft = item.name + " "
 		a.completion.caret = len([]rune(a.State.Draft))
 		a.completion.focus = true

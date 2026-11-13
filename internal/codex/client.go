@@ -224,7 +224,7 @@ const MaxQueueEvents = agent.MaxQueueEvents
 func eventBytes(e Event) int { return len(e.Params) + len(e.ID) + len(e.Method) + 128 }
 
 func isDelta(e Event) bool {
-	return e.Method == "item/agentMessage/delta" || e.Method == "item/commandExecution/outputDelta" ||
+	return e.Method == "item/agentMessage/delta" || e.Method == "item/plan/delta" || e.Method == "item/commandExecution/outputDelta" ||
 		e.Method == "item/fileChange/outputDelta"
 }
 

@@ -33,6 +33,26 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "plan-mode":
+			var params struct {
+				Thread string `json:"threadId"`
+				Model  string `json:"model"`
+				Mode   struct {
+					Mode     string `json:"mode"`
+					Settings struct {
+						Model        string          `json:"model"`
+						Effort       *string         `json:"reasoning_effort"`
+						Instructions json.RawMessage `json:"developer_instructions"`
+					} `json:"settings"`
+				} `json:"collaborationMode"`
+			}
+			if m.Method != "turn/start" || json.Unmarshal(m.Params, &params) != nil || params.Thread != "thread" ||
+				(params.Mode.Mode != "plan" && params.Mode.Mode != "default") || params.Mode.Settings.Model != "wire-model" ||
+				params.Mode.Settings.Effort == nil || *params.Mode.Settings.Effort != "high" || string(params.Mode.Settings.Instructions) != "null" {
+				os.Exit(24)
+			}
+			enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]any{"id": params.Mode.Mode, "status": "inProgress"}}})
+			continue
 		case "steer":
 			var wire struct {
 				ThreadID            string                                    `json:"threadId"`

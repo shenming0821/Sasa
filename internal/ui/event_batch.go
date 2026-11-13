@@ -37,7 +37,7 @@ func (d *eventDelivery) immediate(event agent.Event) bool {
 	if json.Unmarshal(event.Params, &p) != nil {
 		return false
 	}
-	content := event.Method == "item/agentMessage/delta" && strings.TrimSpace(p.Delta) != "" ||
+	content := (event.Method == "item/agentMessage/delta" || event.Method == "item/plan/delta") && strings.TrimSpace(p.Delta) != "" ||
 		(event.Method == "item/started" || event.Method == "item/completed") &&
 			(p.Item.Type == "agentMessage" && strings.TrimSpace(p.Item.Text) != "" ||
 				p.Item.Type != "" && p.Item.Type != "agentMessage" && p.Item.Type != "reasoning")

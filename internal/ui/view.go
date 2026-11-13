@@ -439,6 +439,7 @@ func (a *App) composer(c *native.Context) {
 		native.Row(c).FillWidth().Gap(8).AlignItems(native.Center).Children(func() {
 			a.imagePickerButton(c)
 			a.modelPicker(c)
+			a.planModeBadge(c)
 			native.Spacer(c)
 			hint := "Enter 发送 · ⌘ Enter 换行"
 			if len(a.pendingInputs) >= 16 {
@@ -521,7 +522,11 @@ func (a *App) message(c *native.Context, m *app.Message) {
 			if m.Role == "user" {
 				a.userMessage(c, m)
 			} else if m.Role == "assistant" {
+				if m.Plan {
+					native.Text(c, "计划").FontSize(12).TextColor(t.TextMuted)
+				}
 				a.messageMarkdown(c, m)
+				a.planActions(c, m)
 				if text := a.replyCopyText(m); text != "" {
 					native.Row(c).Children(func() {
 						glyph, label := copyIcon, "复制回复"
