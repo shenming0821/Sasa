@@ -375,31 +375,31 @@ def validate_destination(app, data):
                 raise RuntimeError('目标位置已有其他应用，请选择 Sasa 正式版位置。')
 
 
-def point_legacy_to_installed(app, transaction):
+def point_installed_entries(app, transaction):
     legacy = BIN / 'Fuyu.app'
-    if legacy != app and not (legacy.is_symlink() and legacy.resolve() == app.resolve()):
-        backup = BIN / '.stable-backups' / transaction / 'Fuyu.app'
-        if legacy.exists() or legacy.is_symlink():
+    if legacy != app:
+        if legacy.is_symlink():
+            legacy.unlink()
+        elif legacy.exists():
+            backup = BIN / '.stable-backups' / transaction / 'Fuyu.app'
             backup.parent.mkdir(parents=True, exist_ok=True)
             legacy.rename(backup)
-        try:
-            legacy.symlink_to(app, target_is_directory=True)
-        except OSError:
-            if backup.exists() or backup.is_symlink():
-                backup.rename(legacy)
-            raise
+    old_command = BIN / 'fuyu'
+    if old_command.is_symlink():
+        old_command.unlink()
+    if LEGACY_APP != app and LEGACY_APP.is_symlink() and LEGACY_APP.resolve() == app.resolve():
+        LEGACY_APP.unlink()
     named = BIN / 'Sasa.app'
     if not named.exists() and not named.is_symlink():
         named.symlink_to(app, target_is_directory=True)
     target = 'Sasa.app/' + application_executable(app).relative_to(app).as_posix()
-    for name in ['fuyu', 'sasa']:
-        command = BIN / name
-        if command.is_symlink() and os.readlink(command) in {
-                'Fuyu.app/Contents/MacOS/Fuyu', 'Sasa.app/Contents/MacOS/Sasa',
-                'Sasa.app/Contents/MacOS/Fuyu', str(LEGACY_APP / 'Contents/MacOS/Fuyu')}:
-            command.unlink()
-        if not command.exists() and not command.is_symlink():
-            command.symlink_to(target)
+    command = BIN / 'sasa'
+    if command.is_symlink() and os.readlink(command) in {
+            'Fuyu.app/Contents/MacOS/Fuyu', 'Sasa.app/Contents/MacOS/Sasa',
+            'Sasa.app/Contents/MacOS/Fuyu', str(LEGACY_APP / 'Contents/MacOS/Fuyu')}:
+        command.unlink()
+    if not command.exists() and not command.is_symlink():
+        command.symlink_to(target)
 
 
 def promote(build_id, app, data, check=False):
@@ -451,16 +451,11 @@ def promote(build_id, app, data, check=False):
             print(f'正式版已就位，启动服务注册失败：{error}。', file=sys.stderr)
         if app == DEFAULT_APP and data == DEFAULT_DATA:
             try:
-                point_legacy_to_installed(app, work.name)
+                point_installed_entries(app, work.name)
                 if app != LEGACY_APP and LEGACY_APP.exists() and not LEGACY_APP.is_symlink():
                     LEGACY_APP.rename(work / 'legacy-installed.app')
-                    try:
-                        LEGACY_APP.symlink_to(app, target_is_directory=True)
-                    except OSError:
-                        (work / 'legacy-installed.app').rename(LEGACY_APP)
-                        raise
             except OSError as alias_error:
-                print(f'正式版已更新，旧入口同步失败：{alias_error}。请从 {app} 启动。', file=sys.stderr)
+                print(f'正式版已更新，应用入口清理失败：{alias_error}。请从 {app} 启动。', file=sys.stderr)
         print(f'正式版已就位，将在下次启动时生效：{build_id}\n应用：{app}\n恢复资料：{work}')
 
 
@@ -506,7 +501,7 @@ def rollback(app, data, timeout, restore=False, platform=None):
         write_json(work / 'receipt.json', receipt)
         register(app)
         if app == DEFAULT_APP and data == DEFAULT_DATA:
-            point_legacy_to_installed(app, work.name)
+            point_installed_entries(app, work.name)
         platform.reopen(app, data, work)
         print(f'已恢复上一版：{app}\n恢复记录：{work}')
 

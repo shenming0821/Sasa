@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 )
 
 func (a *App) restartApp() {
@@ -86,16 +87,22 @@ func replacementArguments(executable string, arguments []string) ([]string, erro
 	return append(append(launch, "--args"), arguments...), nil
 }
 
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
 func waitForExitCommand(parentPID int, launch []string) *exec.Cmd {
-	script := `parent_pid=$1
-shift
+	quoted := make([]string, len(launch))
+	for i, arg := range launch {
+		quoted[i] = shellQuote(arg)
+	}
+	script := `parent_pid=` + strconv.Itoa(parentPID) + `
 attempts=0
 while /bin/kill -0 "$parent_pid" 2>/dev/null; do
     attempts=$((attempts + 1))
     if [ "$attempts" -ge 300 ]; then exit 1; fi
     /bin/sleep 0.1
 done
-exec "$@"`
-	arguments := append([]string{"-c", script, "fuyu-restart", strconv.Itoa(parentPID)}, launch...)
-	return exec.Command("/bin/sh", arguments...)
+` + strings.Join(quoted, " ")
+	return exec.Command("/bin/sh", "-c", script)
 }

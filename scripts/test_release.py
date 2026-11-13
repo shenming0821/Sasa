@@ -177,7 +177,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(metadata['CFBundleIconFile'], 'Sasa.icns')
         self.assertEqual(release.DEFAULT_DATA.name, 'Fuyu')
 
-    def test_rename_preserves_previous_install_and_redirects_old_entry(self):
+    def test_rename_preserves_previous_install_and_removes_old_entries(self):
         legacy = self.app.parent / 'Fuyu.app'
         release.shutil.copytree(self.app, legacy)
         release.shutil.rmtree(self.app)
@@ -192,21 +192,35 @@ class ReleaseTests(unittest.TestCase):
         (self.bin / 'fuyu').symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
         with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
             release.promote(self.build_id, self.app, self.data)
-        self.assertTrue(legacy.is_symlink())
-        self.assertEqual(legacy.resolve(), self.app.resolve())
+        self.assertFalse(legacy.exists())
+        self.assertFalse(legacy.is_symlink())
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'tested-program')
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
         self.assertEqual((self.bin / 'Sasa.app').resolve(), self.app.resolve())
         self.assertEqual((self.bin / 'sasa').resolve(), (self.app / release.EXECUTABLE).resolve())
-        self.assertEqual((self.bin / 'fuyu').resolve(), (self.app / release.EXECUTABLE).resolve())
+        self.assertFalse((self.bin / 'fuyu').is_symlink())
         transaction = release.read_json(self.app.parent / '.Fuyu-releases/latest.json')['transaction']
         self.assertEqual((self.app.parent / '.Fuyu-releases' / transaction / 'previous.app' / old_executable).read_bytes(), b'old-program')
         with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
             release.rollback(self.app, self.data, 1, platform=FakePlatform())
         self.assertEqual((self.app / old_executable).read_bytes(), b'old-program')
-        self.assertEqual((legacy / old_executable).read_bytes(), b'old-program')
-        self.assertEqual((self.bin / 'fuyu').resolve(), (self.app / old_executable).resolve())
+        self.assertFalse(legacy.exists())
+        self.assertFalse((self.bin / 'fuyu').is_symlink())
         self.assertEqual((self.bin / 'sasa').resolve(), (self.app / old_executable).resolve())
+
+    def test_release_removes_existing_legacy_symlinks_without_recreating_them(self):
+        legacy = self.app.parent / 'Fuyu.app'
+        legacy.symlink_to(self.app, target_is_directory=True)
+        self.bin.mkdir(exist_ok=True)
+        (self.bin / 'Fuyu.app').symlink_to(self.app, target_is_directory=True)
+        (self.bin / 'fuyu').symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
+        with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
+            release.promote(self.build_id, self.app, self.data)
+            release.point_installed_entries(self.app, 'repeat')
+        for old in [legacy, self.bin / 'Fuyu.app', self.bin / 'fuyu']:
+            self.assertFalse(old.exists())
+            self.assertFalse(old.is_symlink())
+        self.assertEqual((self.bin / 'sasa').resolve(), (self.app / release.EXECUTABLE).resolve())
 
     def test_preview_stops_both_names_before_reusing_preview_data(self):
         platform = FakePlatform()
@@ -287,14 +301,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
         self.assertEqual((self.data / 'draft').read_text(), 'newer draft')
 
-    def test_first_install_redirects_legacy_launcher_and_preserves_old_app(self):
+    def test_first_install_removes_legacy_launcher_and_preserves_old_app(self):
         legacy = self.bin / 'Fuyu.app'
         release.shutil.copytree(self.app, legacy)
         with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
             release.promote(self.build_id, self.app, self.data)
-        self.assertTrue(legacy.is_symlink())
-        self.assertEqual(legacy.resolve(), self.app.resolve())
-        self.assertEqual((legacy / release.EXECUTABLE).read_bytes(), b'tested-program')
+        self.assertFalse(legacy.exists())
+        self.assertFalse(legacy.is_symlink())
+        self.assertEqual((self.bin / 'Sasa.app' / release.EXECUTABLE).read_bytes(), b'tested-program')
         self.assertTrue(list((self.bin / '.stable-backups').glob('*/Fuyu.app/Contents/MacOS/Sasa')))
 
     def test_schema_rollback_requires_explicit_restore_and_preserves_newer_backup(self):

@@ -28,7 +28,7 @@ Go 安装在 `~/.local/share/fuyu/toolchains/go1.27.3/`，未修改系统工具�
 ./scripts/run-preview <上一步输出的构建ID>
 ```
 
-`scripts/build` 默认构建 Preview，等同于 `scripts/build preview`。候选保存于 `bin/candidates/<构建ID>/Sasa Preview.app`，记录源码提交、包含未提交和未跟踪源码的摘要、全部产物校验值；构建期间源码变化则拒绝生成候选。`run-preview` 从指定候选复制至 `bin/Sasa Preview.app` 并正常重启 Preview；不传构建 ID 时启动最近的候选。既有 `bin/Fuyu.app` 与 `bin/fuyu` 保留，日常构建不覆盖正式版。晋升命令为 `./scripts/promote <构建ID>`，默认安装 `/Applications/Sasa.app`。完整发布、预检和回退步骤见[双渠道与发布](subsystems/releases.md)。当前为本机发布，尚未配置公证或网络更新服务。
+`scripts/build` 默认构建 Preview，等同于 `scripts/build preview`。候选保存于 `bin/candidates/<构建ID>/Sasa Preview.app`，记录源码提交、包含未提交和未跟踪源码的摘要、全部产物校验值；构建期间源码变化则拒绝生成候选。`run-preview` 从指定候选复制至 `bin/Sasa Preview.app` 并正常重启 Preview；不传构建 ID 时启动最近的候选。正式版入口为 `bin/Sasa.app` 与 `bin/sasa`，发布时清理旧 `Fuyu` 名称入口；日常构建不覆盖正式版。晋升命令为 `./scripts/promote <构建ID>`，默认安装 `/Applications/Sasa.app`。完整发布、预检和回退步骤见[双渠道与发布](subsystems/releases.md)。当前为本机发布，尚未配置公证或网络更新服务。
 
 图标源文件为 `assets/app-icon.png`，构建时通过 macOS 自带的 `sips` 和 `iconutil` 生成 16–1024 像素的多尺寸 `Resources/Sasa.icns`，并写入 `CFBundleIconFile`。当前图标预览采用最早 B 方案的圆头粗线条 S 与右下小写 a，S 为 `#EE3D46`、a 为 `#F4A13B`，底色为不透明纯白 `#FFFFFF`，PNG 为 1024×1024。`assets/app-icon.svg` 嵌入同一张已确认 PNG，供构建 Preview 时叠加紫色 P 标记；更新图标时同步两份资源，窗口标题显示 Sasa Preview 与构建 ID。终端启动便于查看退出错误：
 

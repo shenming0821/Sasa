@@ -11,7 +11,7 @@
 ./scripts/task-worktree list
 ```
 
-创建的任务目录位于主目录同级的 `Fuyu.worktrees/session-search`，分支为 `task/session-search`，从主目录当前 `HEAD` 创建。主目录的未提交修改不会复制进去；任务依赖尚未提交的基础变更时，先协调依赖与提交授权。
+创建的任务目录位于主目录同级的 `Sasa.worktrees/session-search`，分支为 `task/session-search`，从主目录当前 `HEAD` 创建。主目录的未提交修改不会复制进去；任务依赖尚未提交的基础变更时，先协调依赖与提交授权。
 
 在任务目录中修改代码，运行相关自动化测试，保持公共 Preview 由主目录管理。`scripts/build`、`scripts/run-preview` 和 `scripts/promote` 检查调用目录，开发 worktree 不能通过这些入口替换公共应用。此边界同时适用于 Codex 与 Claude 开发会话。
 
