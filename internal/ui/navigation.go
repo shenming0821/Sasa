@@ -148,6 +148,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 	renderedActive := a.activeTab
 	tabs := a.paneTabs()
 	row := native.Row(c).FillWidth().Height(38).BorderWidth(0, 0, 1, 0).BorderColor(t.Border.Alpha(.5)).DragWindow()
+	row.Background(t.Surface)
 	if a.renderingPane != nil {
 		row.ContextMenu(a.paneMenu(a.activeWorkspace, a.renderingPane))
 	}
