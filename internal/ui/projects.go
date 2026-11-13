@@ -242,10 +242,7 @@ func (a *App) projectDisclosure(c *native.Context, key, label string, heading, c
 	var header, arrow native.Element
 	managed := len(projectIDs) > 0 && projectIDs[0] != directoryProjectID("")
 	var progress float32
-	target := float32(1)
-	if a.collapsedProjects[key] && a.sessionQuery == "" {
-		target = 0
-	}
+	open := !a.collapsedProjects[key] || a.sessionQuery != ""
 	row := native.Row(c.Key("project-heading")).FillWidth().Radius(8).AlignItems(native.Center)
 	row.Children(func() {
 		header = native.ButtonBase(c).Label(label).TextColor(c.Theme().TextMuted).Radius(8).Grow(1).MinWidth(0).Padding(8).Gap(7).Justify(native.Start)
@@ -254,13 +251,9 @@ func (a *App) projectDisclosure(c *native.Context, key, label string, heading, c
 				a.collapsedProjects = make(map[string]bool)
 			}
 			a.collapsedProjects[key] = !a.collapsedProjects[key]
-			if a.collapsedProjects[key] && a.sessionQuery == "" {
-				target = 0
-			} else {
-				target = 1
-			}
+			open = !a.collapsedProjects[key] || a.sessionQuery != ""
 		}
-		progress = header.Animate("project-open", target, 200*time.Millisecond)
+		progress = animateDisclosure(header, "project-open", open)
 		header.Children(func() {
 			heading()
 			arrow = native.Icon(c, chevron).Size(11, 11).Rotate(-90 * (1 - progress))
@@ -275,18 +268,9 @@ func (a *App) projectDisclosure(c *native.Context, key, label string, heading, c
 		opacity = 1
 	}
 	arrow.Opacity(opacity)
-	if progress == 0 && target == 0 {
-		return
-	}
-	panel := native.Column(c).FillWidth().Shrink(0)
-	var inner native.Element
-	panel.Children(func() {
-		inner = native.Column(c).FillWidth().Shrink(0).Gap(3)
-		inner.Children(content)
+	disclosurePanel(c, "project-panel", open, progress, func() {
+		native.Column(c).FillWidth().Shrink(0).Gap(3).Children(content)
 	})
-	if progress < 1 {
-		panel.ClipY().Height(progress * inner.Bounds().H)
-	}
 }
 
 func (a *App) repositoryRow(c *native.Context, repo project.Repository) {

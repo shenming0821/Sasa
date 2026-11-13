@@ -11,10 +11,16 @@ import (
 )
 
 func toolCaption(t *app.Tool) string {
-	if caption := toolOperationCaption(t); caption != "" {
+	key := [5]string{t.Kind, t.Name, t.Command, t.Input, t.ParentToolID}
+	if t.DisplayCache.CaptionKey == key && t.DisplayCache.Caption != "" {
+		return t.DisplayCache.Caption
+	}
+	op := computeToolOperationCaption(t)
+	if caption := op; caption != "" {
 		if t.ParentToolID != "" {
-			return "子任务 · " + caption
+			caption = "子任务 · " + caption
 		}
+		t.DisplayCache.CaptionKey, t.DisplayCache.OperationCaption, t.DisplayCache.Caption = key, op, caption
 		return caption
 	}
 	caption := ""
@@ -29,12 +35,18 @@ func toolCaption(t *app.Tool) string {
 		caption = t.Title()
 	}
 	if t.ParentToolID != "" {
-		return "子任务 · " + caption
+		caption = "子任务 · " + caption
 	}
+	t.DisplayCache.CaptionKey, t.DisplayCache.OperationCaption, t.DisplayCache.Caption = key, op, caption
 	return caption
 }
 
 func toolOperationCaption(tool *app.Tool) string {
+	_ = toolCaption(tool)
+	return tool.DisplayCache.OperationCaption
+}
+
+func computeToolOperationCaption(tool *app.Tool) string {
 	name := tool.Name
 	if tool.Kind == "commandExecution" {
 		if name == "" {
@@ -77,10 +89,54 @@ func toolResultFailed(tool *app.Tool) bool {
 	if tool.Kind != "mcpToolCall" && tool.Kind != "dynamicToolCall" {
 		return false
 	}
+	ensureToolOutputCache(tool)
+	return tool.DisplayCache.ResultFailed
+}
+
+func ensureToolInputCache(tool *app.Tool) (code, parameters string) {
+	if tool.DisplayCache.InputParsed && tool.DisplayCache.InputRaw == tool.Input {
+		return tool.DisplayCache.Code, tool.DisplayCache.Parameters
+	}
+	code, parameters = toolInput(tool.Input)
+	tool.DisplayCache.InputRaw = tool.Input
+	tool.DisplayCache.InputParsed = true
+	tool.DisplayCache.Code = code
+	tool.DisplayCache.Parameters = parameters
+	return code, parameters
+}
+
+func ensureToolOutputCache(tool *app.Tool) {
+	if tool.DisplayCache.OutputParsed && tool.DisplayCache.OutputRaw == tool.Output && tool.DisplayCache.OutputKind == tool.Kind {
+		return
+	}
 	var result struct {
 		IsError bool `json:"isError"`
 	}
-	return json.Unmarshal([]byte(tool.Output), &result) == nil && result.IsError
+	failed := (tool.Kind == "mcpToolCall" || tool.Kind == "dynamicToolCall") &&
+		json.Unmarshal([]byte(tool.Output), &result) == nil && result.IsError
+	tool.DisplayCache.OutputRaw = tool.Output
+	tool.DisplayCache.OutputKind = tool.Kind
+	tool.DisplayCache.OutputParsed = true
+	tool.DisplayCache.OutputFormatted = false
+	tool.DisplayCache.ResultFailed = failed
+	tool.DisplayCache.FormattedOutput = ""
+	tool.DisplayCache.ErrorSummary = ""
+}
+
+// Collapsed successful records need only their status, not a formatted copy of
+// potentially large output. Allocate that copy when details or an error show.
+func ensureToolFormattedOutputCache(tool *app.Tool) {
+	ensureToolOutputCache(tool)
+	if tool.DisplayCache.OutputFormatted {
+		return
+	}
+	if tool.Output != "" {
+		tool.DisplayCache.FormattedOutput = toolResult(tool.Output, 0)
+		if tool.DisplayCache.ResultFailed {
+			tool.DisplayCache.ErrorSummary = strings.Join(strings.Fields(tool.DisplayCache.FormattedOutput), " ")
+		}
+	}
+	tool.DisplayCache.OutputFormatted = true
 }
 
 // Only unwrap recognized text envelopes. Unknown fields and non-text blocks
@@ -168,7 +224,11 @@ func (a *App) toolDisclosureWithIcon(c *native.Context, tool *app.Tool, glyph *n
 			}
 		}, a.toolDetailsContent(c, tool))
 		if failed && tool.Output != "" && !tool.Expanded {
-			summary := strings.Join(strings.Fields(toolResult(tool.Output, 0)), " ")
+			ensureToolFormattedOutputCache(tool)
+			summary := tool.DisplayCache.ErrorSummary
+			if summary == "" {
+				summary = strings.Join(strings.Fields(tool.DisplayCache.FormattedOutput), " ")
+			}
 			native.Text(c, summary).Label("工具错误摘要").FontSize(12).TextColor(theme.TextMuted).FillWidth().MaxLines(2).Padding(0, 0, 4, 24)
 		}
 		if tool.Truncated && !tool.Expanded {
@@ -189,7 +249,7 @@ func (a *App) toolDetailsContent(c *native.Context, tool *app.Tool) func() {
 				native.Text(c, tool.Name).FontSize(11).TextColor(theme.TextMuted).SingleLine()
 			}
 			if tool.Input != "" {
-				code, parameters := toolInput(tool.Input)
+				code, parameters := ensureToolInputCache(tool)
 				if code != "" {
 					toolDetailSection(c.Key("code"), "输入", code, true, a.codeFontFamily())
 				}
@@ -202,7 +262,8 @@ func (a *App) toolDetailsContent(c *native.Context, tool *app.Tool) func() {
 				}
 			}
 			if tool.Output != "" {
-				toolDetailSection(c.Key("output"), "结果", toolResult(tool.Output, 0), false)
+				ensureToolFormattedOutputCache(tool)
+				toolDetailSection(c.Key("output"), "结果", tool.DisplayCache.FormattedOutput, false)
 			}
 			if tool.Truncated {
 				native.Text(c, "内容显示已截断（上限 256 KiB），请核验完整运行记录。").FontSize(11).TextColor(theme.TextMuted).FillWidth()

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
@@ -69,12 +68,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 				}
 			}
 		}
-		if w.gitBranchPicker {
-			branchProgress = 1
-		}
-		if !c.Preferences().ReduceMotion {
-			branchProgress = button.Animate("branches-open", branchProgress, 180*time.Millisecond)
-		}
+		branchProgress = animateDisclosure(button, "branches-open", w.gitBranchPicker)
 		button.Children(func() {
 			native.Row(c).Fill().Gap(5).AlignItems(native.Center).Children(func() {
 				native.Icon(c, gitIcon).Size(13, 13)
@@ -110,17 +104,10 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 			native.Text(c, fmt.Sprintf("%d↓ %d↑", w.git.Behind, w.git.Ahead)).FontSize(10).TextColor(t.TextMuted).SingleLine()
 		})
 	}
-	if w.gitBranchPicker || branchProgress > 0 {
-		panel := native.Column(c.Key("branches-motion")).Label("Git 分支展开区域").FillWidth().Shrink(0)
-		var inner native.Element
-		panel.Children(func() {
-			inner = native.Column(c).FillWidth().Shrink(0)
-			inner.Children(func() { a.gitBranchPickerView(c.Key("branches"), w) })
-		})
-		if branchProgress < 1 {
-			panel.ClipY().Height(branchProgress * inner.Bounds().H)
-		}
-	}
+	disclosurePanel(c, "branches-motion", w.gitBranchPicker, branchProgress, func() {
+		native.Column(c).Label("Git 分支展开区域").FillWidth().Shrink(0).
+			Children(func() { a.gitBranchPickerView(c.Key("branches"), w) })
+	})
 	if w.gitError != "" && w.gitFingerprint == "" {
 		message := "读取失败：" + w.gitError
 		if strings.Contains(w.gitError, "not a git repository") {
@@ -167,7 +154,8 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 	if message != "" {
 		native.Text(c, message).FontSize(10).TextColor(col).MaxLines(3).Padding(4, 14)
 	}
-	native.Column(c.Key("git-content")).FillWidth().Grow(1).MinHeight(0).Children(func() {
+	content := native.Column(c.Key("git-content")).FillWidth().Grow(1).MinHeight(0)
+	content.Children(func() {
 		native.Scroll(c.Key("git-list")).TrackScroll(&w.gitScroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
 			native.Column(c).FillWidth().Padding(4, 8).Gap(8).Children(func() {
 				for _, group := range []string{"冲突", "更改", "已暂存的更改"} {
@@ -178,7 +166,7 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 				}
 			})
 		})
-		a.gitHistoryView(c.Key("history"), w, busy)
+		a.gitHistoryView(c.Key("history"), w, busy, content.LayoutBounds().H)
 	})
 }
 
@@ -246,18 +234,17 @@ func (a *App) gitGroup(c *native.Context, w *workspacePage, group string, entrie
 		}
 		row.Children(func() {
 			header := native.ButtonBase(c.Key("header")).Label("折叠 "+group).Grow(1).FillHeight().Padding(0, 6)
-			header.Children(func() {
-				native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
-					g := native.Icon(c, chevron).Size(12, 12)
-					if w.collapsed[group] {
-						g.Rotate(-90)
-					}
-					native.Text(c, group).FontSize(12).Bold().SingleLine()
-				})
-			})
 			if header.Clicked() {
 				w.collapsed[group] = !w.collapsed[group]
 			}
+			progress := animateDisclosure(header, "open", !w.collapsed[group])
+			header.Children(func() {
+				native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
+					native.Icon(c, chevron).Size(12, 12).Rotate(-90 * (1 - progress))
+					native.Text(c, group).FontSize(12).Bold().SingleLine()
+				})
+			})
+
 			native.Row(c.Key("group-actions")).Width(48).FillHeight().AlignItems(native.Center).Justify(native.End).Children(func() {
 				if len(entries) > 0 && group != "冲突" && (shown || header.FocusVisible()) {
 					if group == "更改" {
@@ -288,30 +275,29 @@ func (a *App) gitGroup(c *native.Context, w *workspacePage, group string, entrie
 				native.Text(c, fmt.Sprint(len(entries))).FontSize(10).TextColor(t.TextMuted).SingleLine()
 			})
 		})
-		if w.collapsed[group] {
-			return
-		}
-		var selected []gitview.Entry
-		for _, entry := range entries {
-			if w.gitSelection[gitKey(group, entry.Path)] {
-				selected = append(selected, entry)
+		collapsibleSection(c, "files", !w.collapsed[group], func() {
+			var selected []gitview.Entry
+			for _, entry := range entries {
+				if w.gitSelection[gitKey(group, entry.Path)] {
+					selected = append(selected, entry)
+				}
 			}
-		}
-		if len(selected) > 1 && group != "冲突" {
-			native.Row(c.Key("selection")).FillWidth().Height(28).Padding(0, 8).Gap(6).AlignItems(native.Center).Children(func() {
-				native.Text(c, fmt.Sprintf("已选 %d 项", len(selected))).FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
-				label := "暂存所选"
-				if group == "已暂存的更改" {
-					label = "取消暂存所选"
-				}
-				if actionButton(c, label).Height(24).Disabled(busy).Clicked() {
-					a.gitStage(w, selected, group == "已暂存的更改")
-				}
-			})
-		}
-		for _, entry := range entries {
-			a.gitFileRow(c.Key(entry.Path), w, group, entry, busy)
-		}
+			if len(selected) > 1 && group != "冲突" {
+				native.Row(c.Key("selection")).FillWidth().Height(28).Padding(0, 8).Gap(6).AlignItems(native.Center).Children(func() {
+					native.Text(c, fmt.Sprintf("已选 %d 项", len(selected))).FontSize(10).TextColor(c.Theme().TextMuted).Grow(1)
+					label := "暂存所选"
+					if group == "已暂存的更改" {
+						label = "取消暂存所选"
+					}
+					if actionButton(c, label).Height(24).Disabled(busy).Clicked() {
+						a.gitStage(w, selected, group == "已暂存的更改")
+					}
+				})
+			}
+			for _, entry := range entries {
+				a.gitFileRow(c.Key(entry.Path), w, group, entry, busy)
+			}
+		})
 	})
 }
 
@@ -514,8 +500,9 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 	})
 }
 
-func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool) {
+func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool, availableHeight float32) {
 	native.Column(c).FillWidth().Shrink(0).MinHeight(34).MaxHeightPercent(45).Padding(4, 8).Gap(0).Children(func() {
+		var progress float32
 		row := native.Row(c.Key("heading")).FillWidth().Height(26).Shrink(0).Radius(5).AlignItems(native.Center)
 		shown := row.Hovered() || row.FocusWithin()
 		if shown {
@@ -523,31 +510,34 @@ func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool) {
 		}
 		row.Children(func() {
 			header := native.ButtonBase(c.Key("header")).Label("切换最近提交").Grow(1).FillHeight().Padding(0, 6)
-			header.Children(func() {
-				native.Row(c).Fill().AlignItems(native.Center).Gap(6).Children(func() {
-					g := native.Icon(c, chevron).Size(12, 12)
-					if !w.collapsed["最近提交已展开"] {
-						g.Rotate(-90)
-					}
-					native.Text(c, "最近提交").FontSize(12).Bold()
-				})
-			})
 			if header.Clicked() {
 				w.collapsed["最近提交已展开"] = !w.collapsed["最近提交已展开"]
 			}
+			progress = animateDisclosure(header, "open", w.collapsed["最近提交已展开"])
+			header.Children(func() {
+				native.Row(c).Fill().AlignItems(native.Center).Gap(6).Children(func() {
+					native.Icon(c, chevron).Size(12, 12).Rotate(-90 * (1 - progress))
+					native.Text(c, "最近提交").FontSize(12).Bold()
+				})
+			})
+
 			native.Row(c.Key("actions")).Width(24).FillHeight().AlignItems(native.Center).Children(func() {
 				if gitIconButton(c.Key("refresh"), "刷新提交历史", refreshProjectIcon, busy || w.gitHistoryLoading).Clicked() {
 					a.gitLoadHistory(w, false)
 				}
 			})
 		})
-		if !w.collapsed["最近提交已展开"] {
-			return
-		}
-		if !w.gitHistoryLoaded && !w.gitHistoryLoading {
+		if w.collapsed["最近提交已展开"] && !w.gitHistoryLoaded && !w.gitHistoryLoading {
 			a.gitLoadHistory(w, false)
 		}
-		native.Scroll(c.Key("commits")).Label("最近提交列表").TrackScroll(&w.gitHistoryScroll).FillWidth().MinHeight(0).MaxHeight(260).Shrink(1).Children(func() {
+		if !w.collapsed["最近提交已展开"] && progress <= 0 {
+			return
+		}
+		limit := float32(260)
+		if availableHeight > 0 {
+			limit = min(limit, max(0, availableHeight*.45-34))
+		}
+		native.Scroll(c.Key("commits")).Label("最近提交列表").TrackScroll(&w.gitHistoryScroll).FillWidth().MinHeight(0).MaxHeight(limit * progress).Shrink(1).Children(func() {
 			native.Column(c).FillWidth().Gap(0).Children(func() {
 				for _, info := range w.gitHistory {
 					native.Column(c.Key(info.Hash)).FillWidth().Gap(0).Children(func() {
@@ -582,54 +572,50 @@ func (a *App) gitHistoryCommit(c *native.Context, w *workspacePage, info gitview
 	}
 	t := c.Theme()
 	b := treeButton(c.Key("header"), "提交 "+info.Hash).FillWidth().Height(42).Padding(4, 8)
-	b.Children(func() {
-		native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
-			angle := float32(-90)
-			if tree.expanded {
-				angle = 0
-			}
-			native.Icon(c, chevron).Size(12, 12).Rotate(angle).TextColor(t.TextMuted)
-			native.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-				native.Text(c, info.Subject).FontSize(11).TextColor(t.Text).SingleLine()
-				native.Text(c, info.Hash[:min(8, len(info.Hash))]+" · "+info.Author+" · "+info.Time.Format("01-02 15:04")).FontSize(9).TextColor(t.TextMuted).SingleLine()
-			})
-		})
-	})
 	if b.Clicked() {
 		tree.expanded = !tree.expanded
 		if tree.expanded {
 			a.gitLoadCommitTree(w, info, tree)
 		}
 	}
-	if !tree.expanded {
-		return
-	}
-	if tree.loading {
-		native.Text(c, "正在读取文件…").FontSize(10).TextColor(t.TextMuted).Padding(4, 26)
-	} else if tree.err != "" {
-		native.Text(c, tree.err).FontSize(10).TextColor(t.Danger).MaxLines(2).Padding(4, 26)
-		if actionButton(c.Key("retry"), "重试读取文件").Margin(0, 26).Height(24).Clicked() {
-			a.gitLoadCommitTree(w, info, tree)
-		}
-	} else if tree.loaded && len(tree.entries) == 0 {
-		native.Text(c, "此提交没有文件改动").FontSize(10).TextColor(t.TextMuted).Padding(4, 26)
-	}
-	for _, entry := range tree.entries {
-		file := treeButton(c.Key(entry.Path), "提交文件 "+info.Hash+" "+entry.Path).FillWidth().Height(28).Padding(0, 8, 0, 26)
-		dragFiles(file, []string{filepath.Join(w.root, entry.Path)})
-		file.Children(func() {
-			native.Row(c).Fill().Gap(5).AlignItems(native.Center).Children(func() {
-				native.Icon(c, fileIcon).Size(12, 12).TextColor(t.TextMuted)
-				native.Text(c, filepath.Base(entry.Path)).FontSize(11).SingleLine().Shrink(1).MinWidth(0)
-				if dir := filepath.Dir(entry.Path); dir != "." {
-					native.Text(c, dir).FontSize(9).TextColor(t.TextMuted).SingleLine().Shrink(3).MinWidth(0)
-				}
-				native.Spacer(c)
-				native.Text(c, gitStatusCode(entry, true)).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(0)
+	progress := animateDisclosure(b, "open", tree.expanded)
+	b.Children(func() {
+		native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
+			native.Icon(c, chevron).Size(12, 12).Rotate(-90 * (1 - progress)).TextColor(t.TextMuted)
+			native.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+				native.Text(c, info.Subject).FontSize(11).TextColor(t.Text).SingleLine()
+				native.Text(c, info.Hash[:min(8, len(info.Hash))]+" · "+info.Author+" · "+info.Time.Format("01-02 15:04")).FontSize(9).TextColor(t.TextMuted).SingleLine()
 			})
 		})
-		if file.Clicked() {
-			a.gitOpenCommit(w, info, entry.Path)
+	})
+	disclosurePanel(c, "commit-files", tree.expanded, progress, func() {
+		if tree.loading {
+			native.Text(c, "正在读取文件…").FontSize(10).TextColor(t.TextMuted).Padding(4, 26)
+		} else if tree.err != "" {
+			native.Text(c, tree.err).FontSize(10).TextColor(t.Danger).MaxLines(2).Padding(4, 26)
+			if actionButton(c.Key("retry"), "重试读取文件").Margin(0, 26).Height(24).Clicked() {
+				a.gitLoadCommitTree(w, info, tree)
+			}
+		} else if tree.loaded && len(tree.entries) == 0 {
+			native.Text(c, "此提交没有文件改动").FontSize(10).TextColor(t.TextMuted).Padding(4, 26)
 		}
-	}
+		for _, entry := range tree.entries {
+			file := treeButton(c.Key(entry.Path), "提交文件 "+info.Hash+" "+entry.Path).FillWidth().Height(28).Padding(0, 8, 0, 26)
+			dragFiles(file, []string{filepath.Join(w.root, entry.Path)})
+			file.Children(func() {
+				native.Row(c).Fill().Gap(5).AlignItems(native.Center).Children(func() {
+					native.Icon(c, fileIcon).Size(12, 12).TextColor(t.TextMuted)
+					native.Text(c, filepath.Base(entry.Path)).FontSize(11).SingleLine().Shrink(1).MinWidth(0)
+					if dir := filepath.Dir(entry.Path); dir != "." {
+						native.Text(c, dir).FontSize(9).TextColor(t.TextMuted).SingleLine().Shrink(3).MinWidth(0)
+					}
+					native.Spacer(c)
+					native.Text(c, gitStatusCode(entry, true)).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(0)
+				})
+			})
+			if file.Clicked() {
+				a.gitOpenCommit(w, info, entry.Path)
+			}
+		}
+	})
 }

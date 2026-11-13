@@ -212,7 +212,7 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 
 func (a *App) conversation(c *native.Context) {
 	t := c.Theme()
-	a.session.animateProcesses(c)
+	processMotions := a.session.animateProcesses(c)
 	a.session.restoreRowOffset(c)
 	rows := a.session.conversationRows()
 	messages := a.session.projectedMessages
@@ -278,15 +278,27 @@ func (a *App) conversation(c *native.Context) {
 						if timings[i] != nil {
 							readingColumn(c, func() {
 								native.Column(c).FillWidth().Padding(16, 0, 0, 0).Children(func() {
-									a.session.turnTiming(c.Key(messages[i].ID), messages[i])
+									a.session.turnTiming(c.Key(messages[i].ID), messages[i], processMotions[messages[i].ID])
 								})
 							})
 						}
 					})
 				})
 				if id := rows[i].processID; id != "" {
+					h := inner.LayoutBounds().H
+					if h > 0 {
+						if a.session.processHeights == nil {
+							a.session.processHeights = make(map[string]float32)
+						}
+						a.session.processHeights[messages[i].ID] = h
+					} else {
+						h = a.session.processHeights[messages[i].ID]
+					}
 					if progress := a.session.processScale(id); progress < 1 {
-						row.ClipY().Opacity(progress).Height(progress * inner.Bounds().H)
+						row.ClipY().Opacity(progress).Height(progress * h)
+						if h == 0 && progress > 0 {
+							c.AnimationFrame()
+						}
 					}
 				}
 			}
@@ -475,9 +487,6 @@ func (a *App) runtimeDetails(c *native.Context) {
 			native.Text(c, model).FontSize(12).FontWeight(500).Selectable().FillWidth().MinWidth(0)
 		})
 		policy := readablePolicy(a.State.Policy)
-		if a.State.Mode != "" {
-			policy = modeName(a.State.Modes, a.State.Mode)
-		}
 		values := [][2]string{{"审批", policy}, {"文件访问", readableSandbox(a.State.Sandbox)}}
 		native.Column(c).FillWidth().Gap(8).Children(func() {
 			for _, value := range values {
@@ -491,7 +500,6 @@ func (a *App) runtimeDetails(c *native.Context) {
 				})
 			}
 		})
-		a.permissionModes(c)
 		native.Box(c).FillWidth().Height(1).Background(t.Border.Alpha(0.6))
 		native.Row(c).FillWidth().Children(func() {
 			native.Spacer(c)
@@ -504,78 +512,6 @@ func (a *App) runtimeDetails(c *native.Context) {
 			}
 		})
 	})
-}
-
-// permissionModes renders the runtime-advertised permission modes as switch
-// chips inside the details popover; only backends implementing
-// agent.PermissionModeChanger (currently Devin) reach this point.
-func (a *App) permissionModes(c *native.Context) {
-	changer, ok := a.sessionBackend().(agent.PermissionModeChanger)
-	if !ok || len(a.State.Modes) == 0 || a.State.ThreadID == "" {
-		return
-	}
-	t := c.Theme()
-	native.Row(c).FillWidth().Gap(12).AlignItems(native.Start).Children(func() {
-		native.Text(c, "权限模式").Width(60).Shrink(0).FontSize(11).TextColor(t.TextMuted)
-		native.Column(c).Grow(1).MinWidth(0).Gap(4).Children(func() {
-			native.Row(c).Wrap().Gap(4).Children(func() {
-				for _, mode := range a.State.Modes {
-					m := mode
-					label := m.Name
-					if label == "" {
-						label = m.ID
-					}
-					b := native.ButtonBase(c.Key("mode-"+m.ID)).Label("权限模式 "+label).Radius(6).Padding(2, 6).FontSize(11).
-						TextColor(t.TextMuted).Disabled(a.modeChanging || a.State.Disconnected)
-					selectedButtonFace(c, b, a.State.Mode == m.ID, 6, 0)
-					b.Children(func() { native.Text(c, label).FontSize(11).SingleLine() })
-					if b.Clicked() && a.State.Mode != m.ID {
-						a.setPermissionMode(changer, m.ID)
-					}
-				}
-			})
-			if a.modeError != "" {
-				native.Text(c, a.modeError).FontSize(11).TextColor(t.Danger)
-			}
-		})
-	})
-}
-
-// setPermissionMode applies a picked runtime mode; the live policy refreshes
-// through the backend's own runtime event, so the callback only records errors.
-func (a *App) setPermissionMode(changer agent.PermissionModeChanger, modeID string) {
-	if a.modeChanging {
-		return
-	}
-	s := a.session
-	change := agent.PermissionModeChange{
-		Session: agent.SessionKey{Agent: s.kind.Normalized(), Runtime: s.runtimeKey, SessionID: s.State.ThreadID},
-		Mode:    modeID,
-	}
-	s.modeChanging, s.modeError = true, ""
-	owner := a.forSession(s)
-	go func() {
-		ctx, cancel := agent.RequestContext()
-		defer cancel()
-		err := changer.SetPermissionMode(ctx, change)
-		owner.update(func() {
-			s.modeChanging, s.modeError = false, ""
-			if err != nil {
-				s.modeError = err.Error()
-			}
-		})
-	}()
-}
-
-// modeName resolves a runtime mode id to its advertised label; unknown ids
-// stay as reported.
-func modeName(modes []agent.SessionMode, id string) string {
-	for _, mode := range modes {
-		if mode.ID == id && mode.Name != "" {
-			return mode.Name
-		}
-	}
-	return id
 }
 
 func (a *App) message(c *native.Context, m *app.Message) {

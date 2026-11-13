@@ -1,27 +1,14 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"strings"
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/app"
 )
-
-type modeChangerBackend struct {
-	stubBackend
-	changes chan agent.PermissionModeChange
-	err     error
-}
-
-func (b *modeChangerBackend) SetPermissionMode(_ context.Context, change agent.PermissionModeChange) error {
-	b.changes <- change
-	return b.err
-}
 
 func TestConversationLayoutAndDetails(t *testing.T) {
 	for _, size := range [][2]int{{640, 480}, {1000, 760}, {1600, 900}} {
@@ -81,50 +68,6 @@ func TestConversationLayoutAndDetails(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestRuntimeDetailsPermissionModes(t *testing.T) {
-	backend := &modeChangerBackend{changes: make(chan agent.PermissionModeChange, 1)}
-	a := New(backend, "test", "/workspace", nil)
-	a.State.ThreadID = "acp-1"
-	a.State.Mode, a.State.Policy = "bypass", `"devin:bypass"`
-	a.State.Modes = []agent.SessionMode{
-		{ID: "accept-edits", Name: "Code"}, {ID: "plan", Name: "Plan"}, {ID: "bypass", Name: "Bypass Permissions"},
-	}
-	queue := make(chan func(), 4)
-	a.dispatch = func(fn func()) { queue <- fn }
-	tt := native.NewTester(a.view, 1000, 760)
-	if err := tt.Click("选择模型"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("运行详情…"); err != nil {
-		t.Fatal(err)
-	}
-	if !tt.HasText("权限模式") || !tt.HasText("Bypass Permissions") || !tt.HasText("Plan") {
-		t.Fatal("mode chips missing from runtime details")
-	}
-	if err := tt.Click("权限模式 Plan"); err != nil {
-		t.Fatal(err)
-	}
-	change := <-backend.changes
-	if change.Mode != "plan" || change.Session.SessionID != "acp-1" {
-		t.Fatalf("mode change %+v", change)
-	}
-	pumpUpdate(t, queue)
-	tt.Frame()
-	if a.modeChanging || a.modeError != "" {
-		t.Fatal("mode switch state stuck", a.modeChanging, a.modeError)
-	}
-	backend.err = fmt.Errorf("模式被拒绝")
-	if err := tt.Click("权限模式 Code"); err != nil {
-		t.Fatal(err)
-	}
-	<-backend.changes
-	pumpUpdate(t, queue)
-	tt.Frame()
-	if a.modeChanging || !tt.HasText("模式被拒绝") {
-		t.Fatal("mode switch error not surfaced", a.modeChanging, a.modeError)
 	}
 }
 

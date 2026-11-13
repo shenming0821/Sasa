@@ -8,9 +8,8 @@ import (
 	"github.com/shenming0821/Fuyu/internal/app"
 )
 
-const turnProcessAnimationDuration = 200 * time.Millisecond
-
-func (s *session) animateProcesses(c *native.Context) {
+func (s *session) animateProcesses(c *native.Context) map[string]native.Element {
+	motions := make(map[string]native.Element)
 	progress := make(map[string]float32)
 	moving := s.disclosureMoving
 	s.disclosureMoving = false
@@ -18,12 +17,14 @@ func (s *session) animateProcesses(c *native.Context) {
 		if message.Role != "user" || message.Timing == nil {
 			continue
 		}
+		open := message.Timing.Finished.IsZero() || s.expandedProcesses[message.ID]
 		target := float32(0)
-		if message.Timing.Finished.IsZero() || s.expandedProcesses[message.ID] {
+		if open {
 			target = 1
 		}
-		progress[message.ID] = native.Box(c.Key("turn-process-motion:"+message.ID)).Size(0, 0).
-			Animate("open", target, turnProcessAnimationDuration)
+		motion := native.Box(c.Key("turn-process-motion:"+message.ID)).Size(0, 0)
+		motions[message.ID] = motion
+		progress[message.ID] = motion.AnimateTo("open", target, disclosureAnimation)
 		previous, exists := s.processProgress[message.ID]
 		if !message.Timing.Finished.IsZero() && (progress[message.ID] != target || exists && previous != target) {
 			moving = true
@@ -36,6 +37,7 @@ func (s *session) animateProcesses(c *native.Context) {
 		}
 		c.AnimationFrame()
 	}
+	return motions
 }
 
 func (s *session) processScale(id string) float32 {
@@ -100,7 +102,7 @@ func (s *session) hasTurnProcess(question *app.Message) bool {
 	return false
 }
 
-func (s *session) turnTiming(c *native.Context, message *app.Message) {
+func (s *session) turnTiming(c *native.Context, message *app.Message, motions ...native.Element) {
 	timing := message.Timing
 	if text := timingText(timing, time.Now()); text != "" {
 		native.Column(c).FillWidth().Gap(10).Children(func() {
@@ -112,6 +114,23 @@ func (s *session) turnTiming(c *native.Context, message *app.Message) {
 					}
 					button := native.ButtonBase(c).Label(label + "执行过程 " + message.ID).
 						Role(native.RoleDisclosure).Expanded(s.expandedProcesses[message.ID]).Padding(0).Gap(8).AlignItems(native.Center)
+					if button.Clicked() {
+						s.processScrollHold = true
+						s.list.FollowEnd = false
+						if s.expandedProcesses == nil {
+							s.expandedProcesses = make(map[string]bool)
+						}
+						s.expandedProcesses[message.ID] = !s.expandedProcesses[message.ID]
+						if len(motions) > 0 && motions[0].Valid() {
+							s.processProgress[message.ID] = animateDisclosure(motions[0], "open", s.expandedProcesses[message.ID])
+						}
+						label = "展开"
+						if s.expandedProcesses[message.ID] {
+							label = "收起"
+						}
+						button.Label(label + "执行过程 " + message.ID).Expanded(s.expandedProcesses[message.ID])
+						c.AnimationFrame()
+					}
 					color := c.Theme().TextMuted
 					if button.Hovered() || button.FocusVisible() {
 						color = c.Theme().Text
@@ -121,14 +140,7 @@ func (s *session) turnTiming(c *native.Context, message *app.Message) {
 						native.Icon(c, chevron).Label("执行过程箭头 "+message.ID).Size(16, 16).
 							Rotate(-90*(1-s.processScale(message.ID))).Translate(0, 0.5)
 					})
-					if button.Clicked() {
-						s.processScrollHold = true
-						s.list.FollowEnd = false
-						if s.expandedProcesses == nil {
-							s.expandedProcesses = make(map[string]bool)
-						}
-						s.expandedProcesses[message.ID] = !s.expandedProcesses[message.ID]
-					}
+
 				} else {
 					native.Text(c, text).FontSize(13).TextColor(c.Theme().TextMuted).SingleLine()
 				}
@@ -157,8 +169,7 @@ func (s *session) visibleConversationMessages() []*app.Message {
 			continue
 		}
 		// Finished turns pin the final reply after the process, matching the
-		// collapsed view; Devin accumulates one reply from its first chunk, so
-		// tool records would otherwise expand below the answer.
+		// collapsed view; tool records otherwise expand below the answer.
 		folded := !s.expandedProcesses[message.ID] && s.processProgress[message.ID] <= 0
 		foreignTurn := false
 		for _, candidate := range s.State.Messages[start+1 : end] {

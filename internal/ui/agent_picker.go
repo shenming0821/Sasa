@@ -53,7 +53,7 @@ func (a *App) newAgentSession(kind agent.AgentKind) error {
 
 func (a *App) agentSessionButtons(c *native.Context) {
 	native.Row(c).Gap(4).AlignItems(native.Center).Children(func() {
-		for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude, agent.Devin} {
+		for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
 			button := quietIconButton(c.Key(string(kind)), "使用 "+kind.String()+" 新建会话").Size(30, 30)
 			button.Children(func() {
 				agentIcon(c, kind, 16)
@@ -73,8 +73,6 @@ func agentIcon(c *native.Context, kind agent.AgentKind, size float32) native.Ele
 	switch kind.Normalized() {
 	case agent.Claude:
 		glyph, color = claudeAgentIcon, native.Hex("#D97757")
-	case agent.Devin:
-		glyph = devinAgentIcon
 	}
 	return native.Icon(c, glyph).Size(size, size).TextColor(color)
 }

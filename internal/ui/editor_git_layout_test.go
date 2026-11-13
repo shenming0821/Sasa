@@ -220,6 +220,7 @@ func TestGitPanelUsesContinuousCompactRows(t *testing.T) {
 			tt := native.NewTester(func(c *native.Context) {
 				native.Column(c).Fill().Children(func() { a.gitPanel(c, w) })
 			}, int(width), 400)
+			tt.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
 			find := func(label string) native.Rect {
 				t.Helper()
 				r, ok := tt.Find(label)
@@ -300,6 +301,7 @@ func TestGitHistoryStaysAtBottomWithIndependentBoundedScroll(t *testing.T) {
 			tt := native.NewTester(func(c *native.Context) {
 				native.Column(c).Fill().Children(func() { a.gitPanel(c, w) })
 			}, 360, height)
+			tt.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
 			find := func(label string) native.Rect {
 				t.Helper()
 				r, ok := tt.Find(label)

@@ -87,11 +87,7 @@ func (a *App) changeCard(c *native.Context, messages []*app.Message) {
 			native.Box(c).Size(36, 36).Shrink(0).Radius(10).Background(theme.Surface).AlignItems(native.Center).Justify(native.Center).Children(func() { native.Icon(c, changeIcon).Size(20, 20).TextColor(theme.TextMuted) })
 			native.Text(c, fmt.Sprintf("已编辑 %d 个文件", len(summary.Files))).FontSize(14).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 		})
-		limit := min(3, len(summary.Files))
-		if *expanded {
-			limit = len(summary.Files)
-		}
-		for i, file := range summary.Files[:limit] {
+		renderRow := func(i int, file app.ChangedFile) {
 			row := treeButton(c.Key(file.Path), "查看本轮差异 "+file.Path).FillWidth().MinWidth(0).Padding(10, 14).Gap(8).Radius(0)
 			row.Children(func() {
 				path := a.relativeChangePath(file.Path)
@@ -109,22 +105,36 @@ func (a *App) changeCard(c *native.Context, messages []*app.Message) {
 				a.openTurnReview(messages, summary, i)
 			}
 		}
+		limit := min(3, len(summary.Files))
+		for i, file := range summary.Files[:limit] {
+			renderRow(i, file)
+		}
 		if len(summary.Files) > 3 {
+			motion := collapsibleSection(c, "extra-files", *expanded, func() {
+				for i := limit; i < len(summary.Files); i++ {
+					renderRow(i, summary.Files[i])
+				}
+			})
 			label := fmt.Sprintf("再显示 %d 个文件", len(summary.Files)-3)
 			if *expanded {
 				label = "收起文件列表"
 			}
 			b := treeButton(c.Key("show-more"), label).FillWidth().Padding(10, 14).Gap(8).Radius(0).Justify(native.Start)
-			b.Children(func() {
-				native.Text(c, label).FontSize(12).TextColor(theme.Text)
-				arrow := native.Icon(c, chevron).Size(12, 12)
-				if *expanded {
-					arrow.Rotate(180)
-				}
-			})
 			if b.Clicked() {
 				*expanded = !*expanded
+				animateDisclosure(motion, "open", *expanded)
+				if *expanded {
+					label = "收起文件列表"
+				} else {
+					label = fmt.Sprintf("再显示 %d 个文件", len(summary.Files)-3)
+				}
+				b.Label(label)
 			}
+			progress := animateDisclosure(b, "extra-open", *expanded)
+			b.Children(func() {
+				native.Text(c, label).FontSize(12).TextColor(theme.Text)
+				native.Icon(c, chevron).Size(12, 12).Rotate(180 * progress)
+			})
 		}
 	})
 }

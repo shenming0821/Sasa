@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/workspace"
@@ -114,7 +115,7 @@ func TestP4ContentSearchOptionsGroupsAndCollapse(t *testing.T) {
 	if err := tt.Click("折叠 README.md"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Frame()
+	tt.Advance(300 * time.Millisecond)
 	if !w.searchCollapsed[readme] || tt.HasText("# Fuyu") {
 		t.Fatal("file heading did not collapse its matches")
 	}

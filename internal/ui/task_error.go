@@ -72,7 +72,7 @@ func (a *App) taskFailureCard(c *native.Context) {
 				}
 			})
 			native.Text(c, taskFailureSummary(a.State.Error)).FontSize(12).TextColor(theme.TextMuted).FillWidth()
-			parts := native.CollapsibleBase(c.Key(a.State.Error), &a.errorExpanded)
+			parts := newCollapsible(c.Key(a.State.Error), &a.errorExpanded)
 			trigger := parts.Trigger.Label("错误详情").AlignSelf(native.Start).Padding(4, 0).Gap(4).AlignItems(native.Center)
 			trigger.Children(func() {
 				native.Icon(c, chevron).Size(12, 12).Rotate(-90 * (1 - parts.Progress())).TextColor(theme.TextMuted)

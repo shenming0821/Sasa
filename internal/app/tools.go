@@ -27,6 +27,21 @@ type Tool struct {
 	Truncated                                                  bool
 	Expanded                                                   bool
 	AwaitingFinal                                              bool
+	DisplayCache                                               ToolDisplayCache `json:"-"`
+}
+
+type ToolDisplayCache struct {
+	CaptionKey                    [5]string
+	Caption, OperationCaption     string
+	InputRaw                      string
+	InputParsed                   bool
+	Code, Parameters              string
+	OutputRaw                     string
+	OutputKind                    string
+	OutputParsed                  bool
+	OutputFormatted               bool
+	FormattedOutput, ErrorSummary string
+	ResultFailed                  bool
 }
 
 func (t *Tool) Title() string {

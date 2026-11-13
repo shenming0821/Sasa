@@ -47,6 +47,7 @@ func TestGitWorkflowStagesOnlyChosenFileAndCommitsIndex(t *testing.T) {
 	os.WriteFile(filepath.Join(root, "internal/main.go"), []byte("package main\n// other change\n"), 0600)
 	w := a.workspace(root)
 	tt := native.NewTester(a.view, 1280, 800)
+	tt.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
 	p4Wait(t, tt, q, func() bool { return !w.gitLoading && len(w.git.Entries) == 2 })
 	r, _ := tt.Find("Git 更改 README.md")
 	tt.Move(r.X+10, r.Y+10)
@@ -103,6 +104,7 @@ func TestGitHistoryCommitExpandCollapseAndOpenChosenFile(t *testing.T) {
 	w := a.workspace(root)
 	w.collapsed["最近提交已展开"] = true
 	tt := native.NewTester(a.view, 1600, 900)
+	tt.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
 	p4Wait(t, tt, q, func() bool { return w.gitHistoryLoaded && len(w.gitHistory) == 2 })
 	info := w.gitHistory[0]
 	tree := w.gitCommitTrees[info.Hash]

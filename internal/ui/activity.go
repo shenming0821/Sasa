@@ -105,7 +105,7 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 			if actionButton(c, label).Clicked() {
 				t.Expanded = !t.Expanded
 			}
-			if t.Expanded {
+			collapsibleSection(c, "tool-card-details", t.Expanded, func() {
 				native.Scroll(c).Label("工具详情").FillWidth().MaxHeight(180).Children(func() {
 					native.Column(c).FillWidth().Gap(6).Children(func() {
 						if t.Command != "" {
@@ -125,7 +125,7 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 						}
 					})
 				})
-			}
+			})
 		}
 		if t.Truncated {
 			native.Text(c, "输出显示已截断（上限 256 KiB），请核验完整运行记录。").FontSize(11).TextColor(theme.TextMuted)

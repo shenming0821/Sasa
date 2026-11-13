@@ -11,7 +11,9 @@ type AgentKind string
 const (
 	Codex  AgentKind = "codex"
 	Claude AgentKind = "claude"
-	Devin  AgentKind = "devin"
+	// Devin remains valid for stored sessions and the legacy adapter. Desktop
+	// startup and new-session controls only offer Codex and Claude.
+	Devin AgentKind = "devin"
 )
 
 func (k AgentKind) Normalized() AgentKind {

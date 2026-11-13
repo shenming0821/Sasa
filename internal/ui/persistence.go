@@ -40,6 +40,11 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 	a.store = store
 	a.deletedThreads = slices.Clone(snapshot.DeletedThreads)
 	a.defaultAgent = snapshot.DefaultAgent.Normalized()
+	// Preserve legacy sessions under their original identity while new sessions
+	// use one of the runtimes still provided by desktop startup.
+	if a.defaultAgent != agent.Codex && a.defaultAgent != agent.Claude {
+		a.defaultAgent = agent.Codex
+	}
 	a.lastModels = map[string]string{}
 	for key, model := range snapshot.LastClaudeModels {
 		if !strings.ContainsRune(key, '\x00') {

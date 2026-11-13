@@ -83,6 +83,7 @@ func (a *App) releaseClosedSession(s *session, now time.Time) {
 				s.streamedMessages = nil
 				s.expandedProcesses = nil
 				s.processProgress = nil
+				s.processHeights = nil
 				s.processScrollHold = false
 				s.disclosureMoving = false
 				s.readingContext = nil

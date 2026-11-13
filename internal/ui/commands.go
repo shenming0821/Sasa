@@ -223,7 +223,7 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 		return
 	}
 	native.Column(c).FillWidth().MinWidth(0).TextColor(theme.TextMuted).Children(func() {
-		parts := native.CollapsibleBase(c, open)
+		parts := newCollapsible(c, open)
 		trigger := parts.Trigger.Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).TextColor(theme.TextMuted)
 		hover := trigger.Hovered() || trigger.FocusVisible()
 		trigger.Children(func() {
@@ -242,18 +242,14 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 				suffix()
 			}
 		})
-		target := float32(0)
-		if *open {
-			target = 1
-		}
-		if trigger.Clicked() || parts.Progress() != target {
+		parts.Panel(func() {
+			native.Column(c).FillWidth().MinWidth(0).TextColor(theme.TextMuted).Opacity(parts.Progress()).Padding(4, 0, 4, 24).Children(content)
+		})
+		if parts.Moving() {
 			a.disclosureMoving = true
 			a.processScrollHold = true
 			a.list.FollowEnd = false
 		}
-		parts.Panel(func() {
-			native.Column(c).FillWidth().MinWidth(0).TextColor(theme.TextMuted).Opacity(parts.Progress()).Padding(4, 0, 4, 24).Children(content)
-		})
 	})
 }
 

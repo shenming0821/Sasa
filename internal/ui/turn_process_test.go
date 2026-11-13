@@ -108,9 +108,8 @@ func TestCollapsedTurnKeepsChangeCard(t *testing.T) {
 }
 
 func TestExpandedTurnPinsReplyAfterProcess(t *testing.T) {
-	// Devin accumulates one assistant message from its first chunk, so tool
-	// records can land after the reply in Messages; expansion must still
-	// restore the process between the duration line and the final reply.
+	// Tool records can land after the reply in Messages; expansion still
+	// restores the process between the duration line and the final reply.
 	desktop := New(stubBackend{}, "test", "/tmp", nil)
 	started := time.Now().Add(-time.Minute)
 	desktop.State.Messages = []*app.Message{

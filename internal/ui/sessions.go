@@ -49,6 +49,7 @@ type session struct {
 	commandGroups     map[string]*bool
 	expandedProcesses map[string]bool
 	processProgress   map[string]float32
+	processHeights    map[string]float32
 	processScrollHold bool
 	disclosureMoving  bool
 	changeSummaries   map[string]cachedChangeSummary
@@ -60,8 +61,6 @@ type session struct {
 	readingContext    *native.Context
 	restoreOffset     bool
 	detailsOpen       bool
-	modeChanging      bool
-	modeError         string
 	copiedID          string
 	snapshotPending   bool
 	followResponses   map[string]bool
