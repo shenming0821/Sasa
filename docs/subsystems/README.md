@@ -7,16 +7,16 @@
 | 子系统 | 责任与边界 | 源码或规划路径 | 当前参考 |
 |---|---|---|---|
 | 项目管理 | 本地仓库导入、Git worktree 发现、分支和会话导航 | `internal/project/`、`internal/ui/projects.go` | [项目管理](projects.md) |
-| 文件与编辑器 | 文件树、编辑保存、草稿恢复、Git 差异和显式工作流操作 | `internal/editor/`、`internal/workspace/`、`internal/git/`、`internal/ui/editor_*.go`、`internal/ui/git_*.go` | [文件、编辑器与 Git](editor.md)、[Git 工作流](../git-workflow-design.md) |
+| 文件与编辑器 | 文件树、编辑保存、草稿恢复、Git 差异和显式工作流操作 | `internal/editor/`、`internal/workspace/`、`internal/git/`、`internal/ui/editor_*.go`、`internal/ui/git_*.go` | [文件、编辑器与 Git](editor.md) |
 | 原生 UI | 会话侧栏、消息、输入、状态和交互入口；会话绑定的异步派发 | `internal/ui/` | [会话管理](sessions.md)、[本轮文件变更](turn-changes.md) |
 | 主窗口分屏 | 按目录保存的嵌套布局、面板页签、焦点与终端可见性 | `internal/ui/panes.go`、`internal/ui/panes_view.go` | [会话管理](sessions.md#主内容区分屏)、[分屏验证](../verification/2026-11-03-split-panes.md) |
 | 图片附件 | 图片导入、私有副本、草稿、发送、历史恢复及预览 | `internal/attachment/`、`internal/ui/images.go` | [图片附件](attachments.md) |
-| 应用状态 | thread/turn 投影、活动会话与用户动作协调 | `internal/app/` | [设计](../design.md) |
+| 应用状态 | thread/turn 投影、活动会话与用户动作协调 | `internal/app/` | [会话管理](sessions.md)、[Codex 运行时](codex-runtime.md) |
 | Agent 抽象 | 会话身份、能力、应用事件、审批意图和任务映射；当前 Codex 兼容接入 | `internal/agent/`、`internal/ui/agents.go` | [Agent 抽象层](agent.md) |
 | Codex 客户端 | 双向 RPC、消息分类、请求关联与协议事件 | `internal/codex/` | [协议核验](../reference-verification.md) |
 | Claude 客户端 | stream-json 控制协议、单轮进程、审批、问答与自有会话恢复 | `internal/claude/` | [Claude 运行时](claude-runtime.md) |
-| 进程管理 | 自有 App Server 启停、cwd、退出检测与取消 | `internal/runtime/` | [生命周期设计](../design.md) |
-| 原生终端 | 当前工作区终端标签、Ghostty AppKit/Metal 视图、本机配置、PTY 与进程生命周期 | `internal/terminal/`、`internal/ui/terminal.go`、`scripts/prepare-ghostty.py` | [设计](../design.md)、[终端验证](../verification/2026-11-01-terminal.md) |
+| 进程管理 | 自有 App Server 启停、cwd、退出检测与取消 | `internal/runtime/` | [Codex 运行时](codex-runtime.md)、[Claude 运行时](claude-runtime.md) |
+| 原生终端 | 当前工作区终端标签、Ghostty AppKit/Metal 视图、本机配置、PTY 与进程生命周期 | `internal/terminal/`、`internal/ui/terminal.go`、`scripts/prepare-ghostty.py` | [终端验证](../verification/2026-11-01-terminal.md) |
 | 存储与恢复 | 应用索引、界面状态与原生历史核验 | `internal/storage/` | [存储与恢复](storage.md) |
 | 双渠道与发布 | Preview 候选构建、渠道数据隔离、正式版晋升和恢复 | `internal/release/`、`scripts/release.py` | [双渠道与发布](releases.md) |
 
@@ -33,7 +33,7 @@
 
 技能目录共享缓存、延迟保存、自适应后台维护、消息投影和文件事件合并见[使用性能与后台维护](performance.md)。
 
-计划中的变化放在对应设计方案，当前行为根据实际实现维护。
+当前行为根据实际实现维护。
 
 ## 修改与审核
 
