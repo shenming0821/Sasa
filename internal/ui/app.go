@@ -62,6 +62,7 @@ type App struct {
 	deletedThreads     []storage.DeletedThread
 	sessionDeleteError string
 	repositories       []project.Repository
+	projectFrame       *projectFrame
 	projectOrder       []string
 	hiddenProjects     map[string]bool
 	projectsLoading    bool

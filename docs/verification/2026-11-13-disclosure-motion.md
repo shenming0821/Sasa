@@ -41,3 +41,31 @@ Apple M1 Max 上，约 141 KiB 输入和 147 KiB 输出的解析与格式化基�
 执行 `./scripts/build preview` 构建候选，并通过 `./scripts/run-preview <构建ID>` 启动。初始工作区曾因移除 Devin 校验导致已有 Preview 历史无法加载；发布前已保留旧数据兼容接口并添加回归，原历史数据保持原样。
 
 早期隔离数据启动已取得含正确渠道、构建 ID、数据目录与 PID 的窗口初始化确认。电脑控制工具定位该应用返回 `cgWindowNotFound`，因此原生点击、视觉流畅度、实际显示帧率及真实 Runtime 输出期间的动效尚未验收。自动化验证为 MyGo 无窗口渲染结果。正式版晋升采用延迟生效，保留正在运行的正式版实例。
+
+## 左侧项目长列表的后续优化
+
+用户反馈编辑器目录动效流畅，但左侧 `order` 项目展开与收起仍卡顿。只读核对当前正式版索引：7 个仓库、258 个历史会话，`order` 包含 10 个工作区。左侧原实现为每个工作区重新遍历全部会话，并为每个会话遍历全部工作区、通过 `filepath.Rel` 计算归属；路径计算随工作区与会话数量反复增加。合成侧栏基准的 CPU 采样中，`worktreeFor` 累计约占 86%。
+
+左侧每次构建先建立仅在本帧有效的工作区路径索引，以逐级父目录查询最近的工作区；会话按工作区一次分组并保持原有倒序。搜索、工作区摘要与目录分组共享该索引，帧结束即释放，下帧重新读取最新项目与会话。编辑器目录沿用既有实现。
+
+`sidebar_performance_test.go` 覆盖索引与旧路径归属的一致性、嵌套工作区、相邻路径边界、未归属路径、会话顺序、会话移动与新增、项目刷新后重新取值，以及索引作用范围。
+
+相同合成数据（7 个仓库，每仓库 10 个工作区，共 258 个历史会话；260 × 760 内存窗口）连续 96 次模拟刷新，包含展开与收起，每 24 次反转状态：
+
+| 实现 | 每次模拟刷新耗时 | 每次分配字节 | 分配次数 |
+|---|---:|---:|---:|
+| 修改前 | 55.70 ms | 8,735,436 | 282,019 |
+| 本帧共享路径和会话索引 | 0.328 ms | 50,296 | 492 |
+
+性能对照使用 Go overlay 仅替换基准中的 `navigation.go`、`projects.go` 为修改前版本；常规测试使用工作区正常代码，无 overlay 或额外跳过。此处是内存窗口的合成动效基准，包含帧构建与软件渲染，不代表原生显示帧率。
+
+```sh
+./scripts/go test ./...
+./scripts/go vet ./...
+./scripts/go test -race ./internal/ui \
+  -run 'TestProjectFrame|TestProjectDisclosure|TestRepository|TestWorktreeRename|TestProjectHeading|TestProjectMenu' -count=1
+./scripts/go test ./internal/ui -run '^$' \
+  -bench '^BenchmarkSidebarDisclosure/Worktrees10$' -benchmem -benchtime=96x
+```
+
+上述全量测试、vet 与相关 race 检查通过。Preview 已通过正常构建、启动及窗口初始化确认，并在原生窗口实际操作 `order` 的展开、收起、再次展开，无障碍树确认 10 个工作区条目依次出现、移除、重新出现。保留 Preview 窗口与展开后的列表供用户验收；未采集原生逐帧时间或实际显示帧率。

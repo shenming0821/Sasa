@@ -171,6 +171,13 @@ func (a *App) refreshProjects() {
 }
 
 func (a *App) worktreeFor(cwd string) *project.Worktree {
+	if frame := a.projectFrame; frame != nil {
+		return frame.worktreeFor(cwd)
+	}
+	return a.findWorktree(cwd)
+}
+
+func (a *App) findWorktree(cwd string) *project.Worktree {
 	if cwd == "" {
 		return nil
 	}
@@ -191,6 +198,9 @@ func (a *App) worktreeFor(cwd string) *project.Worktree {
 }
 
 func (a *App) worktreeSessions(w project.Worktree) []*session {
+	if a.projectFrame != nil {
+		return a.indexedWorktreeSessions(w.Path)
+	}
 	var result []*session
 	for i := len(a.sessions) - 1; i >= 0; i-- {
 		s := a.sessions[i]

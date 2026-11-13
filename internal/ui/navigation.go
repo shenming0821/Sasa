@@ -72,6 +72,7 @@ func (s *session) navigationStatus() string {
 }
 
 func (a *App) sidebar(c *native.Context) {
+	defer a.beginProjectFrame()()
 	t := c.Theme()
 	bar := c.TitleBar()
 	native.Column(c).Fill().Background(t.Surface).Children(func() {
