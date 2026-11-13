@@ -50,7 +50,7 @@ func (a *App) requestFileExit() {
 	a.quitDialog = true
 	a.fileQuitPending = true
 	go func() {
-		r, err := a.quitPrompt(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning, Title: "退出 Fuyu", Message: fmt.Sprintf("有 %d 个文件尚未保存", len(dirty)), Detail: strings.Join(names, "\n"), Buttons: []string{"取消", "不保存并退出", "全部保存并退出"}, DefaultButton: 2, CancelButton: 0})
+		r, err := a.quitPrompt(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning, Title: "退出 Sasa", Message: fmt.Sprintf("有 %d 个文件尚未保存", len(dirty)), Detail: strings.Join(names, "\n"), Buttons: []string{"取消", "不保存并退出", "全部保存并退出"}, DefaultButton: 2, CancelButton: 0})
 		a.update(func() {
 			a.quitDialog = false
 			if err != nil || r.Button == 0 {

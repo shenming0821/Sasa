@@ -67,7 +67,7 @@ func (a *App) confirmDeleteSession(target *session) {
 	go func() {
 		result, err := a.quitPrompt(mygo.MessageOptions{Parent: a.win, Type: mygo.MessageWarning,
 			Title: "删除会话", Message: "删除“" + target.title() + "”？",
-			Detail:  "将从 Fuyu 删除此会话及草稿，关闭对应标签，并从历史列表隐藏。此操作无法在 Fuyu 中撤销。项目文件和 CLI 原始记录保留。",
+			Detail:  "将从 Sasa 删除此会话及草稿，关闭对应标签，并从历史列表隐藏。此操作无法在 Sasa 中撤销。项目文件和 CLI 原始记录保留。",
 			Buttons: []string{"删除会话", "取消"}, DefaultButton: 0, CancelButton: 1})
 		a.update(func() {
 			a.quitDialog = false

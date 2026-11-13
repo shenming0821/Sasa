@@ -464,7 +464,7 @@ func (c *Client) sessionCopy(id string) (session, error) {
 	defer c.mu.Unlock()
 	s := c.sessions[id]
 	if s == nil {
-		return session{}, fmt.Errorf("仅支持恢复由 Fuyu 创建并记录的 Claude 会话")
+		return session{}, fmt.Errorf("仅支持恢复由 Sasa 创建并记录的 Claude 会话")
 	}
 	copy := *s
 	copy.Turns = slices.Clone(s.Turns)

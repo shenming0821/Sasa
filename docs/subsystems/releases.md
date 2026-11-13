@@ -6,12 +6,14 @@
 
 | 项目 | 正式版 | Preview |
 |---|---|---|
-| 应用 | `/Applications/Fuyu.app`；迁移前保留既有 `bin/Fuyu.app` | `bin/Fuyu Preview.app` |
+| 应用 | `/Applications/Sasa.app`；兼容入口 `bin/Sasa.app`、`bin/Fuyu.app` | `bin/Sasa Preview.app` |
 | Bundle ID 与签名标识 | `com.shenming.fuyu` | `com.shenming.fuyu.preview` |
 | 默认数据目录 | `~/Library/Application Support/Fuyu` | `~/Library/Application Support/Fuyu Preview` |
 | Codex 原生目录 | `CODEX_HOME`，未设置时 `~/.codex` | `<Preview 数据目录>/runtimes/codex` |
 | Claude 原生目录 | `CLAUDE_CONFIG_DIR`，未设置时 `~/.claude` | `<Preview 数据目录>/runtimes/claude` |
-| 视觉识别 | 原图标与 Fuyu 标题 | 紫色 P 图标标记，标题含 Preview 与构建 ID |
+| 视觉识别 | 红橙 S/a 图标与 Sasa 标题 | 紫色 P 图标标记，标题含 Preview 与构建 ID |
+
+应用显示名称与主程序为 Sasa / Sasa Preview；Bundle ID、数据目录及发布备份目录继续沿用原有名称。首次默认安装时，旧 `/Applications/Fuyu.app` 备份后转为指向 Sasa 的兼容入口，不请求正在运行的正式版退出。旧构建候选保留原文件，需重新构建 Sasa 候选后验收晋升。
 
 `cmd/desktop/main.go` 在读写数据库前通过 `internal/release` 读取包内渠道信息，校验与链接到程序中的构建 ID、源码版本和源码摘要一致。直接 `go run` 的开发程序默认使用 Preview。`-version` 以 JSON 输出渠道、构建 ID、源码版本、源码摘要、应用版本和支持的数据版本，随后退出，不打开数据库。
 
@@ -26,7 +28,7 @@ Preview 首次启动从现有环境配置根复制 Codex 的 `config.toml`、`au
 ```sh
 ./scripts/build preview
 ./scripts/run-preview <构建ID>
-"bin/Fuyu Preview.app/Contents/MacOS/Fuyu" -version
+"bin/Sasa Preview.app/Contents/MacOS/Sasa" -version
 ```
 
 `scripts/build` 默认等同于 `preview`，不接受直接构建正式版。构建先写临时目录，再签名、核对构建前后源码摘要，完成后保存到 `bin/candidates/<构建ID>/`。摘要包含 Git 已跟踪、未提交、删除和未忽略的未跟踪文件；源码在构建期间变化时拒绝生成候选。
@@ -35,7 +37,7 @@ Preview 首次启动从现有环境配置根复制 Codex 的 `config.toml`、`au
 
 Preview 启动和回退重开通过 macOS Launch Services（`/usr/bin/open -n -a`）启动应用，使应用建立自己的启动域，避免直接创建进程时继承调用方已退出的 coalition。启动继续传递数据目录、一次性 token 和 ready 文件；以 ready 中的 PID 对照实际可执行路径，并核对构建、渠道和数据目录，再确认窗口初始化后进程仍存活。启动日志由 `open --stdout/--stderr` 保存；保留调用环境中的 PATH、CODEX_HOME、CLAUDE_CONFIG_DIR 路径配置。正式版晋升不启动应用，只交换安装目录，见下文。
 
-窗口中的“重启 Fuyu”同样通过 Launch Services 启动，沿用正常退出时的活动任务、文件保存与 Git 写入门控。取消退出或保存失败时清除重启请求；确认退出后完成窗口资源与自有 Agent 清理，再启动等待旧 PID 退出的短期辅助进程。辅助进程最多等待 30 秒，随后通过参数数组执行 `open -n -a`，保留当前工作区、数据目录和渠道运行时环境，避免新实例抢占尚未释放的数据锁。此操作独立于发布，晋升仍保留运行中的正式版。
+窗口中的“重启 Sasa”同样通过 Launch Services 启动，沿用正常退出时的活动任务、文件保存与 Git 写入门控。取消退出或保存失败时清除重启请求；确认退出后完成窗口资源与自有 Agent 清理，再启动等待旧 PID 退出的短期辅助进程。辅助进程最多等待 30 秒，随后通过参数数组执行 `open -n -a`，保留当前工作区、数据目录和渠道运行时环境，避免新实例抢占尚未释放的数据锁。此操作独立于发布，晋升仍保留运行中的正式版。
 
 `run-preview` 接受明确构建 ID；省略时选择最近候选。复制到启动位置后登记应用，并通过 Launch Services 启动。替换前正常请求退出已有 Preview；因未保存内容或活动任务提示未退出时，强制结束目标 Preview 进程后重试。正式版遇到同类提示时保留提示并告知用户。
 
@@ -48,7 +50,7 @@ Preview 启动和回退重开通过 macOS Launch Services（`/usr/bin/open -n -a
 ./scripts/promote <构建ID>
 ```
 
-预检输出候选身份、安装位置和数据目录，不替换应用。发布接受明确构建 ID，代表调用者已完成该候选的验收。可用 `--app /absolute/Fuyu.app --data-dir /absolute/data` 指定隔离环境。
+预检输出候选身份、安装位置和数据目录，不替换应用。发布接受明确构建 ID，代表调用者已完成该候选的验收。可用 `--app /absolute/Sasa.app --data-dir /absolute/data` 指定隔离环境。
 
 晋升复制该候选，切换渠道信息、应用名、图标、Bundle ID 和主程序 UUID，再重新签名；不重新编译 Go、不读取新工作区功能代码。比较程序摘要时移除签名并将 UUID 的 16 字节归零，确认其余功能程序与候选相同。候选与安装文件清单仍校验完整字节，UUID 归一化仅用于跨渠道功能程序比较。
 

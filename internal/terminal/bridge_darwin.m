@@ -216,7 +216,7 @@ static NSView *nativeHost(NSView *parent) {
 fuyu_terminal_t fuyu_terminal_new(uintptr_t window, uintptr_t token, const char *cwd, double x, double y, double width, double height, bool dark) {
     NSWindow *hostWindow = (__bridge NSWindow *)(void *)window;
     NSView *host = nativeHost(hostWindow.contentView);
-    if (!host) { snprintf(lastError, sizeof(lastError), "没有找到 Fuyu 原生视图"); return NULL; }
+    if (!host) { snprintf(lastError, sizeof(lastError), "没有找到 Sasa 原生视图"); return NULL; }
     ghostty_config_t config = configuration();
     if (!config) return NULL;
     gt_app_update_config(terminalApp, config);

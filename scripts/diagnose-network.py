@@ -19,7 +19,7 @@ def capture(directory, name, command):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='保存 Fuyu 网络故障现场，不改变网络或应用状态。')
+    parser = argparse.ArgumentParser(description='保存 Sasa 网络故障现场，不改变网络或应用状态。')
     parser.add_argument('--minutes', type=int, default=15, help='回溯日志分钟数，默认 15')
     parser.add_argument('--port', type=int, default=3425, help='模型网关端口，默认 3425')
     arguments = parser.parse_args()
@@ -44,7 +44,7 @@ def main():
     except (OSError, subprocess.SubprocessError) as error:
         results.append({'file': 'processes.json', 'error': str(error)})
     application_pids = {row['pid'] for row in process_rows
-                        if row['executable'].endswith('/Fuyu.app/Contents/MacOS/Fuyu')}
+                        if row['executable'].endswith(('/Sasa.app/Contents/MacOS/Sasa', '/Sasa Preview.app/Contents/MacOS/Sasa', '/Fuyu.app/Contents/MacOS/Fuyu', '/Fuyu Preview.app/Contents/MacOS/Fuyu'))}
     owned_pids = set(application_pids)
     while True:
         descendants = {row['pid'] for row in process_rows if row['ppid'] in owned_pids}
@@ -60,7 +60,7 @@ def main():
                    '--end', started.strftime('%Y-%m-%d %H:%M:%S'), '--style', 'ndjson', '--info']
     kernel_predicate = 'process == "kernel" AND eventMessage CONTAINS[c] ":' + str(arguments.port) + '"'
     helper_predicate = ('process == "nehelper" AND (eventMessage CONTAINS[c] "fuyu" '
-                        'OR eventMessage CONTAINS[c] "a.out")')
+                        'OR eventMessage CONTAINS[c] "sasa" OR eventMessage CONTAINS[c] "a.out")')
     results.append(capture(directory, 'kernel-network.ndjson', log_command + ['--predicate', kernel_predicate]))
     results.append(capture(directory, 'network-policy.ndjson', log_command + ['--predicate', helper_predicate]))
     for name, command in [
@@ -70,7 +70,7 @@ def main():
         ('routes.txt', ['netstat', '-rn', '-f', 'inet']),
     ]:
         results.append(capture(directory, name, command))
-    application_paths = {row['executable'].split('/Contents/MacOS/Fuyu')[0]
+    application_paths = {row['executable'].rsplit('/Contents/MacOS/', 1)[0]
                          for row in process_rows if row['pid'] in application_pids}
     for index, application_path in enumerate(sorted(application_paths)):
         results.append(capture(directory, 'signature-' + str(index) + '.txt',
@@ -85,7 +85,7 @@ def main():
     if failures:
         print('部分采集失败，请查看 capture.json；已保留其余证据。', flush=True)
     if not application_pids:
-        print('未找到正在运行的 Fuyu，已保存系统日志；下次请在重启前采集。', flush=True)
+        print('未找到正在运行的 Sasa / Fuyu，已保存系统日志；下次请在重启前采集。', flush=True)
     print('采集完成：' + str(directory), flush=True)
     print('文件仅保存到本机。保留故障会话，记录是哪条消息及大致发送时间。', flush=True)
     return 1 if failures else 0

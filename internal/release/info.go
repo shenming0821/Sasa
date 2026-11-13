@@ -50,6 +50,15 @@ func readInfo(executable string) (Info, error) {
 
 func (info Info) Name() string {
 	if info.Channel == "preview" {
+		return "Sasa Preview"
+	}
+	return "Sasa"
+}
+
+// DataName retains the original on-disk identity across the Sasa rename.
+// Keeping the directory also preserves absolute attachment and runtime paths.
+func (info Info) DataName() string {
+	if info.Channel == "preview" {
 		return "Fuyu Preview"
 	}
 	return "Fuyu"

@@ -49,7 +49,7 @@ type Client struct {
 }
 
 func Start(ctx context.Context, executable, cwd string) (*Client, error) {
-	// Fuyu applies its own close grace period. Once it unsubscribes, release
+	// Sasa applies its own close grace period. Once it unsubscribes, release
 	// native resources immediately rather than retaining another idle cache.
 	c, err := startProcess(executable, []string{"-c", "thread_unload_delay_secs=0", "app-server", "--listen", "stdio://"}, cwd)
 	if err != nil {
@@ -57,7 +57,7 @@ func Start(ctx context.Context, executable, cwd string) (*Client, error) {
 	}
 	var result json.RawMessage
 	err = c.Call(ctx, "initialize", map[string]any{
-		"clientInfo":   map[string]string{"name": "fuyu", "title": "Fuyu", "version": "0.1.0"},
+		"clientInfo":   map[string]string{"name": "fuyu", "title": "Sasa", "version": "0.1.0"},
 		"capabilities": map[string]bool{"experimentalApi": true},
 	}, &result)
 	if err == nil {
@@ -202,7 +202,7 @@ func (c *Client) rejectUnsupported(msg envelope) {
 	case "mcpServer/elicitation/request":
 		result = map[string]string{"action": "decline"}
 	default:
-		err := c.write(map[string]any{"id": msg.ID, "error": RPCError{Code: -32601, Message: "Fuyu does not support this interaction"}})
+		err := c.write(map[string]any{"id": msg.ID, "error": RPCError{Code: -32601, Message: "Sasa does not support this interaction"}})
 		c.unsupported(msg, err)
 		return
 	}

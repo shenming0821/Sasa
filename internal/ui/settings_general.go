@@ -94,7 +94,7 @@ func (a *App) generalSettings(c *native.Context) {
 				})
 			})
 		})
-		native.Text(c, "选择会写入 macOS 电源设置并需要管理员授权，退出 Fuyu 后仍然生效。").FontSize(11).TextColor(c.Theme().TextMuted).FillWidth()
+		native.Text(c, "选择会写入 macOS 电源设置并需要管理员授权，退出 Sasa 后仍然生效。").FontSize(11).TextColor(c.Theme().TextMuted).FillWidth()
 		if a.awakeSaving {
 			native.Text(c, "正在等待系统授权并更新电源设置…").FontSize(11).TextColor(c.Theme().TextMuted).FillWidth()
 		}

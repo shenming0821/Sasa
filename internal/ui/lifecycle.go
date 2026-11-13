@@ -161,7 +161,7 @@ func (a *App) installLifecycle() {
 		}
 	})
 	mygo.App.Dock.SetMenu(mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "打开 Fuyu", Click: func(*mygo.MenuItem, *mygo.Window) { a.win.Show() }},
+		{Label: "打开 Sasa", Click: func(*mygo.MenuItem, *mygo.Window) { a.win.Show() }},
 	}))
 	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
 		if a.quitting {
@@ -171,7 +171,7 @@ func (a *App) installLifecycle() {
 			a.cancelRestart()
 			e.PreventDefault()
 			a.settingsOpen = true
-			a.settingsError = "请先完成或取消系统电源授权，再退出 Fuyu。"
+			a.settingsError = "请先完成或取消系统电源授权，再退出 Sasa。"
 			a.win.Show()
 			a.win.Invalidate()
 			return
@@ -208,7 +208,7 @@ func (a *App) installLifecycle() {
 		a.win.Show()
 		go func() {
 			result, err := a.quitPrompt(mygo.MessageOptions{
-				Parent: a.win, Type: mygo.MessageWarning, Title: "退出 Fuyu",
+				Parent: a.win, Type: mygo.MessageWarning, Title: "退出 Sasa",
 				Message: fmt.Sprintf("仍有 %d 个任务正在运行，要退出吗？", len(tasks)),
 				Detail:  strings.Join(tasks, "\n") + "\n将停止 Agent 任务并等待原生终态，同时结束窗口内的终端 shell。独立后台进程仍需另行核验。",
 				Buttons: []string{"取消", "停止任务并退出"}, DefaultButton: 0, CancelButton: 0,

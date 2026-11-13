@@ -13,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 
-DEFAULT_APP = Path('/Applications/Fuyu.app')
+DEFAULT_APP = Path('/Applications/Sasa.app')
 DEFAULT_DATA = Path.home() / 'Library/Application Support/Fuyu'
 
 
@@ -212,7 +212,7 @@ class Tasks:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Fuyu 开发 worktree 登记与发布后回收')
+    parser = argparse.ArgumentParser(description='Sasa 开发 worktree 登记与发布后回收')
     commands = parser.add_subparsers(dest='command', required=True)
     for command in ('create', 'integrated'):
         commands.add_parser(command).add_argument('name')

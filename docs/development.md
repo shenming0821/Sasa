@@ -28,23 +28,23 @@ Go 安装在 `~/.local/share/fuyu/toolchains/go1.27.3/`，未修改系统工具�
 ./scripts/run-preview <上一步输出的构建ID>
 ```
 
-`scripts/build` 默认构建 Preview，等同于 `scripts/build preview`。候选保存于 `bin/candidates/<构建ID>/Fuyu Preview.app`，记录源码提交、包含未提交和未跟踪源码的摘要、全部产物校验值；构建期间源码变化则拒绝生成候选。`run-preview` 从指定候选复制至 `bin/Fuyu Preview.app` 并正常重启 Preview；不传构建 ID 时启动最近的候选。既有 `bin/Fuyu.app` 与 `bin/fuyu` 保留，日常构建不覆盖正式版。晋升命令为 `./scripts/promote <构建ID>`，默认安装 `/Applications/Fuyu.app`。完整发布、预检和回退步骤见[双渠道与发布](subsystems/releases.md)。当前为本机发布，尚未配置公证或网络更新服务。
+`scripts/build` 默认构建 Preview，等同于 `scripts/build preview`。候选保存于 `bin/candidates/<构建ID>/Sasa Preview.app`，记录源码提交、包含未提交和未跟踪源码的摘要、全部产物校验值；构建期间源码变化则拒绝生成候选。`run-preview` 从指定候选复制至 `bin/Sasa Preview.app` 并正常重启 Preview；不传构建 ID 时启动最近的候选。既有 `bin/Fuyu.app` 与 `bin/fuyu` 保留，日常构建不覆盖正式版。晋升命令为 `./scripts/promote <构建ID>`，默认安装 `/Applications/Sasa.app`。完整发布、预检和回退步骤见[双渠道与发布](subsystems/releases.md)。当前为本机发布，尚未配置公证或网络更新服务。
 
-图标源文件为 `assets/app-icon.png`，构建时通过 macOS 自带的 `sips` 和 `iconutil` 生成 16–1024 像素的多尺寸 `Resources/Fuyu.icns`，并写入 `CFBundleIconFile`。当前图标采用用户确认的蓝色 F 与橙色 Y 组合，底色为不透明纯白 `#FFFFFF`，PNG 为 1024×1024；可编辑矢量源保存在 `assets/app-icon.svg`。Preview 图标在该矢量源上增加紫色 P 标记，窗口标题显示 Preview 与构建 ID。更新矢量源后，执行 `sips -s format png assets/app-icon.svg --out assets/app-icon.png` 导出 PNG，再重新构建以更新图标。终端启动便于查看退出错误：
+图标源文件为 `assets/app-icon.png`，构建时通过 macOS 自带的 `sips` 和 `iconutil` 生成 16–1024 像素的多尺寸 `Resources/Sasa.icns`，并写入 `CFBundleIconFile`。当前图标预览采用最早 B 方案的圆头粗线条 S 与右下小写 a，S 为 `#EE3D46`、a 为 `#F4A13B`，底色为不透明纯白 `#FFFFFF`，PNG 为 1024×1024。`assets/app-icon.svg` 嵌入同一张已确认 PNG，供构建 Preview 时叠加紫色 P 标记；更新图标时同步两份资源，窗口标题显示 Sasa Preview 与构建 ID。终端启动便于查看退出错误：
 
 ```sh
-"bin/Fuyu Preview.app/Contents/MacOS/Fuyu" -cwd /path/to/project -codex codex
+"bin/Sasa Preview.app/Contents/MacOS/Sasa" -cwd /path/to/project -codex codex
 ```
 
 启动或晋升时替换完整 `.app`，并在本机 Launch Services 工具可用时重新登记此应用，使系统重新读取图标与 bundle 元数据。图标验证包含 Finder 实际预览，不能只核对 `.icns` 文件存在。正式图标历史回归见[图标验收](verification/2026-10-23-app-icon.md)。
 
-通过 Finder 或 Dock 启动时，Fuyu 自动发现 Codex，并为自身及其子进程补充 PATH。发现顺序为应用继承的 PATH、用户交互式登录 shell 的 PATH、当前用户的常见安装目录与系统安装目录；补充 Bun、npm 自定义前缀常用目录、pnpm、Volta、asdf 与 nvm 目录。nvm 额外检查 `NVM_DIR`、`~/.nvm` 和 `~/.local/share/nvm`；无已配置优先级时按版本号从新到旧补充。只读取安装位置，不安装或更新 Codex，也不修改系统环境或 shell 配置。
+通过 Finder 或 Dock 启动时，Sasa 自动发现 Codex，并为自身及其子进程补充 PATH。发现顺序为应用继承的 PATH、用户交互式登录 shell 的 PATH、当前用户的常见安装目录与系统安装目录；补充 Bun、npm 自定义前缀常用目录、pnpm、Volta、asdf 与 nvm 目录。nvm 额外检查 `NVM_DIR`、`~/.nvm` 和 `~/.local/share/nvm`；无已配置优先级时按版本号从新到旧补充。只读取安装位置，不安装或更新 Codex，也不修改系统环境或 shell 配置。
 
 `-codex /absolute/path` 优先使用指定文件，文件失效时明确报错。路径含空格可正常使用；自动搜索排除空目录与相对 PATH 项。npm/Bun 的 `#!/usr/bin/env node` 包装入口会检查 Node.js 是否可找到，避免只修复 Codex 路径后仍无法启动。
 
 窗口先恢复本地索引并显示，再后台发现与连接 Agent。登录 shell 环境探测最多等待 2 秒，输出最多 64 KiB，失败后继续检查常见目录；版本探测与 App Server 初始化并行，分别最多 5 秒和 60 秒。未找到 Codex、缺少 Node.js 或连接失败时，窗口显示具体原因。自定义安装位置可通过登录 shell 的 PATH 或 `-codex` 指定。实际验证见[启动路径验收](verification/2026-10-23-codex-discovery.md)。
 
-正式版默认数据目录为 `~/Library/Application Support/Fuyu`，Preview 为 `~/Library/Application Support/Fuyu Preview`，可用 `-data-dir /absolute/path` 指定同渠道的独立目录。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的原生历史根。正式版 Codex 沿用 `CODEX_HOME`（默认 `~/.codex`），Preview 使用自己数据目录下的 `runtimes/codex`。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
+应用已从 Fuyu 改名为 Sasa；应用包与主程序使用新名称，Bundle ID、签名证书、环境变量和数据目录沿用原有身份，以保留权限、配置与历史记录。正式版默认数据目录为 `~/Library/Application Support/Fuyu`，Preview 为 `~/Library/Application Support/Fuyu Preview`，可用 `-data-dir /absolute/path` 指定同渠道的独立目录。一个数据目录仅允许一个进程持有；同一索引绑定规范化后的原生历史根。正式版 Codex 沿用 `CODEX_HOME`（默认 `~/.codex`），Preview 使用自己数据目录下的 `runtimes/codex`。数据库损坏或高版本会明确报错并保留文件，避免覆盖原数据。详见[存储与恢复](subsystems/storage.md)。
 
 Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。正式版配置根来自 `CLAUDE_CONFIG_DIR`，默认 `~/.claude`；Preview 使用自己数据目录的 `runtimes/claude`。应用按 Agent 独立绑定根目录，子进程显式使用这一根，切换配置根时使用独立应用数据目录。Claude 检查点保存于应用数据目录的 `claude/`。缺失 CLI 时点击对应的新建图标显示具体原因，可继续使用另一可用 Agent。
 
@@ -54,7 +54,7 @@ Claude Code 使用 PATH、`~/.local/bin/claude`、Homebrew 常见目录发现。
 
 入口为 `cmd/desktop/main.go`。现有包与状态/进程边界见[子系统索引](subsystems/README.md)和[运行时说明](subsystems/codex-runtime.md)。
 
-构建在写完资源和 Info.plist 后，先签名内嵌 libghostty，再以当前渠道的 Bundle ID 签名整个应用（正式版 `com.shenming.fuyu`、Preview `com.shenming.fuyu.preview`），并严格核验包签名。`FUYU_CODESIGN_IDENTITY` 可指定钥匙串中的身份；未设置时，若登录钥匙串存在名为 `Fuyu Dev` 的自签代码签名证书则自动使用，否则回退 ad hoc 签名（`FUYU_CODESIGN_IDENTITY=-`）。Info.plist 包含局域网模型服务用途说明。macOS 按负责的 GUI 应用身份判定其子进程的局域网权限，终端 CLI 则自动获准访问；仅在 CLI 中连通不能证明 Fuyu 已获准。ad hoc 签名不能保证跨构建的权限身份稳定；`Fuyu Dev` 自签证书在本地构建间提供稳定签名身份，可靠追踪仍需 Apple 签发的身份。此前本机阻断与验证边界见[网络验证](verification/2026-11-02-local-network.md)。
+构建在写完资源和 Info.plist 后，先签名内嵌 libghostty，再以当前渠道的 Bundle ID 签名整个应用（正式版 `com.shenming.fuyu`、Preview `com.shenming.fuyu.preview`），并严格核验包签名。`FUYU_CODESIGN_IDENTITY` 可指定钥匙串中的身份；未设置时，若登录钥匙串存在名为 `Fuyu Dev` 的自签代码签名证书则自动使用，否则回退 ad hoc 签名（`FUYU_CODESIGN_IDENTITY=-`）。Info.plist 包含局域网模型服务用途说明。macOS 按负责的 GUI 应用身份判定其子进程的局域网权限，终端 CLI 则自动获准访问；仅在 CLI 中连通不能证明 Sasa 已获准。ad hoc 签名不能保证跨构建的权限身份稳定；`Fuyu Dev` 自签证书在本地构建间提供稳定签名身份，可靠追踪仍需 Apple 签发的身份。此前本机阻断与验证边界见[网络验证](verification/2026-11-02-local-network.md)。
 
 ## 3. 验证方式
 
@@ -120,7 +120,7 @@ FUYU_LIVE_AGENTS=1 ./scripts/go test ./internal/ui -run '^TestLiveAgentsRunIndep
 
 ## 5. 验证记录与交接
 
-Fuyu 间歇性无法收到模型回复时，在重启或切换网络前执行 `python3 scripts/diagnose-network.py`。默认保存最近 15 分钟、网关端口 3425 的内核网络日志，以及 Fuyu 进程树、nehelper、签名、系统代理与路由快照到 `~/Library/Logs/Fuyu/network/` 的独立目录；通过 `--minutes`、`--port` 调整实际窗口和端口。脚本保留每项命令的退出结果，采集失败时仍保留其余文件；不会发送测试请求、重启应用或改变网络配置。故障会话与大致发送时间需另行记录，用于对齐原生 Runtime 和网关时间。局域网签名故障证据与边界见[网络验证](verification/2026-11-02-local-network.md)。
+Sasa 间歇性无法收到模型回复时，在重启或切换网络前执行 `python3 scripts/diagnose-network.py`。默认保存最近 15 分钟、网关端口 3425 的内核网络日志，以及 Sasa 进程树、nehelper、签名、系统代理与路由快照到 `~/Library/Logs/Fuyu/network/` 的独立目录；通过 `--minutes`、`--port` 调整实际窗口和端口。脚本保留每项命令的退出结果，采集失败时仍保留其余文件；不会发送测试请求、重启应用或改变网络配置。故障会话与大致发送时间需另行记录，用于对齐原生 Runtime 和网关时间。局域网签名故障证据与边界见[网络验证](verification/2026-11-02-local-network.md)。
 
 实际验收后按需创建 `docs/verification/`，以“日期-主题.md”记录操作、输入、期望、实际结果和证据。协议/进程测试应记录失败分支；截图只用于证明对应的实际场景。
 

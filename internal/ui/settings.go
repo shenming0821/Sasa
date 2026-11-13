@@ -223,7 +223,7 @@ func (a *App) installSettingsMenu() {
 
 func (a *App) applicationMenu() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
-		{Label: "Fuyu", Submenu: []*mygo.MenuItem{
+		{Label: "Sasa", Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout}, mygo.Separator(),
 			{Label: "设置…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { a.win.Update(func() { a.openSettings() }); a.win.Show() }},
 			mygo.Separator(), {Role: mygo.RoleServices}, mygo.Separator(),
@@ -325,7 +325,7 @@ func (a *App) appearanceSettings(c *native.Context) {
 		family := a.preferences.EnglishFont + ", " + a.preferences.ChineseFont + ", system-ui"
 		native.Text(c, "让想法逐步成形，保持清晰与专注。").Font(family).FontSize(15).FillWidth()
 		native.Text(c, "Make room for your next idea. 0123456789").Font(family).FontSize(14).FillWidth()
-		native.Text(c, "const message = \"你好，Fuyu\";").Font(a.codeFontFamily()).FontSize(13).FillWidth()
+		native.Text(c, "const message = \"你好，Sasa\";").Font(a.codeFontFamily()).FontSize(13).FillWidth()
 	})
 }
 

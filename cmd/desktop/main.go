@@ -47,7 +47,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		*dataDir = filepath.Join(configDir, identity.Name())
+		*dataDir = filepath.Join(configDir, identity.DataName())
 	}
 	*dataDir, err = filepath.Abs(*dataDir)
 	if err != nil {
