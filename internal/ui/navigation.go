@@ -137,13 +137,6 @@ var refreshProjectIcon = icon(`<path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l
 
 var tabCloseIcon = icon(`<path d="m7 7 10 10M17 7 7 17"/>`)
 
-func activeTabFace(c *native.Context, row native.Element) {
-	theme := c.Theme()
-	row.Background(theme.Background).DrawOver(func(painter *native.Painter, bounds native.Rect) {
-		painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, theme.Accent, 0)
-	})
-}
-
 func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 	t := c.Theme()
 	renderedActive := a.activeTab
@@ -165,22 +158,23 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 						a.emptyTab(c.Key(tab.ID), tab)
 						continue
 					}
+					var target *session
 					if tab.Kind == "session" {
-						valid := false
 						for _, s := range a.sessions {
 							if s.id == tab.SessionID && s.open {
-								valid = true
+								target = s
+								break
 							}
 						}
-						if !valid {
+						if target == nil {
 							continue
 						}
 					}
 					tc := c.Key(tab.ID)
 					row := native.Row(tc).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
 					focused := a.paneIsFocused()
+					tabFace(tc, row, focused && tab.ID == a.activeTab, target)
 					if focused && tab.ID == a.activeTab {
-						activeTabFace(c, row)
 						if a.tabsSelected != a.activeTab {
 							row.ScrollIntoView()
 						}
@@ -240,7 +234,14 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 									}
 									native.Icon(tc, glyph).Size(12, 12).TextColor(t.TextMuted)
 								}
-								native.Text(tc, a.tabTitle(tab)).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+								title := native.Text(tc, a.tabTitle(tab)).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+								if target != nil {
+									title.Grow(1)
+									dot := native.Box(tc.Key("unread")).Size(6, 6).Shrink(0).Radius(3).Translate(14, 0)
+									if target.saved.Unread {
+										dot.Label("未读回复").Background(t.Accent)
+									}
+								}
 							})
 						})
 						if b.Clicked() {

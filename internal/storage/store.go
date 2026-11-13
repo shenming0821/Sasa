@@ -44,6 +44,7 @@ type Session struct {
 	DraftSkills     map[string]string
 	TurnID          string
 	Active          bool
+	Unread          bool `json:",omitempty"`
 	Anchor          string
 	AtEnd           bool
 	ScrollY         float32

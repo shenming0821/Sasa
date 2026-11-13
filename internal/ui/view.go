@@ -47,6 +47,7 @@ func (a *App) view(c *native.Context) {
 	defer a.hideInactiveTerminals()
 	a.syncActivePane()
 	a.focusVisiblePane(c)
+	a.markSelectedSessionRead()
 	if c.Shortcut(native.Cmd, native.KeyComma) {
 		a.openSettings()
 	}

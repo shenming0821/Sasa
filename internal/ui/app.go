@@ -594,6 +594,7 @@ func (a *App) applyBatch(batch []agent.Event) {
 }
 
 func (a *App) applySessionBatch(batch []agent.Event) {
+	previousReplyID, previousReply := a.session.latestReply()
 	follow := false
 	for _, e := range batch {
 		if a.kind.Normalized() == agent.Claude && e.Session.Agent == agent.Claude && e.Session.Runtime == a.runtimeKey && e.Session.SessionID == a.State.ThreadID && e.Generation > a.generation {
@@ -663,6 +664,9 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 	}
 	if !a.State.Busy || a.State.Disconnected {
 		clear(a.followResponses)
+	}
+	if replyID, reply := a.session.latestReply(); reply != "" && (replyID != previousReplyID || reply != previousReply) {
+		a.saved.Unread = !a.readingSession(a.session)
 	}
 	// Answering is an explicit request to continue this workflow. Position its
 	// next step after the form shrinks; unrelated stream updates keep the anchor.
