@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 func (a *App) restartApp() {
@@ -103,6 +104,8 @@ while /bin/kill -0 "$parent_pid" 2>/dev/null; do
     if [ "$attempts" -ge 300 ]; then exit 1; fi
     /bin/sleep 0.1
 done
-` + strings.Join(quoted, " ")
-	return exec.Command("/bin/sh", "-c", script)
+exec ` + strings.Join(quoted, " ")
+	cmd := exec.Command("/bin/sh", "-c", script)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return cmd
 }
