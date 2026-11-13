@@ -11,6 +11,9 @@ import (
 
 // Tabler Icons bulb, using the composer's existing stroke and theme color.
 var planBulbIcon = icon(`<path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17h4.6"/>`)
+
+// Lucide Play: https://github.com/lucide-icons/lucide/blob/main/icons/play.svg
+var planPlayIcon = icon(`<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>`)
 var planExitIcon = icon(`<path d="m6 6 12 12M18 6 6 18"/>`)
 
 func (a *App) canChangePlanMode() bool {
@@ -92,14 +95,11 @@ func (a *App) planActions(c *native.Context, m *app.Message) {
 	if !m.Plan || !a.canExecutePlan(m) {
 		return
 	}
-	native.Row(c).Gap(8).Children(func() {
-		if actionButton(c, "开始执行").Clicked() {
-			a.executePlan(m)
-		}
-		if actionButton(c, "继续完善").Clicked() {
-			a.composerFocus = true
-		}
-	})
+	b := quietIconButton(c, "开始执行").Size(24, 24).TextColor(c.Theme().Accent)
+	b.Children(func() { native.Icon(c, planPlayIcon).Size(16, 16) })
+	if b.Clicked() {
+		a.executePlan(m)
+	}
 }
 
 func (a *App) executePlan(m *app.Message) {

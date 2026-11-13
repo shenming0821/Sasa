@@ -169,6 +169,52 @@ func TestExecuteLatestPlanUsesDefaultModeAndSubmitsOnce(t *testing.T) {
 	}
 }
 
+func TestPlanExecuteIconSharesCopyToolbar(t *testing.T) {
+	for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+		for _, dark := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/dark=%v", kind, dark), func(t *testing.T) {
+				a := New(stubBackend{}, "test", "/workspace", nil)
+				if kind == agent.Claude {
+					if err := a.RegisterBackend(kind, "", &stubBackend{}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				a.kind = kind
+				a.selectedMode = agent.ModePlan
+				a.State.ThreadID, a.State.TurnID, a.State.Phase = "thread", "turn", "本轮已完成"
+				m := &app.Message{ID: "plan", Role: "assistant", Text: "实施方案", TurnID: "turn", Plan: true, Done: true}
+				a.State.Messages = []*app.Message{m}
+				tt := native.NewTester(func(c *native.Context) { a.message(c, m) }, 640, 240)
+				tt.SetDark(dark)
+				execute, found := tt.Find("开始执行")
+				copy, copyFound := tt.Find("复制回复")
+				if !found || !copyFound || execute.Y != copy.Y || execute.W != copy.W || execute.H != copy.H || execute.X+execute.W+8 != copy.X {
+					t.Fatal("execute and copy must share one toolbar with equal targets and an 8 DIP gap", execute, copy)
+				}
+				if _, found := tt.Find("继续完善"); found {
+					t.Fatal("redundant refine action is still visible")
+				}
+				savePlanFrame(t, tt, fmt.Sprintf("execute-%s-%v", kind, dark))
+				if err := tt.Click("复制回复"); err != nil || tt.Clipboard() != m.Text {
+					t.Fatal("copy action changed", err)
+				}
+				a.State.Draft = "补充意见"
+				if err := tt.Click("开始执行"); err != nil {
+					t.Fatal(err)
+				}
+				if a.State.Draft != "补充意见" || a.selectedMode != agent.ModePlan || a.executedPlanID != "" || a.State.Error == "" {
+					t.Fatal("icon bypassed the unsent draft guard")
+				}
+				a.State.Messages = append(a.State.Messages, &app.Message{ID: "next", Role: "user", Text: "补充意见"})
+				tt.Frame()
+				if _, visible := tt.Find("开始执行"); visible {
+					t.Fatal("old plan still exposes execution after a new request")
+				}
+			})
+		}
+	}
+}
+
 func TestPlanQueueCannotSteerAcrossModes(t *testing.T) {
 	backend := &followupBackend{calls: make(chan followupCall, 1), reply: make(chan error, 1)}
 	a := activeFollowupApp(backend)

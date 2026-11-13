@@ -527,9 +527,9 @@ func (a *App) message(c *native.Context, m *app.Message) {
 					native.Text(c, "计划").FontSize(12).TextColor(t.TextMuted)
 				}
 				a.messageMarkdown(c, m)
-				a.planActions(c, m)
 				if text := a.replyCopyText(m); text != "" {
-					native.Row(c).Children(func() {
+					native.Row(c).Gap(8).Children(func() {
+						a.planActions(c, m)
 						glyph, label := copyIcon, "复制回复"
 						if a.copiedID == m.ID {
 							glyph, label = checkIcon, "已复制"
