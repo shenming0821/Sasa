@@ -60,6 +60,11 @@ func TestImagePasteDropAndSessionDraftRecovery(t *testing.T) {
 	store := imageStore(t, a)
 	queue := make(chan func(), 10)
 	a.dispatch = func(fn func()) { queue <- fn }
+	t.Cleanup(func() {
+		for a.imageLoading || a.imagesImporting {
+			pumpUpdate(t, queue)
+		}
+	})
 	owner := a.session
 	a.State.Draft = "请分析这张图片"
 	tt := native.NewTester(func(c *native.Context) { native.Column(c).Fill().Children(func() { a.composer(c) }) }, 640, 360)
@@ -100,21 +105,20 @@ func TestImagePasteDropAndSessionDraftRecovery(t *testing.T) {
 		t.Fatal("paste changed the selected session instead of owner")
 	}
 	a.selectSession(owner)
-	a.dispatch = nil
 	tt.Frame()
 	if !tt.HasText("预览附件 2") {
 		t.Fatal("attachment preview missing")
 	}
-	a.dispatch = func(fn func()) { queue <- fn }
 	input, _ := tt.Find("任务输入")
 	if !tt.DropFiles(input.X+10, input.Y+10, ref.Path) {
 		t.Fatal("file drop was not accepted")
 	}
-	pumpUpdate(t, queue)
+	for a.imagesImporting {
+		pumpUpdate(t, queue)
+	}
 	if len(a.State.DraftImages) != 2 {
 		t.Fatal("same-content file drop duplicated screenshot")
 	}
-	a.dispatch = nil
 	if err := a.persist(); err != nil {
 		t.Fatal(err)
 	}
