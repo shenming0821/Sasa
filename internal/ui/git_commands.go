@@ -201,7 +201,7 @@ func (a *App) gitDiscard(w *workspacePage, entries []gitview.Entry) {
 	a.gitDiscardReview(w, entries, func(reviews []gitview.Review) {
 		w.gitDecision = &gitDecision{
 			title:  fmt.Sprintf("撤销 %d 个文件的改动？", len(entries)),
-			detail: strings.Join(names, "\n") + "\n已跟踪文件恢复至暂存版本；未跟踪文件移至 Fuyu 回收目录。",
+			detail: strings.Join(names, "\n") + "\n已跟踪文件恢复至暂存版本；未跟踪文件移至 Sasa 回收目录。",
 			labels: []string{"取消", "撤销改动"},
 			actions: []func(){nil, func() {
 				a.gitDiscardExec(w, entries, reviews)

@@ -92,7 +92,7 @@ func (controller *Controller) Sync() (string, error) {
 	return controller.mode, nil
 }
 
-// RestoreBaseline loads the values recorded before Fuyu first rewrote pmset.
+// RestoreBaseline loads the values recorded before Sasa first rewrote pmset.
 func (controller *Controller) RestoreBaseline(baseline Baseline) {
 	controller.mu.Lock()
 	defer controller.mu.Unlock()
@@ -135,7 +135,7 @@ func (controller *Controller) target(mode string, hasBattery bool) State {
 }
 
 // Set rewrites the system power profile for the requested mode. Changes made
-// through pmset are persistent and survive Fuyu restarts.
+// through pmset are persistent and survive Sasa restarts.
 func (controller *Controller) Set(mode string) error {
 	controller.operation.Lock()
 	defer controller.operation.Unlock()

@@ -24,10 +24,11 @@ BIN = ROOT / 'bin'
 CANDIDATES = BIN / 'candidates'
 SUPPORT = Path.home() / 'Library/Application Support'
 DEFAULT_DATA = SUPPORT / 'Fuyu'
-DEFAULT_APP = Path('/Applications/Fuyu.app')
-PREVIEW_APP = BIN / 'Fuyu Preview.app'
+DEFAULT_APP = Path('/Applications/Sasa.app')
+LEGACY_APP = Path('/Applications/Fuyu.app')
+PREVIEW_APP = BIN / 'Sasa Preview.app'
 IDENTITY = Path('Contents/Resources/release.json')
-EXECUTABLE = Path('Contents/MacOS/Fuyu')
+EXECUTABLE = Path('Contents/MacOS/Sasa')
 
 
 def run(*args, **kwargs):
@@ -130,16 +131,16 @@ def configure_channel(app, identity, channel):
     identity = dict(identity, channel=channel)
     write_json(app / IDENTITY, identity)
     preview = channel == 'preview'
-    name = 'Fuyu Preview' if preview else 'Fuyu'
+    name = 'Sasa Preview' if preview else 'Sasa'
     bundle_id = 'com.shenming.fuyu.preview' if preview else 'com.shenming.fuyu'
     set_executable_uuid(app / EXECUTABLE, uuid.uuid5(uuid.NAMESPACE_URL, bundle_id + '/' + identity['buildID']).bytes)
     metadata = {
-        'CFBundleExecutable': 'Fuyu', 'CFBundleIdentifier': bundle_id,
+        'CFBundleExecutable': 'Sasa', 'CFBundleIdentifier': bundle_id,
         'CFBundleName': name, 'CFBundleDisplayName': name,
-        'CFBundleIconFile': 'FuyuPreview.icns' if preview else 'Fuyu.icns',
+        'CFBundleIconFile': 'SasaPreview.icns' if preview else 'Sasa.icns',
         'CFBundlePackageType': 'APPL', 'CFBundleShortVersionString': identity['version'],
         'CFBundleVersion': identity['buildNumber'], 'NSHighResolutionCapable': True,
-        'NSLocalNetworkUsageDescription': 'Fuyu 需要连接你配置的局域网模型服务，以发送任务并接收回复。',
+        'NSLocalNetworkUsageDescription': 'Sasa 需要连接你配置的局域网模型服务，以发送任务并接收回复。',
     }
     with (app / 'Contents/Info.plist').open('wb') as handle:
         plistlib.dump(metadata, handle)
@@ -170,7 +171,7 @@ def make_icons(resources, temporary):
     badge.write_text(svg.replace('</svg>', '<rect x="716" y="716" width="288" height="288" rx="70" fill="#7544C4"/><path d="M806 934V786H865C934 786 934 870 865 870H806" fill="none" stroke="white" stroke-width="25" stroke-linejoin="round"/></svg>'))
     preview = temporary / 'preview.png'
     run('sips', '-s', 'format', 'png', badge, '--out', preview, stdout=subprocess.DEVNULL)
-    for source, name in [(base, 'Fuyu'), (preview, 'FuyuPreview')]:
+    for source, name in [(base, 'Sasa'), (preview, 'SasaPreview')]:
         iconset = temporary / f'{name}.iconset'
         iconset.mkdir()
         for size in [16, 32, 128, 256, 512]:
@@ -192,7 +193,7 @@ def build():
     CANDIDATES.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.build-', dir=CANDIDATES) as temporary:
         temporary = Path(temporary)
-        app = temporary / 'Fuyu Preview.app'
+        app = temporary / 'Sasa Preview.app'
         contents = app / 'Contents'
         resources = contents / 'Resources'
         (contents / 'MacOS').mkdir(parents=True)
@@ -209,18 +210,18 @@ def build():
             raise RuntimeError('构建期间源码发生变化，请重新构建候选版本。')
         write_json(temporary / 'candidate.json', {'identity': identity, 'files': inventory(app), 'payloadDigest': executable_payload(app)})
         for extra in temporary.iterdir():
-            if extra.name not in {'Fuyu Preview.app', 'candidate.json'}:
+            if extra.name not in {'Sasa Preview.app', 'candidate.json'}:
                 if extra.is_dir():
                     shutil.rmtree(extra)
                 else:
                     extra.unlink()
         destination = CANDIDATES / build_id
         temporary.rename(destination)
-    link = BIN / 'fuyu-preview'
+    link = BIN / 'sasa-preview'
     if link.exists() and not link.is_symlink():
         raise RuntimeError(f'保留既有文件，请手动处理：{link}')
     link.unlink(missing_ok=True)
-    link.symlink_to('Fuyu Preview.app/Contents/MacOS/Fuyu')
+    link.symlink_to('Sasa Preview.app/Contents/MacOS/Sasa')
     print(f'Preview 候选版本：{build_id}\n启动：./scripts/run-preview {build_id}\n发布：./scripts/promote {build_id}')
 
 
@@ -231,7 +232,9 @@ def candidate(build_id):
     if folder.is_symlink():
         raise RuntimeError('候选版本目录不能为符号链接。')
     manifest = read_json(folder / 'candidate.json')
-    app = folder / 'Fuyu Preview.app'
+    app = folder / 'Sasa Preview.app'
+    if not app.exists():
+        raise RuntimeError('此候选使用旧版应用命名，请重新构建 Sasa Preview。')
     if manifest['identity']['buildID'] != build_id or manifest['identity']['channel'] != 'preview':
         raise RuntimeError('候选版本身份不匹配。')
     if inventory(app) != manifest['files'] or read_json(app / IDENTITY) != manifest['identity']:
@@ -240,9 +243,21 @@ def candidate(build_id):
     return app, manifest['identity'], manifest['files']
 
 
+def application_executable(app):
+    # Rollback and the existing Preview may still contain the pre-rename binary.
+    metadata = app / 'Contents/Info.plist'
+    if metadata.exists():
+        with metadata.open('rb') as handle:
+            name = plistlib.load(handle).get('CFBundleExecutable')
+        if name not in {'Sasa', 'Fuyu'}:
+            raise RuntimeError(f'应用主程序名称无效：{app}')
+        return app / 'Contents/MacOS' / name
+    return app / EXECUTABLE
+
+
 class MacOS:
     def running(self, app):
-        executable = str((app / EXECUTABLE).resolve())
+        executable = str(application_executable(app).resolve())
         library = ctypes.CDLL('/usr/lib/libproc.dylib')
         library.proc_pidpath.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
         library.proc_pidpath.restype = ctypes.c_int
@@ -262,7 +277,7 @@ class MacOS:
                 with socket.socket(socket.AF_UNIX) as connection:
                     connection.settimeout(2)
                     connection.connect(str(control))
-                    connection.sendall(json.dumps({'action': 'quit', 'executable': str((app / EXECUTABLE).resolve())}).encode() + b'\n')
+                    connection.sendall(json.dumps({'action': 'quit', 'executable': str(application_executable(app).resolve())}).encode() + b'\n')
                     if connection.recv(64) != b'accepted\n':
                         raise RuntimeError(f'应用拒绝退出请求：{app}')
             else:
@@ -357,31 +372,42 @@ def validate_destination(app, data):
     if app.exists():
         with (app / 'Contents/Info.plist').open('rb') as handle:
             if plistlib.load(handle).get('CFBundleIdentifier') != 'com.shenming.fuyu':
-                raise RuntimeError('目标位置已有其他应用，请选择 Fuyu 正式版位置。')
+                raise RuntimeError('目标位置已有其他应用，请选择 Sasa 正式版位置。')
 
 
 def point_legacy_to_installed(app, transaction):
     legacy = BIN / 'Fuyu.app'
-    if legacy == app or (legacy.is_symlink() and legacy.resolve() == app.resolve()):
-        return
-    backup = BIN / '.stable-backups' / transaction / 'Fuyu.app'
-    if legacy.exists() or legacy.is_symlink():
-        backup.parent.mkdir(parents=True, exist_ok=True)
-        legacy.rename(backup)
-    try:
-        legacy.symlink_to(app, target_is_directory=True)
-    except OSError:
-        if backup.exists() or backup.is_symlink():
-            backup.rename(legacy)
-        raise
-    command = BIN / 'fuyu'
-    if not command.exists() and not command.is_symlink():
-        command.symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
+    if legacy != app and not (legacy.is_symlink() and legacy.resolve() == app.resolve()):
+        backup = BIN / '.stable-backups' / transaction / 'Fuyu.app'
+        if legacy.exists() or legacy.is_symlink():
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            legacy.rename(backup)
+        try:
+            legacy.symlink_to(app, target_is_directory=True)
+        except OSError:
+            if backup.exists() or backup.is_symlink():
+                backup.rename(legacy)
+            raise
+    named = BIN / 'Sasa.app'
+    if not named.exists() and not named.is_symlink():
+        named.symlink_to(app, target_is_directory=True)
+    target = 'Sasa.app/' + application_executable(app).relative_to(app).as_posix()
+    for name in ['fuyu', 'sasa']:
+        command = BIN / name
+        if command.is_symlink() and os.readlink(command) in {
+                'Fuyu.app/Contents/MacOS/Fuyu', 'Sasa.app/Contents/MacOS/Sasa',
+                'Sasa.app/Contents/MacOS/Fuyu', str(LEGACY_APP / 'Contents/MacOS/Fuyu')}:
+            command.unlink()
+        if not command.exists() and not command.is_symlink():
+            command.symlink_to(target)
 
 
 def promote(build_id, app, data, check=False):
     source, identity, expected_files = candidate(build_id)
     validate_destination(app, data)
+    legacy_install = app == DEFAULT_APP and app != LEGACY_APP and LEGACY_APP.exists() and not LEGACY_APP.is_symlink()
+    if legacy_install:
+        validate_destination(LEGACY_APP, data)
     if check:
         print(json.dumps({'candidate': identity, 'app': str(app), 'data': str(data)}, ensure_ascii=False, indent=2))
         return
@@ -391,7 +417,7 @@ def promote(build_id, app, data, check=False):
     with locked(releases / 'release.lock'):
         work = releases / (build_id + '-' + uuid.uuid4().hex[:8])
         work.mkdir(mode=0o700)
-        stage = work / 'Fuyu.app'
+        stage = work / 'Sasa.app'
         shutil.copytree(source, stage)
         if inventory(stage) != expected_files:
             raise RuntimeError('复制期间候选产物发生变化，请重新核对候选版本。')
@@ -405,6 +431,8 @@ def promote(build_id, app, data, check=False):
         legacy = BIN / 'Fuyu.app'
         if app.exists():
             app.rename(work / 'previous.app')
+        elif legacy_install:
+            shutil.copytree(LEGACY_APP, work / 'previous.app')
         elif data == DEFAULT_DATA and legacy != app and legacy.exists():
             shutil.copytree(legacy, work / 'previous.app')
         try:
@@ -424,6 +452,13 @@ def promote(build_id, app, data, check=False):
         if app == DEFAULT_APP and data == DEFAULT_DATA:
             try:
                 point_legacy_to_installed(app, work.name)
+                if app != LEGACY_APP and LEGACY_APP.exists() and not LEGACY_APP.is_symlink():
+                    LEGACY_APP.rename(work / 'legacy-installed.app')
+                    try:
+                        LEGACY_APP.symlink_to(app, target_is_directory=True)
+                    except OSError:
+                        (work / 'legacy-installed.app').rename(LEGACY_APP)
+                        raise
             except OSError as alias_error:
                 print(f'正式版已更新，旧入口同步失败：{alias_error}。请从 {app} 启动。', file=sys.stderr)
         print(f'正式版已就位，将在下次启动时生效：{build_id}\n应用：{app}\n恢复资料：{work}')
@@ -470,6 +505,8 @@ def rollback(app, data, timeout, restore=False, platform=None):
         receipt['state'] = 'rolled-back'
         write_json(work / 'receipt.json', receipt)
         register(app)
+        if app == DEFAULT_APP and data == DEFAULT_DATA:
+            point_legacy_to_installed(app, work.name)
         platform.reopen(app, data, work)
         print(f'已恢复上一版：{app}\n恢复记录：{work}')
 
@@ -479,11 +516,14 @@ def run_preview(build_id, timeout):
     platform = MacOS()
     with locked(BIN / 'preview.lock'):
         with tempfile.TemporaryDirectory(prefix='.preview-', dir=BIN) as temporary:
-            stage = Path(temporary) / 'Fuyu Preview.app'
+            stage = Path(temporary) / 'Sasa Preview.app'
             shutil.copytree(source, stage)
             if inventory(stage) != expected_files:
                 raise RuntimeError('复制期间候选产物发生变化，请重新核对候选版本。')
             platform.stop(PREVIEW_APP, timeout)
+            legacy_preview = BIN / 'Fuyu Preview.app'
+            if legacy_preview.exists():
+                platform.stop(legacy_preview, timeout)
             if PREVIEW_APP.exists():
                 PREVIEW_APP.rename(Path(temporary) / 'previous.app')
             stage.rename(PREVIEW_APP)
@@ -495,7 +535,7 @@ def run_preview(build_id, timeout):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Fuyu 本机 Preview 构建、验收与正式版晋升')
+    parser = argparse.ArgumentParser(description='Sasa 本机 Preview 构建、验收与正式版晋升')
     commands = parser.add_subparsers(dest='command', required=True)
     builder = commands.add_parser('build')
     builder.add_argument('channel', nargs='?', choices=['preview'], default='preview')
@@ -536,5 +576,5 @@ if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError, sqlite3.Error) as error:
-        print(f'Fuyu：{error}', file=sys.stderr)
+        print(f'Sasa：{error}', file=sys.stderr)
         sys.exit(1)

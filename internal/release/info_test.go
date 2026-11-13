@@ -136,3 +136,18 @@ func TestReadyAcknowledgement(t *testing.T) {
 		t.Fatal("Preview window lacks channel identity")
 	}
 }
+
+func TestSasaRenameKeepsExistingDataDirectories(t *testing.T) {
+	for _, tc := range []struct{ channel, name, data string }{
+		{"stable", "Sasa", "Fuyu"},
+		{"preview", "Sasa Preview", "Fuyu Preview"},
+	} {
+		info := Info{Channel: tc.channel, BuildID: "test-build"}
+		if info.Name() != tc.name || info.DataName() != tc.data {
+			t.Fatalf("channel %s: name=%q data=%q", tc.channel, info.Name(), info.DataName())
+		}
+		if !strings.HasPrefix(info.WindowTitle(), tc.name) {
+			t.Fatalf("unexpected window title: %q", info.WindowTitle())
+		}
+	}
+}

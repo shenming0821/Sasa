@@ -160,7 +160,7 @@ func Open(dir string) (_ *Store, err error) {
 	}
 	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		lock.Close()
-		return nil, fmt.Errorf("Fuyu 数据目录正在使用：%w", err)
+		return nil, fmt.Errorf("Sasa 数据目录正在使用：%w", err)
 	}
 	s := &Store{lock: lock, dir: dir}
 	defer func() {

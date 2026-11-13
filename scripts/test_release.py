@@ -83,11 +83,20 @@ class FakePlatform:
 
 
 class MacOSLaunchTests(unittest.TestCase):
+    def test_shutdown_resolves_old_and_new_executable_names(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / 'app.app'
+            (app / 'Contents').mkdir(parents=True)
+            for name in ['Fuyu', 'Sasa']:
+                with (app / 'Contents/Info.plist').open('wb') as handle:
+                    plistlib.dump({'CFBundleExecutable': name}, handle)
+                self.assertEqual(release.application_executable(app), app / 'Contents/MacOS' / name)
+
     def test_open_uses_launch_services_and_preserves_runtime_paths(self):
         with patch.object(release, 'run') as run, patch.dict(release.os.environ, {'PATH': '/runtime/bin', 'CODEX_HOME': '/runtime/codex', 'CLAUDE_CONFIG_DIR': '/runtime/claude'}, clear=True):
-            release.MacOS().open_app(Path('/Applications/Fuyu.app'), ['-data-dir', '/data'], Path('/logs/startup.log'))
+            release.MacOS().open_app(Path('/Applications/Sasa.app'), ['-data-dir', '/data'], Path('/logs/startup.log'))
         self.assertEqual(run.call_args.args, (
-            '/usr/bin/open', '-n', '-a', '/Applications/Fuyu.app', '--stdout', '/logs/startup.log', '--stderr', '/logs/startup.log',
+            '/usr/bin/open', '-n', '-a', '/Applications/Sasa.app', '--stdout', '/logs/startup.log', '--stderr', '/logs/startup.log',
             '--env', 'PATH=/runtime/bin', '--env', 'CODEX_HOME=/runtime/codex', '--env', 'CLAUDE_CONFIG_DIR=/runtime/claude', '--args', '-data-dir', '/data'))
 
     def check_launch(self, reported_pid, running):
@@ -125,11 +134,11 @@ class ReleaseTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.bin = self.root / 'bin'
         self.candidates = self.bin / 'candidates'
-        self.app = self.root / 'Applications/Fuyu.app'
+        self.app = self.root / 'Applications/Sasa.app'
         self.data = self.root / 'stable-data'
         self.build_id = 'candidate-1'
         self.identity = {'channel': 'preview', 'buildID': self.build_id, 'sourceVersion': 'source', 'sourceDigest': 'digest', 'version': '0.1.0', 'schemaVersion': 6, 'buildNumber': '1'}
-        self.source = self.candidates / self.build_id / 'Fuyu Preview.app'
+        self.source = self.candidates / self.build_id / 'Sasa Preview.app'
         for app, binary, channel in [(self.app, b'old-program', 'stable'), (self.source, b'tested-program', 'preview')]:
             (app / 'Contents/MacOS').mkdir(parents=True)
             (app / 'Contents/Resources').mkdir()
@@ -144,7 +153,7 @@ class ReleaseTests(unittest.TestCase):
             database.execute('CREATE TABLE sample(value TEXT)')
             database.execute('INSERT INTO sample VALUES("original")')
         (self.data / 'draft').write_text('unsaved draft')
-        self.patches = [patch.object(release, 'BIN', self.bin), patch.object(release, 'CANDIDATES', self.candidates), patch.object(release, 'PREVIEW_APP', self.bin / 'Fuyu Preview.app'), patch.object(release, 'sign'), patch.object(release, 'register'), patch.object(release, 'run')]
+        self.patches = [patch.object(release, 'LEGACY_APP', self.root / 'Applications/Fuyu.app'), patch.object(release, 'BIN', self.bin), patch.object(release, 'CANDIDATES', self.candidates), patch.object(release, 'PREVIEW_APP', self.bin / 'Sasa Preview.app'), patch.object(release, 'sign'), patch.object(release, 'register'), patch.object(release, 'run')]
         for mock in self.patches:
             mock.start()
             self.addCleanup(mock.stop)
@@ -158,6 +167,68 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
         with (self.app / 'Contents/Info.plist').open('rb') as handle:
             self.assertEqual(plistlib.load(handle)['CFBundleIdentifier'], 'com.shenming.fuyu')
+
+    def test_new_brand_keeps_application_identity_and_data(self):
+        with (self.app / 'Contents/Info.plist').open('rb') as handle:
+            metadata = plistlib.load(handle)
+        self.assertEqual(metadata['CFBundleName'], 'Sasa')
+        self.assertEqual(metadata['CFBundleDisplayName'], 'Sasa')
+        self.assertEqual(metadata['CFBundleIdentifier'], 'com.shenming.fuyu')
+        self.assertEqual(metadata['CFBundleIconFile'], 'Sasa.icns')
+        self.assertEqual(release.DEFAULT_DATA.name, 'Fuyu')
+
+    def test_rename_preserves_previous_install_and_redirects_old_entry(self):
+        legacy = self.app.parent / 'Fuyu.app'
+        release.shutil.copytree(self.app, legacy)
+        release.shutil.rmtree(self.app)
+        old_executable = Path('Contents/MacOS/Fuyu')
+        (legacy / release.EXECUTABLE).rename(legacy / old_executable)
+        with (legacy / 'Contents/Info.plist').open('rb') as handle:
+            metadata = plistlib.load(handle)
+        metadata['CFBundleExecutable'] = 'Fuyu'
+        with (legacy / 'Contents/Info.plist').open('wb') as handle:
+            plistlib.dump(metadata, handle)
+        self.bin.mkdir(exist_ok=True)
+        (self.bin / 'fuyu').symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
+        with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
+            release.promote(self.build_id, self.app, self.data)
+        self.assertTrue(legacy.is_symlink())
+        self.assertEqual(legacy.resolve(), self.app.resolve())
+        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'tested-program')
+        self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
+        self.assertEqual((self.bin / 'Sasa.app').resolve(), self.app.resolve())
+        self.assertEqual((self.bin / 'sasa').resolve(), (self.app / release.EXECUTABLE).resolve())
+        self.assertEqual((self.bin / 'fuyu').resolve(), (self.app / release.EXECUTABLE).resolve())
+        transaction = release.read_json(self.app.parent / '.Fuyu-releases/latest.json')['transaction']
+        self.assertEqual((self.app.parent / '.Fuyu-releases' / transaction / 'previous.app' / old_executable).read_bytes(), b'old-program')
+        with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
+            release.rollback(self.app, self.data, 1, platform=FakePlatform())
+        self.assertEqual((self.app / old_executable).read_bytes(), b'old-program')
+        self.assertEqual((legacy / old_executable).read_bytes(), b'old-program')
+        self.assertEqual((self.bin / 'fuyu').resolve(), (self.app / old_executable).resolve())
+        self.assertEqual((self.bin / 'sasa').resolve(), (self.app / old_executable).resolve())
+
+    def test_preview_stops_both_names_before_reusing_preview_data(self):
+        platform = FakePlatform()
+        legacy = self.bin / 'Fuyu Preview.app'
+        release.shutil.copytree(self.app, legacy)
+        with patch.object(release, 'MacOS', return_value=platform), patch.object(release, 'SUPPORT', self.root / 'support'):
+            release.run_preview(self.build_id, 1)
+        self.assertEqual(platform.stops, [release.PREVIEW_APP, legacy])
+        self.assertEqual(len(platform.launches), 1)
+        self.assertEqual(release.inventory(release.PREVIEW_APP), release.inventory(self.source))
+
+    def test_rename_precheck_preserves_an_unrelated_old_application(self):
+        legacy = self.app.parent / 'Fuyu.app'
+        release.shutil.copytree(self.app, legacy)
+        with (legacy / 'Contents/Info.plist').open('wb') as handle:
+            plistlib.dump({'CFBundleIdentifier': 'another.application'}, handle)
+        before = release.inventory(legacy)
+        with patch.object(release, 'DEFAULT_APP', self.app):
+            with self.assertRaisesRegex(RuntimeError, '已有其他应用'):
+                release.promote(self.build_id, self.app, self.data, check=True)
+        self.assertEqual(release.inventory(legacy), before)
+        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
 
     def test_snapshot_checkpointed_wal_without_sidecars(self):
         data = self.root / 'closed-wal-data'
@@ -224,7 +295,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(legacy.is_symlink())
         self.assertEqual(legacy.resolve(), self.app.resolve())
         self.assertEqual((legacy / release.EXECUTABLE).read_bytes(), b'tested-program')
-        self.assertTrue(list((self.bin / '.stable-backups').glob('*/Fuyu.app/Contents/MacOS/Fuyu')))
+        self.assertTrue(list((self.bin / '.stable-backups').glob('*/Fuyu.app/Contents/MacOS/Sasa')))
 
     def test_schema_rollback_requires_explicit_restore_and_preserves_newer_backup(self):
         release.promote(self.build_id, self.app, self.data)

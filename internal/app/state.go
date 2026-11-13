@@ -129,7 +129,7 @@ func (s *State) Apply(event agent.Event) {
 		s.FinishTiming()
 		s.expireInteractions("已失效")
 		s.Disconnected, s.Busy, s.Phase = true, false, "连接已断开"
-		s.Error = s.Agent.String() + " 连接已断开，请重新启动 Fuyu。当前结果尚需核验。"
+		s.Error = s.Agent.String() + " 连接已断开，请重新启动 Sasa。当前结果尚需核验。"
 		if event.Err != nil {
 			s.Error += " " + event.Err.Error()
 		}

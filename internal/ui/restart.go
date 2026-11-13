@@ -75,7 +75,7 @@ func replacementArguments(executable string, arguments []string) ([]string, erro
 	contents := filepath.Dir(filepath.Dir(executable))
 	application := filepath.Dir(contents)
 	if filepath.Base(filepath.Dir(executable)) != "MacOS" || filepath.Base(contents) != "Contents" || filepath.Ext(application) != ".app" {
-		return nil, fmt.Errorf("请从 Fuyu 应用包启动后重启")
+		return nil, fmt.Errorf("请从 Sasa 应用包启动后重启")
 	}
 	launch := []string{"/usr/bin/open", "-n", "-a", application}
 	for _, name := range []string{"PATH", "CODEX_HOME", "CLAUDE_CONFIG_DIR"} {

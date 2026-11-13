@@ -122,7 +122,7 @@ func New(backend Backend, version, cwd string, startupErr error) *App {
 	// bar's selected-text seeding reads through a.selSeed.
 	a.md.ShareSelection = true
 	if startupErr != nil {
-		a.State.Error, a.State.Phase = "连接 Agent 失败，请核对可执行路径和配置后重新启动 Fuyu："+startupErr.Error(), "连接失败"
+		a.State.Error, a.State.Phase = "连接 Agent 失败，请核对可执行路径和配置后重新启动 Sasa："+startupErr.Error(), "连接失败"
 		a.State.Disconnected = true
 	}
 	a.submit = a.send
@@ -161,10 +161,10 @@ func (a *App) Run() (runErr error) {
 		a.applySystemTheme()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: a.windowTitle(), Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
-			TitleBarStyle:       mygo.TitleBarHiddenInset,
+			TitleBarStyle:        mygo.TitleBarHiddenInset,
 			TrafficLightPosition: &mygo.Point{X: 12, Y: 16},
-			StateKey:            "main",
-			Content:             native.View(a.view),
+			StateKey:             "main",
+			Content:              native.View(a.view),
 		})
 		a.installLifecycle()
 		a.installSettingsMenu()
@@ -481,7 +481,7 @@ func (a *App) applySubmissionFailure(sequence int, text string, err error, turnS
 		// No turn/start was attempted, so retrying cannot duplicate execution.
 		a.State.Error, a.State.Phase = "创建会话失败，可稍后重新发送："+err.Error(), "会话创建失败"
 	} else {
-		a.State.Error, a.State.Phase = "请求结果未确认，请重新启动 Fuyu 并核验原生记录："+err.Error(), "请求待核验"
+		a.State.Error, a.State.Phase = "请求结果未确认，请重新启动 Sasa 并核验原生记录："+err.Error(), "请求待核验"
 		a.State.Disconnected = true
 	}
 	a.editSendFailed()

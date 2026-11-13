@@ -18,5 +18,5 @@ func (a *App) windowTitle() string {
 	if a.releaseTitle != "" {
 		return a.releaseTitle
 	}
-	return "Fuyu"
+	return "Sasa"
 }

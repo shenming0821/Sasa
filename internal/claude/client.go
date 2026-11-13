@@ -67,7 +67,7 @@ func ResolveExecutable() (string, error) {
 			return path, nil
 		}
 	}
-	return "", fmt.Errorf("未找到 Claude Code，请安装 Claude Code CLI 后重新启动 Fuyu")
+	return "", fmt.Errorf("未找到 Claude Code，请安装 Claude Code CLI 后重新启动 Sasa")
 }
 
 func New(executable, home, stateDir string) (*Client, error) {

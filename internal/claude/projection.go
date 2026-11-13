@@ -190,7 +190,7 @@ func (r *execution) permissionRequest(message frame, size int) {
 		return
 	}
 	if r.identity.ID == "" || request.Subtype != "can_use_tool" || size > 256<<10 {
-		_ = r.write(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "error", "request_id": message.RequestID, "error": "Fuyu does not support this control request"}})
+		_ = r.write(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "error", "request_id": message.RequestID, "error": "Sasa does not support this control request"}})
 		return
 	}
 	r.mu.Lock()
