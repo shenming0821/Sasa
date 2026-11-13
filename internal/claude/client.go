@@ -29,21 +29,23 @@ type Client struct {
 }
 
 type session struct {
-	ID             string                  `json:"id"`
-	Cwd            string                  `json:"cwd"`
-	Title          string                  `json:"title"`
-	Model          string                  `json:"model"`
-	EffectiveModel string                  `json:"effectiveModel,omitempty"`
-	Version        string                  `json:"version,omitempty"`
-	Turns          []checkpoint            `json:"turns"`
-	Generation     agent.ProcessGeneration `json:"generation"`
-	Digest         string                  `json:"digest"`
-	ResumeSource   string                  `json:"resumeSource,omitempty"`
-	ResumeAt       string                  `json:"resumeAt,omitempty"`
-	ResumeDigest   string                  `json:"resumeDigest,omitempty"`
-	run            *execution
-	idle           *execution
-	retiring       *execution
+	ID                 string                  `json:"id"`
+	Cwd                string                  `json:"cwd"`
+	Title              string                  `json:"title"`
+	Model              string                  `json:"model"`
+	EffectiveModel     string                  `json:"effectiveModel,omitempty"`
+	Version            string                  `json:"version,omitempty"`
+	BasePermissionMode string                  `json:"basePermissionMode,omitempty"`
+	PermissionMode     string                  `json:"permissionMode,omitempty"`
+	Turns              []checkpoint            `json:"turns"`
+	Generation         agent.ProcessGeneration `json:"generation"`
+	Digest             string                  `json:"digest"`
+	ResumeSource       string                  `json:"resumeSource,omitempty"`
+	ResumeAt           string                  `json:"resumeAt,omitempty"`
+	ResumeDigest       string                  `json:"resumeDigest,omitempty"`
+	run                *execution
+	idle               *execution
+	retiring           *execution
 }
 
 type checkpoint struct {

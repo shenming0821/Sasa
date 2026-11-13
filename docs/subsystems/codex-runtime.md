@@ -26,6 +26,8 @@ Codex 0.166.0 的原生模型管理器可能在目录刷新失败后返回成功
 
 ## 状态与 UI
 
+`turn/start` 按会话所选计划模式发送原生 `collaborationMode`；模式设置使用当前已确认模型及推理强度，`developer_instructions=null` 采用原生指令。`item/plan/delta` 和最终 `plan` 条目投影为方案正文，最终条目覆盖流式文本，并用于历史恢复与缺口核验。确认方案后在同一 thread 显式切回 `default` 再发起实施；交互和验证边界见[计划模式](sessions.md#计划模式)。
+
 `internal/app/state.go` 在 UI 线程投影 thread、turn、消息与连接状态。增量与最终文本按 item ID 合并；已结束 turn 的重复事件不能结束下一次提交。连接失效后保持失联，晚到事件不恢复执行。
 
 `internal/ui/app.go` 通过 `Window.Update` 将后台结果投递到主线程。MyGo 的 Update **异步返回**，不能将其当成同步屏障。首条可见输出、审批/提问、开始/结束、断线和错误立即刷新；后续文字按 40 ms / 最多 256 条批量应用，等待本批主线程回调完成后再派发下一批，同时限制 UI 的待执行工作量；使用原生虚拟列表、稳定消息 ID 与跟随末尾。

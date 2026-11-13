@@ -33,7 +33,7 @@ func (a *App) enqueueInput(text string, images []attachment.Image) {
 		CreatedAt: time.Now(),
 		ID:        fmt.Sprintf("%x-%x-%x-%x-%x", identity[:4], identity[4:6], identity[6:8], identity[8:10], identity[10:]),
 		Text:      text, Images: images, Skills: a.draftSkills(text), Status: "queued",
-		Options: agent.TurnOptions{Model: a.selectedModel, Effort: effort, ServiceTier: tier},
+		Options: agent.TurnOptions{Model: a.selectedModel, Effort: effort, ServiceTier: tier, Mode: a.selectedMode},
 	}
 	a.pendingInputs = append(a.pendingInputs, pending)
 	if _, ok := a.sessionBackend().(agent.TurnSteerer); ok && a.State.Busy {
@@ -147,6 +147,8 @@ func (a *App) drainInputs() {
 		}
 		draft, images := a.State.Draft, a.State.DraftImages
 		model, effort, tier := a.selectedModel, a.selectedEffort, a.selectedTier
+		mode := a.selectedMode
+		a.selectedMode = pending.Options.Mode
 		a.selectedModel, a.selectedEffort, a.selectedTier = pending.Options.Model, pending.Options.Effort, pending.Options.ServiceTier
 		sequence := a.State.Sequence
 		for _, skill := range pending.Skills {
@@ -158,6 +160,7 @@ func (a *App) drainInputs() {
 		a.pendingInputs = slices.Delete(a.pendingInputs, index, index+1)
 		a.sendInputForMessage(pending.Text, pending.Images, false, pending.ID)
 		a.selectedModel, a.selectedEffort, a.selectedTier = model, effort, tier
+		a.selectedMode = mode
 		a.State.Draft, a.State.DraftImages = draft, images
 		if a.State.Sequence == sequence || !a.State.Busy {
 			pending.Status, pending.Error = "failed", a.State.Error
@@ -166,7 +169,7 @@ func (a *App) drainInputs() {
 		return
 	}
 	sender, ok := a.sessionBackend().(agent.TurnSteerer)
-	if !ok || a.State.TurnID == "" || a.submitCancel != nil || a.State.PendingSubmission() != nil {
+	if !ok || pending.Options.Mode != a.activeMode || a.State.TurnID == "" || a.submitCancel != nil || a.State.PendingSubmission() != nil {
 		return
 	}
 	threadID, turnID := a.State.ThreadID, a.State.TurnID

@@ -134,6 +134,10 @@ func (a *App) toolCard(c *native.Context, t *app.Tool) {
 }
 
 func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
+	if r.Request.Kind == "ExitPlanMode" || r.Request.Kind == "EnterPlanMode" {
+		a.planApprovalCard(c, r)
+		return
+	}
 	t := c.Theme()
 	request := r.Request
 	title := "需要批准命令"
@@ -147,17 +151,17 @@ func (a *App) interactionCard(c *native.Context, r *app.Interaction) {
 	}
 	native.Column(c).FillWidth().Gap(10).Padding(14).Radius(12).
 		Border(1, t.Border.Alpha(.6)).Background(t.Surface).Clip().DrawOver(func(painter *native.Painter, bounds native.Rect) {
-			bar := native.Color{}
-			switch {
-			case r.Active():
-				bar = t.Warning
-			case request.Method == "item/tool/requestUserInput":
-				bar = t.Accent
-			}
-			if bar != (native.Color{}) {
-				painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y, W: 3, H: bounds.H}, bar, 0)
-			}
-		}).Children(func() {
+		bar := native.Color{}
+		switch {
+		case r.Active():
+			bar = t.Warning
+		case request.Method == "item/tool/requestUserInput":
+			bar = t.Accent
+		}
+		if bar != (native.Color{}) {
+			painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y, W: 3, H: bounds.H}, bar, 0)
+		}
+	}).Children(func() {
 		native.Row(c).FillWidth().Gap(8).Children(func() {
 			native.Text(c, title).FontSize(14).Grow(1)
 			native.Text(c, r.Status).FontSize(11).TextColor(t.TextMuted)

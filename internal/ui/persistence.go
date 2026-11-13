@@ -120,6 +120,10 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		s.State.Agent = s.kind
 		s.open = slices.Contains(snapshot.OpenTabs, saved.ID) && !isBlankUnboundSession(saved)
 		s.State.ThreadID, s.State.Draft = saved.ThreadID, saved.Draft
+		if saved.SelectedMode.Valid() {
+			s.selectedMode = saved.SelectedMode
+		}
+		s.executedPlanID = saved.ExecutedPlanID
 		s.State.DraftImages = slices.Clone(saved.DraftImages)
 		s.pendingInputs = slices.Clone(saved.PendingInputs)
 		for index := range s.pendingInputs {
@@ -254,6 +258,7 @@ func (a *App) snapshot() storage.Snapshot {
 		item.DraftImages = slices.Clone(s.State.DraftImages)
 		item.SelectedModel = s.selectedModel
 		item.SelectedEffort, item.SelectedTier = s.selectedEffort, s.selectedTier
+		item.SelectedMode, item.ExecutedPlanID = s.selectedMode, s.executedPlanID
 		item.Agent, item.Runtime, item.ModelAgent = s.kind.Normalized(), s.runtimeKey, s.kind.Normalized()
 		item.DraftSkills = make(map[string]string)
 		for _, skill := range s.draftSkills(s.State.Draft) {

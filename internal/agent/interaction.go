@@ -30,6 +30,7 @@ type Interaction struct {
 	Command                         string            `json:"command"`
 	Cwd                             string            `json:"cwd"`
 	Reason                          string            `json:"reason"`
+	Plan                            string            `json:"plan,omitempty"`
 	Kind                            string            `json:"kind"`
 	GrantRoot                       string            `json:"grantRoot"`
 	Permissions                     json.RawMessage   `json:"permissions"`

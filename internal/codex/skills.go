@@ -41,6 +41,9 @@ func (c *Client) SendWithModel(ctx context.Context, threadID, text string, skill
 }
 
 func (c *Client) SendWithOptions(ctx context.Context, threadID, text string, skills []Skill, images []attachment.Image, options agent.TurnOptions) (Turn, error) {
+	if !options.Mode.Valid() {
+		return Turn{}, &agent.NotSubmittedError{Err: fmt.Errorf("无效的协作模式：%s", options.Mode)}
+	}
 	input := userInput(text, skills, images)
 	var result struct {
 		Turn Turn `json:"turn"`
@@ -54,6 +57,20 @@ func (c *Client) SendWithOptions(ctx context.Context, threadID, text string, ski
 	}
 	if options.ServiceTier != "" {
 		params["serviceTierForTurn"] = options.ServiceTier
+	}
+	if options.Mode != "" {
+		model := options.Model
+		if model == "" {
+			return Turn{}, &agent.NotSubmittedError{Err: fmt.Errorf("协作模式需要已确认的模型，本次未发送")}
+		}
+		var effort any
+		if options.Effort != "" {
+			effort = options.Effort
+		}
+		params["collaborationMode"] = map[string]any{
+			"mode":     options.Mode,
+			"settings": map[string]any{"model": model, "reasoning_effort": effort, "developer_instructions": nil},
+		}
 	}
 	err := c.Call(ctx, "turn/start", params, &result)
 	return result.Turn, err

@@ -161,10 +161,10 @@ func (a *App) Run() (runErr error) {
 		a.applySystemTheme()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title: a.windowTitle(), Width: 1000, Height: 760, MinWidth: 640, MinHeight: 480,
-			TitleBarStyle:       mygo.TitleBarHiddenInset,
+			TitleBarStyle:        mygo.TitleBarHiddenInset,
 			TrafficLightPosition: &mygo.Point{X: 12, Y: 16},
-			StateKey:            "main",
-			Content:             native.View(a.view),
+			StateKey:             "main",
+			Content:              native.View(a.view),
 		})
 		a.installLifecycle()
 		a.installSettingsMenu()
@@ -249,6 +249,9 @@ func (a *App) send() {
 	}
 	a.composerFocus = true
 	text := strings.TrimSpace(a.State.Draft)
+	if text == "/plan" && a.runSlashCommand(text) {
+		return
+	}
 	if a.isClearCommand(text) && a.State.Busy {
 		a.State.Error = "请在当前任务结束后清空上下文"
 		return
@@ -289,6 +292,13 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 		return
 	}
 	selectedModel := a.selectedModel
+	selectedMode := a.selectedMode
+	if selectedMode != "" {
+		if _, ok := a.sessionBackend().(optionSender); !ok {
+			a.State.Error = "当前连接不支持计划模式"
+			return
+		}
+	}
 	selectedEffort, selectedTier := a.sendTurnOptions()
 	skills := a.draftSkills(text)
 	draft, draftImages := a.State.Draft, a.State.DraftImages
@@ -297,6 +307,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 	}
 	a.State.DraftImages = images
 	a.State.BeginMessage(text, messageID)
+	a.activeMode = selectedMode
 	if edited {
 		a.State.Draft, a.State.DraftImages = draft, draftImages
 		message := a.State.Messages[len(a.State.Messages)-1]
@@ -392,7 +403,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 		if supportsModels {
 			if sender, ok := modelBackend.(optionSender); ok {
 				turn, err = sender.SendWithOptions(ctx, threadID, text, skills, images,
-					agent.TurnOptions{Model: model, Effort: selectedEffort, ServiceTier: selectedTier})
+					agent.TurnOptions{Model: model, Effort: selectedEffort, ServiceTier: selectedTier, Mode: selectedMode})
 			} else {
 				turn, err = modelBackend.SendWithModel(ctx, threadID, text, skills, images, model)
 			}
@@ -593,6 +604,21 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		}
 		if e.Method == "fuyu/commands" {
 			a.invalidateCompletionCatalogs(e.Session)
+			continue
+		}
+		if e.Method == "fuyu/mode" {
+			var mode struct {
+				ThreadID       string                `json:"threadId"`
+				Mode           agent.InteractionMode `json:"mode"`
+				PermissionMode string                `json:"permissionMode"`
+			}
+			if json.Unmarshal(e.Params, &mode) == nil && mode.ThreadID == a.State.ThreadID && mode.Mode.Valid() && mode.Mode != "" {
+				a.selectedMode, a.activeMode = mode.Mode, mode.Mode
+				if mode.PermissionMode != "" {
+					raw, _ := json.Marshal(mode.PermissionMode)
+					a.State.Policy = string(raw)
+				}
+			}
 			continue
 		}
 		if a.recovering && e.Method == "fuyu/eventGap" {

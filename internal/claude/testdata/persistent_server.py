@@ -24,6 +24,10 @@ with open("spawn-args", "a") as file:
     file.write(" ".join(args) + "\n")
 prompt = None
 user_id = None
+permission_mode = "default"
+settings = Path(os.environ["CLAUDE_CONFIG_DIR"]) / "settings.json"
+if settings.exists():
+    permission_mode = json.loads(settings.read_text()).get("permissions", {}).get("defaultMode", "default")
 
 
 def record(value):
@@ -47,20 +51,32 @@ for line in sys.stdin:
     value = json.loads(line)
     if value["type"] == "control_request":
         subtype = value["request"]["subtype"]
+        if subtype == "set_permission_mode":
+            target = value["request"]["mode"]
+            if Path("reject-plan-mode").exists():
+                emit({"type": "control_response", "response": {"subtype": "error", "request_id": value["request_id"], "error": "mode rejected"}})
+                continue
+            permission_mode = target
+            with open("mode-controls", "a") as file:
+                file.write(target + "\n")
         emit({"type": "control_response", "response": {"subtype": "success", "request_id": value["request_id"],
-              "response": {"current_permission_mode": "default"}}})
+              "response": {"current_permission_mode": permission_mode}}})
         if subtype == "interrupt":
             complete("aborted_streaming")
     elif value["type"] == "user":
         user_id = value["uuid"]
         prompt = value["message"]["content"][-1]["text"]
+        with open("mode-turns", "a") as file:
+            file.write(json.dumps({"mode": permission_mode, "prompt": prompt, "pid": os.getpid()}) + "\n")
         with open("turn-pids", "a") as file:
             file.write(str(os.getpid()) + "\n")
         record({"type": "user", "uuid": user_id, "message": {"content": prompt}})
-        if prompt in ("permission", "question"):
-            tool = "Bash" if prompt == "permission" else "AskUserQuestion"
+        if prompt in ("permission", "question", "plan-exit"):
+            tool = {"permission": "Bash", "question": "AskUserQuestion", "plan-exit": "ExitPlanMode"}[prompt]
             arguments = {"command": "printf fixture"} if prompt == "permission" else {"questions": [
                 {"question": "Choose", "header": "Target", "options": [{"label": "One"}]}]}
+            if prompt == "plan-exit":
+                arguments = {"plan": "# 方案\n\n实现功能并验证结果"}
             emit({"type": "control_request", "request_id": "same-native-request", "request": {
                 "subtype": "can_use_tool", "tool_name": tool, "tool_use_id": "tool-" + user_id, "input": arguments}})
         elif prompt == "wait":
@@ -73,4 +89,7 @@ for line in sys.stdin:
         else:
             complete()
     elif value["type"] == "control_response":
+        if prompt == "plan-exit":
+            with open("plan-decision", "w") as file:
+                file.write(json.dumps({"mode": permission_mode, "decision": value["response"]["response"]}))
         complete()

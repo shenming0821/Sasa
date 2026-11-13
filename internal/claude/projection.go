@@ -217,6 +217,16 @@ func (r *execution) permissionRequest(message frame, size int) {
 	}
 	params := map[string]any{"threadId": r.session.ID, "turnId": r.identity.ID, "itemId": itemID, "command": request.Tool + "\n" + string(request.Input), "cwd": r.session.Cwd, "availableDecisions": []string{"accept", "decline", "cancel"}}
 	method := "item/commandExecution/requestApproval"
+	if request.Tool == "ExitPlanMode" || request.Tool == "EnterPlanMode" {
+		delete(params, "command")
+		params["kind"] = request.Tool
+		var input struct {
+			Plan string `json:"plan"`
+		}
+		_ = json.Unmarshal(request.Input, &input)
+		params["plan"] = input.Plan
+		params["availableDecisions"] = []string{"accept", "decline"}
+	}
 	if request.Tool == "AskUserQuestion" {
 		delete(params, "command")
 		var input struct {
@@ -365,6 +375,19 @@ func (c *Client) Respond(id json.RawMessage, result any) error {
 	}
 	owner.resolved[requestID] = true
 	owner.mu.Unlock()
+	if response.Decision == "accept" && (request.Tool == "ExitPlanMode" || request.Tool == "EnterPlanMode") {
+		mode := agent.ModeDefault
+		if request.Tool == "EnterPlanMode" {
+			mode = agent.ModePlan
+		}
+		ctx, cancel := agent.RequestContext()
+		err := owner.setMode(ctx, mode)
+		cancel()
+		if err != nil {
+			go owner.stopProcess()
+			return fmt.Errorf("Claude 模式切换未确认，审批未继续：%w", err)
+		}
+	}
 	if err := owner.write(map[string]any{"type": "control_response", "response": map[string]any{"subtype": "success", "request_id": requestID, "response": decision}}); err != nil {
 		go owner.stopProcess()
 		return fmt.Errorf("Claude 审批写入结果不确定，不能重复提交：%w", err)

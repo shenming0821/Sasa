@@ -103,6 +103,9 @@ func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 			}
 			state.Model, state.Policy, state.Sandbox = resumed.Model, string(resumed.Policy), string(resumed.Sandbox)
 			state.RuntimeVersion = resumed.RuntimeVersion
+			if s.selectedMode == "" && resumed.CollaborationMode != nil && resumed.CollaborationMode.Mode.Valid() {
+				s.selectedMode = resumed.CollaborationMode.Mode
+			}
 			s.State, s.loaded, s.historyCursor = state, true, page.NextCursor
 			bound.settleInputs()
 			bound.restorePendingMessages()
@@ -148,7 +151,7 @@ func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 			var controls []agent.Event
 			for _, e := range events {
 				switch e.Method {
-				case "item/agentMessage/delta", "item/commandExecution/outputDelta", "item/fileChange/outputDelta":
+				case "item/agentMessage/delta", "item/plan/delta", "item/commandExecution/outputDelta", "item/fileChange/outputDelta":
 					// A page may already contain a buffered delta. Keep control
 					// events and reconcile authoritative items instead of doubling text.
 					s.State.NeedsSnapshot, s.State.Incomplete = true, true
