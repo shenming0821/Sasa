@@ -182,8 +182,13 @@ class Tasks:
                 continue
             result = git(self.main, 'worktree', 'remove', str(path), check=False)
             if result.returncode:
-                print(f'保留 {name}：{result.stderr.decode().strip()}')
-                continue
+                # MyGo's build cache vendors read-only files that Git's
+                # removal cannot unlink; make everything writable first.
+                subprocess.run(['chmod', '-R', 'u+w', str(path)], check=False)
+                result = git(self.main, 'worktree', 'remove', str(path), check=False)
+                if result.returncode:
+                    print(f'保留 {name}：{result.stderr.decode().strip()}')
+                    continue
             task.update(state='reclaimed', publishedBuild=identity['buildID'], reclaimedAt=now())
             print(f'已回收 {name}：{path}；分支 {task["branch"]} 保留。')
 
