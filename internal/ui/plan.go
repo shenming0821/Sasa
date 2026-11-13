@@ -9,8 +9,8 @@ import (
 	"github.com/shenming0821/Fuyu/internal/app"
 )
 
-// Lucide lightbulb and x paths, using the composer's existing icon style.
-var planBulbIcon = icon(`<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6M10 22h4"/>`)
+// Tabler Icons bulb, using the composer's existing stroke and theme color.
+var planBulbIcon = icon(`<path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17h4.6"/>`)
 var planExitIcon = icon(`<path d="m6 6 12 12M18 6 6 18"/>`)
 
 func (a *App) canChangePlanMode() bool {
