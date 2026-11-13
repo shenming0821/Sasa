@@ -1672,6 +1672,11 @@ func (a *App) finishCloseFile(d *filePage) {
 	}
 	a.cancelFileRead(d)
 	d.cancelFind()
+	// When the file was opened by jumping from another tab, closing it
+	// returns to that origin before falling back to a same-pane neighbor.
+	if origin := a.tabByID(d.openedFrom); origin != nil && a.activeTab == d.id {
+		a.selectWorkspaceTab(*origin)
+	}
 	delete(a.files, d.id)
 	a.removeWorkspaceTab(d.id)
 }

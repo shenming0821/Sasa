@@ -29,6 +29,15 @@ func (a *App) folderTabs(root string) []storage.Tab {
 	return tabs
 }
 
+func (a *App) tabByID(id string) *storage.Tab {
+	for index := range a.tabs {
+		if a.tabs[index].ID == id {
+			return &a.tabs[index]
+		}
+	}
+	return nil
+}
+
 func (a *App) rememberFolderTab() {
 	for _, tab := range a.tabs {
 		if folder, valid := a.tabFolder(tab); valid && tab.ID == a.activeTab {

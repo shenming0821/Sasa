@@ -141,6 +141,7 @@ type filePage struct {
 	diskEpoch                                                           uint64
 	overwriteBase                                                       *editor.File
 	lastVisited                                                         time.Time
+	openedFrom                                                          string
 	pinFrame                                                            uint64
 	pinY                                                                float32
 	turnReview                                                          *turnReview
@@ -315,6 +316,11 @@ func (a *App) openFile(root, path string) {
 	}
 }
 func (a *App) selectFile(d *filePage) {
+	// Remember where the user came from so closing the file returns to
+	// that tab instead of whichever tab happens to sit next to it.
+	if a.activeTab != d.id {
+		d.openedFrom = a.activeTab
+	}
 	d.lastVisited = time.Now()
 	a.activeTab = d.id
 	a.selectWorkspace(d.root)

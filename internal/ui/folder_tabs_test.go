@@ -85,6 +85,68 @@ func TestFolderTabsCloseUsesSameFolderNeighbors(t *testing.T) {
 	}
 }
 
+func TestFileCloseReturnsToJumpOrigin(t *testing.T) {
+	a := New(stubBackend{}, "test", "/a", nil)
+	source := a.session
+	a.newSession("/a")
+	a.newSession("/a")
+	// Jump from the first session to a file; the file lands at the end.
+	a.selectSession(source)
+	file := &filePage{id: "file-jump", root: "/a", path: "/a/x.go", kind: "file", loaded: true}
+	a.files = map[string]*filePage{}
+	a.files["file-jump"] = file
+	a.tabs = append(a.tabs, storage.Tab{ID: "file-jump", Kind: "file", Workspace: "/a", Path: "/a/x.go"})
+	a.selectFile(file)
+	if a.activeTab != "file-jump" || file.openedFrom != sessionTabID(source.id) {
+		t.Fatalf("jump did not record origin: active=%q from=%q", a.activeTab, file.openedFrom)
+	}
+	a.closeFile(file)
+	if a.session != source || a.activeTab != sessionTabID(source.id) {
+		t.Fatalf("close did not return to origin session: active=%q", a.activeTab)
+	}
+}
+
+func TestFileCloseFallsBackToNeighborWhenOriginGone(t *testing.T) {
+	a := New(stubBackend{}, "test", "/a", nil)
+	a.newSession("/a")
+	second := a.session
+	a.newSession("/a")
+	file := &filePage{id: "file-gone", root: "/a", path: "/a/y.go", kind: "file", loaded: true}
+	a.files = map[string]*filePage{}
+	a.files["file-gone"] = file
+	a.tabs = append(a.tabs, storage.Tab{ID: "file-gone", Kind: "file", Workspace: "/a", Path: "/a/y.go"})
+	a.selectSession(second)
+	a.selectFile(file)
+	// Close the origin session while the file is active, then close the file.
+	a.closeSession(second)
+	if a.activeTab != "file-gone" {
+		t.Fatalf("closing origin session stole file focus: %q", a.activeTab)
+	}
+	a.closeFile(file)
+	if a.activeTab == "file-gone" {
+		t.Fatal("file tab was not closed")
+	}
+}
+
+func TestFileCloseReturnsAcrossWorktrees(t *testing.T) {
+	a := New(stubBackend{}, "test", "/a", nil)
+	source := a.session
+	a.newSession("/b")
+	a.selectSession(source)
+	file := &filePage{id: "file-cross", root: "/b", path: "/b/z.go", kind: "file", loaded: true}
+	a.files = map[string]*filePage{}
+	a.files["file-cross"] = file
+	a.tabs = append(a.tabs, storage.Tab{ID: "file-cross", Kind: "file", Workspace: "/b", Path: "/b/z.go"})
+	a.selectFile(file)
+	if a.activeWorkspace != "/b" {
+		t.Fatalf("file did not switch workspace: %q", a.activeWorkspace)
+	}
+	a.closeFile(file)
+	if a.session != source || a.activeWorkspace != "/a" {
+		t.Fatalf("cross-workspace close did not return: active=%q ws=%q", a.activeTab, a.activeWorkspace)
+	}
+}
+
 func TestFolderClickShowsPickerWithoutOpenTabs(t *testing.T) {
 	for _, conversation := range []bool{false, true} {
 		t.Run(fmt.Sprintf("conversation=%t", conversation), func(t *testing.T) {
