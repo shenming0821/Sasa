@@ -12,9 +12,7 @@
 
 `internal/ui/disclosure_motion_test.go` 覆盖点击后的首次刷新、后续内容单调移动、收起最终移除内容、Git 分组过渡、执行过程首帧响应、工具缓存更新和稳定缓存零分配。既有项目分组与执行过程测试继续覆盖动画反向切换、减少动态效果和阅读位置保持。
 
-发布收尾保留旧 Devin 会话身份、存储校验和遗留适配器所需的兼容接口；桌面启动与新建入口只提供 Codex、Claude。旧默认 Agent 为 Devin 时，新会话默认使用 Codex，旧会话原生 ID、草稿和模型归属仍保持 Devin。`TestLegacyAgentHistorySurvivesWithoutDesktopRuntime` 覆盖加载、缺少运行时、入口、新会话及再次保存后的数据保留。
-
-删除三个只针对已移除桌面入口的旧权限模式、Devin 补全测试，并更新空分屏入口预期。使用正常命令验证，无 Go overlay、无额外跳过测试：
+桌面启动与新建入口只提供 Codex、Claude。旧 Agent 专用权限模式、模型提交和补全测试已删除，空分屏入口预期同步更新。使用正常命令验证，无 Go overlay、无额外跳过测试：
 
 race 检查发现既有图片草稿测试在缩略图后台解码期间改写 `dispatch`。测试改为始终使用同一回调队列，按导入状态等待文件拖放完成，并在清理时等待缩略图与导入回调结束。
 
@@ -38,7 +36,7 @@ Apple M1 Max 上，约 141 KiB 输入和 147 KiB 输出的解析与格式化基�
 
 ## Preview 与原生验证边界
 
-执行 `./scripts/build preview` 构建候选，并通过 `./scripts/run-preview <构建ID>` 启动。初始工作区曾因移除 Devin 校验导致已有 Preview 历史无法加载；发布前已保留旧数据兼容接口并添加回归，原历史数据保持原样。
+执行 `./scripts/build preview` 构建候选，并通过 `./scripts/run-preview <构建ID>` 启动。
 
 早期隔离数据启动已取得含正确渠道、构建 ID、数据目录与 PID 的窗口初始化确认。电脑控制工具定位该应用返回 `cgWindowNotFound`，因此原生点击、视觉流畅度、实际显示帧率及真实 Runtime 输出期间的动效尚未验收。自动化验证为 MyGo 无窗口渲染结果。正式版晋升采用延迟生效，保留正在运行的正式版实例。
 

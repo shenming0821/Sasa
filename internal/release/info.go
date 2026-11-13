@@ -29,7 +29,7 @@ func Current() (Info, error) {
 }
 
 func readInfo(executable string) (Info, error) {
-	info := Info{Channel: "preview", BuildID: BuildID, SourceVersion: SourceVersion, SourceDigest: SourceDigest, Version: "0.1.0", SchemaVersion: 4}
+	info := Info{Channel: "preview", BuildID: BuildID, SourceVersion: SourceVersion, SourceDigest: SourceDigest, Version: "0.1.0", SchemaVersion: 6}
 	contents := filepath.Dir(filepath.Dir(executable))
 	if filepath.Base(contents) != "Contents" || filepath.Ext(filepath.Dir(contents)) != ".app" {
 		return info, nil
@@ -42,7 +42,7 @@ func readInfo(executable string) (Info, error) {
 	if err := json.Unmarshal(raw, &info); err != nil {
 		return Info{}, fmt.Errorf("read release identity: %w", err)
 	}
-	if (info.Channel != "stable" && info.Channel != "preview") || info.BuildID != BuildID || info.SourceVersion != SourceVersion || info.SourceDigest != SourceDigest || info.SchemaVersion != 4 || info.Version == "" {
+	if (info.Channel != "stable" && info.Channel != "preview") || info.BuildID != BuildID || info.SourceVersion != SourceVersion || info.SourceDigest != SourceDigest || info.SchemaVersion != 6 || info.Version == "" {
 		return Info{}, fmt.Errorf("release identity does not match executable")
 	}
 	return info, nil

@@ -47,8 +47,8 @@ func TestV4MigratesCodexIdentityWithoutChangingPayload(t *testing.T) {
 	}
 	defer s.Close()
 	var version int
-	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 5 {
-		t.Fatal("未迁移至 v5", version, err)
+	if err := s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 6 {
+		t.Fatal("未迁移至 v6", version, err)
 	}
 	var payload []byte
 	var owner string
@@ -73,10 +73,7 @@ func TestV4MigratesCodexIdentityWithoutChangingPayload(t *testing.T) {
 	if s.BindAgentRuntime(agent.Claude, "/claude/wrong") == nil {
 		t.Fatal("Claude home 绑定失效")
 	}
-	if err := s.BindAgentRuntime(agent.Devin, "/devin/home"); err != nil {
-		t.Fatal("Devin home 绑定被 v5 约束拒绝", err)
-	}
-	if s.BindAgentRuntime("unknown", "/unknown/home") == nil {
+	if s.BindAgentRuntime("devin", "/devin/home") == nil || s.BindAgentRuntime("unknown", "/unknown/home") == nil {
 		t.Fatal("未知 Agent 不应通过绑定")
 	}
 	backups, err := filepath.Glob(filepath.Join(dir, "fuyu-before-v4-*.db"))

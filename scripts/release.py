@@ -186,7 +186,7 @@ def build():
     build_id = now.strftime('%Y%m%dT%H%M%SZ') + '-' + source_digest[:10] + '-' + uuid.uuid4().hex[:6]
     identity = {
         'channel': 'preview', 'buildID': build_id, 'sourceVersion': revision,
-        'sourceDigest': source_digest, 'version': '0.1.0', 'schemaVersion': 4,
+        'sourceDigest': source_digest, 'version': '0.1.0', 'schemaVersion': 6,
         'buildNumber': f'{(now.date() - datetime(2026, 1, 1).date()).days + 1}.{now.hour}.{now.minute}', 'builtAt': now.isoformat(),
     }
     CANDIDATES.mkdir(parents=True, exist_ok=True)

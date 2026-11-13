@@ -128,7 +128,7 @@ class ReleaseTests(unittest.TestCase):
         self.app = self.root / 'Applications/Fuyu.app'
         self.data = self.root / 'stable-data'
         self.build_id = 'candidate-1'
-        self.identity = {'channel': 'preview', 'buildID': self.build_id, 'sourceVersion': 'source', 'sourceDigest': 'digest', 'version': '0.1.0', 'schemaVersion': 4, 'buildNumber': '1'}
+        self.identity = {'channel': 'preview', 'buildID': self.build_id, 'sourceVersion': 'source', 'sourceDigest': 'digest', 'version': '0.1.0', 'schemaVersion': 6, 'buildNumber': '1'}
         self.source = self.candidates / self.build_id / 'Fuyu Preview.app'
         for app, binary, channel in [(self.app, b'old-program', 'stable'), (self.source, b'tested-program', 'preview')]:
             (app / 'Contents/MacOS').mkdir(parents=True)

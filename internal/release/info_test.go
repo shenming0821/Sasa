@@ -19,7 +19,7 @@ func TestBundleIdentityAndPromotion(t *testing.T) {
 		t.Fatal("bundled executable accepted missing identity")
 	}
 	for _, channel := range []string{"preview", "stable"} {
-		info := Info{Channel: channel, BuildID: BuildID, SourceVersion: SourceVersion, SourceDigest: SourceDigest, Version: "0.1.0", SchemaVersion: 4}
+		info := Info{Channel: channel, BuildID: BuildID, SourceVersion: SourceVersion, SourceDigest: SourceDigest, Version: "0.1.0", SchemaVersion: 6}
 		raw, err := json.Marshal(info)
 		if err != nil {
 			t.Fatal(err)

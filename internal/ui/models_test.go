@@ -709,11 +709,11 @@ func TestModelPickerKeepsDisplayNameAcrossRestart(t *testing.T) {
 			application := New(&modelCaptureBackend{}, "test", "/workspace", nil)
 			application.kind = kind
 			store := imageStore(t, application)
-			application.selectedModel = "devin/swe-2"
+			application.selectedModel = "provider/swe-2"
 			application.selectedEffort = "high"
 			catalog := &modelCatalogEntry{
 				loaded: true,
-				models: []agent.Model{{Model: "devin/swe-2", DisplayName: "SWE-2 · Devin",
+				models: []agent.Model{{Model: "provider/swe-2", DisplayName: "SWE-2 · Provider",
 					SupportedReasoningEfforts: []agent.ReasoningEffortOption{{ReasoningEffort: "high"}}}},
 			}
 			application.applyModelCatalog(application.completionCacheKey(), catalog)
@@ -724,7 +724,7 @@ func TestModelPickerKeepsDisplayNameAcrossRestart(t *testing.T) {
 			if err := restored.AttachStore(store); err != nil {
 				t.Fatal(err)
 			}
-			if restored.modelsLoaded || restored.selectedModel != "devin/swe-2" {
+			if restored.modelsLoaded || restored.selectedModel != "provider/swe-2" {
 				t.Fatal("restoring a display name changed model availability or identity")
 			}
 			tester := native.NewTester(restored.view, 1000, 760)
@@ -739,7 +739,7 @@ func TestModelPickerKeepsDisplayNameAcrossRestart(t *testing.T) {
 			if err := tester.Click("选择模型"); err != nil {
 				t.Fatal(err)
 			}
-			if !tester.HasText("SWE-2 · Devin") {
+			if !tester.HasText("SWE-2 · Provider") {
 				t.Fatal("menu lost the catalog display name")
 			}
 		})
@@ -748,7 +748,7 @@ func TestModelPickerKeepsDisplayNameAcrossRestart(t *testing.T) {
 
 func TestModelPickerWaitsForUncachedName(t *testing.T) {
 	application := New(&modelCaptureBackend{}, "test", "/workspace", nil)
-	application.selectedModel = "devin/swe-2"
+	application.selectedModel = "provider/swe-2"
 	application.selectedEffort = "high"
 	application.modelsLoading = true
 	tester := native.NewTester(application.view, 1000, 760)
@@ -757,22 +757,22 @@ func TestModelPickerWaitsForUncachedName(t *testing.T) {
 	}
 	application.applyModelCatalog(application.completionCacheKey(), &modelCatalogEntry{
 		loaded: true,
-		models: []agent.Model{{Model: "devin/swe-2", DisplayName: "SWE-2 · Devin",
+		models: []agent.Model{{Model: "provider/swe-2", DisplayName: "SWE-2 · Provider",
 			SupportedReasoningEfforts: []agent.ReasoningEffortOption{{ReasoningEffort: "high"}}}},
 	})
 	tester.Frame()
-	if !tester.HasText("SWE-2 高") || application.selectedModel != "devin/swe-2" {
+	if !tester.HasText("SWE-2 高") || application.selectedModel != "provider/swe-2" {
 		t.Fatal("catalog display name was not applied while preserving model identity")
 	}
 }
 
 func TestModelDisplayNameCacheIsScoped(t *testing.T) {
 	application := New(&modelCaptureBackend{}, "test", "/workspace", nil)
-	application.selectedModel = "devin/swe-2"
-	application.models = []agent.Model{{Model: "devin/swe-2", DisplayName: "SWE-2 · Devin"}}
+	application.selectedModel = "provider/swe-2"
+	application.models = []agent.Model{{Model: "provider/swe-2", DisplayName: "SWE-2 · Provider"}}
 	application.rememberModel(application.selectedModel)
 	application.models = nil
-	if application.selectedModelDisplayName() != "SWE-2 · Devin" {
+	if application.selectedModelDisplayName() != "SWE-2 · Provider" {
 		t.Fatal("selected model display name was not cached")
 	}
 	for _, key := range []agent.CacheKey{
@@ -780,7 +780,7 @@ func TestModelDisplayNameCacheIsScoped(t *testing.T) {
 		{Agent: agent.Codex, Runtime: "/other", Cwd: "/workspace"},
 		{Agent: agent.Codex, Cwd: "/other"},
 	} {
-		bound := application.forSession(&session{kind: key.Agent, runtimeKey: key.Runtime, selectedModel: "devin/swe-2"})
+		bound := application.forSession(&session{kind: key.Agent, runtimeKey: key.Runtime, selectedModel: "provider/swe-2"})
 		bound.State.Cwd = key.Cwd
 		if bound.selectedModelDisplayName() != "" {
 			t.Fatal("model display name leaked across catalog scope", key)

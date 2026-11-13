@@ -66,9 +66,3 @@ func (i ApprovalIntent) Validate() error {
 	}
 	return nil
 }
-
-// PermissionModeChange is a separate explicit setting, never an approval scope.
-type PermissionModeChange struct {
-	Session SessionKey
-	Mode    string
-}

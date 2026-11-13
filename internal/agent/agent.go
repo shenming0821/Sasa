@@ -11,9 +11,6 @@ type AgentKind string
 const (
 	Codex  AgentKind = "codex"
 	Claude AgentKind = "claude"
-	// Devin remains valid for stored sessions and the legacy adapter. Desktop
-	// startup and new-session controls only offer Codex and Claude.
-	Devin AgentKind = "devin"
 )
 
 func (k AgentKind) Normalized() AgentKind {
@@ -25,7 +22,7 @@ func (k AgentKind) Normalized() AgentKind {
 
 func (k AgentKind) Validate() error {
 	switch k.Normalized() {
-	case Codex, Claude, Devin:
+	case Codex, Claude:
 		return nil
 	default:
 		return fmt.Errorf("不支持的 Agent：%s", k)
@@ -38,8 +35,6 @@ func (k AgentKind) String() string {
 		return "Codex"
 	case Claude:
 		return "Claude Code"
-	case Devin:
-		return "Devin"
 	default:
 		return string(k)
 	}
@@ -56,7 +51,7 @@ type ProcessGeneration uint64
 
 type Capabilities struct {
 	Models, Skills, Commands, Images           bool
-	Approval, SessionRules, PermissionMode     bool
+	Approval, SessionRules                     bool
 	History, Resume, Reconcile, Occupied, Fork bool
 }
 
