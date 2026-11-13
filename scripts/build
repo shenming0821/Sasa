@@ -1,3 +1,4 @@
 #!/bin/sh
 set -eu
+python3 "$(dirname "$0")/task_worktree.py" require-main
 exec python3 "$(dirname "$0")/release.py" build "$@"

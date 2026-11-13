@@ -1,3 +1,5 @@
 #!/bin/sh
 set -eu
-exec python3 "$(dirname "$0")/release.py" promote "$@"
+python3 "$(dirname "$0")/task_worktree.py" require-main
+python3 "$(dirname "$0")/release.py" promote "$@"
+python3 "$(dirname "$0")/task_worktree.py" after-promote "$@"

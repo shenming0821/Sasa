@@ -39,6 +39,8 @@ Preview 启动和回退重开通过 macOS Launch Services（`/usr/bin/open -n -a
 
 `run-preview` 接受明确构建 ID；省略时选择最近候选。复制到启动位置后登记应用，并通过 Launch Services 启动。替换前正常请求退出已有 Preview；因未保存内容或活动任务提示未退出时，强制结束目标 Preview 进程后重试。正式版遇到同类提示时保留提示并告知用户。
 
+并行开发的公共构建、Preview 启动和晋升入口限在主目录执行。任务 worktree 完成集成登记后，保留至默认正式版安装成功；`scripts/promote` 随后根据发布回执和提交关系自动回收符合条件的任务目录。预检和隔离晋升不回收，失败保留目录。具体登记、核验与重试见[并行开发](../parallel-development.md)。
+
 ## 晋升正式版
 
 ```sh
