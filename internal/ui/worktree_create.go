@@ -164,7 +164,6 @@ func (a *App) finishWorktreeCreate(draft *worktreeCreation) {
 			a.restoreProject(repositoryProjectID(repo.CommonDir))
 			delete(a.collapsedProjects, repo.CommonDir)
 			delete(a.projectErrors, repo.CommonDir)
-			a.sessionQuery = ""
 			a.worktreeCreate = nil
 			a.refreshFolderSelection()
 			a.openWorkspacePicker(draft.target)

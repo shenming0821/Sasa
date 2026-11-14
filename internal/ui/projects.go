@@ -227,32 +227,12 @@ func (s *session) hasProjectConversation() bool {
 		(s.saved.Title != "" && s.saved.Title != "新会话")
 }
 
-func (a *App) repositoryMatches(repo project.Repository) bool {
-	if matchesQuery(a.sessionQuery, repo.Name, repo.Path) {
-		return true
-	}
-	for _, w := range repo.Worktrees {
-		if w.Missing || w.Prunable {
-			continue
-		}
-		if matchesQuery(a.sessionQuery, w.Path, w.Branch, a.worktreeName(w.Path)) {
-			return true
-		}
-		for _, s := range a.worktreeSessions(w) {
-			if s.hasProjectConversation() && matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // projectDisclosure keeps descendants mounted until the height transition finishes.
 func (a *App) projectDisclosure(c *native.Context, key, label string, heading, content func(), projectIDs ...string) {
 	var header, arrow native.Element
 	managed := len(projectIDs) > 0 && projectIDs[0] != directoryProjectID("")
 	var progress float32
-	open := !a.collapsedProjects[key] || a.sessionQuery != ""
+	open := !a.collapsedProjects[key]
 	row := native.Row(c.Key("project-heading")).FillWidth().Radius(8).AlignItems(native.Center)
 	row.Children(func() {
 		header = native.ButtonBase(c).Label(label).TextColor(c.Theme().TextMuted).Radius(8).Grow(1).MinWidth(0).Padding(8).Gap(7).Justify(native.Start)
@@ -261,7 +241,7 @@ func (a *App) projectDisclosure(c *native.Context, key, label string, heading, c
 				a.collapsedProjects = make(map[string]bool)
 			}
 			a.collapsedProjects[key] = !a.collapsedProjects[key]
-			open = !a.collapsedProjects[key] || a.sessionQuery != ""
+			open = !a.collapsedProjects[key]
 		}
 		progress = animateDisclosure(header, "project-open", open)
 		header.Children(func() {
@@ -295,27 +275,14 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 			if err := a.projectErrors[repo.CommonDir]; err != "" {
 				native.Text(rc, "刷新失败，保留上次列表").FontSize(10).TextColor(t.Danger).Tooltip(err).Padding(4, 12)
 			}
-			whole := matchesQuery(a.sessionQuery, repo.Name, repo.Path)
 			for _, w := range repo.Worktrees {
 				if w.Missing || w.Prunable {
 					continue
 				}
 				sessions := a.worktreeSessions(w)
-				match := whole || matchesQuery(a.sessionQuery, w.Path, w.Branch, a.worktreeName(w.Path))
-				if !match {
-					for _, s := range sessions {
-						if s.hasProjectConversation() && matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
-							match = true
-							break
-						}
-					}
-				}
-				if !match {
-					continue
-				}
 				var latest *session
 				for _, s := range sessions {
-					if s.hasProjectConversation() && (whole || matchesQuery(a.sessionQuery, w.Path, w.Branch, a.worktreeName(w.Path), s.title(), s.State.Cwd)) {
+					if s.hasProjectConversation() {
 						latest = s
 						break
 					}
