@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
@@ -500,6 +501,13 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 	})
 }
 
+type gitHistoryLayout struct {
+	rows                  int
+	loading, moving       bool
+	progress, limit, maxY float32
+	bounds                native.Rect
+}
+
 func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool, availableHeight float32) {
 	native.Column(c).FillWidth().Shrink(0).MinHeight(34).MaxHeightPercent(45).Padding(4, 8).Gap(0).Children(func() {
 		var progress float32
@@ -537,11 +545,13 @@ func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool, ava
 		if availableHeight > 0 {
 			limit = min(limit, max(0, availableHeight*.45-34))
 		}
-		native.Scroll(c.Key("commits")).Label("最近提交列表").TrackScroll(&w.gitHistoryScroll).FillWidth().MinHeight(0).MaxHeight(limit * progress).Shrink(1).Children(func() {
+		moving := !w.collapsed["最近提交已展开"] || progress != 1
+		scroll := native.Scroll(c.Key("commits")).Label("最近提交列表").TrackScroll(&w.gitHistoryScroll).FillWidth().MinHeight(0).MaxHeight(limit * progress).Shrink(1)
+		scroll.Children(func() {
 			native.Column(c).FillWidth().Gap(0).Children(func() {
 				for _, info := range w.gitHistory {
 					native.Column(c.Key(info.Hash)).FillWidth().Gap(0).Children(func() {
-						a.gitHistoryCommit(c, w, info)
+						moving = a.gitHistoryCommit(c, w, info) || moving
 					})
 				}
 				if w.gitHistoryError != "" {
@@ -558,10 +568,38 @@ func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool, ava
 				}
 			})
 		})
+		// Scroll bounds describe the previous layout. Wait for the new rows,
+		// footer and disclosure heights to be measured before using them.
+		sample := gitHistoryLayout{
+			rows: len(w.gitHistory), loading: w.gitHistoryLoading, moving: moving,
+			progress: progress, limit: limit, maxY: w.gitHistoryScroll.MaxY,
+			bounds: w.gitHistoryScroll.Bounds(c),
+		}
+		layout := native.Local(scroll, "pagination-layout", func() gitHistoryLayout { return gitHistoryLayout{} })
+		changedAt := native.Local(scroll, "pagination-layout-time", func() time.Time { return time.Time{} })
+		if *layout != sample {
+			*layout, *changedAt = sample, c.Now()
+			c.Invalidate()
+			return
+		}
+		// A frame can rebuild several times for input; none of those passes
+		// has laid out the new content yet.
+		if c.Now() == *changedAt {
+			c.Invalidate()
+			return
+		}
+		if !moving && sample.bounds.H > 0 && w.gitHistoryMore && !w.gitHistoryLoading &&
+			w.gitHistoryError == "" && w.gitHistoryScroll.MaxY > 0 &&
+			w.gitHistoryScroll.MaxY-w.gitHistoryScroll.Y <= 80 {
+			a.gitLoadHistory(w, true)
+			if w.gitHistoryLoading {
+				c.Invalidate()
+			}
+		}
 	})
 }
 
-func (a *App) gitHistoryCommit(c *native.Context, w *workspacePage, info gitview.CommitInfo) {
+func (a *App) gitHistoryCommit(c *native.Context, w *workspacePage, info gitview.CommitInfo) bool {
 	if w.gitCommitTrees == nil {
 		w.gitCommitTrees = make(map[string]*gitCommitTree)
 	}
@@ -572,13 +610,15 @@ func (a *App) gitHistoryCommit(c *native.Context, w *workspacePage, info gitview
 	}
 	t := c.Theme()
 	b := treeButton(c.Key("header"), "提交 "+info.Hash).FillWidth().Height(42).Padding(4, 8)
-	if b.Clicked() {
+	clicked := b.Clicked()
+	if clicked {
 		tree.expanded = !tree.expanded
 		if tree.expanded {
 			a.gitLoadCommitTree(w, info, tree)
 		}
 	}
 	progress := animateDisclosure(b, "open", tree.expanded)
+	moving := clicked || tree.expanded && progress != 1 || !tree.expanded && progress != 0
 	b.Children(func() {
 		native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
 			native.Icon(c, chevron).Size(12, 12).Rotate(-90 * (1 - progress)).TextColor(t.TextMuted)
@@ -618,4 +658,5 @@ func (a *App) gitHistoryCommit(c *native.Context, w *workspacePage, info gitview
 			}
 		}
 	})
+	return moving
 }
