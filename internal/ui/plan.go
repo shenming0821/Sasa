@@ -95,7 +95,7 @@ func (a *App) planActions(c *native.Context, m *app.Message) {
 	if !m.Plan || !a.canExecutePlan(m) {
 		return
 	}
-	b := quietIconButton(c, "开始执行").Size(24, 24).TextColor(c.Theme().Accent)
+	b := quietIconButton(c, "开始执行").Size(24, 24)
 	b.Children(func() { native.Icon(c, planPlayIcon).Size(16, 16) })
 	if b.Clicked() {
 		a.executePlan(m)
