@@ -94,13 +94,14 @@ func (a *App) addProjectPaths(paths []string) {
 			if errors.Is(err, project.ErrNotRepository) {
 				a.restoreProject(directoryProjectID(path))
 				delete(a.collapsedProjects, path)
-				for _, s := range a.sessions {
-					if filepath.Clean(s.State.Cwd) == path {
-						a.selectSession(s)
+				root := a.workspaceRoot(path)
+				for _, tab := range a.tabs {
+					if tab.Kind == "empty" && a.workspaceRoot(tab.Workspace) == root {
+						a.selectWorkspaceTab(tab)
 						return
 					}
 				}
-				a.newSession(path)
+				a.newEmptyTab(root, focusedPane(a.layoutFor(root)))
 				return
 			}
 			if err != nil {

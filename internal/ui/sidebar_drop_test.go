@@ -10,6 +10,7 @@ import (
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
 	"github.com/shenming0821/Fuyu/internal/project"
+	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
 func sidebarDropTester(t *testing.T, a *App) (*native.Tester, chan func()) {
@@ -87,21 +88,58 @@ func TestSidebarDropPlainDirectory(t *testing.T) {
 			if kind == agent.Claude {
 				a.newSessionForAgent("/initial", kind, "")
 			}
+			selected, sessions := a.session, len(a.sessions)
 			folder := project.Canonical(t.TempDir())
 			tt, queue := sidebarDropTester(t, a)
 			dropOnSidebar(t, tt, "项目列表", folder)
 			pumpUpdate(t, queue)
 			tt.Frame()
-			if a.projectsLoading || a.projectsError != "" || len(a.repositories) != 0 ||
-				a.State.Cwd != folder || a.session.kind != kind {
-				t.Fatalf("plain directory did not use the existing folder import: %s, %s", a.State.Cwd, a.projectsError)
+			if a.projectsLoading || a.projectsError != "" || len(a.repositories) != 0 {
+				t.Fatalf("plain directory import failed: %s", a.projectsError)
 			}
-			selected, count := a.session, len(a.sessions)
-			selected.State.Draft = "目录草稿"
+			if len(a.sessions) != sessions {
+				t.Fatalf("plain directory created a backend-bound session: %d -> %d", sessions, len(a.sessions))
+			}
+			tabID := a.activeTab
+			var emptyTab *storage.Tab
+			for i := range a.tabs {
+				if a.tabs[i].ID == tabID {
+					emptyTab = &a.tabs[i]
+					break
+				}
+			}
+			if a.session != selected || a.workspaceRoot(a.activeWorkspace) != a.workspaceRoot(folder) ||
+				emptyTab == nil || emptyTab.Kind != "empty" {
+				t.Fatalf("plain directory did not open an empty tab: workspace=%s tab=%s", a.activeWorkspace, tabID)
+			}
+			groups := a.projectGroupsFor("")
+			if !slices.ContainsFunc(groups, func(g projectGroup) bool { return g.path == filepath.Clean(a.workspaceRoot(folder)) }) {
+				t.Fatalf("plain directory missing from sidebar: %+v", groups)
+			}
 			dropOnSidebar(t, tt, "项目列表", folder)
 			pumpUpdate(t, queue)
-			if a.session != selected || len(a.sessions) != count || a.State.Draft != "目录草稿" {
-				t.Fatal("duplicate folder drop lost the existing session or its draft")
+			if a.session != selected || len(a.sessions) != sessions || a.activeTab != tabID {
+				t.Fatal("duplicate folder drop lost the existing empty tab")
+			}
+			// Clearing the empty tab and any sessions must not remove the project from the sidebar.
+			a.tabs = slices.DeleteFunc(a.tabs, func(tab storage.Tab) bool { return tab.Kind == "empty" })
+			a.sessions = nil
+			a.session = nil
+			groups = a.projectGroupsFor("")
+			if !slices.ContainsFunc(groups, func(g projectGroup) bool { return g.path == filepath.Clean(a.workspaceRoot(folder)) }) {
+				t.Fatalf("plain directory disappeared after sessions emptied: %+v", groups)
+			}
+			items := a.sidebarProjectItems()
+			if !slices.ContainsFunc(items, func(item sidebarProject) bool { return item.id == directoryProjectID(filepath.Clean(a.workspaceRoot(folder))) }) {
+				t.Fatalf("plain directory missing from sidebar items after sessions emptied: %+v", items)
+			}
+			// Removing the project must close the empty tab on that workspace.
+			a.newEmptyTab(a.workspaceRoot(folder), focusedPane(a.layoutFor(a.workspaceRoot(folder))))
+			a.removeProject(directoryProjectID(filepath.Clean(a.workspaceRoot(folder))))
+			for _, tab := range a.tabs {
+				if tab.Kind == "empty" && a.workspaceRoot(tab.Workspace) == a.workspaceRoot(folder) {
+					t.Fatalf("removeProject left an empty tab behind: %+v", tab)
+				}
 			}
 		})
 	}
@@ -155,7 +193,7 @@ func TestSidebarDropFirstDirectoryOnly(t *testing.T) {
 				t.Fatalf("directory selection failed: %s", a.projectsError)
 			}
 			if plainFirst {
-				if len(a.repositories) != 0 || a.State.Cwd != firstPath {
+				if len(a.repositories) != 0 || a.workspaceRoot(a.activeWorkspace) != a.workspaceRoot(firstPath) {
 					t.Fatal("plain first directory was skipped or second directory was imported")
 				}
 			} else if len(a.repositories) != 1 || a.repositories[0].CommonDir != first.CommonDir {

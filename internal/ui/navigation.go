@@ -45,6 +45,24 @@ func (a *App) projectGroupsFor(query string) []projectGroup {
 		}
 		groups[index].sessions = append(groups[index].sessions, s)
 	}
+	for _, id := range a.projectOrder {
+		path, ok := strings.CutPrefix(id, "dir:")
+		if !ok || path == "" || a.hiddenProjects[id] {
+			continue
+		}
+		path = filepath.Clean(path)
+		if a.worktreeFor(path) != nil {
+			continue
+		}
+		if _, exists := indices[path]; exists {
+			continue
+		}
+		if !matchesQuery(query, "", path) {
+			continue
+		}
+		indices[path] = len(groups)
+		groups = append(groups, projectGroup{path: path})
+	}
 	return groups
 }
 

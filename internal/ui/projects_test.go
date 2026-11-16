@@ -440,18 +440,37 @@ func TestAddProjectSupportsPlainFoldersAndPreservesGitErrors(t *testing.T) {
 	queue := make(chan func(), 10)
 	a.dispatch = func(fn func()) { queue <- fn }
 	folder := project.Canonical(t.TempDir())
+	selected, sessions := a.session, len(a.sessions)
 	a.addProject(folder)
 	pumpUpdate(t, queue)
-	if a.projectsError != "" || len(a.repositories) != 0 || a.State.Cwd != folder {
+	if a.projectsError != "" || len(a.repositories) != 0 || len(a.sessions) != sessions {
 		t.Fatal("ordinary folder was not added as a project")
 	}
-	first := a.session
-	first.State.Draft = "keep draft"
-	count := len(a.sessions)
+	if a.session != selected || a.workspaceRoot(a.activeWorkspace) != a.workspaceRoot(folder) {
+		t.Fatal("ordinary folder did not switch workspace without binding an agent")
+	}
+	emptyTabs := 0
+	for _, tab := range a.tabs {
+		if tab.Kind == "empty" && a.workspaceRoot(tab.Workspace) == a.workspaceRoot(folder) {
+			emptyTabs++
+		}
+	}
+	if emptyTabs != 1 {
+		t.Fatalf("expected one empty tab for the dropped folder, got %d", emptyTabs)
+	}
 	a.addProject(folder)
 	pumpUpdate(t, queue)
-	if a.session != first || len(a.sessions) != count || a.State.Draft != "keep draft" {
-		t.Fatal("adding the same folder duplicated a session or lost its draft")
+	if a.session != selected || len(a.sessions) != sessions {
+		t.Fatal("adding the same folder duplicated a session or lost the empty tab")
+	}
+	emptyTabs = 0
+	for _, tab := range a.tabs {
+		if tab.Kind == "empty" && a.workspaceRoot(tab.Workspace) == a.workspaceRoot(folder) {
+			emptyTabs++
+		}
+	}
+	if emptyTabs != 1 {
+		t.Fatalf("adding the same folder created a second empty tab: %d", emptyTabs)
 	}
 	tt := native.NewTester(a.view, 1000, 760)
 	if !tt.HasText("添加项目") || tt.HasText("导入项目") || tt.HasText("打开项目") {
@@ -463,7 +482,7 @@ func TestAddProjectSupportsPlainFoldersAndPreservesGitErrors(t *testing.T) {
 	}
 	a.addProject(broken)
 	pumpUpdate(t, queue)
-	if a.projectsError == "" || len(a.sessions) != count || a.session != first {
+	if a.projectsError == "" || len(a.sessions) != sessions || a.session != selected {
 		t.Fatal("broken Git repository was silently treated as an ordinary folder")
 	}
 	if err := os.WriteFile(filepath.Join(broken, ".git"), []byte("gitdir: /missing-fuyu-test-git-dir\n"), 0600); err != nil {
@@ -471,7 +490,7 @@ func TestAddProjectSupportsPlainFoldersAndPreservesGitErrors(t *testing.T) {
 	}
 	a.addProject(broken)
 	pumpUpdate(t, queue)
-	if a.projectsError == "" || len(a.sessions) != count {
+	if a.projectsError == "" || len(a.sessions) != sessions {
 		t.Fatal("missing linked Git directory was treated as a plain folder")
 	}
 }
