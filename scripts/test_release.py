@@ -13,6 +13,32 @@ release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
 
 
+class ApplicationRegistrationTests(unittest.TestCase):
+    def test_registration_excludes_old_icons_in_release_backups(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / 'Sasa.app'
+            previous = root / '.Fuyu-releases/old/previous.app'
+            legacy = root / '.Fuyu-releases/old/legacy-installed.app'
+            preview = root / '.Fuyu-releases/other/previous.app'
+            for bundle, identifier, icon in [
+                    (app, 'com.shenming.fuyu', 'Sasa.icns'),
+                    (previous, 'com.shenming.fuyu', 'Fuyu.icns'),
+                    (legacy, 'com.shenming.fuyu', 'Fuyu.icns'),
+                    (preview, 'com.shenming.fuyu.preview', 'SasaPreview.icns')]:
+                metadata = bundle / 'Contents/Info.plist'
+                metadata.parent.mkdir(parents=True)
+                with metadata.open('wb') as handle:
+                    plistlib.dump({'CFBundleIdentifier': identifier, 'CFBundleIconFile': icon}, handle)
+            with patch.object(release, 'run') as run, patch.object(release.subprocess, 'run') as unregister, patch.object(Path, 'exists', return_value=True):
+                unregister.return_value.returncode = 1
+                release.register(app)
+            operations = [call.args[0][1:] for call in unregister.call_args_list]
+            self.assertEqual(operations, [['-u', str(legacy)], ['-u', str(previous)]])
+            self.assertEqual(run.call_args.args[1:], ('-f', app))
+            self.assertTrue((previous / 'Contents/Info.plist').exists())
+
+
 class ExecutableUUIDTests(unittest.TestCase):
     def executable(self, directory, commands=None, payload=b'program'):
         if commands is None:

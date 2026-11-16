@@ -161,6 +161,15 @@ def sign(app):
 def register(app):
     tool = Path('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister')
     if tool.exists():
+        with (app / 'Contents/Info.plist').open('rb') as handle:
+            identifier = plistlib.load(handle)['CFBundleIdentifier']
+        backups = app.parent / '.Fuyu-releases'
+        for metadata in sorted(backups.glob('*/*.app/Contents/Info.plist')):
+            with metadata.open('rb') as handle:
+                backup_identifier = plistlib.load(handle).get('CFBundleIdentifier')
+            if backup_identifier == identifier:
+                subprocess.run([str(tool), '-u', str(metadata.parents[1])],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         run(tool, '-f', app)
 
 
