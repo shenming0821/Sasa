@@ -8,7 +8,7 @@ Fuyu 使用 Go + MyGo Native UI，macOS 优先，接入 Codex 与 Claude Code �
 
 文档使用具体功能名称描述范围与状态。
 
-主窗口通用能力默认同时覆盖 Codex 与 Claude；原生能力或用户要求造成的差异在相关验证记录中注明。
+主窗口通用能力默认同时覆盖 Codex 与 Claude。
 
 ## 修改与验证
 

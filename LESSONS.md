@@ -2,19 +2,19 @@
 
 ## 2026-11-04：系统设置授权与基线保存
 
-当三档设置需要从系统原值恢复允许睡眠的状态时，保留有效正数计时，对禁止睡眠的零值使用明确的正数回退，并通过写入后的实际读取验证档位。当操作需要管理员授权时，在后台等待，状态锁只覆盖内存更新，主线程保留交互并拦截重复修改。当首次修改需要保存还原基线时，保存成功后再确认消费，保存失败及重试持续保留原始基线。回归覆盖零值基线往返、受控授权阻塞、其他偏好并行编辑、关闭取消及临时 SQLite 保存失败重试，见[保持唤醒验证](docs/verification/2026-11-04-keep-awake-pmset.md#审核问题复现与修复验证)。
+当三档设置需要从系统原值恢复允许睡眠的状态时，保留有效正数计时，对禁止睡眠的零值使用明确的正数回退，并通过写入后的实际读取验证档位。当操作需要管理员授权时，在后台等待，状态锁只覆盖内存更新，主线程保留交互并拦截重复修改。当首次修改需要保存还原基线时，保存成功后再确认消费，保存失败及重试持续保留原始基线。回归覆盖零值基线往返、受控授权阻塞、其他偏好并行编辑、关闭取消及临时 SQLite 保存失败重试。
 
 ## 2026-11-02：计时状态与位置统一
 
-当同一计时信息同时具有进行中和结束态时，将它们关联到同一用户问题并共用渲染位置与间距；布局验证同时覆盖初始等待、命令输出后和结束切换。仅调整完成态会遗漏单独位于列表末尾的进行中计时；在相同夹具中切换状态，核对计时与首条命令的位置保持一致，并通过隔离原生窗口复验。证据：`TestTimingLayoutBelowQuestionBeforeCommands` 与[用时验证](docs/verification/2026-11-01-turn-timing.md)。
+当同一计时信息同时具有进行中和结束态时，将它们关联到同一用户问题并共用渲染位置与间距；布局验证同时覆盖初始等待、命令输出后和结束切换。仅调整完成态会遗漏单独位于列表末尾的进行中计时；在相同夹具中切换状态，核对计时与首条命令的位置保持一致，并通过隔离原生窗口复验。证据：`TestTimingLayoutBelowQuestionBeforeCommands`。
 
 ## 2026-10-30：Diff 代码与补丁身份分离
 
-当 Diff 需要以编辑器形式呈现时，将代码正文、旧/新行号、增删类型与原始修改块身份分开保存，跳转与块操作通过行映射定位。补丁文件头和块头用于比较与操作，正文与复制内容显示真实代码；补齐未修改代码时先验证对应源版本与补丁上下文一致。参考 Mayoi 行模型后的实现与临时仓库回归见 [Diff 代码展示验证](docs/verification/2026-10-30-diff-source-view.md)。
+当 Diff 需要以编辑器形式呈现时，将代码正文、旧/新行号、增删类型与原始修改块身份分开保存，跳转与块操作通过行映射定位。补丁文件头和块头用于比较与操作，正文与复制内容显示真实代码；补齐未修改代码时先验证对应源版本与补丁上下文一致。
 
 ## 2026-10-29：Claude 本地命令的完成与历史末尾
 
-当原生本地命令返回 success、正常退出但没有 terminal_reason 时，结合本次发送 UUID、命令参数及原生 `system/local_command` 的 info 输出核验完成。选取历史主链末尾时纳入本地命令的 system 输出，避免只保留 user/assistant 而丢失完成证据。恢复旧 unknown 检查点时，同时核对历史摘要、运行状态和任务归属，并持久化核验结果；一般未知任务继续等待核验。实际 `/model` 误判、隔离测试与原会话恢复证据见[本地命令恢复验证](docs/verification/2026-10-29-claude-local-command-recovery.md)。
+当原生本地命令返回 success、正常退出但没有 terminal_reason 时，结合本次发送 UUID、命令参数及原生 `system/local_command` 的 info 输出核验完成。选取历史主链末尾时纳入本地命令的 system 输出，避免只保留 user/assistant 而丢失完成证据。恢复旧 unknown 检查点时，同时核对历史摘要、运行状态和任务归属，并持久化核验结果；一般未知任务继续等待核验。
 
 ## 使用方式
 
@@ -26,7 +26,7 @@
 
 | 场景 | 后续动作 | 依据 |
 |---|---|---|
-| 单独完成 UI 骨架仍无法确认 Runtime 交互可行 | 构建真实任务闭环时，将原生窗口与真实 Codex 任务连起来，验收文件操作、连续对话和中断 | [真实任务闭环验证](docs/verification/2026-10-22-p1.md) |
+| 单独完成 UI 骨架仍无法确认 Runtime 交互可行 | 构建真实任务闭环时，将原生窗口与真实 Codex 任务连起来，验收文件操作、连续对话和中断 | — |
 | 当前阶段与未来能力混在一起，容易扩大首轮范围 | 按用户已确认的目标实现并验证，扩展范围时核对最新授权 | [贡献指南](CONTRIBUTING.md) |
 | 恢复历史与重新接入活动任务具有不同条件 | 根据原生状态和进程归属分别验证，记录实际恢复结果 | [存储与恢复](docs/subsystems/storage.md)、[参考核验](docs/reference-verification.md) |
 
@@ -36,19 +36,19 @@ Git 文件行通过共享按钮注册默认提示后，再调用 `Tooltip` 设�
 
 ## 2026-10-26：Diff 宽度与横向滚动
 
-行内及并排 Diff 的文本区域使用固定最小 600 DIP 宽度，宽窗口出现空白；长行区域又被水平容器的默认 flex shrink 压回视口宽度，导致没有横向溢出和滚动条。新建 TextBuffer 的版本从 0 开始，单独比较默认值同为 0 的高亮版本还会跳过首次宽度计算。构建横向代码视图时，正文宽度取可用区与内容宽度的较大值，并设置 `Shrink(0)`；尚未计算宽度时启动计算，替换缓冲时清除旧宽度。后续中文长行反馈证实“字符数 × 8”的估算仍会截断行尾；需要滚动到完整行尾时，使用实际字体排版测宽，并计入内边距，分别核对行内与并排两侧的末端可见范围。回归通过实际异步宽度计算覆盖 480/1000/1800 DIP、短长行、行内/并排、滚轮和滚动条拖动，以及长行刷新为短行后的滚动归零。证据：`internal/ui/diff_layout_test.go`、[Diff 验证](docs/verification/2026-10-26-diff-layout.md)。
+行内及并排 Diff 的文本区域使用固定最小 600 DIP 宽度，宽窗口出现空白；长行区域又被水平容器的默认 flex shrink 压回视口宽度，导致没有横向溢出和滚动条。新建 TextBuffer 的版本从 0 开始，单独比较默认值同为 0 的高亮版本还会跳过首次宽度计算。构建横向代码视图时，正文宽度取可用区与内容宽度的较大值，并设置 `Shrink(0)`；尚未计算宽度时启动计算，替换缓冲时清除旧宽度。后续中文长行反馈证实“字符数 × 8”的估算仍会截断行尾；需要滚动到完整行尾时，使用实际字体排版测宽，并计入内边距，分别核对行内与并排两侧的末端可见范围。回归通过实际异步宽度计算覆盖 480/1000/1800 DIP、短长行、行内/并排、滚轮和滚动条拖动，以及长行刷新为短行后的滚动归零。证据：`internal/ui/diff_layout_test.go`。
 
 ## 2026-10-28：原生确认框按钮位置
 
-macOS 的 NSAlert 会根据默认操作安排按钮位置，仅交换 `Buttons` 数组不能保证最终左右顺序。在要求“取消”位于左侧、“删除会话”位于右侧时，将删除配置为确认操作，取消配置为 Escape，并同步核对返回索引；通过真实窗口截图确认按钮位置，再验证取消保持原数据。当前删除弹窗使用 `Buttons=[删除会话,取消]`、`DefaultButton=0`、`CancelButton=1`。证据：[删除验证](docs/verification/2026-10-28-session-delete.md)的同日交互调整。
+macOS 的 NSAlert 会根据默认操作安排按钮位置，仅交换 `Buttons` 数组不能保证最终左右顺序。在要求“取消”位于左侧、“删除会话”位于右侧时，将删除配置为确认操作，取消配置为 Escape，并同步核对返回索引；通过真实窗口截图确认按钮位置，再验证取消保持原数据。当前删除弹窗使用 `Buttons=[删除会话,取消]`、`DefaultButton=0`、`CancelButton=1`。
 
 ## 2026-11-03：折叠动画起点的底部跟随
 
-连续工具组首次展开时，折叠进度仍为 0，但目标已变为展开；仅在进度介于 0 与 1 时暂停底部跟随，会在起始帧提前解除保护。工具组或详情切换时，从触发点击或进度与目标不一致开始暂停跟随，保留到过渡稳定。受控 UI 回归 `TestMixedToolGroupAtEndKeepsReadingPosition`、`TestMixedToolGroupKeepsReadingPosition` 覆盖底部首次展开、逐项详情、减少动态效果及返回末尾后继续跟随。见[工具合并验证](docs/verification/2026-11-03-tool-groups.md)。
+连续工具组首次展开时，折叠进度仍为 0，但目标已变为展开；仅在进度介于 0 与 1 时暂停底部跟随，会在起始帧提前解除保护。工具组或详情切换时，从触发点击或进度与目标不一致开始暂停跟随，保留到过渡稳定。受控 UI 回归 `TestMixedToolGroupAtEndKeepsReadingPosition`、`TestMixedToolGroupKeepsReadingPosition` 覆盖底部首次展开、逐项详情、减少动态效果及返回末尾后继续跟随。
 
 ## 2026-11-03：大量基础分支导致选择器卡顿
 
-Worktree 基础分支列表使用普通 Scroll 包裹全量按钮，order 仓库的 9,646 条引用在展开时全部构建，输入和每帧更新重复处理所有候选。实测 Git 三条读取命令总计约 47 毫秒，主要问题在 UI 全量构建。可滚动候选达到大量条目时，使用原生虚拟列表仅构建可见行，并在查询变化时更新过滤结果；通过万条候选覆盖尾项滚动、搜索和精确选择，不能仅使用小仓库验收。受控单帧基准从 19.812 毫秒、30,018 次分配降低到 0.286 毫秒、58 次分配。证据：`TestWorktreeSourcePickerLargeRepositoryScrollSearchAndSelection`、`BenchmarkWorktreeSourcePicker`，见[新增 Worktree 验证](docs/verification/2026-11-03-worktree-create.md)。
+Worktree 基础分支列表使用普通 Scroll 包裹全量按钮，order 仓库的 9,646 条引用在展开时全部构建，输入和每帧更新重复处理所有候选。实测 Git 三条读取命令总计约 47 毫秒，主要问题在 UI 全量构建。可滚动候选达到大量条目时，使用原生虚拟列表仅构建可见行，并在查询变化时更新过滤结果；通过万条候选覆盖尾项滚动、搜索和精确选择，不能仅使用小仓库验收。受控单帧基准从 19.812 毫秒、30,018 次分配降低到 0.286 毫秒、58 次分配。证据：`TestWorktreeSourcePickerLargeRepositoryScrollSearchAndSelection`、`BenchmarkWorktreeSourcePicker`。
 
 ## 新案例格式
 
@@ -57,7 +57,7 @@ Worktree 基础分支列表使用普通 Scroll 包裹全量按钮，order 仓库
 触发条件与可观察结果：
 原因：
 在什么条件下，执行什么动作：
-证据：源码/提交/验证记录路径
+证据：源码/提交
 规则归属：代码标准或相关子系统文档
 ```
 
@@ -71,23 +71,23 @@ MyGo 的 Element 只在当前构建阶段有效。输入候选处理键盘时，
 
 ## 2026-10-23：右侧历史布局
 
-用户确认参考 Orca 的右侧历史侧栏时，在默认窗口下仍应将历史放在窗口内部，与聊天并排。根据截图实现导航布局时，先核对默认尺寸下的面板占位方式；展开历史为会话区让出宽度，空间不足时优先收起项目导航。组件验证同时断言历史、正文和发送按钮的实际边界。依据：`internal/ui/navigation_test.go`、[导航验收](docs/verification/2026-10-23-navigation.md)。
+用户确认参考 Orca 的右侧历史侧栏时，在默认窗口下仍应将历史放在窗口内部，与聊天并排。根据截图实现导航布局时，先核对默认尺寸下的面板占位方式；展开历史为会话区让出宽度，空间不足时优先收起项目导航。组件验证同时断言历史、正文和发送按钮的实际边界。依据：`internal/ui/navigation_test.go`。
 
 ## 2026-10-23：外部会话占用
 
-`thread/resume` 报告已有 active writer 时，表示另一进程持有写入权。此时以原生只读接口加载历史，并提供重试或独立分叉；保留原会话及草稿。仅管理 Fuyu 自有任务，不因外部占用创建 Busy 状态或提交不确定标记。分叉时明确延后目标自动续跑，直接使用 fork 返回状态分页，等待用户发送下一项任务。依据：`internal/ui/occupied_test.go`、`internal/codex/history_test.go`、[占用交互验收](docs/verification/2026-10-23-occupied-session.md)。
+`thread/resume` 报告已有 active writer 时，表示另一进程持有写入权。此时以原生只读接口加载历史，并提供重试或独立分叉；保留原会话及草稿。仅管理 Fuyu 自有任务，不因外部占用创建 Busy 状态或提交不确定标记。分叉时明确延后目标自动续跑，直接使用 fork 返回状态分页，等待用户发送下一项任务。依据：`internal/ui/occupied_test.go`、`internal/codex/history_test.go`。
 
 ## 2026-10-23：工具卡片文字越界
 
-长多行命令使用 `Text.MaxHeight(72)` 时只限制布局占位，实际文字仍继续向下绘制，覆盖卡片元数据及后续消息。限制文字预览时使用 `MaxLines`，并通过独立滚动详情提供完整内容；卡片同时裁切绘制边界。回归应读取实际渲染像素，检查命令与元数据之间的间距及卡片下方留白，单独检查元素高度无法发现该问题。依据：[布局验收](docs/verification/2026-10-23-tool-layout.md)。
+长多行命令使用 `Text.MaxHeight(72)` 时只限制布局占位，实际文字仍继续向下绘制，覆盖卡片元数据及后续消息。限制文字预览时使用 `MaxLines`，并通过独立滚动详情提供完整内容；卡片同时裁切绘制边界。回归应读取实际渲染像素，检查命令与元数据之间的间距及卡片下方留白，单独检查元素高度无法发现该问题。
 
 ## 2026-10-23：桌面启动环境
 
-Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改为绝对路径还不足以启动 npm/Bun 包装脚本，因为 `env node` 仍依赖子进程 PATH。桌面启动时根据当前用户恢复安装目录与登录 shell 路径，并将相同环境用于版本探测、App Server 和后续工具；保留显式路径和原生配置。回归使用精简 PATH、临时安装目录和真实初始化分别核验，不能用终端中的 `codex --version` 代替桌面启动验证。依据：[启动路径验收](docs/verification/2026-10-23-codex-discovery.md)。
+Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改为绝对路径还不足以启动 npm/Bun 包装脚本，因为 `env node` 仍依赖子进程 PATH。桌面启动时根据当前用户恢复安装目录与登录 shell 路径，并将相同环境用于版本探测、App Server 和后续工具；保留显式路径和原生配置。回归使用精简 PATH、临时安装目录和真实初始化分别核验，不能用终端中的 `codex --version` 代替桌面启动验证。
 
 ## 2026-10-23：应用图标缓存
 
-原地构建 `.app` 时，包内图标与 `CFBundleIconFile` 已正确更新，但外层目录时间保留旧值，Finder 实测仍显示默认图标。构建完成后更新包修改时间并重新登记当前应用，再通过 Finder 实际预览及应用启动核验。图标资源格式检查和用户实际可见效果分别验证。依据：`scripts/build`、[图标验收](docs/verification/2026-10-23-app-icon.md)。
+原地构建 `.app` 时，包内图标与 `CFBundleIconFile` 已正确更新，但外层目录时间保留旧值，Finder 实测仍显示默认图标。构建完成后更新包修改时间并重新登记当前应用，再通过 Finder 实际预览及应用启动核验。图标资源格式检查和用户实际可见效果分别验证。依据：`scripts/build`。
 
 ## 2026-10-22：真实任务闭环实测案例
 
@@ -95,8 +95,8 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 |---|---|---|
 | 新提交尚未拿到 turn ID，旧 completed 可能清除 Busy | 保存已结束 turn ID，忽略其重复和晚到事件 | `internal/app/state_test.go` |
 | Cmd+Enter 在输入法组合期间仍触发回调 | 在每次渲染读取 Composing，用于发送门控；在组件中复现候选输入与发送快捷键的组合 | `internal/ui/app_test.go` |
-| 在键盘回调查询上一次渲染的 Element 引发过期 pass panic | 跨回调保留必要状态值；需持久定位时使用框架 Handle，避免直接持有 Element 调用方法 | `internal/ui/app.go`、[真实任务闭环验收](docs/verification/2026-10-22-p1.md) |
-| turn 已完成/中断，独立后台 sleep 仍运行 | 分别以 turn 与 item 的原生事件核对终态，停止后检查实际子进程；只对实际覆盖的退出路径声明清理通过 | [真实任务闭环原生窗口验收](docs/verification/2026-10-22-p1.md) |
+| 在键盘回调查询上一次渲染的 Element 引发过期 pass panic | 跨回调保留必要状态值；需持久定位时使用框架 Handle，避免直接持有 Element 调用方法 | `internal/ui/app.go` |
+| turn 已完成/中断，独立后台 sleep 仍运行 | 分别以 turn 与 item 的原生事件核对终态，停止后检查实际子进程；只对实际覆盖的退出路径声明清理通过 | — |
 | main 在资源创建后 os.Exit 跳过 defer | 将有资源的工作放入返回 error 的 run()，退出码在 run 返回后设置 | `cmd/desktop/main.go` |
 | Markdown 编号按比例数字测宽，实际使用 tnum 数字渲染，10 起出现句点换行 | 为有序列表保留 3 em 缩进，逐项增长验证 1–120 的编号高度；无序列表通过本地补丁限制为最多 1.4 em，避免圆点两侧留白过大；依赖修复后重新核验再移除此兼容设置 | `internal/ui/app.go`、`TestStreamListMarkersStayOnOneLine` |
 | 服务端报告 willRetry 后恢复输出，旧重连提示仍停留在已完成界面 | 按 turn 跟踪临时重试提示，恢复输出或到达终态时移除对应提示，保留其他警告 | `internal/app/state.go`、`TestRetryNoticeClearsWhenOutputResumes` |
@@ -105,7 +105,7 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 
 | 触发场景与原因 | 后续动作 | 证据 |
 |---|---|---|
-| MyGo ButtonBase 的 Label 仅提供无障碍名称，原生窗口按钮有热区但看不到文字 | 构建自定义操作按钮时显式添加 Text 子节点，并在原生窗口核对可见文字 | `internal/ui/activity.go`、[任务过程与交互验收](docs/verification/2026-10-22-p2.md) |
+| MyGo ButtonBase 的 Label 仅提供无障碍名称，原生窗口按钮有热区但看不到文字 | 构建自定义操作按钮时显式添加 Text 子节点，并在原生窗口核对可见文字 | `internal/ui/activity.go` |
 | 原生兼容通知的 error 为字符串，统一解码成结构体产生假警告 | 在解析前筛选应用实际投影的方法；兼容通知不进入无关的强类型结构 | `TestUnprojectedCompatibilityNoticeDoesNotBecomeParseFailure` |
 | 原生新增文件的 diff 为原文，按 unified diff 计数得到 +0 | 根据 change kind 区分原文与统一差异；新增/删除统计原文行数 | `internal/app/tools.go`、真实 denied.txt 显示 +1 −0 |
 | 仅限制协议队列，异步 Window.Update 仍可积压 UI 回调 | 后台每批派发后等待主线程回调完成或应用退出，再消费下一批事件 | `internal/ui/app.go` |
@@ -119,13 +119,13 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 | 触发场景与原因 | 后续动作 | 证据 |
 |---|---|---|
 | 会话切换后，异步发送/停止/审批/快照仍通过当前 State 写回，可能覆盖另一个会话 | 启动异步工作时固定所属会话，回调仅修改该会话；thread/start 的所属状态先写入主线程，再提交 turn/start | `internal/ui/app.go`、`TestSwitchWhileStartingThreadKeepsSubmissionAndEffectiveSettings` |
-| 用整个 App 的副本绑定会话，vet 发现 Markdown Options 内含 sync.Map，复制会复制锁 | 构造会话回调接收者时仅传递会话、连接和派发资源，含锁的渲染配置保留原实例 | `internal/ui/sessions.go`、[会话持久化与恢复首步验证](docs/verification/2026-10-22-p3-sessions.md) |
+| 用整个 App 的副本绑定会话，vet 发现 Markdown Options 内含 sync.Map，复制会复制锁 | 构造会话回调接收者时仅传递会话、连接和派发资源，含锁的渲染配置保留原实例 | `internal/ui/sessions.go` |
 
 ## 2026-10-22 至 2026-10-23：会话持久化与恢复
 
 | 触发场景与原因 | 后续动作 | 证据 |
 |---|---|---|
-| 一条长回复占据多屏，仅保存 item ID 会回到回复开头 | 保存首可见原生 ID 和条目内相对偏移，分页找回锚点后再恢复偏移 | `TestRestartRestoresOffsetInsideLongNativeMessage`、[会话持久化与恢复验证](docs/verification/2026-10-22-p3.md) |
+| 一条长回复占据多屏，仅保存 item ID 会回到回复开头 | 保存首可见原生 ID 和条目内相对偏移，分页找回锚点后再恢复偏移 | `TestRestartRestoresOffsetInsideLongNativeMessage` |
 | 新页尚未加载旧工具，直接重建展开字典会丢失旧页设置；分页改变首条可见任务导致标题跳变 | 保存时合并未加载条目的设置，标题优先使用已保存摘要 | `TestCheckpointPreservesUnloadedToolExpansionAndStableTitle` |
 | 同一目录有多个会话，启动参数 cwd 匹配遍历覆盖上次选中项 | 先保留匹配目录的选中会话，再查找其他匹配会话 | `TestStartupKeepsSelectedSessionWhenDirectoryMatches` |
 | 发送未取得 thread/turn ID 就异常退出，空闲界面可能覆盖原有不确定标记 | 持久保留提交不确定性，读取原生历史并显式确认后才允许继续 | `internal/ui/recovery_test.go` |
@@ -141,7 +141,7 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 
 2026-10-29 补充：暂存时即使不插入 loading 文案，共用的 busy 状态仍会让分支工具栏、提交输入框和操作按钮整体禁用再恢复，造成短暂变淡。快速索引操作将写入互斥与视觉禁用分开：在逻辑入口拦截重复操作，保留工具栏外观和提交信息编辑。回归比较浅/深色及空/非空草稿的整个顶部像素；仅断言文件行位置无法识别此类闪动。`TestGitIndexActionsKeepHeaderPixelsSteady` 在修复前四组均失败，修复后通过。
 
-已有 Git 快照时，每 5 秒的后台检查仍插入、移除加载行，并切换刷新按钮禁用态，导致列表跳动和按钮闪动。当面板已有可用内容时，后台刷新保留其几何位置和操作外观，仅首次读取展示加载提示；滚动容器赋予稳定身份，错误单独呈现。回归覆盖首次读取及六次加载状态切换后的行位置、滚动与分组折叠，见 `TestP4GitBackgroundRefreshKeepsListSteady` 和 [文件编辑与 Git 验证](docs/verification/2026-10-24-p4.md)。
+已有 Git 快照时，每 5 秒的后台检查仍插入、移除加载行，并切换刷新按钮禁用态，导致列表跳动和按钮闪动。当面板已有可用内容时，后台刷新保留其几何位置和操作外观，仅首次读取展示加载提示；滚动容器赋予稳定身份，错误单独呈现。回归覆盖首次读取及六次加载状态切换后的行位置、滚动与分组折叠，见 `TestP4GitBackgroundRefreshKeepsListSteady`。
 
 ## 2026-10-24：删除目录后的展开状态与空目录重试
 

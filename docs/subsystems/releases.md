@@ -74,7 +74,7 @@ Preview 启动和回退重开通过 macOS Launch Services（`/usr/bin/open -n -a
 
 ## 验证入口
 
-备份与回退核验数据库时，在应用数据锁内以 `mode=rw` 打开已存在的数据库，并设置 `PRAGMA query_only=ON` 限制 SQL 写入；允许 SQLite 为已退出应用的 WAL 数据库重建所需辅助文件。备份源、目标及版本检查连接在操作结束时明确关闭，避免连接跨恢复步骤持有旧文件。相关冷启动 WAL 回归见[双渠道验证](../verification/2026-11-05-preview-release.md)。
+备份与回退核验数据库时，在应用数据锁内以 `mode=rw` 打开已存在的数据库，并设置 `PRAGMA query_only=ON` 限制 SQL 写入；允许 SQLite 为已退出应用的 WAL 数据库重建所需辅助文件。备份源、目标及版本检查连接在操作结束时明确关闭，避免连接跨恢复步骤持有旧文件。
 
 ```sh
 python3 -B -m unittest discover -s scripts -p 'test_release.py'
@@ -83,4 +83,4 @@ python3 -B -m unittest discover -s scripts -p 'test_release.py'
 ./scripts/go vet ./...
 ```
 
-受控发布测试使用临时 `.app`、临时真实 SQLite 和替代进程控制器，覆盖候选篡改、数据锁、退出取消、健康确认失败恢复和数据版本回退，不等同于 macOS 原生窗口验收。本次实际结果见[双渠道验证](../verification/2026-11-05-preview-release.md)。
+受控发布测试使用临时 `.app`、临时真实 SQLite 和替代进程控制器，覆盖候选篡改、数据锁、退出取消、健康确认失败恢复和数据版本回退，不等同于 macOS 原生窗口验收。

@@ -44,7 +44,7 @@ Git 面板正常状态刷新复用分支缓存；手动“刷新 Git”、分支
 
 点击 worktree 卡片恢复该文件夹上次选中的页签，记录失效时进入同组首个有效页签；没有打开页签时进入面板内容选择入口。普通目录标题继续只控制展开/收起，点击具体会话或历史记录直接进入指定会话。关闭当前页签后优先选择同组前一页，再选择后一页；关闭同组最后一页后保留当前文件夹的空工作区，Cmd+W 不影响其他文件夹的页签。
 
-worktree 名称和普通目录标题保持加入绿点前的文字起点；绿点绝对定位在左侧既有缩进中，普通目录的文件夹图标保持原位。当存在打开页签时显示主题成功色的 6 DIP 绿点；空闲会话、文件、Diff 和终端均计入，最后一页关闭后隐藏，名称与可用文字宽度保持稳定。辅助功能说明为“有打开的页签”。仓库总标题保留现有外观。实现由 `internal/ui/folder_tabs.go` 统一管理归属、记忆和关闭回退；恢复及持久化见[存储与恢复](storage.md)，验证见[文件夹页签验证](../verification/2026-11-02-folder-tabs.md)。
+worktree 名称和普通目录标题保持加入绿点前的文字起点；绿点绝对定位在左侧既有缩进中，普通目录的文件夹图标保持原位。当存在打开页签时显示主题成功色的 6 DIP 绿点；空闲会话、文件、Diff 和终端均计入，最后一页关闭后隐藏，名称与可用文字宽度保持稳定。辅助功能说明为“有打开的页签”。仓库总标题保留现有外观。实现由 `internal/ui/folder_tabs.go` 统一管理归属、记忆和关闭回退；恢复及持久化见[存储与恢复](storage.md)。
 
 ## Worktree 显示名称
 
@@ -52,7 +52,7 @@ worktree 名称和普通目录标题保持加入绿点前的文字起点；绿�
 
 `internal/ui/worktree_rename.go` 管理显示名称与编辑弹窗。名称按发现的绝对 worktree 路径保存在 `storage.Snapshot.WorktreeNames`，通过既有 settings JSON 持久化，数据库 schema 保持当前版本。主工作区和关联 worktree 均可独立命名，允许同名；刷新 Git 元数据与重启应用保留名称。移除项目后重新添加相同路径仍使用原名称；外部移动工作区后，新路径使用默认文件夹名称。
 
-名称仅替换项目列表工作区卡片的首行标题，分支标签、仓库标题、磁盘目录、Git worktree 登记和会话 cwd 保持原身份。搜索同时匹配显示名称、路径、分支和会话标题；右键编辑入口继续绑定路径。验证见[Worktree 重命名验证](../verification/2026-10-28-worktree-rename.md)。
+名称仅替换项目列表工作区卡片的首行标题，分支标签、仓库标题、磁盘目录、Git worktree 登记和会话 cwd 保持原身份。搜索同时匹配显示名称、路径、分支和会话标题；右键编辑入口继续绑定路径。
 
 ## 项目排序与移除
 
@@ -81,6 +81,4 @@ worktree 名称和普通目录标题保持加入绿点前的文字起点；绿�
 - `/Users/shenming/Documents/AI/orca/src/shared/git-worktree-porcelain-parser.ts`
 - `/Users/shenming/Documents/AI/orca/src/main/ipc/repos.ts`
 
-Fuyu 独立使用 Go 实现，Orca 的测试结果不代表 Fuyu 通过。临时真实 Git 仓库、受控 UI 与存储测试见[验证记录](../verification/2026-10-23-project-management.md)。
-
-本轮排序、移除及恢复验证见[项目排序验证](../verification/2026-10-26-project-order.md)。
+Fuyu 独立使用 Go 实现，Orca 的测试结果不代表 Fuyu 通过。

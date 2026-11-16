@@ -2,7 +2,7 @@
 
 ## 数据与归属
 
-主窗口通过 MyGo 的 `WindowOptions.StateKey = "main"` 保存窗口状态。状态单独写入应用数据目录的 `window-state.json`，随 `-data-dir` 隔离；正常退出时保存，下次创建窗口时恢复。首次启动或无可读记录时采用 1000×760 DIP，最小尺寸为 640×480 DIP。MyGo 同时记录位置、最大化与全屏状态，并提供显示器可见范围处理；当前原生验收确认尺寸恢复，位置和其他状态的验证边界见[窗口恢复验证](../verification/2026-11-03-window-state.md)。隐藏窗口继续保留当前原生窗口。此记录不进入 SQLite，也不改变数据库版本。
+主窗口通过 MyGo 的 `WindowOptions.StateKey = "main"` 保存窗口状态。状态单独写入应用数据目录的 `window-state.json`，随 `-data-dir` 隔离；正常退出时保存，下次创建窗口时恢复。首次启动或无可读记录时采用 1000×760 DIP，最小尺寸为 640×480 DIP。MyGo 同时记录位置、最大化与全屏状态，并提供显示器可见范围处理；当前原生验收确认尺寸恢复。隐藏窗口继续保留当前原生窗口。此记录不进入 SQLite，也不改变数据库版本。
 
 `internal/storage/store.go` 使用 `modernc.org/sqlite v1.60.1` 保存应用索引。macOS 正式版默认路径为 `~/Library/Application Support/Fuyu/fuyu.db`，Preview 为 `~/Library/Application Support/Fuyu Preview/fuyu.db`，可通过 `-data-dir` 指定独立目录。入口在打开数据库前校验 `release-channel` 渠道标记；Preview 拒绝使用正式版默认目录、正式版标记或未标记的既有数据库，正式版拒绝 Preview 标记。首次打开后在数据锁内记录渠道。Preview 的原生历史根与配置复制边界见[双渠道与发布](releases.md)。
 
@@ -51,7 +51,7 @@ v6 备份 `fuyu-before-v6-*.db` 并校验版本 5，在同一事务中重建会�
 
 `Snapshot.WorkspaceLayouts` 在 settings JSON 中按目录保存分屏树、分隔比例、稳定面板 ID、面板页签顺序与选中页签，以及聚焦面板 ID；数据库 schema 保持不变。旧快照缺失此字段时生成单面板并保留原选择。恢复时核对方向、树深度、节点 ID、比例和页签归属，清理重复与失效页签，损坏的树回退为包含原页签的单面板。空面板也保留，同一目录的 `/tmp`、`/private/tmp` 等真实路径别名复用已登记的目录身份，防止 Runtime 规范化 cwd 后切换成另一套布局。
 
-重启恢复布局、页签、焦点与比例，包括拖拽后的页签归属与空面板；当前目录每个可见会话分别核验原生历史，非可见页签仍延迟加载。终端恢复面板与目录，继续由用户显式启动新 shell，不恢复原 PTY 进程。跨面板拖拽只改变页签归属，关闭页签继续执行对应资源的关闭流程。专项验证见[主窗口分屏](../verification/2026-11-03-split-panes.md)。
+重启恢复布局、页签、焦点与比例，包括拖拽后的页签归属与空面板；当前目录每个可见会话分别核验原生历史，非可见页签仍延迟加载。终端恢复面板与目录，继续由用户显式启动新 shell，不恢复原 PTY 进程。跨面板拖拽只改变页签归属，关闭页签继续执行对应资源的关闭流程。
 
 settings JSON 的 `FolderSelectedTabs` 按文件夹绝对路径保存上次选中页签 ID，未绑定目录的分组使用空路径；`ActiveWorkspace` 和 `ActiveTabID` 保存当前文件夹及当前页签。关闭同组最后一页时允许保留非空 `ActiveWorkspace` 与空 `ActiveTabID`，其他文件夹的页签继续保存在 `WorkspaceTabs` 中。此扩展保持数据库 schema 4。读取旧设置时从各组有效页签建立默认选择；保存和恢复均排除已关闭、归属不符或不存在的选择，当前有效页签优先。文件重命名同步迁移选择 ID。
 
@@ -65,7 +65,7 @@ settings JSON 的 `FolderSelectedTabs` 按文件夹绝对路径保存上次选�
 
 ## 验证
 
-`internal/storage/store_test.go` 覆盖重开、唯一归属、事务回滚、损坏保留、高版本拒绝、v1/v2 升级、备份完整性与新鲜度、旧 JSON 预检和 Codex 历史目录不匹配。UI 恢复及真实运行见 [会话持久化与恢复验证](../verification/2026-10-22-p3.md)与 [文件编辑与 Git 验证](../verification/2026-10-24-p4.md)。
+`internal/storage/store_test.go` 覆盖重开、唯一归属、事务回滚、损坏保留、高版本拒绝、v1/v2 升级、备份完整性与新鲜度、旧 JSON 预检和 Codex 历史目录不匹配。
 
 ## 图片资源
 

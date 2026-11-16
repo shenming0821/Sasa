@@ -8,15 +8,15 @@
 
 ## 协议与进程
 
-关闭会话标签后，UI 保留 30 秒再调用 `ReleaseIdleThread`：活动和未知任务保留，空闲进程停止计时、退出并等待清理完成；已按 2 分钟超时回收的进程也可进入缓存回收。原生历史可读取且恢复状态为 idle 时，清理关闭会话的消息及渲染缓存，保留草稿、标题、阅读位置和折叠状态；重开先恢复历史再允许发送。历史缺失、变化或读取失败时保留显示缓存，按现有 1 分钟间隔重试。进程自身仍保持 2 分钟空闲超时、最多 4 个空闲进程的上限。验证见[Claude 关闭会话回收](../verification/2026-11-02-claude-memory.md)。
+关闭会话标签后，UI 保留 30 秒再调用 `ReleaseIdleThread`：活动和未知任务保留，空闲进程停止计时、退出并等待清理完成；已按 2 分钟超时回收的进程也可进入缓存回收。原生历史可读取且恢复状态为 idle 时，清理关闭会话的消息及渲染缓存，保留草稿、标题、阅读位置和折叠状态；重开先恢复历史再允许发送。历史缺失、变化或读取失败时保留显示缓存，按现有 1 分钟间隔重试。进程自身仍保持 2 分钟空闲超时、最多 4 个空闲进程的上限。
 
-`client.go` 管理会话检查点，`protocol.go` 与 `session_process.go` 管理任务进程、独立轮次与 stream-json。使用 `--permission-prompt-tool stdio`，权限模式由 CLI 按原生配置与当前 cwd 决定；新任务、恢复后的后续任务和模型/技能目录探测共用此启动入口。发送 initialize 并核验返回的 `current_permission_mode` 为非空字符串后再发送用户帧，缺失或格式错误时终止初始化并保持未发送状态。模型和命令目录来自 initialize；模型选择通过 `--model`、推理强度选择通过 `--effort` 传递，命令保留原生 `/名称 参数` 文本。`PinnedEffort` 检测配置根与项目 `.claude` settings `env.CLAUDE_CODE_EFFORT_LEVEL` 及启动环境变量：env 层锁定实测覆盖 `--effort`，模型菜单据此提示选择不会生效。2026-10-29 本机 `permissions.defaultMode=bypassPermissions`，真实 CLI 初始化确认 `current_permission_mode=bypassPermissions`，验证见[权限配置继承](../verification/2026-10-29-claude-permission-mode.md)。
+`client.go` 管理会话检查点，`protocol.go` 与 `session_process.go` 管理任务进程、独立轮次与 stream-json。使用 `--permission-prompt-tool stdio`，权限模式由 CLI 按原生配置与当前 cwd 决定；新任务、恢复后的后续任务和模型/技能目录探测共用此启动入口。发送 initialize 并核验返回的 `current_permission_mode` 为非空字符串后再发送用户帧，缺失或格式错误时终止初始化并保持未发送状态。模型和命令目录来自 initialize；模型选择通过 `--model`、推理强度选择通过 `--effort` 传递，命令保留原生 `/名称 参数` 文本。`PinnedEffort` 检测配置根与项目 `.claude` settings `env.CLAUDE_CODE_EFFORT_LEVEL` 及启动环境变量：env 层锁定实测覆盖 `--effort`，模型菜单据此提示选择不会生效。2026-10-29 本机 `permissions.defaultMode=bypassPermissions`，真实 CLI 初始化确认 `current_permission_mode=bypassPermissions`。
 
 Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clear` 和 `/plan`。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他原生命令，本地指令保持可见。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。计划模式控制及确认入口见[会话管理](sessions.md#计划模式)。
 
-本机 CLI 的 `/clear` 会发出 `conversation_reset` 并更换 session UUID。Fuyu 发送入口在本地处理这一命令：保存并保留旧会话历史，切换到相同 cwd、后端和模型的空白会话，后续任务再分配新原生 UUID，避免继续持有已被重置的旧身份。见 [/clear 验证](../verification/2026-10-29-claude-clear.md)。
+本机 CLI 的 `/clear` 会发出 `conversation_reset` 并更换 session UUID。Fuyu 发送入口在本地处理这一命令：保存并保留旧会话历史，切换到相同 cwd、后端和模型的空白会话，后续任务再分配新原生 UUID，避免继续持有已被重置的旧身份。
 
-普通成功轮次在完整原生 success/completed result 后保存终态并保留进程，下一轮复用其 reader/writer 和已初始化上下文，分配新的应用轮次身份。空闲 2 分钟回收，最多 4 个空闲进程；模型、推理强度或关联配置变化时先回收再重新 initialize/resume。slash 命令、失败、中断和仍有后台工具的结果沿用排空并退出的路径。目录探测独立于任务进程。策略、摘要核验和退出边界见[使用性能](performance.md#claude-连续对话进程)。真实同 PID 双轮上下文、重启续聊、同 PID 允许/拒绝/提问和第二轮运行中断通过，见[性能收尾验证](../verification/2026-10-30-performance-completion.md)。
+普通成功轮次在完整原生 success/completed result 后保存终态并保留进程，下一轮复用其 reader/writer 和已初始化上下文，分配新的应用轮次身份。空闲 2 分钟回收，最多 4 个空闲进程；模型、推理强度或关联配置变化时先回收再重新 initialize/resume。slash 命令、失败、中断和仍有后台工具的结果沿用排空并退出的路径。目录探测独立于任务进程。策略、摘要核验和退出边界见[使用性能](performance.md#claude-连续对话进程)。真实同 PID 双轮上下文、重启续聊、同 PID 允许/拒绝/提问和第二轮运行中断通过。
 
 应用 TurnID、发送 user UUID、transcript UUID 与模型 message.id 分开维护。reader 路由控制响应、审批和撤销，等待用户期间继续读取。writer 串行化并限制单次写入 10 秒，控制请求最多 30 秒。协议帧上限 16 MiB；显示队列上限 4096 条/4 MiB，优先移除文字增量并发送缺口标记；控制事件无法保留时明确断开并关闭自有进程，保留未知结果供核验。
 
@@ -40,7 +40,7 @@ Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clea
 
 检查点终态与 transcript 内容摘要共同决定可续发状态；旧任务 unknown/inProgress 或外部改变记录时保留历史展示并阻止续发。不自动重发旧用户输入或恢复旧审批。已确认 completed、failed 或 interrupted 的任务中，同一原生 promptId 的标准中断标记归属原任务，保留检查点终态，不新建待完成的用户轮次；未知终态、不同 promptId 或实际发送的同文输入继续按普通输入核验。compact 支持字符串 summary、preservedSegment/preservedMessages 重连与完整 turn 分页；原生 local command 的 promptId 关联发送检查点，重复摘要与 hook 命令不作为新用户问题显示。真实 compact 后历史及上下文续发已通过，更多复杂嵌套压缩仍保留回归范围。摘要核验不能替代外部 writer 锁；当前不提供外部会话接管、Claude 分叉或强制解除未知任务入口。
 
-旧版本误判的本地命令可在恢复时按上述完成证据修复：`ResumeThread` 仅在没有自有活动进程、历史摘要与检查点相同，且末条 unknown 命令具有匹配的本地完成记录时，原子保存 completed 后恢复输入；保存前再次核对代次、任务身份、摘要和运行状态。inProgress、其他未知任务、归属不符、错误输出或摘要变化继续保持待核验。主链保留末尾的 system 本地输出，并将其投影到对应任务；这不授予外部会话接管或任意解除未知状态的能力。实测见[本地命令恢复验证](../verification/2026-10-29-claude-local-command-recovery.md)。
+旧版本误判的本地命令可在恢复时按上述完成证据修复：`ResumeThread` 仅在没有自有活动进程、历史摘要与检查点相同，且末条 unknown 命令具有匹配的本地完成记录时，原子保存 completed 后恢复输入；保存前再次核对代次、任务身份、摘要和运行状态。inProgress、其他未知任务、归属不符、错误输出或摘要变化继续保持待核验。主链保留末尾的 system 本地输出，并将其投影到对应任务；这不授予外部会话接管或任意解除未知状态的能力。
 
 运行详情展示 system/init 的实际模型与 CLI 版本，模型选择在内部保留原生别名；恢复时从检查点读取对应实际值。审批的应用 request ID 编码原 session/进程代次，回传时还原 native request_id，避免两个独立进程的相同 native ID 串用。
 
@@ -48,4 +48,4 @@ Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clea
 
 ## 验证
 
-`adapter_test.go`、`queue_test.go` 与合成 `testdata/server.py` 验证审批不堵 reader、取消/停止、跨会话失败隔离、重复响应、问答、多选、目录绑定、坏帧、未知终态、历史分支与分页、队列上限。真实测试需显式 `FUYU_LIVE_CLAUDE=1`，使用临时 cwd 与现有原生登录。已取得证据和未验收项见 [Claude 接入与双 Agent 支持验证记录](../verification/2026-10-28-p6-agent.md)。
+`adapter_test.go`、`queue_test.go` 与合成 `testdata/server.py` 验证审批不堵 reader、取消/停止、跨会话失败隔离、重复响应、问答、多选、目录绑定、坏帧、未知终态、历史分支与分页、队列上限。真实测试需显式 `FUYU_LIVE_CLAUDE=1`，使用临时 cwd 与现有原生登录。
