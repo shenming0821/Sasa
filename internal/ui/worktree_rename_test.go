@@ -12,7 +12,7 @@ import (
 	"github.com/shenming0821/Fuyu/internal/project"
 )
 
-func TestWorktreeRenameMenuSaveCancelAndSearch(t *testing.T) {
+func TestWorktreeRenameMenuSaveCancelAndNavigation(t *testing.T) {
 	repo := projectFixture(t)
 	a := New(stubBackend{}, "test", repo.Path, nil)
 	a.repositories = []project.Repository{repo}
@@ -57,20 +57,11 @@ func TestWorktreeRenameMenuSaveCancelAndSearch(t *testing.T) {
 	if a.worktreeRenameOpen || a.worktreeName(repo.Path) != "主工作区" || !tt.HasText("主工作区") {
 		t.Fatal("Enter did not save the trimmed name", a.worktreeRenameDraft, a.worktreeRenameError)
 	}
-	for _, query := range []string{"主工作区", repo.Path, "main"} {
-		a.sessionQuery = query
-		tt.Frame()
-		if _, ok := tt.Find("打开工作区 " + repo.Path); !ok {
-			t.Fatal("renamed worktree not found by", query)
+	for _, w := range repo.Worktrees {
+		if !tt.HasText("打开工作区 "+w.Path) || !tt.HasText(w.Branch) {
+			t.Fatal("rename hid a worktree or its branch", w.Path)
 		}
 	}
-	a.sessionQuery = "no-match"
-	tt.Frame()
-	if _, ok := tt.Find("打开工作区 " + repo.Path); ok {
-		t.Fatal("search leaked unmatched worktree")
-	}
-	a.sessionQuery = ""
-	tt.Frame()
 	openRename(repo.Path)
 	typeName("cancel by shortcut")
 	tt.Key(native.Cmd, native.KeyW)

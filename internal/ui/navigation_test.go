@@ -11,7 +11,7 @@ import (
 	"github.com/shenming0821/Fuyu/internal/storage"
 )
 
-func TestProjectNavigationSearchCollapseAndTabs(t *testing.T) {
+func TestProjectNavigationCollapseAndTabs(t *testing.T) {
 	a := New(stubBackend{}, "test", "/one/project", nil)
 	first := a.session
 	first.saved.Title, first.State.Draft = "修复输入", "草稿一"
@@ -19,6 +19,9 @@ func TestProjectNavigationSearchCollapseAndTabs(t *testing.T) {
 	second := a.session
 	second.saved.Title, second.State.Draft = "调整布局", "草稿二"
 	tt := native.NewTester(a.view, 1400, 800)
+	if tt.HasText("搜索会话") || tt.HasText("搜索项目与会话") {
+		t.Fatal("sidebar search input still rendered")
+	}
 	for _, path := range []string{"/one/project", "/two/project"} {
 		if !tt.HasText("展开项目 " + path) {
 			t.Fatal("same-name projects merged:", path)
@@ -31,13 +34,16 @@ func TestProjectNavigationSearchCollapseAndTabs(t *testing.T) {
 	if tt.HasText("切换会话 1") {
 		t.Fatal("collapsed project still shows sessions")
 	}
-	if err := tt.Click("搜索会话"); err != nil {
+	tt.Frame()
+	if tt.HasText("切换会话 1") || !tt.HasText("切换会话 2") || !a.collapsedProjects["/one/project"] {
+		t.Fatal("render changed collapsed state or hid another project's session")
+	}
+	if err := tt.Click("展开项目 /one/project"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Type("修复")
 	tt.Advance(300 * time.Millisecond)
-	if !tt.HasText("切换会话 1") || tt.HasText("切换会话 2") {
-		t.Fatal("search failed to reveal matching collapsed session")
+	if !tt.HasText("切换会话 1") || !tt.HasText("切换会话 2") {
+		t.Fatal("expanding did not reveal all project sessions")
 	}
 	if err := tt.Click("切换会话 1"); err != nil {
 		t.Fatal(err)
@@ -46,8 +52,6 @@ func TestProjectNavigationSearchCollapseAndTabs(t *testing.T) {
 	if tt.HasText("会话标签 2") {
 		t.Fatalf("another folder's tab is visible: selected=%d folder=%q", a.session.id, a.activeWorkspace)
 	}
-	a.sessionQuery = ""
-	tt.Frame()
 	if err := tt.Click("切换会话 2"); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +81,7 @@ func TestResponsivePanelsPreserveComposerAndNavigation(t *testing.T) {
 			send.X+send.W > history.X || input.W < 300 || input.Y+input.H > 480 {
 			t.Fatalf("history overlaps conversation at %d: input=%+v history=%+v send=%+v", width, input, history, send)
 		}
-		if width == 640 && tt.HasText("搜索会话") {
+		if width == 640 && tt.HasText("添加项目") {
 			t.Fatal("narrow window did not collapse project navigation")
 		}
 		if err := tt.Click("打开历史 one"); err != nil {
@@ -94,7 +98,7 @@ func TestResponsivePanelsPreserveComposerAndNavigation(t *testing.T) {
 			t.Fatalf("composer clipped at %d: %+v", width, input)
 		}
 		if width == 640 {
-			if tt.HasText("搜索会话") {
+			if tt.HasText("添加项目") {
 				t.Fatal("narrow window did not collapse sidebar")
 			}
 			if err := tt.Click("切换右侧边栏"); err != nil {
@@ -109,13 +113,13 @@ func TestResponsivePanelsPreserveComposerAndNavigation(t *testing.T) {
 			if err := tt.Click("切换左侧边栏"); err != nil {
 				t.Fatal(err)
 			}
-			if !tt.HasText("搜索会话") {
+			if !tt.HasText("添加项目") {
 				t.Fatal("narrow project navigation unreachable")
 			}
 			if err := tt.Click("切换会话 1"); err != nil {
 				t.Fatal(err)
 			}
-			if tt.HasText("搜索会话") {
+			if tt.HasText("添加项目") {
 				t.Fatal("temporary navigation did not dismiss on selection")
 			}
 		}
@@ -276,7 +280,7 @@ func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
 	a.rightPanelWidth = 500
 	tt.Frame()
 	tt.SetSize(640, 480)
-	if a.rightPanelWidth != 500 || a.effectiveRightPanelWidth(640) != 240 || tt.HasText("搜索会话") {
+	if a.rightPanelWidth != 500 || a.effectiveRightPanelWidth(640) != 240 || tt.HasText("添加项目") {
 		t.Fatal("narrow window lost preference or failed to fit right panel")
 	}
 	tt.SetSize(1400, 760)
@@ -326,10 +330,10 @@ func TestSidebarTogglesMoveBetweenPanelHeadersAndConversation(t *testing.T) {
 					}
 				}
 				left, _ := tt.Find("切换左侧边栏")
-				project, projectShown := tt.Find("搜索会话")
+				project, projectShown := tt.Find("添加项目")
 				if projectShown {
 					if left.X+left.W > a.sidebarWidth || left.Y >= project.Y {
-						t.Fatalf("left toggle outside panel header: toggle=%+v search=%+v", left, project)
+						t.Fatalf("left toggle outside panel header: toggle=%+v project=%+v", left, project)
 					}
 				} else if left.X > 40 || left.Y >= 46 {
 					t.Fatalf("collapsed left toggle not in conversation toolbar: %+v", left)
@@ -365,23 +369,20 @@ func TestProjectNavigationOmitsUnboundSessions(t *testing.T) {
 	unbound := a.session
 	unbound.State.Draft = "keep unbound draft"
 	tt := native.NewTester(a.view, 1000, 760)
-	if tt.HasText("未选择项目") || slices.Contains(tt.Texts(), "展开项目 ") || len(a.projectItems()) != 0 {
+	if tt.HasText("未选择项目") || slices.Contains(tt.Texts(), "展开项目 ") || len(a.projectItems()) != 0 || !tt.HasText("尚未添加项目") {
 		t.Fatal("unbound session appeared as a project")
 	}
 	a.newSession("/real-project")
 	tt.Frame()
-	if !tt.HasText("展开项目 /real-project") || slices.Contains(tt.Texts(), "展开项目 ") {
+	if !tt.HasText("展开项目 /real-project") || slices.Contains(tt.Texts(), "展开项目 ") || tt.HasText("尚未添加项目") {
 		t.Fatalf("project filtering hid a real directory or retained placeholder: %v; items=%v", tt.Texts(), a.orderedProjectIDs())
 	}
-	a.sessionQuery = "keep unbound"
-	tt.Frame()
-	if slices.Contains(tt.Texts(), "展开项目 ") || len(a.sidebarProjectItems()) != 0 {
-		t.Fatal("search restored unbound project group")
+	if len(a.projectItems()) != 1 || a.projectItems()[0].group.path != "/real-project" {
+		t.Fatal("project list included an unbound session or omitted a real directory")
 	}
 	if len(a.sessions) != 2 || !unbound.open || unbound.State.Draft != "keep unbound draft" {
 		t.Fatal("hiding placeholder changed session or draft")
 	}
-	a.sessionQuery = ""
 	a.selectSession(unbound)
 	tt.Frame()
 	if err := tt.Click("会话标签 1"); err != nil {
