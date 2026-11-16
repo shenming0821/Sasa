@@ -31,6 +31,7 @@ type App struct {
 	maintenanceState
 	completionCatalogState
 	settingsState
+	auxiliaryState
 	terminalState
 	worktreeRenameState
 	branchCatalogState
@@ -306,6 +307,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 		a.removeEditPlaceholder()
 	}
 	a.State.DraftImages = images
+	a.titleConversationChanged(time.Now())
 	a.State.BeginMessage(text, messageID)
 	a.activeMode = selectedMode
 	if edited {
@@ -649,6 +651,9 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 				a.pauseInputs()
 			}
 			delete(a.application().quitTargets, a.session.id)
+			if a.State.Phase == "本轮已完成" && a.hasTitleExchange() {
+				a.titleTurnCompleted(time.Now())
+			}
 			a.notifyCompletion(e)
 			a.recordThreadHistory()
 		}

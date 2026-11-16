@@ -15,6 +15,9 @@ import (
 // A session owns both its protocol projection and its reading/interaction state.
 // Switching the selected session never changes the owner of a pending callback.
 type session struct {
+	titleActivity time.Time
+	titlePending  bool
+	titleRevision uint64
 	messageEditing
 	conversationCache
 	conversationNavigation
@@ -236,6 +239,9 @@ func (a *App) anyBusy() bool {
 func (s *session) title() string {
 	if s.saved.CustomTitle != "" {
 		return s.saved.CustomTitle
+	}
+	if s.saved.AutoTitle != "" {
+		return s.saved.AutoTitle
 	}
 	if s.saved.Title != "" && s.saved.Title != "新会话" {
 		return s.saved.Title

@@ -898,6 +898,7 @@ func (a *App) startWatcher(w *workspacePage) {
 	}()
 }
 func (a *App) closeWorkspaceResources() {
+	a.closeAuxiliary()
 	for _, page := range a.terminals {
 		if page.connection != nil {
 			page.connection.Close()

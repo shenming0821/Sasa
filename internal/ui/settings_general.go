@@ -26,6 +26,7 @@ func (a *App) generalSettings(c *native.Context) {
 				})
 			})
 			if button.Clicked() {
+				a.auxiliaryPicker = ""
 				a.terminalPicker = !a.terminalPicker
 				a.awakePicker = false
 			}
@@ -68,6 +69,7 @@ func (a *App) generalSettings(c *native.Context) {
 				})
 			})
 			if button.Clicked() {
+				a.auxiliaryPicker = ""
 				a.awakePicker = !a.awakePicker
 				a.terminalPicker = false
 			}
@@ -104,4 +106,5 @@ func (a *App) generalSettings(c *native.Context) {
 			}
 		}
 	})
+	a.auxiliarySettings(c)
 }

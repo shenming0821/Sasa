@@ -22,34 +22,38 @@ import (
 // Only application-owned metadata belongs here. Messages and credentials stay
 // with Codex; pending protocol requests and secret form answers are never saved.
 type Session struct {
-	PendingInputs   []PendingInput            `json:",omitempty"`
-	EditDraft       *MessageEdit              `json:",omitempty"`
-	ReplacedThreads []string                  `json:",omitempty"`
-	TurnTimings     map[string]app.TurnTiming `json:",omitempty"`
-	Agent           agent.AgentKind
-	Runtime         string
-	ModelAgent      agent.AgentKind
-	SelectedModel   string
-	SelectedEffort  string
-	SelectedTier    string
-	SelectedMode    agent.InteractionMode `json:",omitempty"`
-	ExecutedPlanID  string                `json:",omitempty"`
-	DraftImages     []attachment.Image
-	ID              int
-	ThreadID        string
-	Cwd             string
-	Title           string
-	CustomTitle     string `json:",omitempty"`
-	Draft           string
-	DraftSkills     map[string]string
-	TurnID          string
-	Active          bool
-	Unread          bool `json:",omitempty"`
-	Anchor          string
-	AtEnd           bool
-	ScrollY         float32
-	AnchorOffset    float32
-	Expanded        map[string]bool
+	PendingInputs       []PendingInput            `json:",omitempty"`
+	EditDraft           *MessageEdit              `json:",omitempty"`
+	ReplacedThreads     []string                  `json:",omitempty"`
+	TurnTimings         map[string]app.TurnTiming `json:",omitempty"`
+	Agent               agent.AgentKind
+	Runtime             string
+	ModelAgent          agent.AgentKind
+	SelectedModel       string
+	SelectedEffort      string
+	SelectedTier        string
+	SelectedMode        agent.InteractionMode `json:",omitempty"`
+	ExecutedPlanID      string                `json:",omitempty"`
+	DraftImages         []attachment.Image
+	ID                  int
+	ThreadID            string
+	Cwd                 string
+	Title               string
+	CustomTitle         string    `json:",omitempty"`
+	AutoTitle           string    `json:",omitempty"`
+	TitleCompletedTurns uint64    `json:",omitempty"`
+	TitleCheckedTurns   uint64    `json:",omitempty"`
+	TitleCheckedAt      time.Time `json:",omitempty"`
+	Draft               string
+	DraftSkills         map[string]string
+	TurnID              string
+	Active              bool
+	Unread              bool `json:",omitempty"`
+	Anchor              string
+	AtEnd               bool
+	ScrollY             float32
+	AnchorOffset        float32
+	Expanded            map[string]bool
 }
 
 type PendingInput struct {
@@ -125,6 +129,10 @@ type SleepBaseline struct {
 }
 
 type Preferences struct {
+	AuxiliaryRuntime       string
+	AuxiliaryModel         string
+	AuxiliaryModelName     string
+	AutoSessionTitle       bool
 	KeepAwake              string
 	KeepAwakeBaseline      *SleepBaseline
 	Terminal               string

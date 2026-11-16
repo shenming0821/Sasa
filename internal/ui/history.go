@@ -600,6 +600,8 @@ func (a *App) historyBrowser(c *native.Context) {
 				}
 				if target.saved.CustomTitle != "" {
 					title = target.saved.CustomTitle
+				} else if target.saved.AutoTitle != "" {
+					title = target.saved.AutoTitle
 				}
 				if title == "" {
 					title = thread.Cwd

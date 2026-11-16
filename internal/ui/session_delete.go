@@ -35,6 +35,12 @@ func (a *App) sessionMenu(target *session) func(*native.Menu) {
 		if menu.Item("重命名").Disabled(target == nil || a.quitting || a.quitDialog).Chosen() {
 			a.beginSessionRename(target)
 		}
+		if job := a.application().titleJob; job != nil && job.target == target {
+			menu.Item("正在生成标题…").Disabled(true)
+		}
+		if menu.Item("重新自动生成标题").Disabled(target == nil || target.State.ThreadID == "" || a.quitting || a.quitDialog || target.State.Busy || target.recovering || target.releasing).Chosen() {
+			a.requestSessionTitle(target)
+		}
 		if menu.Item("删除会话").Disabled(!a.canDeleteSession(target)).Chosen() {
 			a.confirmDeleteSession(target)
 		}
@@ -124,6 +130,7 @@ func (a *App) deleteSession(target *session) {
 			return
 		}
 	}
+	a.invalidateSessionTitle(target)
 	a.deletedThreads = snapshot.DeletedThreads
 	a.sessionDeleteError = ""
 	a.closeSessionTab(target)

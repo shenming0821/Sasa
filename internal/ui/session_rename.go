@@ -69,6 +69,7 @@ func (a *App) saveSessionName(target *session, name string) error {
 		}
 		return fmt.Errorf("保存标题失败：%w", err)
 	}
+	a.invalidateSessionTitle(target)
 	return nil
 }
 

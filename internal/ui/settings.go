@@ -124,6 +124,7 @@ func (a *App) applySystemTheme() {
 func (a *App) openSettings() {
 	a = a.application()
 	a.settingsOpen, a.fontPicker = true, ""
+	a.auxiliaryPicker = ""
 	a.awakePicker = false
 	a.terminalPicker = false
 	if a.settingsSection == "" {
@@ -160,6 +161,7 @@ func (a *App) savePreferences(previous storage.Preferences) {
 		return
 	}
 	a.settingsError = ""
+	a.auxiliaryPreferencesChanged(previous)
 	if a.win != nil && previous.Theme != a.preferences.Theme {
 		a.applySystemTheme()
 	}
@@ -263,6 +265,7 @@ func (a *App) settingsView(c *native.Context) {
 						b.Children(func() { native.Text(c, section).FontSize(12) })
 						if b.Clicked() {
 							a.settingsSection, a.fontPicker = section, ""
+							a.auxiliaryPicker = ""
 							a.awakePicker = false
 							a.terminalPicker = false
 						}

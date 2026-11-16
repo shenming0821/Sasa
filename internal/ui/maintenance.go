@@ -68,6 +68,7 @@ func (a *App) maintain(now time.Time) time.Duration {
 	if !a.projectsLoading && now.Sub(a.projectsRefreshed) >= 30*time.Second && a.canAsync() {
 		a.refreshProjects()
 	}
+	a.maintainTitles(now)
 	a.prewarmCompletionSkills()
 	a.prewarmModels()
 	if a.savePending && !now.Before(a.saveDue) {
@@ -84,6 +85,9 @@ func (a *App) maintain(now time.Time) time.Duration {
 
 func (a *App) maintenanceDelay(now time.Time) time.Duration {
 	delay := 30 * time.Second
+	if due, ok := a.nextTitleDue(); ok {
+		delay = min(delay, max(100*time.Millisecond, due.Sub(now)))
+	}
 	if a.anyBusy() {
 		delay = time.Second
 	}

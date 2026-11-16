@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Fuyu/internal/agent"
@@ -103,6 +104,15 @@ func (a *App) view(c *native.Context) {
 	a.sessionRenameView(c)
 	a.fileActionView(c)
 	a.quickOpenView(c)
+	if a.auxiliaryNotice && a.auxiliaryError != "" && !a.settingsOpen {
+		native.Row(c).Absolute().Bottom(20).Left(20).Right(20).Gap(8).Padding(12).
+			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(8).Children(func() {
+			native.Text(c, a.auxiliaryError).FontSize(12).TextColor(c.Theme().Danger).Grow(1).MinWidth(0)
+			if quietButton(c, "关闭标题提示").Clicked() {
+				a.auxiliaryError = ""
+			}
+		})
+	}
 	if a.sessionDeleteError != "" {
 		native.Column(c.Key("session-delete-error")).Absolute().Bottom(20).Left(20).Right(20).Padding(12).Gap(8).Background(c.Theme().Surface).BorderWidth(1).BorderColor(c.Theme().Danger).Radius(8).Children(func() {
 			native.Text(c, a.sessionDeleteError).FontSize(12).TextColor(c.Theme().Danger)
@@ -351,6 +361,9 @@ func (a *App) composer(c *native.Context) {
 		a.draftImageStrip(c)
 		composer := native.TextAreaBase(c, &a.State.Draft).Label("任务输入").
 			Placeholder("与 "+a.kind.String()+" 协作…").FontSize(14).FillWidth().Lines(2, 6).Padding(2, 4)
+		if composer.Changed() || composer.Composing() {
+			a.titleInputActivity(time.Now())
+		}
 		for _, span := range filePathRanges(a.State.Draft) {
 			composer.TextRanges(native.TextRange{Start: span[0], End: span[1], Color: t.Accent, Weight: 600})
 		}
