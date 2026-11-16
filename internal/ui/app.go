@@ -75,7 +75,6 @@ type App struct {
 	sidebarWidth       float32
 	rightPanelWidth    float32
 	compactSidebar     bool
-	sessionQuery       string
 	tabsSelected       string
 	collapsedProjects  map[string]bool
 	historyQuery       string

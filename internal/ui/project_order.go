@@ -31,7 +31,7 @@ func (a *App) projectItems() []sidebarProject {
 			items = append(items, sidebarProject{id: id, repo: repo})
 		}
 	}
-	for _, group := range a.projectGroupsFor("") {
+	for _, group := range a.projectGroups() {
 		id := directoryProjectID(group.path)
 		if !a.hiddenProjects[id] {
 			items = append(items, sidebarProject{id: id, group: group})
@@ -52,35 +52,6 @@ func (a *App) projectItems() []sidebarProject {
 		return x - y
 	})
 	return items
-}
-
-func (a *App) sidebarProjectItems() []sidebarProject {
-	var result []sidebarProject
-	for _, item := range a.projectItems() {
-		if item.repo != nil {
-			if a.repositoryMatches(*item.repo) {
-				result = append(result, item)
-			}
-			continue
-		}
-		if len(item.group.sessions) == 0 {
-			if matchesQuery(a.sessionQuery, "", item.group.path) {
-				result = append(result, item)
-			}
-			continue
-		}
-		var sessions []*session
-		for _, s := range item.group.sessions {
-			if matchesQuery(a.sessionQuery, s.title(), s.State.Cwd) {
-				sessions = append(sessions, s)
-			}
-		}
-		if len(sessions) > 0 {
-			item.group.sessions = sessions
-			result = append(result, item)
-		}
-	}
-	return result
 }
 
 func (a *App) orderedProjectIDs() []string {

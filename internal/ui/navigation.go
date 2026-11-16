@@ -19,18 +19,11 @@ func matchesQuery(query string, values ...string) bool {
 }
 
 func (a *App) projectGroups() []projectGroup {
-	return a.projectGroupsFor(a.sessionQuery)
-}
-
-func (a *App) projectGroupsFor(query string) []projectGroup {
 	var groups []projectGroup
 	indices := make(map[string]int)
 	for i := len(a.sessions) - 1; i >= 0; i-- {
 		s := a.sessions[i]
 		if s.State.Cwd == "" || a.worktreeFor(s.State.Cwd) != nil {
-			continue
-		}
-		if !matchesQuery(query, s.title(), s.State.Cwd) {
 			continue
 		}
 		path := a.workspaceRoot(s.State.Cwd)
@@ -55,9 +48,6 @@ func (a *App) projectGroupsFor(query string) []projectGroup {
 			continue
 		}
 		if _, exists := indices[path]; exists {
-			continue
-		}
-		if !matchesQuery(query, "", path) {
 			continue
 		}
 		indices[path] = len(groups)
@@ -108,9 +98,6 @@ func (a *App) sidebar(c *native.Context) {
 			}
 			a.sidebarToggle(c, true)
 		})
-		native.Column(c).FillWidth().Padding(8, 12).Gap(10).Children(func() {
-			native.TextInput(c, &a.sessionQuery).Label("搜索会话").Placeholder("搜索项目与会话").FillWidth().FontSize(12)
-		})
 		native.Row(c).FillWidth().Padding(4, 12, 4, 18).Gap(2).AlignItems(native.Center).Children(func() {
 			native.Text(c, "项目").FontSize(11).TextColor(t.TextMuted)
 			native.Spacer(c)
@@ -135,7 +122,7 @@ func (a *App) sidebar(c *native.Context) {
 		a.receiveSidebarDrop(c, list)
 		list.Children(func() {
 			native.Column(c).FillWidth().Padding(4, 8).Gap(12).Children(func() {
-				items := a.sidebarProjectItems()
+				items := a.projectItems()
 				for _, item := range items {
 					if item.repo != nil {
 						a.repositoryRow(c, *item.repo)
@@ -143,9 +130,8 @@ func (a *App) sidebar(c *native.Context) {
 						a.directoryProjectRow(c, item.group)
 					}
 				}
-				matched := len(items) > 0
-				if !matched {
-					native.Text(c, "没有匹配的会话").FontSize(12).TextColor(t.TextMuted).Padding(12)
+				if len(items) == 0 {
+					native.Text(c, "尚未添加项目").FontSize(12).TextColor(t.TextMuted).Padding(12)
 				}
 			})
 		})

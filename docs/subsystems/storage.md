@@ -37,7 +37,7 @@ v6 备份 `fuyu-before-v6-*.db` 并校验版本 5，在同一事务中重建会�
 
 版本提升保留旧 settings JSON，UI 兼容读取旧 `OpenTabs` / `Selected` 后，在首次成功保存时将有序混合标签与会话索引一同写入事务。`WorkspaceTabs` 是新记录的打开标签来源，明确空数组保持空白；旧记录缺少 `OpenTabs` 时仅打开选中会话，已有数组保留顺序并去重。文件正文按需读取，不因恢复标签批量加载。
 
-`Repositories` 保存 common dir、主路径、名称与 worktree 元数据缓存；旧记录缺省为空，启动后台扫描现有会话目录以发现仓库。旧记录缺少侧栏宽度时使用 240 DIP；搜索内容只保留在当前进程，窗口自动收起侧栏不会覆盖用户的展开偏好。
+`Repositories` 保存 common dir、主路径、名称与 worktree 元数据缓存；旧记录缺省为空，启动后台扫描现有会话目录以发现仓库。旧记录缺少侧栏宽度时使用 240 DIP；项目展开与收起由 `CollapsedProjects` 保存；窗口自动收起侧栏不会覆盖用户的展开偏好。
 
 `Snapshot.RightPanelWidth` 在现有 settings JSON 中保存右侧宽度偏好，读取时接受 240–520 DIP，缺失或无效值使用默认 320 DIP，无须迁移数据库。窗口变窄时仅调整显示宽度，不覆盖保存的偏好；文件、会话历史和 Git 共用该值。
 

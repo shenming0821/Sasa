@@ -92,12 +92,10 @@ func TestRepositoryImportGroupsBranchesAndSessions(t *testing.T) {
 	if len(a.projectGroups()) != 0 {
 		t.Fatal("repository sessions duplicated in directory groups")
 	}
-	if err := tt.Click("搜索会话"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Type("feature/chat")
-	if !tt.HasText("打开工作区 "+repo.Worktrees[1].Path) || tt.HasText("打开工作区 "+repo.Path) {
-		t.Fatal("branch search failed")
+	for _, w := range repo.Worktrees {
+		if !tt.HasText("打开工作区 " + w.Path) {
+			t.Fatal("worktree omitted from project tree", w.Path)
+		}
 	}
 }
 
@@ -614,11 +612,6 @@ func TestProjectTreeHidesMissingAndPrunableWorktrees(t *testing.T) {
 		if !tt.HasText("打开工作区 " + path) {
 			t.Fatal("valid worktree was hidden")
 		}
-	}
-	a.sessionQuery = "stale/"
-	tt.Frame()
-	if a.repositoryMatches(a.repositories[0]) {
-		t.Fatal("hidden worktree still matches search")
 	}
 	if len(a.repositories[0].Worktrees) != 5 {
 		t.Fatal("filter modified repository metadata")

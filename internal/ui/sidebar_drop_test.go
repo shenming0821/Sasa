@@ -112,7 +112,7 @@ func TestSidebarDropPlainDirectory(t *testing.T) {
 				emptyTab == nil || emptyTab.Kind != "empty" {
 				t.Fatalf("plain directory did not open an empty tab: workspace=%s tab=%s", a.activeWorkspace, tabID)
 			}
-			groups := a.projectGroupsFor("")
+			groups := a.projectGroups()
 			if !slices.ContainsFunc(groups, func(g projectGroup) bool { return g.path == filepath.Clean(a.workspaceRoot(folder)) }) {
 				t.Fatalf("plain directory missing from sidebar: %+v", groups)
 			}
@@ -125,11 +125,11 @@ func TestSidebarDropPlainDirectory(t *testing.T) {
 			a.tabs = slices.DeleteFunc(a.tabs, func(tab storage.Tab) bool { return tab.Kind == "empty" })
 			a.sessions = nil
 			a.session = nil
-			groups = a.projectGroupsFor("")
+			groups = a.projectGroups()
 			if !slices.ContainsFunc(groups, func(g projectGroup) bool { return g.path == filepath.Clean(a.workspaceRoot(folder)) }) {
 				t.Fatalf("plain directory disappeared after sessions emptied: %+v", groups)
 			}
-			items := a.sidebarProjectItems()
+			items := a.projectItems()
 			if !slices.ContainsFunc(items, func(item sidebarProject) bool { return item.id == directoryProjectID(filepath.Clean(a.workspaceRoot(folder))) }) {
 				t.Fatalf("plain directory missing from sidebar items after sessions emptied: %+v", items)
 			}

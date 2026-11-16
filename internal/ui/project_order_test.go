@@ -73,7 +73,7 @@ func TestProjectHeadingDragAndCancel(t *testing.T) {
 	}
 }
 
-func TestProjectMenuAndFilteredOrder(t *testing.T) {
+func TestProjectMenuAndOrder(t *testing.T) {
 	a := projectOrderFixture()
 	tt := native.NewTester(a.view, 1000, 760)
 	if err := tt.RightClick("展开项目 /alpha"); err != nil {
@@ -83,13 +83,12 @@ func TestProjectMenuAndFilteredOrder(t *testing.T) {
 		t.Fatalf("project context menu = %v", got)
 	}
 	tt.Key(0, native.KeyEscape)
-	a.sessionQuery = "beta"
-	tt.Frame()
-	if tt.HasText("展开项目 /alpha") {
-		t.Fatal("search leaked unmatched folder")
+	for _, label := range []string{"展开项目 /alpha", "展开项目 /beta", "展开仓库 /repo/.git"} {
+		if !tt.HasText(label) {
+			t.Fatal("project list omitted", label)
+		}
 	}
 	a.moveProject("dir:/beta", "repo:/repo/.git", false)
-	a.sessionQuery = ""
 	tt.Frame()
 	assertProjectOrder(t, a, "dir:/beta", "repo:/repo/.git", "dir:/alpha")
 	if err := tt.RightClick("展开仓库 /repo/.git"); err != nil {
