@@ -91,6 +91,7 @@ type session struct {
 	followupSending   bool
 	releaseAfter      time.Time
 	releasing         bool
+	wasThinking       bool
 }
 
 func (s *session) rowHandle(id string) *native.Handle {

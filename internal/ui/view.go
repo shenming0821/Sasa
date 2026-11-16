@@ -144,9 +144,11 @@ func (a *App) sessionView(c *native.Context, leftShown, rightShown bool) {
 		a.editScrollHold--
 		c.Invalidate()
 	}
-	if a.thinking() {
+	thinking := a.thinking()
+	if thinking && !a.session.wasThinking && a.list.AtEnd() {
 		a.list.ScrollToEnd()
 	}
+	a.session.wasThinking = thinking
 	native.Column(c).Grow(1).FillHeight().MinWidth(0).Background(t.Background).Children(func() {
 		a.sessionTabs(c, leftShown, rightShown)
 		a.fileExitNotice(c)
