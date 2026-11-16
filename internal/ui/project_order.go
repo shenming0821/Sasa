@@ -86,8 +86,43 @@ func (a *App) removeProject(id string) {
 	}
 	a.hiddenProjects[id] = true
 	a.projectOrder = slices.DeleteFunc(a.projectOrder, func(key string) bool { return key == id })
+	a.removeEmptyTabsForProject(id)
 	// Keep catalog ownership so retained sessions do not reappear as plain folders.
 	a.persist()
+}
+
+// removeEmptyTabsForProject closes leftover empty tabs bound to the removed
+// project's workspace(s). Sessions, files and terminals stay untouched — they
+// carry the user's actual work and the spec already preserves them.
+func (a *App) removeEmptyTabsForProject(id string) {
+	roots := map[string]bool{}
+	if path, ok := strings.CutPrefix(id, "dir:"); ok {
+		roots[a.workspaceRoot(path)] = true
+	} else if common, ok := strings.CutPrefix(id, "repo:"); ok {
+		for _, repo := range a.repositories {
+			if repo.CommonDir != common {
+				continue
+			}
+			for _, w := range repo.Worktrees {
+				roots[a.workspaceRoot(w.Path)] = true
+			}
+		}
+	}
+	if len(roots) == 0 {
+		return
+	}
+	var ids []string
+	for _, tab := range a.tabs {
+		if tab.Kind != "empty" {
+			continue
+		}
+		if roots[a.workspaceRoot(tab.Workspace)] {
+			ids = append(ids, tab.ID)
+		}
+	}
+	for _, id := range ids {
+		a.removeWorkspaceTab(id)
+	}
 }
 
 func (a *App) restoreProject(id string) {

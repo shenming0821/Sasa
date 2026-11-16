@@ -38,6 +38,21 @@ func (a *App) projectGroups() []projectGroup {
 		}
 		groups[index].sessions = append(groups[index].sessions, s)
 	}
+	for _, id := range a.projectOrder {
+		path, ok := strings.CutPrefix(id, "dir:")
+		if !ok || path == "" || a.hiddenProjects[id] {
+			continue
+		}
+		path = filepath.Clean(path)
+		if a.worktreeFor(path) != nil {
+			continue
+		}
+		if _, exists := indices[path]; exists {
+			continue
+		}
+		indices[path] = len(groups)
+		groups = append(groups, projectGroup{path: path})
+	}
 	return groups
 }
 
@@ -103,7 +118,9 @@ func (a *App) sidebar(c *native.Context) {
 		if a.projectsError != "" {
 			native.Text(c, a.projectsError).FontSize(11).TextColor(t.Danger).Padding(4, 12).MaxLines(3)
 		}
-		native.Scroll(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
+		list := native.Scroll(c).Label("项目列表").FillWidth().Grow(1).MinHeight(0)
+		a.receiveSidebarDrop(c, list)
+		list.Children(func() {
 			native.Column(c).FillWidth().Padding(4, 8).Gap(12).Children(func() {
 				items := a.projectItems()
 				for _, item := range items {

@@ -51,18 +51,38 @@ func (a *App) chooseProject(defaultPath string) {
 }
 
 func (a *App) addProject(path string) {
+	a.addProjectPaths([]string{path})
+}
+
+// addProjectPaths reserves the import before inspecting paths off the UI thread.
+// Only the first directory is imported, using the same flow as the file picker.
+func (a *App) addProjectPaths(paths []string) {
 	if a.projectsLoading {
 		return
 	}
 	a.projectsLoading, a.projectsError = true, ""
+	paths = append([]string(nil), paths...)
 	go func() {
 		ctx, cancel := a.projectContext(10 * time.Second)
 		defer cancel()
-		path = project.Canonical(path)
-		info, err := os.Stat(path)
-		if err != nil || !info.IsDir() {
-			if err == nil {
-				err = fmt.Errorf("所选路径不是文件夹：%s", path)
+		var path string
+		var statError error
+		for _, candidate := range paths {
+			candidate = project.Canonical(candidate)
+			info, err := os.Stat(candidate)
+			if err != nil {
+				statError = err
+				continue
+			}
+			if info.IsDir() {
+				path = candidate
+				break
+			}
+		}
+		if path == "" {
+			err := errors.New("所选路径中没有可添加的文件夹")
+			if statError != nil {
+				err = fmt.Errorf("%w：%w", err, statError)
 			}
 			a.update(func() { a.projectsLoading = false; a.projectsError = "添加项目失败：" + err.Error() })
 			return
@@ -74,13 +94,14 @@ func (a *App) addProject(path string) {
 			if errors.Is(err, project.ErrNotRepository) {
 				a.restoreProject(directoryProjectID(path))
 				delete(a.collapsedProjects, path)
-				for _, s := range a.sessions {
-					if filepath.Clean(s.State.Cwd) == path {
-						a.selectSession(s)
+				root := a.workspaceRoot(path)
+				for _, tab := range a.tabs {
+					if tab.Kind == "empty" && a.workspaceRoot(tab.Workspace) == root {
+						a.selectWorkspaceTab(tab)
 						return
 					}
 				}
-				a.newSession(path)
+				a.newEmptyTab(root, focusedPane(a.layoutFor(root)))
 				return
 			}
 			if err != nil {
