@@ -51,7 +51,7 @@ type auxiliaryState struct {
 }
 
 func (a *App) auxiliaryBackend() Backend {
-	return a.application().backends[backendKey{kind: agent.Claude, runtime: a.application().preferences.AuxiliaryRuntime}]
+	return a.application().backends[backendKey{kind: agent.Claude, runtime: a.auxiliaryRuntime()}]
 }
 
 func (a *App) titleInputActivity(now time.Time) {

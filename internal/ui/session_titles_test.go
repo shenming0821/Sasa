@@ -290,20 +290,14 @@ func TestTitleSwitchAndModelSelectionAreIndependent(t *testing.T) {
 	if err := tt.Click("切换自动生成会话标题"); err != nil {
 		t.Fatal(err)
 	}
-	if a.preferences.AutoSessionTitle || a.settingsError == "" {
-		t.Fatal("enabled without configured model")
+	if a.preferences.AutoSessionTitle {
+		t.Fatal("switch toggled while no model selected")
 	}
-	if err := tt.Click("选择Claude Code 配置"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("辅助配置 /fixture/claude"); err != nil {
+	if err := tt.Click("选择辅助模型"); err != nil {
 		t.Fatal(err)
 	}
 	finishTitleCallback(t, queue)
 	tt.Frame()
-	if err := tt.Click("选择辅助模型"); err != nil {
-		t.Fatal(err)
-	}
 	if err := tt.Click("辅助模型 provider/fast"); err != nil {
 		t.Fatal(err)
 	}

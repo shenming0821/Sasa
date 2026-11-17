@@ -76,6 +76,11 @@ func (a *App) installRuntime(result RuntimeConnection) {
 		}
 		delete(a.agentErrors, result.Kind)
 		go a.receiveBackend(result.Backend, backendKey{kind: result.Kind, runtime: result.Runtime})
+		if result.Kind == agent.Claude && a.preferences.AuxiliaryRuntime == "" {
+			previous := a.preferences
+			a.preferences.AuxiliaryRuntime = result.Runtime
+			a.savePreferences(previous)
+		}
 	} else {
 		a.SetAgentError(result.Kind, result.Err)
 	}
