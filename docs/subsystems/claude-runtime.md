@@ -12,7 +12,7 @@
 
 `client.go` 管理会话检查点，`protocol.go` 与 `session_process.go` 管理任务进程、独立轮次与 stream-json。使用 `--permission-prompt-tool stdio`，权限模式由 CLI 按原生配置与当前 cwd 决定；新任务、恢复后的后续任务和模型/技能目录探测共用此启动入口。发送 initialize 并核验返回的 `current_permission_mode` 为非空字符串后再发送用户帧，缺失或格式错误时终止初始化并保持未发送状态。模型和命令目录来自 initialize；模型选择通过 `--model`、推理强度选择通过 `--effort` 传递，命令保留原生 `/名称 参数` 文本。`PinnedEffort` 检测配置根与项目 `.claude` settings `env.CLAUDE_CODE_EFFORT_LEVEL` 及启动环境变量：env 层锁定实测覆盖 `--effort`，模型菜单据此提示选择不会生效。2026-10-29 本机 `permissions.defaultMode=bypassPermissions`，真实 CLI 初始化确认 `current_permission_mode=bypassPermissions`。
 
-Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clear` 和 `/plan`。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他原生命令，本地指令保持可见。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。计划模式控制及确认入口见[会话管理](sessions.md#计划模式)。
+Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clear`、`/plan` 和透传给 CLI 的 `/compact`（可附压缩指引）。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他原生命令，UI 提供的命令保持可见。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。计划模式控制及确认入口见[会话管理](sessions.md#计划模式)。
 
 本机 CLI 的 `/clear` 会发出 `conversation_reset` 并更换 session UUID。Fuyu 发送入口在本地处理这一命令：保存并保留旧会话历史，切换到相同 cwd、后端和模型的空白会话，后续任务再分配新原生 UUID，避免继续持有已被重置的旧身份。
 

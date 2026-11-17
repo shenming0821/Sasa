@@ -237,7 +237,10 @@ func TestClaudeSlashCompletionLoadsRuntimeSkills(t *testing.T) {
 	if _, ok := tt.Find("候选 /frontend-design"); !ok {
 		t.Fatal("Claude skill missing from slash menu")
 	}
-	for _, command := range []string{"compact", "model", "new", "resume"} {
+	if _, ok := tt.Find("候选 /compact"); !ok {
+		t.Fatal("compact command missing from slash menu")
+	}
+	for _, command := range []string{"model", "new", "resume"} {
 		if _, ok := tt.Find("候选 /" + command); ok {
 			t.Fatalf("non-skill command /%s shown", command)
 		}

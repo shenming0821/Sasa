@@ -249,6 +249,9 @@ func (a *App) send() {
 	}
 	a.composerFocus = true
 	text := strings.TrimSpace(a.State.Draft)
+	if isCompactCommand(text) && !a.validateCompact(text, a.State.DraftImages) {
+		return
+	}
 	if text == "/plan" && a.runSlashCommand(text) {
 		return
 	}
@@ -273,6 +276,15 @@ func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
 func (a *App) sendInputForMessage(text string, images []attachment.Image, edited bool, messageID string) {
 	if !a.canSubmitTask() || strings.TrimSpace(text) == "" && len(images) == 0 {
 		return
+	}
+	if isCompactCommand(text) {
+		if !a.validateCompact(text, images) {
+			return
+		}
+		if a.kind.Normalized() == agent.Codex {
+			a.sendCompact(text, messageID)
+			return
+		}
 	}
 	if len(images) > 0 {
 		if _, ok := a.sessionBackend().(imageSender); !ok {
@@ -443,6 +455,9 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 						a.stop()
 					} else if !stopping {
 						a.State.Phase = "正在执行"
+						if a.State.Compacting() {
+							a.State.Phase = "正在压缩上下文"
+						}
 					}
 				}
 				a.drainInputs()
@@ -642,8 +657,17 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		if e.Method == "fuyu/eventGap" && a.State.ThreadID == "" {
 			continue
 		}
-		wasBusy := a.State.Busy
+		wasBusy, wasCompacting := a.State.Busy, a.State.Compacting()
 		a.State.Apply(e)
+		if e.Method == "turn/started" && a.State.Compacting() {
+			a.submitCancel = nil
+			if a.submitStop {
+				a.stop()
+			}
+		}
+		if e.Method == "turn/completed" && wasCompacting && !a.State.Busy {
+			a.submitCancel, a.submitStop = nil, false
+		}
 		a.finishMessageEdit()
 		if e.Method == "turn/completed" && wasBusy && !a.State.Busy && !a.State.Disconnected {
 			if a.State.Phase != "本轮已完成" {

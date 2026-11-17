@@ -15,20 +15,21 @@ import (
 const MaxMessageBytes = 2 * 1024 * 1024
 
 type Message struct {
-	NativeID    string
-	SentAt      time.Time
-	Edited      bool
-	Timing      *TurnTiming
-	Images      []attachment.Image
-	ID          string
-	Role        string
-	Delivery    string
-	Text        string
-	Done        bool
-	Plan        bool
-	TurnID      string
-	Tool        *Tool
-	Interaction *Interaction
+	ContextCompaction bool
+	NativeID          string
+	SentAt            time.Time
+	Edited            bool
+	Timing            *TurnTiming
+	Images            []attachment.Image
+	ID                string
+	Role              string
+	Delivery          string
+	Text              string
+	Done              bool
+	Plan              bool
+	TurnID            string
+	Tool              *Tool
+	Interaction       *Interaction
 }
 
 // State is owned by the UI thread, including all event application.
@@ -60,6 +61,20 @@ type State struct {
 }
 
 func New(cwd string) State { return State{Cwd: cwd, Phase: "就绪"} }
+
+func (s *State) Compacting() bool {
+	if !s.Busy {
+		return false
+	}
+	for index := len(s.Messages) - 1; index >= 0; index-- {
+		message := s.Messages[index]
+		if message.Role == "user" && message.Timing != nil {
+			parts := strings.Fields(message.Text)
+			return len(parts) > 0 && parts[0] == "/compact"
+		}
+	}
+	return false
+}
 
 func (s *State) Begin(text string) {
 	s.BeginMessage(text, "")
@@ -224,6 +239,9 @@ func (s *State) Apply(event agent.Event) {
 	case "turn/started":
 		s.BindTiming(p.Turn.ID)
 		s.TurnID, s.Busy, s.Phase = p.Turn.ID, true, "正在执行"
+		if s.Compacting() {
+			s.Phase = "正在压缩上下文"
+		}
 		if s.stopRequested {
 			s.Phase = "正在停止"
 		}
@@ -266,6 +284,18 @@ func (s *State) Apply(event agent.Event) {
 				}
 			}
 			m.Done = event.Method == "item/completed"
+		case "contextCompaction":
+			message := s.item(p.Item.ID, "assistant")
+			if message.Done && event.Method == "item/started" {
+				return
+			}
+			message.ContextCompaction = true
+			message.TurnID = id
+			message.Done = event.Method == "item/completed"
+			message.Text = "正在压缩上下文"
+			if message.Done {
+				message.Text = "上下文已压缩"
+			}
 		case "commandExecution", "fileChange", "mcpToolCall", "dynamicToolCall", "webSearch":
 			m := s.item(p.Item.ID, "tool")
 			if m.Done && event.Method == "item/started" {
@@ -339,6 +369,12 @@ func (s *State) Apply(event agent.Event) {
 			s.finished = make(map[string]bool)
 		}
 		s.finished[p.Turn.ID] = true
+		for _, message := range s.Messages {
+			if message.ContextCompaction && message.TurnID == p.Turn.ID && (!message.Done || p.Turn.Status != "completed") {
+				message.Done = true
+				message.Text = "上下文压缩未完成"
+			}
+		}
 		switch p.Turn.Status {
 		case "completed":
 			s.Phase = "本轮已完成"

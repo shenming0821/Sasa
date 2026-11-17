@@ -168,6 +168,9 @@ func (a *App) drainInputs() {
 		}
 		return
 	}
+	if isCompactCommand(pending.Text) || a.State.Compacting() {
+		return
+	}
 	sender, ok := a.sessionBackend().(agent.TurnSteerer)
 	if !ok || pending.Options.Mode != a.activeMode || a.State.TurnID == "" || a.submitCancel != nil || a.State.PendingSubmission() != nil {
 		return

@@ -33,6 +33,13 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "compact":
+			var params map[string]string
+			if m.Method != "thread/compact/start" || json.Unmarshal(m.Params, &params) != nil || len(params) != 1 || params["threadId"] != "thread" {
+				os.Exit(25)
+			}
+			enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{}})
+			continue
 		case "plan-mode":
 			var params struct {
 				Thread string `json:"threadId"`

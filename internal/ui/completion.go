@@ -51,6 +51,7 @@ type completionItem struct {
 }
 
 var slashCommands = []completionItem{
+	{name: "/compact", description: "压缩上下文"},
 	{name: "/new", description: "在当前目录开始新对话"},
 	{name: "/resume", description: "打开历史会话"},
 	{name: "/status", description: "查看当前模型、权限与运行状态"},
@@ -106,7 +107,7 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 	if q.kind == '/' {
 		if a.kind.Normalized() != agent.Codex {
 			for _, command := range a.completion.commands {
-				if command.Name == "plan" {
+				if command.Name == "plan" || command.Name == "compact" {
 					continue
 				}
 				if a.kind.Normalized() == agent.Claude && !command.IsSkill {
@@ -122,6 +123,9 @@ func (a *App) completionItems(q completionQuery) []completionItem {
 			}
 			if strings.Contains("/plan", query) {
 				items = append(items, completionItem{name: "/plan", description: "切换计划模式，先讨论方案再执行"})
+			}
+			if strings.Contains("/compact", query) {
+				items = append(items, completionItem{name: "/compact", description: "压缩上下文，可附压缩指引"})
 			}
 			return items
 		}
@@ -221,7 +225,11 @@ func (a *App) runSlashCommand(text string) bool {
 
 func (a *App) acceptCompletion(q completionQuery, item completionItem) {
 	a.completion.dismissed = ""
-	if q.kind == '/' && item.name == "/plan" {
+	if q.kind == '/' && item.name == "/compact" {
+		a.State.Draft = item.name + " "
+		a.completion.caret = len([]rune(a.State.Draft))
+		a.completion.focus = true
+	} else if q.kind == '/' && item.name == "/plan" {
 		a.runSlashCommand(item.name)
 	} else if a.kind.Normalized() != agent.Codex && q.kind != '@' {
 		a.State.Draft = item.name + " "

@@ -16,6 +16,8 @@ Codex 0.166.0 的原生模型管理器可能在目录刷新失败后返回成功
 
 读取与事件消费分离，UI 暂停消费期间，RPC 响应仍可返回。初始化声明 `experimentalApi=true`，使用当前版本的原生提问协议。单条协议输入上限 16 MiB；UI 每条文字消息显示上限 2 MiB。
 
+手动 `/compact` 由 `internal/codex/compact.go` 调用 `thread/compact/start`，只传 `threadId`，不把命令作为用户文本发往 `turn/start`。RPC 的空响应仅表示受理；UI 保持忙碌，绑定原生 turn，并把 `contextCompaction` 的开始、完成及历史条目显示为上下文压缩状态，以 `turn/completed` 确认终态。命令使用独立送达标记，不等待原生用户消息回显。错误、断连和恢复沿用会话核验与队列暂停机制；旧的 `thread/compacted` 通知不作为完成依据。
+
 `internal/codex/display.go` 在事件入队前裁剪最终工具输出和文件内容，保留原生 ID、状态、退出码与截断标记，防止最终聚合事件绕过显示上限。事件队列限制为 4 MiB / 4096 条；超限先移除可丢弃的文字/工具增量，并产生 `fuyu/eventGap`。生命周期和审批事件不静默丢弃；仅控制事件就超过容量时明确断开自有连接，提示结果需要核验。
 
 `internal/codex/interactions.go` 注册原生请求，`request.go` 解码 thread/turn/item ID、审批选项与问题结构。单个请求上限 256 KiB，同时最多保留 16 个待解决请求。请求 ID 保留字符串或 int64 类型；响应前进行一次性占用，写入失败也不能盲目再次批准。响应写入截止时间为 10 秒。`serverRequest/resolved` 按 thread/request ID 释放；turn 完成时按 thread/turn 释放。
