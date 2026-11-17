@@ -191,7 +191,7 @@ func (a *App) auxiliaryModelMenuStatus(c *native.Context) {
 	switch {
 	case a.auxiliaryError != "":
 		native.Text(c, a.auxiliaryError).FontSize(11).TextColor(t.Danger).Padding(4, 8)
-	case a.auxiliaryLoading:
+	case a.auxiliaryLoading && len(a.auxiliaryModels) == 0:
 		native.Text(c, "读取模型列表…").FontSize(11).TextColor(t.TextMuted).Padding(4, 8)
 	case len(a.auxiliaryModels) == 0:
 		native.Text(c, "暂无可用模型").FontSize(11).TextColor(t.TextMuted).Padding(4, 8)
