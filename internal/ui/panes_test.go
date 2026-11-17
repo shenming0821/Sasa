@@ -565,7 +565,8 @@ func TestPaneActiveTabHighlightFollowsFocus(t *testing.T) {
 			}
 			tester.Key(native.Cmd, native.KeyW)
 			if leftSession.open || !rightSession.open || a.activeTab != sessionTabID(rightSession.id) {
-				t.Fatal("Cmd+W did not close the single active tab of the focused pane")
+				t.Fatalf("Cmd+W did not close the single active tab of the focused pane: leftOpen=%v rightOpen=%v active=%q want=%q ws=%q",
+					leftSession.open, rightSession.open, a.activeTab, sessionTabID(rightSession.id), a.activeWorkspace)
 			}
 		})
 	}
@@ -584,10 +585,13 @@ func TestPaneEmptyTabCloseAndContentReplacement(t *testing.T) {
 	}
 	a.closeSession(leftSession)
 	tester.Frame()
+	if a.activeTab != "" {
+		t.Fatalf("closing the last tab kept a tab selected: %q", a.activeTab)
+	}
 	if tester.HasText("新标签页") || tester.HasText("选择面板内容") || tester.HasText("从一个清晰的任务开始") {
 		t.Fatal("closing the last tab did not leave a blank page")
 	}
-	pane := focusedPane(a.layoutFor("/project"))
+	pane := focusedPane(a.layoutFor(a.activeWorkspace))
 	doubleClickTabBlank(t, tester, pane.ID)
 	if !tester.HasText("新标签页") || !tester.HasText("选择面板内容") {
 		t.Fatal("double click did not open an empty tab")
@@ -595,7 +599,7 @@ func TestPaneEmptyTabCloseAndContentReplacement(t *testing.T) {
 	if err := tester.Click("关闭新标签页 " + a.activeTab); err != nil {
 		t.Fatal(err)
 	}
-	if tester.HasText("新标签页") || tester.HasText("选择面板内容") || len(paneLeaves(a.layouts["/project"].Root)) != 1 {
+	if tester.HasText("新标签页") || tester.HasText("选择面板内容") || len(paneLeaves(a.layouts[a.activeWorkspace].Root)) != 1 {
 		t.Fatal("closing the final empty tab did not return to the blank page")
 	}
 	doubleClickTabBlank(t, tester, pane.ID)

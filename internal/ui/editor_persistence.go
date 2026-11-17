@@ -124,7 +124,7 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 			}
 		}
 	}
-	if a.activeWorkspace == "" && a.session != nil {
+	if a.activeWorkspace == "" && a.session != nil && a.session.open {
 		a.activeWorkspace = a.workspaceRoot(a.State.Cwd)
 	}
 	recoveries, err := editor.Recoveries(a.recoveryDir())

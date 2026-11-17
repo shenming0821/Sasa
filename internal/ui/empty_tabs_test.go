@@ -68,12 +68,12 @@ func TestTabBlankDoubleClickPreservesImplicitEmptyTabAndRestores(t *testing.T) {
 	a := New(stubBackend{}, "test", "/project", nil)
 	store := imageStore(t, a)
 	a.closeSession(a.session)
-	pane := focusedPane(a.layoutFor("/project"))
 	tester := native.NewTester(a.view, 1400, 900)
 	tester.Frame()
 	if tester.HasText("新标签页") || tester.HasText("选择面板内容") || tester.HasText("从一个清晰的任务开始") {
 		t.Fatal("closing the last tab did not show a blank page")
 	}
+	pane := focusedPane(a.layoutFor(a.activeWorkspace))
 	doubleClickTabBlank(t, tester, pane.ID)
 	doubleClickTabBlank(t, tester, pane.ID)
 	if len(a.tabs) != 2 || len(pane.Tabs) != 2 || !a.isEmptyTab(pane.Active) {
@@ -87,10 +87,12 @@ func TestTabBlankDoubleClickPreservesImplicitEmptyTabAndRestores(t *testing.T) {
 	if err := restored.AttachStore(store); err != nil {
 		t.Fatal(err)
 	}
-	if len(restored.tabs) != 2 || restored.activeTab != selected || !slices.Equal(focusedPane(restored.layoutFor("/project")).Tabs, pane.Tabs) {
-		t.Fatal("restart lost empty tabs, order or selection")
+	restoredPane := focusedPane(restored.layoutFor(restored.activeWorkspace))
+	if len(restored.tabs) != 2 || restored.activeTab != selected || !slices.Equal(restoredPane.Tabs, pane.Tabs) {
+		t.Fatalf("restart lost empty tabs, order or selection: tabs=%d active=%q paneTabs=%v want=%v ws=%q",
+			len(restored.tabs), restored.activeTab, restoredPane.Tabs, pane.Tabs, restored.activeWorkspace)
 	}
-	restored.newEmptyTab("/project", focusedPane(restored.layoutFor("/project")))
+	restored.newEmptyTab(restored.activeWorkspace, restoredPane)
 	if len(restored.tabs) != 3 || restored.activeTab == selected {
 		t.Fatal("creating after restart reused an existing tab ID")
 	}
