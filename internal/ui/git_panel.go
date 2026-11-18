@@ -156,9 +156,41 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		native.Text(c, message).FontSize(10).TextColor(col).MaxLines(3).Padding(4, 14)
 	}
 	if !initialLoading {
-		a.gitCommitsList(c.Key("git-content"), w, disabled)
+		a.gitContent(c.Key("git-content"), w, disabled)
 	}
 
+}
+
+func (a *App) gitContent(c *native.Context, w *workspacePage, busy bool) {
+	native.Column(c).FillWidth().Grow(1).MinHeight(0).Children(func() {
+		changes := func() {
+			native.Column(c.Key("changes-pane")).Fill().Children(func() {
+				native.Scroll(c.Key("changes-list")).Label("Git 更改列表").TrackScroll(&w.gitChangesScroll).
+					FillWidth().Grow(1).MinHeight(0).Children(func() {
+					native.Column(c).FillWidth().Padding(4, 8).Gap(8).Children(func() {
+						for _, group := range []string{"冲突", "更改", "已暂存的更改"} {
+							a.gitGroup(c.Key(group), w, group, gitEntries(w, group), busy)
+						}
+					})
+				})
+			})
+		}
+		commits := func() {
+			native.Column(c.Key("commits-pane")).Fill().Children(func() {
+				a.gitHistoryView(c.Key("history"), w, busy, 0)
+			})
+		}
+		if !commitsOpen(w) {
+			native.Column(c.Key("changes-expanded")).FillWidth().Grow(1).MinHeight(0).Children(changes)
+			native.Column(c.Key("commits-collapsed")).FillWidth().Height(22).Shrink(0).Children(commits)
+			return
+		}
+		if w.gitChangesPercent == 0 {
+			w.gitChangesPercent = 60
+		}
+		native.SplitVerticalPercent(c.Key("commits-split"), &w.gitChangesPercent, changes, commits).
+			FillWidth().Grow(1).MinHeight(0)
+	})
 }
 
 func (a *App) gitCommitBox(c *native.Context, w *workspacePage, busy bool) {

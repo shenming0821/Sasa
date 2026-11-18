@@ -17,38 +17,14 @@ const graphLaneW float32 = 10
 const graphMaxLanes = 6
 
 type gitCommitsRow struct {
-	key, kind, group string
-	at, depth        int
-	entry            gitview.Entry
+	key, kind string
+	at, depth int
+	entry     gitview.Entry
 }
 
 func commitsOpen(w *workspacePage) bool { return !w.collapsed["COMMITS"] }
-func (a *App) gitCommitsRows(w *workspacePage, groups bool) []gitCommitsRow {
+func (a *App) gitCommitsRows(w *workspacePage) []gitCommitsRow {
 	var rows []gitCommitsRow
-	if groups {
-		for _, group := range []string{"冲突", "更改", "已暂存的更改"} {
-			entries := gitEntries(w, group)
-			if len(entries) == 0 {
-				continue
-			}
-			rows = append(rows, gitCommitsRow{key: "group:" + group, kind: "group", group: group})
-			if !w.collapsed[group] {
-				selected := 0
-				for _, entry := range entries {
-					if w.gitSelection[gitKey(group, entry.Path)] {
-						selected++
-					}
-				}
-				if selected > 1 && group != "冲突" {
-					rows = append(rows, gitCommitsRow{key: "selection:" + group, kind: "group-selection", group: group})
-				}
-				for _, entry := range entries {
-					rows = append(rows, gitCommitsRow{key: "change:" + gitKey(group, entry.Path), kind: "change", group: group, entry: entry})
-				}
-			}
-			rows = append(rows, gitCommitsRow{key: "gap:" + group, kind: "gap"})
-		}
-	}
 	rows = append(rows, gitCommitsRow{key: "commits:header", kind: "header"})
 	if !commitsOpen(w) {
 		return rows
@@ -68,22 +44,19 @@ func (a *App) gitCommitsRows(w *workspacePage, groups bool) []gitCommitsRow {
 	}
 	return rows
 }
-func (a *App) gitCommitsList(c *native.Context, w *workspacePage, busy bool) {
-	a.gitCommitsListBody(c, w, busy, true)
-}
 
 // Also used by isolated native rendering tests.
 func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool, _ float32) {
-	a.gitCommitsListBody(c, w, busy, false)
+	a.gitCommitsListBody(c, w, busy)
 }
-func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy, groups bool) {
+func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy bool) {
 	if commitsOpen(w) && !w.gitHistoryLoaded && !w.gitHistoryLoading && w.gitHistoryError == "" {
 		a.gitLoadHistory(w, false)
 	}
 	if w.gitGraph == nil && len(w.gitHistory) > 0 {
 		w.gitGraph = layoutGraph(w.gitHistory)
 	}
-	rows := a.gitCommitsRows(w, groups)
+	rows := a.gitCommitsRows(w)
 	state := &w.gitList
 	state.Key = func(i int) any {
 		if i < 0 || i >= len(rows) {
@@ -110,19 +83,6 @@ func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy, grou
 	out := native.List(c.Key("commits-list"), state, len(rows), func(i int) {
 		r := rows[i]
 		switch r.kind {
-		case "group", "group-selection", "change":
-			native.Column(c.Key(r.key)).FillWidth().Padding(0, 8).Children(func() {
-				switch r.kind {
-				case "group":
-					a.gitGroupHeading(c, w, r.group, gitEntries(w, r.group), busy)
-				case "group-selection":
-					a.gitGroupSelection(c, w, r.group, gitEntries(w, r.group), busy)
-				case "change":
-					a.gitFileRow(c, w, r.group, r.entry, busy)
-				}
-			})
-		case "gap":
-			native.Box(c).Height(8)
 		case "header":
 			a.gitCommitsHeader(c, w, busy, &action)
 		case "commit":
@@ -329,7 +289,7 @@ func (a *App) gitExpandCommit(w *workspacePage, cm gitview.CommitInfo, open bool
 }
 func (a *App) gitSelectCommit(w *workspacePage, hash string, mods native.Modifiers) {
 	if key := w.gitList.Key; key != nil {
-		for i := range len(a.gitCommitsRows(w, true)) {
+		for i := range len(a.gitCommitsRows(w)) {
 			if key(i) == "commit:"+hash {
 				w.gitListRow = i
 				break

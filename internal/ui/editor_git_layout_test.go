@@ -283,7 +283,7 @@ func TestGitPanelHidesEmptyGroups(t *testing.T) {
 	}
 }
 
-func TestGitCommitsSharesVirtualListWithChangeGroups(t *testing.T) {
+func TestGitCommitsBottomPaneResizesAndScrollsIndependently(t *testing.T) {
 	for _, height := range []int{320, 500, 900} {
 		t.Run(fmt.Sprint(height), func(t *testing.T) {
 			a, _, root := p4App(t)
@@ -299,8 +299,8 @@ func TestGitCommitsSharesVirtualListWithChangeGroups(t *testing.T) {
 				t.Fatal("COMMITS missing")
 			}
 			list, ok := tt.Find("COMMITS 列表")
-			if !ok || list.Y+list.H > float32(height)+1 || list.H < 100 {
-				t.Fatal("shared list bounds", list)
+			if !ok || list.Y+list.H > float32(height)+1 || list.H < 40 {
+				t.Fatal("commits pane bounds", list)
 			}
 			if _, ok := tt.Find("提交 " + w.gitHistory[99].Hash); ok {
 				t.Fatal("virtual list built offscreen history")
@@ -309,11 +309,60 @@ func TestGitCommitsSharesVirtualListWithChangeGroups(t *testing.T) {
 			if _, ok := tt.Find("提交 " + w.gitHistory[99].Hash); !ok {
 				t.Fatal("oldest commit unreachable")
 			}
-			if _, ok := tt.Find("Git 更改 modified.go"); ok {
-				t.Fatal("change rows did not scroll with commits")
+			if _, ok := tt.Find("Git 更改 modified.go"); !ok {
+				t.Fatal("scrolling commits moved the change rows")
 			}
 			if w.gitHistoryLoading {
 				t.Fatal("scroll triggered automatic pagination")
+			}
+			divider, ok := tt.Find("Divider")
+			if !ok || divider.W < 300 || divider.H != 1 {
+				t.Fatal("missing horizontal divider above commits", divider)
+			}
+			// Blank space in the changes pane cannot select a virtual row.
+			changes, _ := tt.Find("Git 更改列表")
+			selected := w.gitListRow
+			x, y := changes.X+4, changes.Y+changes.H-8
+			before := tt.Image().RGBAAt(int(x), int(y))
+			tt.Press(x, y)
+			tt.Release(x, y)
+			tt.Move(359, 0)
+			if w.gitListRow != selected || tt.Image().RGBAAt(int(x), int(y)) != before {
+				t.Fatal("blank changes area acquired a selection background")
+			}
+			header, _ := tt.Find("切换 COMMITS")
+			x, y = divider.X+divider.W/2, divider.Y+divider.H/2
+			tt.Move(x, y)
+			if tt.Cursor() != native.CursorResizeNS {
+				t.Fatal("commits divider has no vertical resize cursor")
+			}
+			tt.Press(x, y)
+			tt.Move(x, y-40)
+			tt.Release(x, y-40)
+			tt.Frame()
+			raised, _ := tt.Find("切换 COMMITS")
+			if raised.Y >= header.Y-10 {
+				t.Fatal("dragging up did not grow commits", header, raised)
+			}
+			tt.Key(0, native.KeyDown)
+			lowered, _ := tt.Find("切换 COMMITS")
+			if lowered.Y <= raised.Y {
+				t.Fatal("keyboard resize did not lower commits", raised, lowered)
+			}
+			size := w.gitChangesPercent
+			if err := tt.Click("切换 COMMITS"); err != nil {
+				t.Fatal(err)
+			}
+			folded, _ := tt.Find("切换 COMMITS")
+			if folded.Y+folded.H < float32(height)-1 {
+				t.Fatal("collapsed commits is not at panel bottom", folded)
+			}
+			if err := tt.Click("切换 COMMITS"); err != nil {
+				t.Fatal(err)
+			}
+			reopened, _ := tt.Find("切换 COMMITS")
+			if w.gitChangesPercent != size || reopened.Y != lowered.Y {
+				t.Fatal("reopening reset commits height", reopened, lowered)
 			}
 		})
 	}

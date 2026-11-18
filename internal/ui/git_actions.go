@@ -45,6 +45,8 @@ type gitWorkflow struct {
 	gitAncestors       map[string]bool
 	gitList            native.ListState
 	gitListRow         int
+	gitChangesScroll   native.ScrollState
+	gitChangesPercent  float32
 	gitCommitSelection map[string]bool
 	gitCommitAnchor    string
 	gitCompareSelected string
