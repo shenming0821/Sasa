@@ -333,9 +333,7 @@ func (a *App) modelPicker(c *native.Context) {
 			}
 		}
 	}
-	if native.Popover(c.Key("model-menu"), trigger, &a.modelMenuOpen, func() { a.modelMenu(c) }).Dismissed() {
-		root.effortPickerOpen, root.tierPickerOpen = false, false
-	}
+	native.Popover(c.Key("model-menu"), trigger, &a.modelMenuOpen, func() { a.modelMenu(c) })
 	native.Popover(c.Key("runtime-details"), trigger, &a.detailsOpen, func() { a.runtimeDetails(c) })
 }
 
@@ -401,7 +399,6 @@ func (a *App) modelMenu(c *native.Context) {
 					return
 				}
 				a.modelMenuOpen = false
-				root.effortPickerOpen, root.tierPickerOpen = false, false
 			}
 		}
 		native.Scroll(c).FillWidth().MaxHeight(240).Children(func() {
@@ -451,7 +448,6 @@ func (a *App) modelMenu(c *native.Context) {
 		})
 		if details.Clicked() {
 			a.modelMenuOpen, a.detailsOpen = false, true
-			root.effortPickerOpen, root.tierPickerOpen = false, false
 		}
 	})
 }
@@ -560,12 +556,21 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			native.Row(c).Grow(1).MinWidth(0).Justify(native.End).Gap(4).Children(build)
 		})
 	}
-	picker := func(label, current string, open, other *bool) {
+	// picker is a dropdown: the trigger shows the current choice and opens
+	// a popup of options above it, over the model list. Opening upward
+	// keeps the other picker's trigger clear of the popup, so clicking it
+	// closes this popup and opens its own in one click. The popover needs
+	// no key: an unused key would leak onto the next element while the
+	// popup is closed, shifting element ids and dropping that press.
+	picker := func(label, current string, open, other *bool, options []agent.ReasoningEffortOption, labelOf func(string) string, pick func(value string)) {
 		display := current
 		if display == "" {
 			display = "…"
 		}
-		trigger := treeButton(c, label+" "+display).Gap(4).Shrink(0).Padding(2, 6).Radius(6).Disabled(disabled)
+		// A stable key keeps the trigger's state across the other picker
+		// opening and closing: without it the toggle rebuilds the trigger
+		// under a new id and drops the press that should open this popup.
+		trigger := treeButton(c.Key(label+"-trigger"), label+" "+display).Gap(4).Shrink(0).Padding(2, 6).Radius(6).Disabled(disabled)
 		trigger.Children(func() {
 			native.Text(c, display).FontSize(11).SingleLine()
 			native.Icon(c, chevron).Size(12, 12)
@@ -574,32 +579,29 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			*open = !*open
 			*other = false
 		}
-	}
-	// pickerOptions renders the expanded option list inline under the picker
-	// row. An overlay popover would sit above the other trigger and swallow
-	// its first click, so the list lives in the same column instead.
-	pickerOptions := func(label, current string, open *bool, options []agent.ReasoningEffortOption, labelOf func(string) string, pick func(value string)) {
-		if !*open {
-			return
-		}
-		native.Column(c.Key(label+"-picker")).FillWidth().Padding(0, 8, 2, 8).Gap(1).Children(func() {
-			for _, option := range options {
-				value := option.ReasoningEffort
-				row := treeButton(c.Key(value), label+"选项 "+labelOf(value)).FillWidth().Padding(4, 6).Justify(native.Start)
-				v := value
-				row.Children(func() {
-					native.Row(c).FillWidth().AlignItems(native.Center).Gap(6).Children(func() {
-						native.Text(c, labelOf(v)).FontSize(11).SingleLine().Grow(1).MinWidth(0)
-						if v == current {
-							native.Text(c, "✓").FontSize(11)
-						}
+		native.PopoverBase(c, trigger, open, func(panel native.Element) {
+			panel.AttachTo(trigger, native.AnchorTopEnd, native.AnchorBottomEnd).Margin(0, 0, 4, 0)
+			panel.Padding(4).Radius(8).Background(t.Background).Border(1, t.Border).
+				Shadow(0, 6, 20, 0, native.RGBA(0, 0, 0, .18))
+			native.Column(c).FillWidth().Children(func() {
+				for _, option := range options {
+					value := option.ReasoningEffort
+					row := treeButton(c.Key(value), label+"选项 "+labelOf(value)).FillWidth().Padding(6).Justify(native.Start)
+					v := value
+					row.Children(func() {
+						native.Row(c).FillWidth().AlignItems(native.Center).Gap(6).Children(func() {
+							native.Text(c, labelOf(v)).FontSize(11).SingleLine().Grow(1).MinWidth(0)
+							if v == current {
+								native.Text(c, "✓").FontSize(11)
+							}
+						})
 					})
-				})
-				if row.Clicked() {
-					pick(v)
-					*open = false
+					if row.Clicked() {
+						pick(v)
+						*open = false
+					}
 				}
-			}
+			})
 		})
 	}
 	if len(current.SupportedReasoningEfforts) > 0 {
@@ -629,9 +631,8 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			a.modelError = ""
 		}
 		optionRow("推理强度", func() {
-			picker("推理强度", effortLabel(effort), &a.session.effortPickerOpen, &a.session.tierPickerOpen)
+			picker("推理强度", effortLabel(effort), &a.session.effortPickerOpen, &a.session.tierPickerOpen, current.SupportedReasoningEfforts, effortLabel, effortPick)
 		})
-		pickerOptions("推理强度", effortLabel(effort), &a.session.effortPickerOpen, current.SupportedReasoningEfforts, effortLabel, effortPick)
 		if a.session.effortPin != "" {
 			native.Text(c, "已被 CLAUDE_CODE_EFFORT_LEVEL 固定为 "+a.session.effortPin+"，选择不会生效").FontSize(11).TextColor(t.Danger).Padding(0, 8)
 		}
@@ -657,10 +658,9 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			return value
 		}
 		optionRow("速度", func() {
-			picker("速度", tierLabel(tier), &a.session.tierPickerOpen, &a.session.effortPickerOpen)
+			picker("速度", tierLabel(tier), &a.session.tierPickerOpen, &a.session.effortPickerOpen, tierOptions, tierLabel,
+				func(value string) { choose(&a.selectedTier, value, "速度") })
 		})
-		pickerOptions("速度", tierLabel(tier), &a.session.tierPickerOpen, tierOptions, tierLabel,
-			func(value string) { choose(&a.selectedTier, value, "速度") })
 	}
 }
 

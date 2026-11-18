@@ -372,28 +372,28 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("推理强度选项 high"); err != nil {
 		t.Fatal(err)
 	}
-	if a.effortPickerOpen {
+	if tt.HasText("推理强度选项 medium") {
 		t.Fatal("effort picker stayed open after choosing")
 	}
 	if err := tt.Click("推理强度 high"); err != nil {
 		t.Fatal(err)
 	}
-	if !a.effortPickerOpen {
+	if !tt.HasText("推理强度选项 medium") {
 		t.Fatal("effort picker did not open")
 	}
 	if err := tt.Click("速度 default"); err != nil {
 		t.Fatal(err)
 	}
-	if a.effortPickerOpen {
+	if tt.HasText("推理强度选项 medium") {
 		t.Fatal("effort picker stayed open over the tier picker")
 	}
-	if !a.tierPickerOpen {
+	if !tt.HasText("速度选项 Fast") {
 		t.Fatal("tier picker did not open on the first click")
 	}
 	if err := tt.Click("速度选项 Fast"); err != nil {
 		t.Fatal(err)
 	}
-	if a.tierPickerOpen {
+	if tt.HasText("速度选项 default") {
 		t.Fatal("tier picker stayed open after choosing")
 	}
 	if a.selectedEffort != "high" || a.selectedTier != "priority" || !a.modelMenuOpen {
