@@ -358,15 +358,15 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"低", "中", "高", "标准", "Fast"} {
+	for _, label := range []string{"low", "medium", "high", "标准", "Fast"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing turn option", label)
 		}
 	}
-	if !tt.HasText("Model One 中") {
+	if !tt.HasText("Model One medium") {
 		t.Fatal("default effort not shown on the model button")
 	}
-	if err := tt.Click("推理强度 高"); err != nil {
+	if err := tt.Click("推理强度 high"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("速度 Fast"); err != nil {
@@ -375,7 +375,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if a.selectedEffort != "high" || a.selectedTier != "priority" || !a.modelMenuOpen {
 		t.Fatal("option choice lost or menu closed", a.selectedEffort, a.selectedTier, a.modelMenuOpen)
 	}
-	if !tt.HasText("Model One 高") {
+	if !tt.HasText("Model One high") {
 		t.Fatal("chosen effort not shown on the model button")
 	}
 	restored := New(b, "test", "/workspace", nil)
@@ -391,7 +391,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if a.selectedEffort != "" || a.selectedTier != "" {
 		t.Fatal("options survived a model change", a.selectedEffort, a.selectedTier)
 	}
-	for _, label := range []string{"低", "中", "高"} {
+	for _, label := range []string{"low", "medium", "high"} {
 		if tt.HasText("Model Two " + label) {
 			t.Fatal("effort shown for a model without catalog entries")
 		}
@@ -399,7 +399,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"低", "标准", "Fast"} {
+	for _, label := range []string{"low", "标准", "Fast"} {
 		if tt.HasText(label) {
 			t.Fatal("options rendered for a model without catalog entries", label)
 		}
@@ -407,16 +407,16 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedEffort != "high" || a.selectedTier != "" || !tt.HasText("Model One 高") {
+	if a.selectedEffort != "high" || a.selectedTier != "" || !tt.HasText("Model One high") {
 		t.Fatal("remembered model effort was not restored or tier leaked", a.selectedEffort, a.selectedTier)
 	}
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("推理强度 中"); err != nil {
+	if err := tt.Click("推理强度 medium"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedEffort != "medium" || !tt.HasText("Model One 中") {
+	if a.selectedEffort != "medium" || !tt.HasText("Model One medium") {
 		t.Fatal("updated model effort not applied", a.selectedEffort)
 	}
 	if err := tt.Click("选择模型 Model Two"); err != nil {
@@ -428,13 +428,13 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedEffort != "medium" || !tt.HasText("Model One 中") {
+	if a.selectedEffort != "medium" || !tt.HasText("Model One medium") {
 		t.Fatal("updated model effort not remembered on reselect", a.selectedEffort)
 	}
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("推理强度 高"); err != nil {
+	if err := tt.Click("推理强度 high"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("速度 Fast"); err != nil {
@@ -516,7 +516,7 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"低", "中", "高", "极高", "最大"} {
+	for _, label := range []string{"low", "medium", "high", "xhigh", "max"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing effort option", label)
 		}
@@ -524,7 +524,7 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 	if tt.HasText("速度") {
 		t.Fatal("service tier row rendered without catalog tiers")
 	}
-	for _, label := range []string{"低", "中", "高", "极高", "最大"} {
+	for _, label := range []string{"low", "medium", "high", "xhigh", "max"} {
 		if tt.HasText("model " + label) {
 			t.Fatal("effort shown before any pick or catalog default", label)
 		}
@@ -532,13 +532,13 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 	if !tt.HasText("选择不会生效") {
 		t.Fatal("effort pin warning not shown")
 	}
-	if err := tt.Click("推理强度 高"); err != nil {
+	if err := tt.Click("推理强度 high"); err != nil {
 		t.Fatal(err)
 	}
 	if a.selectedEffort != "high" || !a.modelMenuOpen {
 		t.Fatal("effort choice lost or menu closed", a.selectedEffort)
 	}
-	if !tt.HasText("model 高") {
+	if !tt.HasText("model high") {
 		t.Fatal("chosen effort not shown on the model button")
 	}
 	restored := New(&modelCaptureBackend{}, "test", "/workspace", nil)
@@ -631,7 +631,7 @@ func TestModelEffortBindingAcrossSessionsAgentsAndMigration(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if restored.selectedEffort != "medium" || !tt.HasText("Model One 中") {
+	if restored.selectedEffort != "medium" || !tt.HasText("Model One medium") {
 		t.Fatal("migrated Codex model effort was not restored", restored.selectedEffort)
 	}
 	if err := tt.Click("选择模型"); err != nil {
@@ -660,7 +660,7 @@ func TestModelPickerShowsDisplayNameForResolvedModelIDs(t *testing.T) {
 	a.modelsLoaded = true
 	a.selectedModel = "swe-2-high"
 	tt := native.NewTester(a.view, 1000, 760)
-	if !tt.HasText("SWE-2 高") || tt.HasText("swe-2-high") {
+	if !tt.HasText("SWE-2 high") || tt.HasText("swe-2-high") {
 		t.Fatal("resolved model id leaked into the model button")
 	}
 	if err := tt.Click("选择模型"); err != nil {
@@ -669,7 +669,7 @@ func TestModelPickerShowsDisplayNameForResolvedModelIDs(t *testing.T) {
 	if !tt.HasText("SWE-2 Flash") || tt.HasText("swe-2-flash-medium") {
 		t.Fatal("resolved model id leaked into the model menu")
 	}
-	for _, label := range []string{"中", "高", "最大"} {
+	for _, label := range []string{"medium", "high", "max"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing effort chip", label)
 		}
@@ -677,7 +677,7 @@ func TestModelPickerShowsDisplayNameForResolvedModelIDs(t *testing.T) {
 	if err := tt.Click("选择模型 SWE-2 Flash"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedModel != "swe-2-flash-medium" || !tt.HasText("SWE-2 Flash 中") {
+	if a.selectedModel != "swe-2-flash-medium" || !tt.HasText("SWE-2 Flash medium") {
 		t.Fatal("selection did not apply the catalog display name", a.selectedModel)
 	}
 }
@@ -692,7 +692,7 @@ func TestModelButtonDropsProviderSuffix(t *testing.T) {
 	a.modelsLoaded = true
 	a.selectedModel = "gpt-6-1-sol"
 	tt := native.NewTester(a.view, 1000, 760)
-	if !tt.HasText("GPT-6.1-Sol 中") || tt.HasText("GPT-6.1-Sol · Codex") {
+	if !tt.HasText("GPT-6.1-Sol medium") || tt.HasText("GPT-6.1-Sol · Codex") {
 		t.Fatal("provider suffix leaked into the model button")
 	}
 	if err := tt.Click("选择模型"); err != nil {
@@ -728,12 +728,12 @@ func TestModelPickerKeepsDisplayNameAcrossRestart(t *testing.T) {
 				t.Fatal("restoring a display name changed model availability or identity")
 			}
 			tester := native.NewTester(restored.view, 1000, 760)
-			if !tester.HasText("SWE-2 高") || tester.HasText("swe-2 高") {
+			if !tester.HasText("SWE-2 high") || tester.HasText("swe-2 high") {
 				t.Fatal("startup did not preserve the catalog display name")
 			}
 			restored.applyModelCatalog(restored.completionCacheKey(), catalog)
 			tester.Frame()
-			if !tester.HasText("SWE-2 高") {
+			if !tester.HasText("SWE-2 high") {
 				t.Fatal("loading the catalog changed the displayed model name")
 			}
 			if err := tester.Click("选择模型"); err != nil {
@@ -752,7 +752,7 @@ func TestModelPickerWaitsForUncachedName(t *testing.T) {
 	application.selectedEffort = "high"
 	application.modelsLoading = true
 	tester := native.NewTester(application.view, 1000, 760)
-	if !tester.HasText("读取模型… 高") || tester.HasText("swe-2 高") {
+	if !tester.HasText("读取模型… high") || tester.HasText("swe-2 high") {
 		t.Fatal("uncached model id flashed before its display name arrived")
 	}
 	application.applyModelCatalog(application.completionCacheKey(), &modelCatalogEntry{
@@ -761,7 +761,7 @@ func TestModelPickerWaitsForUncachedName(t *testing.T) {
 			SupportedReasoningEfforts: []agent.ReasoningEffortOption{{ReasoningEffort: "high"}}}},
 	})
 	tester.Frame()
-	if !tester.HasText("SWE-2 高") || application.selectedModel != "provider/swe-2" {
+	if !tester.HasText("SWE-2 high") || application.selectedModel != "provider/swe-2" {
 		t.Fatal("catalog display name was not applied while preserving model identity")
 	}
 }

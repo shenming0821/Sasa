@@ -517,15 +517,7 @@ func (a *App) sendTurnOptions() (effort, tier string) {
 	return effort, tier
 }
 
-var effortLabels = map[string]string{
-	"low": "低", "medium": "中", "high": "高",
-	"xhigh": "极高", "max": "最大", "ultra": "极致",
-}
-
 func effortLabel(effort string) string {
-	if label, ok := effortLabels[effort]; ok {
-		return label
-	}
 	return effort
 }
 
