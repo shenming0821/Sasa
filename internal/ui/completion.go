@@ -201,9 +201,7 @@ func (a *App) runSlashCommand(text string) bool {
 	}
 	switch text {
 	case "/new":
-		cwd := a.State.Cwd
-		a.State.Draft = ""
-		a.application().newSession(cwd)
+		a.newConversation()
 	case "/resume":
 		a.State.Draft = ""
 		root := a.application()

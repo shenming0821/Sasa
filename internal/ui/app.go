@@ -259,6 +259,10 @@ func (a *App) send() {
 		a.State.Error = "请在当前任务结束后清空上下文"
 		return
 	}
+	if strings.TrimSpace(text) == "/new" && (a.State.Busy || len(a.pendingInputs) > 0) {
+		a.State.Error = "请在当前任务结束后再开始新对话"
+		return
+	}
 	if a.State.Busy || len(a.pendingInputs) > 0 {
 		a.enqueueInput(text, slices.Clone(a.State.DraftImages))
 		return

@@ -188,6 +188,28 @@ func (a *App) clearConversation() {
 	_ = root.persist()
 }
 
+func (a *App) newConversation() {
+	if !a.canSend() || !a.canSubmitTask() || len(a.pendingInputs) > 0 {
+		return
+	}
+	if len(a.State.DraftImages) > 0 {
+		a.State.Error = "开始新对话前请移除图片附件"
+		return
+	}
+	root, previous := a.application(), a.session
+	draft := previous.State.Draft
+	previous.State.Draft = ""
+	if err := root.persist(); err != nil {
+		previous.State.Draft = draft
+		previous.State.Error = err.Error()
+		return
+	}
+	root.newSession(previous.State.Cwd)
+	root.session.completion.focus = true
+	root.closeSession(previous)
+	_ = root.persist()
+}
+
 func (a *App) closeSession(s *session) {
 	if !s.open {
 		return
