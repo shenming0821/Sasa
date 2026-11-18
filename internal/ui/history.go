@@ -109,6 +109,10 @@ func (a *App) loadSessionHistory(s *session, fork *agent.ResumedThread) {
 			s.State, s.loaded, s.historyCursor = state, true, page.NextCursor
 			bound.settleInputs()
 			bound.restorePendingMessages()
+			if err := bound.settleInputsFromHistory(page.Data); err != nil {
+				s.State.Incomplete = true
+				s.State.Notice = "追加消息尚未完成核验：" + err.Error()
+			}
 			bound.restoreMessageEdit()
 			// On a new transport an active/unfinished snapshot is evidence to
 			// investigate, not authority to replay a turn or revive an approval.

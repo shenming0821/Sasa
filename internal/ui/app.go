@@ -214,7 +214,7 @@ func (a *App) canComposeTask() bool {
 	if !a.State.Busy && (a.snapshotPending || a.State.NeedsSnapshot) {
 		return false
 	}
-	if a.State.PendingSubmission() != nil && (a.snapshotPending || a.State.NeedsSnapshot || a.State.Incomplete) {
+	if (a.State.PendingSubmission() != nil || len(a.pendingInputs) > 0) && (a.snapshotPending || a.State.NeedsSnapshot || a.State.Incomplete) {
 		return false
 	}
 	return a.open && a.sessionBackend() != nil && !a.releasing && !a.editPreparing && !a.application().quitting && !a.application().fileQuitPending && !a.application().quitStopping && !a.State.Stopping() && !a.State.Disconnected && !a.recovering && !a.recoveryBlocked && !a.writerOccupied && !a.forking &&
@@ -781,6 +781,18 @@ func (a *App) reconcileIfNeeded() {
 			if err := a.State.Reconcile(raw); err != nil {
 				a.State.Incomplete = true
 				a.State.Notice = fmt.Sprintf("原生记录无法校准：%v；结果可能不完整。", err)
+			} else {
+				var snapshot struct {
+					Thread agent.ThreadMeta `json:"thread"`
+				}
+				err := json.Unmarshal(raw, &snapshot)
+				if err == nil {
+					err = a.settleInputsFromHistory(snapshot.Thread.Turns)
+				}
+				if err != nil {
+					a.State.Incomplete = true
+					a.State.Notice = "追加消息尚未完成核验：" + err.Error()
+				}
 			}
 			a.finishMessageEdit()
 			a.settleInputs()

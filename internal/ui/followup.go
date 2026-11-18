@@ -2,6 +2,7 @@ package ui
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -129,8 +130,62 @@ func (a *App) reconcileInputDelivery() {
 	}
 }
 
+func (a *App) settleInputsFromHistory(turns []agent.HistoryTurn) error {
+	a.settleInputs()
+	verified := make(map[string]bool)
+	for _, pending := range a.pendingInputs {
+		if pending.Status != "accepted" && pending.Status != "uncertain" && pending.Status != "paused" {
+			continue
+		}
+		for _, turn := range turns {
+			if turn.ID != pending.TurnID || turn.Status != "completed" && turn.Status != "interrupted" && turn.Status != "failed" {
+				continue
+			}
+			if turn.Items == nil || turn.ItemsView != "" && turn.ItemsView != "full" {
+				return fmt.Errorf("追加消息送达核验需要完整的任务条目")
+			}
+			for _, raw := range turn.Items {
+				var item struct {
+					ID   string `json:"id"`
+					Type string `json:"type"`
+				}
+				if err := json.Unmarshal(raw, &item); err != nil {
+					return err
+				}
+				if item.Type == "userMessage" && !slices.Contains(pending.KnownIDs, item.ID) && !slices.ContainsFunc(a.State.Messages, func(message *app.Message) bool {
+					return message.NativeID == item.ID && message.TurnID == turn.ID
+				}) {
+					return fmt.Errorf("原生输入尚未完成匹配，请重新核验会话记录")
+				}
+			}
+			verified[pending.ID] = true
+		}
+	}
+	var waiting []*app.Message
+	for index := range a.pendingInputs {
+		pending := &a.pendingInputs[index]
+		if !verified[pending.ID] {
+			continue
+		}
+		pending.Status, pending.Error, pending.TurnID = "paused", "", ""
+		for _, message := range a.State.Messages {
+			if message.ID == pending.ID && message.NativeID == "" {
+				message.TurnID = ""
+				waiting = append(waiting, message)
+			}
+		}
+	}
+	if len(waiting) > 0 {
+		a.State.Messages = slices.DeleteFunc(a.State.Messages, func(message *app.Message) bool {
+			return slices.Contains(waiting, message)
+		})
+		a.State.Messages = append(a.State.Messages, waiting...)
+	}
+	return nil
+}
+
 func (a *App) drainInputs() {
-	if a.followupSending || !a.canComposeTask() {
+	if a.edit != nil || a.followupSending || !a.canComposeTask() {
 		return
 	}
 	index := 0
@@ -221,25 +276,35 @@ func (a *App) drainInputs() {
 	}()
 }
 
-func (a *App) retrieveInput(id string) {
-	if a.followupSending || strings.TrimSpace(a.State.Draft) != "" || len(a.State.DraftImages) != 0 {
-		return
-	}
-	index := slices.IndexFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == id })
-	if index < 0 || a.pendingInputs[index].Status == "sending" {
-		return
-	}
-	pending := a.pendingInputs[index]
-	a.State.Draft, a.State.DraftImages = pending.Text, slices.Clone(pending.Images)
-	for _, skill := range pending.Skills {
-		if a.completion.chosen == nil {
-			a.completion.chosen = make(map[string]agent.Skill)
+func (a *App) sendPendingMessageEdit(index int) {
+	edit := a.edit
+	previous := slices.Clone(a.pendingInputs)
+	pending := previous[index]
+	pending.Text, pending.Images = strings.TrimSpace(edit.Text), slices.Clone(edit.Images)
+	pending.Status, pending.Error = "queued", ""
+	var message *app.Message
+	for _, current := range a.State.Messages {
+		if current.ID == edit.ID {
+			message = current
+			break
 		}
-		a.completion.chosen[skill.Name] = skill
 	}
-	a.pendingInputs = slices.Delete(a.pendingInputs, index, index+1)
-	a.removeInputMessage(id)
-	a.composerFocus = true
+	if message == nil {
+		a.editError = "未找到原消息，请重新核验会话记录"
+		return
+	}
+	previousMessage := *message
+	message.Text, message.Images, message.Edited = pending.Text, slices.Clone(pending.Images), true
+	a.pendingInputs = append([]storage.PendingInput{pending}, slices.Delete(slices.Clone(previous), index, index+1)...)
+	a.edit = nil
+	if err := a.persist(); err != nil {
+		a.pendingInputs, a.edit = previous, edit
+		*message = previousMessage
+		a.editError = "修改内容未能保存，本次未发送：" + err.Error()
+		return
+	}
+	a.editError, a.editFocus = "", false
+	a.drainInputs()
 }
 
 func (a *App) inputFeedback(c *native.Context, id string) {
@@ -250,8 +315,6 @@ func (a *App) inputFeedback(c *native.Context, id string) {
 	pending := a.pendingInputs[index]
 	label := ""
 	switch pending.Status {
-	case "paused":
-		label = "已暂停发送"
 	case "failed":
 		label = "未发送"
 	case "uncertain":
@@ -259,23 +322,7 @@ func (a *App) inputFeedback(c *native.Context, id string) {
 	default:
 		return
 	}
-	native.Row(c.Key("input-feedback:" + id)).FillWidth().Gap(8).Justify(native.End).AlignItems(native.Center).Children(func() {
+	native.Row(c.Key("input-feedback:" + id)).FillWidth().Justify(native.End).Children(func() {
 		native.Text(c, label).FontSize(11).TextColor(c.Theme().TextMuted).Tooltip(pending.Error)
-		if pending.Status == "paused" || pending.Status == "failed" {
-			if actionButton(c, "继续发送").Disabled(!a.canComposeTask() || a.followupSending).Clicked() {
-				a.pendingInputs[index].Status, a.pendingInputs[index].Error = "queued", ""
-				a.drainInputs()
-			}
-		}
-		if actionButton(c, "取回编辑").Disabled(a.followupSending || a.State.Draft != "" || len(a.State.DraftImages) > 0).Clicked() {
-			a.retrieveInput(id)
-		}
-		remove := quietIconButton(c, "移除消息").Size(24, 24).Disabled(a.followupSending)
-		remove.Children(func() { native.Icon(c, removeImageIcon).Size(14, 14) })
-		if remove.Clicked() {
-			a.pendingInputs = slices.DeleteFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == id })
-			a.removeInputMessage(id)
-			a.drainInputs()
-		}
 	})
 }

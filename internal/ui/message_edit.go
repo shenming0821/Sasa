@@ -27,6 +27,16 @@ type messageEditing struct {
 var messageEditIcon = icon(`<path d="m14 5 5 5M4 20l5-1L21 7a2.1 2.1 0 0 0-4-4L5 15l-1 5Z"/>`)
 
 func (a *App) messageEditReason(message *app.Message) string {
+	if index := slices.IndexFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == message.ID }); index >= 0 {
+		pending := a.pendingInputs[index]
+		if a.followupSending || pending.Status == "sending" || pending.Status == "accepted" || pending.Status == "uncertain" {
+			return "消息送达核验完成后可编辑"
+		}
+		if a.edit != nil || a.editPreparing || a.editSending {
+			return "请先完成当前消息编辑"
+		}
+		return ""
+	}
 	if _, ok := a.sessionBackend().(agent.HistoryEditor); !ok {
 		return "当前 Agent 暂不支持编辑历史消息"
 	}
@@ -56,6 +66,9 @@ func (a *App) messageEditReason(message *app.Message) string {
 func (a *App) beginMessageEdit(message *app.Message) {
 	if a.messageEditReason(message) != "" {
 		return
+	}
+	if index := slices.IndexFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == message.ID }); index >= 0 {
+		a.pendingInputs[index].Status = "paused"
 	}
 	a.edit = &storage.MessageEdit{ID: message.ID, NativeID: message.NativeID, TurnID: message.TurnID, Text: message.Text, Original: message.Text, Images: slices.Clone(message.Images)}
 	a.editFocus, a.editError = true, ""
@@ -128,6 +141,10 @@ func (a *App) sendMessageEdit() {
 	}
 	a = a.forSession(a.session)
 	edit := a.edit
+	if index := slices.IndexFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == edit.ID }); index >= 0 {
+		a.sendPendingMessageEdit(index)
+		return
+	}
 	if len(edit.Images) > 0 {
 		if _, ok := a.sessionBackend().(imageSender); !ok {
 			a.editError = "当前连接不支持图片输入"
@@ -380,7 +397,8 @@ func (a *App) userMessage(c *native.Context, message *app.Message) {
 					})
 				}
 			}
-			if _, ok := a.sessionBackend().(agent.HistoryEditor); ok {
+			_, historyEditor := a.sessionBackend().(agent.HistoryEditor)
+			if historyEditor || slices.ContainsFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == message.ID }) {
 				reason := a.messageEditReason(message)
 				hint := "编辑消息"
 				if reason != "" {
@@ -436,7 +454,11 @@ func (a *App) messageEditBox(c *native.Context, message *app.Message) {
 			native.Text(c, a.editError).FillWidth().MinWidth(0).FontSize(12).TextColor(theme.Danger).Selectable()
 		}
 		native.Row(c).FillWidth().Gap(10).AlignItems(native.Center).Children(func() {
-			native.Text(c, "发送后将替换此处及后续对话").Grow(1).MinWidth(0).FontSize(11).TextColor(theme.TextMuted)
+			if slices.ContainsFunc(a.pendingInputs, func(input storage.PendingInput) bool { return input.ID == edit.ID }) {
+				native.Spacer(c)
+			} else {
+				native.Text(c, "发送后将替换此处及后续对话").Grow(1).MinWidth(0).FontSize(11).TextColor(theme.TextMuted)
+			}
 			cancelButton := outlinedButton(c, "取消").Height(34).Padding(0, 12).Disabled(a.editPreparing || a.editSending)
 			cancelButton.Children(func() { native.Text(c, "取消").FontSize(13) })
 			if cancelButton.Clicked() {

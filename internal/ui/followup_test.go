@@ -114,9 +114,17 @@ func TestFollowupFailureNeverRetriesAutomatically(t *testing.T) {
 		if len(backend.calls) != 0 || len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].Status == "queued" || len(desktop.State.Messages) != 2 {
 			t.Fatal("failure was retried or displayed as delivered")
 		}
-		desktop.retrieveInput(desktop.pendingInputs[0].ID)
-		if desktop.State.Draft != "supplement" || len(desktop.pendingInputs) != 0 || len(desktop.State.Messages) != 1 {
-			t.Fatal("failed content could not be retrieved")
+		message := desktop.State.Messages[1]
+		status := desktop.pendingInputs[0].Status
+		desktop.beginMessageEdit(message)
+		if status == "failed" && (desktop.edit == nil || desktop.edit.Text != "supplement") {
+			t.Fatal("rejected content could not be edited in place")
+		}
+		if status == "uncertain" && desktop.edit != nil {
+			t.Fatal("unverified content became replayable")
+		}
+		if desktop.State.Draft != "" || len(desktop.pendingInputs) != 1 || len(desktop.State.Messages) != 2 {
+			t.Fatal("editing moved failed content into the main composer")
 		}
 	}
 }
@@ -177,6 +185,286 @@ func TestInterruptedFollowupQueueRemainsPaused(t *testing.T) {
 	desktop.applySessionBatch([]agent.Event{{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread","turn":{"id":"turn","status":"interrupted"}}`)}})
 	if len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].Status != "paused" {
 		t.Fatal("interrupted task automatically resumed queued work")
+	}
+}
+
+func TestInterruptedUnconsumedFollowupSettlesWithoutButtonFlicker(t *testing.T) {
+	backend := &deliveryBackend{reads: make(chan struct{}, 8)}
+	desktop := activeFollowupApp(backend)
+	updates := make(chan func(), 8)
+	desktop.dispatch = func(update func()) { updates <- update }
+	desktop.pendingInputs = []storage.PendingInput{{ID: "supplement", Text: "change direction", TurnID: "turn", Status: "accepted"}}
+	desktop.restorePendingMessages()
+	message := desktop.State.Messages[1]
+	desktop.State.Messages = append(desktop.State.Messages, &app.Message{ID: "reply", Role: "assistant", Text: "old direction", TurnID: "turn", Done: true})
+	desktop.State.Draft = "keep typing"
+	desktop.applySessionBatch([]agent.Event{{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread","turn":{"id":"turn","status":"interrupted"}}`)}})
+	if desktop.canSend() {
+		t.Fatal("send enabled before delivery verification")
+	}
+	pumpUpdate(t, updates)
+	if len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].Status != "paused" {
+		t.Fatal("unconsumed follow-up did not become editable", desktop.pendingInputs)
+	}
+	if desktop.State.Messages[len(desktop.State.Messages)-1] != message || message.TurnID != "" {
+		t.Fatal("unconsumed question did not move after the stopped turn")
+	}
+	if desktop.State.Draft != "keep typing" {
+		t.Fatal("verification overwrote the new draft")
+	}
+	tester := native.NewTester(func(c *native.Context) { desktop.composer(c) }, 640, 320)
+	baseline := tester.Image()
+	for frame := 0; frame < 8; frame++ {
+		desktop.applySessionBatch(nil)
+		tester.Advance(200 * time.Millisecond)
+		if !desktop.canSend() || desktop.snapshotPending || desktop.State.NeedsSnapshot {
+			t.Fatal("settled follow-up restarted verification and toggled send availability")
+		}
+		button, found := tester.Find("发送")
+		if !found || tester.Image().RGBAAt(int(button.X+5), int(button.Y+17)) != baseline.RGBAAt(int(button.X+5), int(button.Y+17)) {
+			t.Fatal("send button changed appearance after verification settled")
+		}
+	}
+	desktop.State.Draft = ""
+	desktop.beginMessageEdit(message)
+	if desktop.edit == nil || desktop.edit.Text != "change direction" || desktop.State.Draft != "" || len(desktop.pendingInputs) != 1 || len(desktop.State.Messages) != 3 {
+		t.Fatal("stopped follow-up could not be edited in place")
+	}
+}
+
+type followupSnapshotBackend struct {
+	*followupBackend
+	snapshot json.RawMessage
+	err      error
+}
+
+func (backend *followupSnapshotBackend) ReadThread(context.Context, string) (json.RawMessage, error) {
+	return backend.snapshot, backend.err
+}
+
+func TestFollowupSnapshotRequiresCompleteDeliveryEvidence(t *testing.T) {
+	for _, example := range []struct {
+		name, snapshot string
+		err            error
+		consumed       bool
+		incomplete     bool
+	}{
+		{name: "absent", snapshot: `{"thread":{"id":"thread","turns":[{"id":"turn","status":"completed","items":[]}]}}`},
+		{name: "consumed", consumed: true, snapshot: `{"thread":{"id":"thread","turns":[{"id":"turn","status":"interrupted","items":[{"id":"native-supplement","type":"userMessage","content":[{"type":"text","text":"supplement"}]}]}]}}`},
+		{name: "partial", incomplete: true, snapshot: `{"thread":{"id":"thread","turns":[{"id":"turn","status":"interrupted","itemsView":"summary","items":[]}]}}`},
+		{name: "missing items", incomplete: true, snapshot: `{"thread":{"id":"thread","turns":[{"id":"turn","status":"interrupted"}]}}`},
+		{name: "read failure", incomplete: true, err: errors.New("unavailable")},
+	} {
+		t.Run(example.name, func(t *testing.T) {
+			backend := &followupSnapshotBackend{followupBackend: &followupBackend{}, snapshot: json.RawMessage(example.snapshot), err: example.err}
+			desktop := activeFollowupApp(backend)
+			updates := make(chan func(), 8)
+			desktop.dispatch = func(update func()) { updates <- update }
+			desktop.pendingInputs = []storage.PendingInput{{ID: "supplement", Text: "supplement", TurnID: "turn", Status: "accepted"}}
+			desktop.restorePendingMessages()
+			message := desktop.State.Messages[1]
+			desktop.applySessionBatch([]agent.Event{{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread","turn":{"id":"turn","status":"interrupted"}}`)}})
+			pumpUpdate(t, updates)
+			desktop.State.Draft = "new draft"
+			if desktop.State.Incomplete != example.incomplete || desktop.canSend() == example.incomplete {
+				t.Fatal("send availability did not follow snapshot certainty")
+			}
+			if example.consumed {
+				if len(desktop.pendingInputs) != 0 || message.NativeID != "native-supplement" || message.TurnID != "turn" {
+					t.Fatal("consumed input was marked for replay or lost native identity")
+				}
+			} else {
+				status := "paused"
+				if example.incomplete {
+					status = "accepted"
+				}
+				if len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].Status != status {
+					t.Fatal("snapshot discarded or incorrectly settled pending input")
+				}
+			}
+		})
+	}
+}
+
+func TestStoppedFollowupSettlesAfterLateSteerAcknowledgement(t *testing.T) {
+	backend := &followupSnapshotBackend{
+		followupBackend: &followupBackend{calls: make(chan followupCall, 1), reply: make(chan error, 1)},
+		snapshot:        json.RawMessage(`{"thread":{"id":"thread","turns":[{"id":"turn","status":"interrupted","items":[]}]}}`),
+	}
+	desktop := activeFollowupApp(backend)
+	updates := make(chan func(), 8)
+	desktop.dispatch = func(update func()) { updates <- update }
+	desktop.State.Draft = "supplement"
+	desktop.send()
+	receiveFollowup(t, backend.calls)
+	desktop.applySessionBatch([]agent.Event{{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread","turn":{"id":"turn","status":"interrupted"}}`)}})
+	pumpUpdate(t, updates)
+	if desktop.pendingInputs[0].Status != "sending" {
+		t.Fatal("in-flight steer settled before its response")
+	}
+	backend.reply <- nil
+	pumpUpdate(t, updates)
+	pumpUpdate(t, updates)
+	if desktop.followupSending || desktop.pendingInputs[0].Status != "paused" {
+		t.Fatal("late steer response left input accepted indefinitely")
+	}
+}
+
+func TestRestoredUnconsumedFollowupBecomesEditable(t *testing.T) {
+	backend := recoveredBackend("interrupted")
+	desktop := New(backend, "test", "/first", nil)
+	desktop.State.ThreadID = "native"
+	desktop.pendingInputs = []storage.PendingInput{{ID: "pending", Text: "saved supplement", TurnID: "old-turn", Status: "uncertain"}}
+	desktop.State.Draft = "saved draft"
+	updates := make(chan func(), 8)
+	desktop.dispatch = func(update func()) { updates <- update }
+	desktop.recoverSession(desktop.session)
+	pumpUpdate(t, updates)
+	if len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].Status != "paused" || desktop.State.Draft != "saved draft" {
+		t.Fatal("history recovery lost or failed to settle pending input")
+	}
+	last := desktop.State.Messages[len(desktop.State.Messages)-1]
+	if last.ID != "pending" || last.TurnID != "" || desktop.snapshotPending || desktop.State.NeedsSnapshot {
+		t.Fatal("history recovery did not leave the question at the end")
+	}
+}
+
+func TestUnmatchedNativeInputDoesNotBecomeReplayable(t *testing.T) {
+	desktop := activeFollowupApp(stubBackend{})
+	desktop.pendingInputs = []storage.PendingInput{{ID: "pending", Text: "supplement", TurnID: "turn", Status: "accepted", KnownIDs: []string{"original"}}}
+	desktop.restorePendingMessages()
+	err := desktop.settleInputsFromHistory([]agent.HistoryTurn{{
+		ID: "turn", Status: "interrupted", Items: []json.RawMessage{
+			json.RawMessage(`{"id":"native-supplement","type":"userMessage","content":[{"type":"text","text":"supplement"}]}`),
+		},
+	}})
+	if err == nil || desktop.pendingInputs[0].Status != "accepted" {
+		t.Fatal("unmatched native input was treated as absent")
+	}
+}
+
+func TestPendingMessageEditIconEditsInPlace(t *testing.T) {
+	for _, status := range []string{"paused", "queued", "failed"} {
+		t.Run(status, func(t *testing.T) {
+			desktop := activeFollowupApp(stubBackend{})
+			desktop.State.Busy = false
+			desktop.State.Draft = "keep main draft"
+			desktop.pendingInputs = []storage.PendingInput{{ID: "pending", Text: "edit this question", Status: status}}
+			desktop.restorePendingMessages()
+			message := desktop.State.Messages[1]
+			tester := native.NewTester(desktop.view, 700, 500)
+			for _, label := range []string{"已暂停发送", "继续发送", "取回编辑", "移除消息"} {
+				if _, found := tester.Find(label); found || tester.HasText(label) {
+					t.Fatalf("pending message still exposed %s", label)
+				}
+			}
+			if reason := desktop.messageEditReason(message); reason != "" {
+				t.Fatal("pending edit icon is disabled", reason)
+			}
+			bubble, found := tester.Find("edit this question")
+			if !found {
+				t.Fatal("pending question missing")
+			}
+			tester.Move(bubble.X+4, bubble.Y+4)
+			if err := tester.Click("编辑消息"); err != nil {
+				t.Fatal(err)
+			}
+			tester.Frame()
+			if desktop.State.Draft != "keep main draft" || len(desktop.pendingInputs) != 1 || desktop.State.Messages[1] != message || desktop.edit == nil || !desktop.canSendMessageEdit() {
+				t.Fatal("edit icon did not keep editing at the original message")
+			}
+			if !tester.Focused("编辑消息内容") {
+				t.Fatal("inline editor did not receive focus")
+			}
+			if tester.HasText("发送后将替换此处及后续对话") {
+				t.Fatal("local input editor showed history replacement instructions")
+			}
+			tester.Key(native.Cmd, native.KeyA)
+			tester.Type("changed question")
+			if desktop.edit.Text != "changed question" || desktop.State.Draft != "keep main draft" || message.Text != "edit this question" {
+				t.Fatal("inline changes modified the main draft or original question")
+			}
+			tester.Key(0, native.KeyEscape)
+			if desktop.edit != nil || message.Text != "edit this question" || desktop.State.Draft != "keep main draft" || desktop.pendingInputs[0].Status != "paused" {
+				t.Fatal("cancel did not preserve the original question and main draft")
+			}
+		})
+	}
+}
+
+func TestPendingMessageEditPreservesUncertainDelivery(t *testing.T) {
+	for _, example := range []struct{ status, draft string }{
+		{status: "sending"},
+		{status: "accepted"},
+		{status: "uncertain"},
+	} {
+		desktop := activeFollowupApp(stubBackend{})
+		desktop.State.Busy = false
+		desktop.State.Draft = example.draft
+		desktop.pendingInputs = []storage.PendingInput{{ID: "pending", Text: "question", Status: example.status}}
+		desktop.restorePendingMessages()
+		message := desktop.State.Messages[1]
+		if desktop.messageEditReason(message) == "" {
+			t.Fatal("editing allowed before existing draft or delivery was settled")
+		}
+		desktop.beginMessageEdit(message)
+		if desktop.State.Draft != example.draft || len(desktop.pendingInputs) != 1 {
+			t.Fatal("edit discarded draft or delivery evidence")
+		}
+	}
+}
+
+func TestPendingMessageInlineEditSendsWithoutReplacingHistory(t *testing.T) {
+	for _, suffix := range []string{"", " changed"} {
+		t.Run("suffix="+suffix, func(t *testing.T) {
+			backend := &queuedFollowupBackend{sent: make(chan string, 1)}
+			desktop := activeFollowupApp(backend)
+			desktop.State.Busy = false
+			desktop.State.Draft = "main draft"
+			desktop.pendingInputs = []storage.PendingInput{
+				{ID: "earlier", Text: "leave paused", Status: "paused"},
+				{ID: "pending", Text: "question", Status: "paused"},
+			}
+			desktop.restorePendingMessages()
+			message := desktop.State.Messages[2]
+			updates := make(chan func(), 8)
+			desktop.dispatch = func(update func()) { updates <- update }
+			desktop.beginMessageEdit(message)
+			desktop.edit.Text += suffix
+			desktop.sendMessageEdit()
+			pumpUpdate(t, updates)
+			if sent := <-backend.sent; sent != "question"+suffix {
+				t.Fatal("inline question was not sent", sent)
+			}
+			if desktop.State.Draft != "main draft" || desktop.State.ThreadID != "thread" || desktop.State.Messages[2] != message || message.Text != "question"+suffix || desktop.edit != nil {
+				t.Fatal("inline send replaced history, the message, or the main draft")
+			}
+			if len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].ID != "earlier" || desktop.pendingInputs[0].Status != "paused" {
+				t.Fatal("sending the selected question replayed another pending message")
+			}
+		})
+	}
+}
+
+func TestPendingMessageInlineEditPreservesChangesWhenSaveFails(t *testing.T) {
+	backend := &queuedFollowupBackend{sent: make(chan string, 1)}
+	desktop := activeFollowupApp(backend)
+	desktop.State.Busy = false
+	desktop.State.Draft = "main draft"
+	desktop.pendingInputs = []storage.PendingInput{{ID: "pending", Text: "question", Status: "paused"}}
+	desktop.restorePendingMessages()
+	store, err := storage.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	desktop.store = store
+	store.Close()
+	message := desktop.State.Messages[1]
+	desktop.beginMessageEdit(message)
+	desktop.edit.Text = "changed question"
+	desktop.sendMessageEdit()
+	if desktop.edit == nil || desktop.edit.Text != "changed question" || desktop.editError == "" || desktop.State.Draft != "main draft" || message.Text != "question" || desktop.pendingInputs[0].Status != "paused" || len(backend.sent) != 0 {
+		t.Fatal("failed save lost inline changes or submitted the question")
 	}
 }
 
