@@ -358,7 +358,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"medium", "标准"} {
+	for _, label := range []string{"medium", "default"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing turn option", label)
 		}
@@ -372,7 +372,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("推理强度选项 high"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("速度 标准"); err != nil {
+	if err := tt.Click("速度 default"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("速度选项 Fast"); err != nil {
@@ -449,7 +449,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("推理强度选项 high"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("速度 标准"); err != nil {
+	if err := tt.Click("速度 default"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tt.Click("速度选项 Fast"); err != nil {

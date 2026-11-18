@@ -561,7 +561,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 		if display == "" {
 			display = "…"
 		}
-		trigger := quietButton(c, label+" "+display).Gap(4).Shrink(0).Disabled(disabled)
+		trigger := treeButton(c, label+" "+display).Gap(4).Shrink(0).Padding(2, 6).Radius(6).Disabled(disabled)
 		trigger.Children(func() {
 			native.Text(c, display).FontSize(11).SingleLine()
 			native.Icon(c, chevron).Size(12, 12)
@@ -576,9 +576,6 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 				for _, option := range options {
 					value := option.ReasoningEffort
 					row := treeButton(c.Key(value), label+"选项 "+labelOf(value)).FillWidth().Padding(6).Justify(native.Start)
-					if option.Description != "" {
-						row.Tooltip(option.Description)
-					}
 					v := value
 					row.Children(func() {
 						native.Row(c).FillWidth().AlignItems(native.Center).Gap(6).Children(func() {
@@ -638,20 +635,11 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			tier = "default"
 		}
 		optionRow("速度", func() {
-			tierName := "标准"
-			for _, service := range current.ServiceTiers {
-				if service.ID == tier {
-					tierName = service.Name
-				}
-			}
-			tierOptions := []agent.ReasoningEffortOption{{ReasoningEffort: "default", Description: "标准"}}
+			tierOptions := []agent.ReasoningEffortOption{{ReasoningEffort: "default"}}
 			for _, service := range current.ServiceTiers {
 				tierOptions = append(tierOptions, agent.ReasoningEffortOption{ReasoningEffort: service.ID, Description: service.Description})
 			}
 			tierLabel := func(value string) string {
-				if value == "default" {
-					return "标准"
-				}
 				for _, service := range current.ServiceTiers {
 					if service.ID == value {
 						return service.Name
@@ -659,7 +647,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 				}
 				return value
 			}
-			picker("速度", tierName, &a.session.tierPickerOpen, tierOptions, tierLabel,
+			picker("速度", tierLabel(tier), &a.session.tierPickerOpen, tierOptions, tierLabel,
 				func(value string) { choose(&a.selectedTier, value, "速度") })
 		})
 	}
