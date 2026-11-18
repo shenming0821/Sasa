@@ -560,13 +560,16 @@ func (a *App) gitCommitFileRow(c *native.Context, w *workspacePage, r gitCommits
 				*action = func() { a.gitLoadCommitTree(w, cm, tree) }
 			}
 		case "directory":
-			b := treeButton(c, "提交目录 "+cm.Hash+" "+r.entry.Path).Grow(1).FillHeight().Gap(5).AlignItems(native.Center)
+			b := treeButton(c, "提交目录 "+cm.Hash+" "+r.entry.Path).Grow(1).FillHeight().Gap(5).AlignItems(native.Center).Padding(0, 6, 0, 0)
 			b.Children(func() {
 				rotation := float32(0)
 				if w.gitCommitDirs[cm.Hash+":"+r.entry.Path] {
 					rotation = -90
 				}
-				native.Icon(c, chevron).Size(10, 10).Rotate(rotation)
+				// Match the commit avatar's 15-wide column so the folder centers under it.
+				native.Box(c).Width(15).Shrink(0).AlignItems(native.Center).Justify(native.Center).Children(func() {
+					native.Icon(c, chevron).Size(10, 10).Rotate(rotation)
+				})
 				native.Icon(c, folderIcon).Size(12, 12)
 				native.Text(c, filepath.Base(r.entry.Path)).FontSize(11).SingleLine()
 			})
@@ -580,9 +583,12 @@ func (a *App) gitCommitFileRow(c *native.Context, w *workspacePage, r gitCommits
 				}
 			}
 		case "file":
-			b := treeButton(c, "提交文件 "+cm.Hash+" "+r.entry.Path).Grow(1).FillHeight().Gap(5).AlignItems(native.Center)
+			b := treeButton(c, "提交文件 "+cm.Hash+" "+r.entry.Path).Grow(1).FillHeight().Gap(5).AlignItems(native.Center).Padding(0, 6, 0, 0)
 			b.Children(func() {
-				native.Icon(c, fileIcon).Size(12, 12).TextColor(t.TextMuted)
+				// Match the commit avatar's 15-wide column so the icon centers under it.
+				native.Box(c).Width(15).Shrink(0).AlignItems(native.Center).Justify(native.Center).Children(func() {
+					native.Icon(c, fileIcon).Size(12, 12).TextColor(t.TextMuted)
+				})
 				native.Text(c, filepath.Base(r.entry.Path)).FontSize(11).SingleLine().Shrink(1)
 				if dir := filepath.Dir(r.entry.Path); dir != "." && !a.preferences.CommitsTree {
 					native.Text(c, dir).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(3)
