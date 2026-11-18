@@ -226,8 +226,11 @@ func (a *App) gitAutoLoadHistory(c *native.Context, list native.Element, w *work
 
 func (a *App) gitCommitsHeader(c *native.Context, w *workspacePage, busy bool, action *func()) {
 	t := c.Theme()
-	row := native.Row(c).FillWidth().Height(22).Padding(0, 6).Gap(4).AlignItems(native.Center).Background(t.Background)
+	row := native.Row(c).FillWidth().Height(22).Padding(0, 6).Gap(4).Radius(5).AlignItems(native.Center).Background(t.Surface)
 	hover := row.Hovered() || row.FocusWithin()
+	if hover {
+		row.Background(t.SurfaceHover)
+	}
 	row.Children(func() {
 		b := native.ButtonBase(c.Key("toggle")).Label("切换 COMMITS").Grow(1).FillHeight().AlignItems(native.Center).Justify(native.Start).Gap(5)
 		b.Children(func() {
