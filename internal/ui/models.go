@@ -550,22 +550,50 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 		}
 		a.modelError = ""
 	}
-	chip := func(key, access, text, tip string, selected bool, pick func()) {
-		b := native.ButtonBase(c.Key(key)).Label(access).Radius(6).Padding(2, 6).FontSize(11).
-			TextColor(t.TextMuted).Disabled(disabled)
-		if tip != "" {
-			b.Tooltip(tip)
-		}
-		selectedButtonFace(c, b, selected, 6, 0)
-		b.Children(func() { native.Text(c, text).FontSize(11).SingleLine() })
-		if b.Clicked() {
-			pick()
-		}
-	}
 	optionRow := func(label string, build func()) {
 		native.Row(c).FillWidth().AlignItems(native.Center).Gap(4).Padding(3, 8).Children(func() {
-			native.Text(c, label).FontSize(11).TextColor(t.TextMuted).Grow(1).MinWidth(0).SingleLine()
-			build()
+			native.Text(c, label).FontSize(11).TextColor(t.TextMuted).Shrink(0).SingleLine()
+			native.Row(c).Grow(1).MinWidth(0).Justify(native.End).Gap(4).Children(build)
+		})
+	}
+	picker := func(label, current string, open *bool, options []agent.ReasoningEffortOption, labelOf func(string) string, pick func(value string)) {
+		display := current
+		if display == "" {
+			display = "…"
+		}
+		trigger := quietButton(c, label+" "+display).Gap(4).Shrink(0).Disabled(disabled)
+		trigger.Children(func() {
+			native.Text(c, display).FontSize(11).SingleLine()
+			native.Icon(c, chevron).Size(12, 12)
+		})
+		if trigger.Clicked() {
+			*open = !*open
+		}
+		native.PopoverBase(c.Key(label+"-picker"), trigger, open, func(panel native.Element) {
+			panel.Padding(4).Margin(4, 0, 0, 0).Radius(8).Background(t.Background).Border(1, t.Border).
+				Shadow(0, 6, 20, 0, native.RGBA(0, 0, 0, .18))
+			native.Column(c).FillWidth().Children(func() {
+				for _, option := range options {
+					value := option.ReasoningEffort
+					row := treeButton(c.Key(value), label+"选项 "+labelOf(value)).FillWidth().Padding(6).Justify(native.Start)
+					if option.Description != "" {
+						row.Tooltip(option.Description)
+					}
+					v := value
+					row.Children(func() {
+						native.Row(c).FillWidth().AlignItems(native.Center).Gap(6).Children(func() {
+							native.Text(c, labelOf(v)).FontSize(11).SingleLine().Grow(1).MinWidth(0)
+							if v == current {
+								native.Text(c, "✓").FontSize(11)
+							}
+						})
+					})
+					if row.Clicked() {
+						pick(v)
+						*open = false
+					}
+				}
+			})
 		})
 	}
 	if len(current.SupportedReasoningEfforts) > 0 {
@@ -577,28 +605,25 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			effort = current.DefaultReasoningEffort
 		}
 		optionRow("推理强度", func() {
-			for _, option := range current.SupportedReasoningEfforts {
-				value := option.ReasoningEffort
-				chip("effort-"+value, "推理强度 "+effortLabel(value), effortLabel(value), option.Description, value == effort,
-					func() {
-						previousEffort := a.selectedEffort
-						key := modelEffortKey(a.kind, a.runtimeKey, a.selectedModel)
-						previousRemembered, hadRemembered := a.application().modelEfforts[key]
-						a.selectedEffort = value
-						a.rememberModelEffort(a.selectedModel, value)
-						if err := a.persist(); err != nil {
-							a.selectedEffort = previousEffort
-							if hadRemembered {
-								a.application().modelEfforts[key] = previousRemembered
-							} else {
-								delete(a.application().modelEfforts, key)
-							}
-							a.modelError = "保存推理强度失败：" + err.Error()
-							return
+			picker("推理强度", effortLabel(effort), &a.session.effortPickerOpen, current.SupportedReasoningEfforts, effortLabel,
+				func(value string) {
+					previousEffort := a.selectedEffort
+					key := modelEffortKey(a.kind, a.runtimeKey, a.selectedModel)
+					previousRemembered, hadRemembered := a.application().modelEfforts[key]
+					a.selectedEffort = value
+					a.rememberModelEffort(a.selectedModel, value)
+					if err := a.persist(); err != nil {
+						a.selectedEffort = previousEffort
+						if hadRemembered {
+							a.application().modelEfforts[key] = previousRemembered
+						} else {
+							delete(a.application().modelEfforts, key)
 						}
-						a.modelError = ""
-					})
-			}
+						a.modelError = "保存推理强度失败：" + err.Error()
+						return
+					}
+					a.modelError = ""
+				})
 		})
 		if a.session.effortPin != "" {
 			native.Text(c, "已被 CLAUDE_CODE_EFFORT_LEVEL 固定为 "+a.session.effortPin+"，选择不会生效").FontSize(11).TextColor(t.Danger).Padding(0, 8)
@@ -613,12 +638,29 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			tier = "default"
 		}
 		optionRow("速度", func() {
-			chip("tier-default", "速度 标准", "标准", "", tier == "default",
-				func() { choose(&a.selectedTier, "default", "速度") })
+			tierName := "标准"
 			for _, service := range current.ServiceTiers {
-				chip("tier-"+service.ID, "速度 "+service.Name, service.Name, service.Description, service.ID == tier,
-					func() { choose(&a.selectedTier, service.ID, "速度") })
+				if service.ID == tier {
+					tierName = service.Name
+				}
 			}
+			tierOptions := []agent.ReasoningEffortOption{{ReasoningEffort: "default", Description: "标准"}}
+			for _, service := range current.ServiceTiers {
+				tierOptions = append(tierOptions, agent.ReasoningEffortOption{ReasoningEffort: service.ID, Description: service.Description})
+			}
+			tierLabel := func(value string) string {
+				if value == "default" {
+					return "标准"
+				}
+				for _, service := range current.ServiceTiers {
+					if service.ID == value {
+						return service.Name
+					}
+				}
+				return value
+			}
+			picker("速度", tierName, &a.session.tierPickerOpen, tierOptions, tierLabel,
+				func(value string) { choose(&a.selectedTier, value, "速度") })
 		})
 	}
 }

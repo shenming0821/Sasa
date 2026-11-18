@@ -40,6 +40,8 @@ type session struct {
 	modelResolving    bool
 	modelResolvedCwd  string
 	modelMenuOpen     bool
+	effortPickerOpen  bool
+	tierPickerOpen    bool
 	modelError        string
 	imagesImporting   bool
 	importingImages   int

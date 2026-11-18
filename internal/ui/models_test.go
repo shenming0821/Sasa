@@ -358,7 +358,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"low", "medium", "high", "标准", "Fast"} {
+	for _, label := range []string{"medium", "标准"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing turn option", label)
 		}
@@ -366,10 +366,16 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if !tt.HasText("Model One medium") {
 		t.Fatal("default effort not shown on the model button")
 	}
-	if err := tt.Click("推理强度 high"); err != nil {
+	if err := tt.Click("推理强度 medium"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("速度 Fast"); err != nil {
+	if err := tt.Click("推理强度选项 high"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("速度 标准"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("速度选项 Fast"); err != nil {
 		t.Fatal(err)
 	}
 	if a.selectedEffort != "high" || a.selectedTier != "priority" || !a.modelMenuOpen {
@@ -413,7 +419,10 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("推理强度 medium"); err != nil {
+	if err := tt.Click("推理强度 high"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("推理强度选项 medium"); err != nil {
 		t.Fatal(err)
 	}
 	if a.selectedEffort != "medium" || !tt.HasText("Model One medium") {
@@ -434,10 +443,16 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("推理强度 high"); err != nil {
+	if err := tt.Click("推理强度 medium"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("速度 Fast"); err != nil {
+	if err := tt.Click("推理强度选项 high"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("速度 标准"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("速度选项 Fast"); err != nil {
 		t.Fatal(err)
 	}
 	if output := os.Getenv("FUYU_OPTIONS_SCREENSHOT"); output != "" {
@@ -516,10 +531,8 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	for _, label := range []string{"low", "medium", "high", "xhigh", "max"} {
-		if !tt.HasText(label) {
-			t.Fatal("missing effort option", label)
-		}
+	if !tt.HasText("推理强度 …") {
+		t.Fatal("missing effort picker trigger")
 	}
 	if tt.HasText("速度") {
 		t.Fatal("service tier row rendered without catalog tiers")
@@ -529,10 +542,18 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 			t.Fatal("effort shown before any pick or catalog default", label)
 		}
 	}
+	if err := tt.Click("推理强度 …"); err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"low", "medium", "high", "xhigh", "max"} {
+		if !tt.HasText(label) {
+			t.Fatal("missing effort picker option", label)
+		}
+	}
 	if !tt.HasText("选择不会生效") {
 		t.Fatal("effort pin warning not shown")
 	}
-	if err := tt.Click("推理强度 high"); err != nil {
+	if err := tt.Click("推理强度选项 high"); err != nil {
 		t.Fatal(err)
 	}
 	if a.selectedEffort != "high" || !a.modelMenuOpen {
@@ -669,7 +690,7 @@ func TestModelPickerShowsDisplayNameForResolvedModelIDs(t *testing.T) {
 	if !tt.HasText("SWE-2 Flash") || tt.HasText("swe-2-flash-medium") {
 		t.Fatal("resolved model id leaked into the model menu")
 	}
-	for _, label := range []string{"medium", "high", "max"} {
+	for _, label := range []string{"high"} {
 		if !tt.HasText(label) {
 			t.Fatal("missing effort chip", label)
 		}
