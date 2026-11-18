@@ -111,7 +111,9 @@ class Tasks:
                 raise RuntimeError('任务尚无独立提交。')
             commit = text(self.main, 'rev-parse', 'HEAD')
             if git(self.main, 'merge-base', '--is-ancestor', head, commit, check=False).returncode:
-                raise RuntimeError('任务提交尚未合入集成目录 HEAD；请保留任务历史进行合入。')
+                raise RuntimeError('任务提交尚未合入集成目录 HEAD；请先将任务分支 rebase 到主分支并快进合入。')
+            if text(self.main, 'rev-list', '--merges', '--count', f'{head}..{commit}') != '0':
+                raise RuntimeError('任务提交与集成目录 HEAD 之间存在 merge 提交；请使用 git rebase 保持线性历史后重新合入。')
             task.update(state='integrated', taskHead=head, integratedCommit=commit, integratedAt=now())
         print(f'已登记集成：{name}；发布前继续保留 worktree。')
 

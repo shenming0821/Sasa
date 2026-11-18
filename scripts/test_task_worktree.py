@@ -96,6 +96,14 @@ class TaskWorktreeTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.tasks.integrated('example')
 
+    def test_integration_rejects_merge_commits(self):
+        (self.task / 'file.txt').write_text('task')
+        self.commit(self.task, 'task')
+        git(self.root, 'merge', '--no-ff', 'task/example', '-m', 'merge task')
+        with self.assertRaisesRegex(RuntimeError, 'merge 提交'):
+            self.tasks.integrated('example')
+        self.assertEqual(self.records()['example']['state'], 'developing')
+
     def test_integrated_task_is_retained_until_publication(self):
         self.integrate()
         with patch.object(self.tasks, 'installed', side_effect=FileNotFoundError('no receipt')):
