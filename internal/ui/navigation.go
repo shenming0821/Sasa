@@ -312,7 +312,7 @@ func (a *App) effectiveRightPanelWidth(width float32) float32 {
 	if preferred == 0 {
 		preferred = 320
 	}
-	return min(max(preferred, 240), 520, max(240, width-401))
+	return min(max(preferred, 240), max(240, width-401))
 }
 
 func (a *App) sidebarVisible(width float32) bool {

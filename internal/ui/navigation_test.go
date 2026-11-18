@@ -222,8 +222,11 @@ func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
 	drag := func(dx float32) {
 		t.Helper()
 		r := toggle()
-		width := a.effectiveRightPanelWidth(1159)
-		x, y := 1400-width-1, r.Y+r.H/2
+		available := float32(1400)
+		if a.sidebarVisible(1400) {
+			available -= a.sidebarWidth + 1
+		}
+		x, y := 1400-a.effectiveRightPanelWidth(available)-1, r.Y+r.H/2
 		tt.Move(10, 10)
 		idle := tt.Image().RGBAAt(int(x), int(y))
 		tt.Move(x, y)
@@ -270,10 +273,10 @@ func TestRightPanelDividerDragLimitsAndSharedTabs(t *testing.T) {
 		}
 	}
 	drag(-500)
-	if a.rightPanelWidth != 520 {
-		t.Fatalf("upper width bound: %v", a.rightPanelWidth)
+	if a.rightPanelWidth != 900 {
+		t.Fatalf("right panel did not grow past previous 520 cap: %v", a.rightPanelWidth)
 	}
-	drag(600)
+	drag(800)
 	if a.rightPanelWidth != 240 {
 		t.Fatalf("lower width bound: %v", a.rightPanelWidth)
 	}

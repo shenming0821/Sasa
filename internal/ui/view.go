@@ -62,7 +62,7 @@ func (a *App) view(c *native.Context) {
 		a.openSessionFind()
 	}
 	width, _ := c.Size()
-	a.sidebarWidth = min(max(a.sidebarWidth, 200), 320)
+	a.sidebarWidth = max(a.sidebarWidth, 200)
 	sidebar := a.sidebarVisible(width)
 	if sidebar {
 		a.compactSidebar = false
@@ -81,7 +81,7 @@ func (a *App) view(c *native.Context) {
 				mainWidth := available - a.effectiveRightPanelWidth(available) - 1
 				split := native.Split(c.Key("right-panel-split"), &mainWidth, main, func() { a.rightPanel(c) }).Fill()
 				if split.Changed() {
-					a.rightPanelWidth = min(max(available-mainWidth-1, 240), 520, max(240, available-401))
+					a.rightPanelWidth = max(available-mainWidth-1, 240)
 				}
 			} else {
 				native.Row(c).Fill().Children(main)
