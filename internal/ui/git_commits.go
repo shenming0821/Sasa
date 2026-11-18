@@ -63,7 +63,7 @@ func (a *App) gitCommitsRows(w *workspacePage, groups bool) []gitCommitsRow {
 
 		}
 	}
-	if w.gitHistoryLoading || w.gitHistoryError != "" || len(w.gitHistory) == 0 || w.gitHistoryMore {
+	if w.gitHistoryLoading || w.gitHistoryError != "" || len(w.gitHistory) == 0 {
 		rows = append(rows, gitCommitsRow{key: "commits:status", kind: "status"})
 	}
 	return rows
@@ -142,10 +142,6 @@ func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy, grou
 					}
 				} else if len(w.gitHistory) == 0 {
 					native.Text(c, "尚无提交").FontSize(11).TextColor(c.Theme().TextMuted)
-				} else if w.gitHistoryMore {
-					if actionButton(c, "显示更多提交").Clicked() {
-						action = func() { a.gitLoadHistory(w, true) }
-					}
 				}
 			})
 		}
@@ -155,6 +151,7 @@ func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy, grou
 		c.Invalidate()
 		return
 	}
+	a.gitAutoLoadHistory(c, out, w, len(rows), busy)
 	chosen := w.gitListRow
 	if chosen < 0 || chosen >= len(rows) {
 		return
@@ -234,6 +231,39 @@ func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy, grou
 		}
 	}
 }
+
+func (a *App) gitAutoLoadHistory(c *native.Context, list native.Element, w *workspacePage, rows int, busy bool) {
+	// Visible describes the previous layout. Let changed rows and their heights
+	// reach a later frame before deciding whether the list is near its end.
+	first, last := w.gitList.Visible()
+	type layout struct {
+		rows, first, last int
+		loading           bool
+	}
+	sample := layout{rows, first, last, w.gitHistoryLoading}
+	previous := native.Local(list, "pagination-layout", func() layout { return layout{} })
+	changedAt := native.Local(list, "pagination-changed-at", func() time.Time { return time.Time{} })
+	if *previous != sample {
+		*previous, *changedAt = sample, c.Now()
+		c.Invalidate()
+		return
+	}
+	if c.Now() == *changedAt {
+		c.Invalidate()
+		return
+	}
+	// Four compact commit rows are about 80 DIP. A nonzero first row keeps
+	// an unscrolled list that fits its viewport from draining every page.
+	if commitsOpen(w) && !busy && w.gitBusy == "" && w.gitHistoryLoaded &&
+		w.gitHistoryMore && !w.gitHistoryLoading && w.gitHistoryError == "" &&
+		first > 0 && last >= rows-4 {
+		a.gitLoadHistory(w, true)
+		if w.gitHistoryLoading {
+			c.Invalidate()
+		}
+	}
+}
+
 func (a *App) gitCommitsHeader(c *native.Context, w *workspacePage, busy bool, action *func()) {
 	t := c.Theme()
 	row := native.Row(c).FillWidth().Height(22).Padding(0, 6).Gap(4).AlignItems(native.Center).Background(t.Background)

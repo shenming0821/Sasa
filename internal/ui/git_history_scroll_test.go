@@ -19,31 +19,47 @@ func advanceGitHistory(tt *native.Tester) {
 		tt.Advance(time.Millisecond)
 	}
 }
-func TestGitCommitsManualPaginationAndStablePrefix(t *testing.T) {
+func waitGitHistory(t *testing.T, tt *native.Tester, q chan func(), condition func() bool) {
+	t.Helper()
+	p4Wait(t, tt, q, func() bool {
+		tt.Advance(time.Millisecond)
+		return condition()
+	})
+}
+func TestGitCommitsAutoPaginationAndStablePrefix(t *testing.T) {
 	a, q, root, g := gitWorkflowApp(t)
 	for i := range 104 {
 		g("commit", "--allow-empty", "-m", fmt.Sprintf("history %03d", i))
 	}
 	w := a.workspace(root)
 	tt := gitHistoryTester(a, w)
-	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 50 })
+	waitGitHistory(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 50 })
+	advanceGitHistory(tt)
+	if w.gitHistoryLoading || len(w.gitHistory) != 50 {
+		t.Fatal("unscrolled list auto-loaded history")
+	}
 	list, _ := tt.Find("COMMITS 列表")
+	w.gitBusy = "test"
 	tt.Scroll(list.X+20, list.Y+list.H/2, 0, 100000)
 	advanceGitHistory(tt)
 	if w.gitHistoryLoading {
-		t.Fatal("scroll auto-loaded history")
+		t.Fatal("busy repository auto-loaded history")
 	}
-	if err := tt.Click("显示更多提交"); err != nil {
-		t.Fatal(err)
+	w.gitBusy = ""
+	waitGitHistory(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 100 })
+	for range 5 {
+		advanceGitHistory(tt)
 	}
-	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 100 })
+	if w.gitHistoryLoading || len(w.gitHistory) != 100 {
+		t.Fatal("new page cascaded into another request")
+	}
+	if _, ok := tt.Find("显示更多提交"); ok {
+		t.Fatal("manual pagination button remains")
+	}
 	// A new HEAD between pages must replace the prefix, not append offset pages.
 	g("commit", "--allow-empty", "-m", "new HEAD")
 	tt.Scroll(list.X+20, list.Y+list.H/2, 0, 100000)
-	if err := tt.Click("显示更多提交"); err != nil {
-		t.Fatal(err)
-	}
-	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 106 })
+	waitGitHistory(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 106 })
 	want := strings.Fields(g("log", "--date-order", "--format=%H"))
 	for i, cm := range w.gitHistory {
 		if cm.Hash != want[i] {
@@ -54,22 +70,25 @@ func TestGitCommitsManualPaginationAndStablePrefix(t *testing.T) {
 		t.Fatal("exhausted history offers another page")
 	}
 	a.gitLoadHistory(w, false)
-	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading })
+	waitGitHistory(t, tt, q, func() bool { return !w.gitHistoryLoading })
 	if len(w.gitHistory) != 106 {
 		t.Fatal("refresh reset the loaded prefix", len(w.gitHistory))
 	}
 }
 func TestGitCommitsFailurePreservesSnapshotAndManualRetry(t *testing.T) {
 	a, q, root, g := gitWorkflowApp(t)
-	g("commit", "--allow-empty", "-m", "second")
+	for i := range 54 {
+		g("commit", "--allow-empty", "-m", fmt.Sprintf("history %03d", i))
+	}
 	w := a.workspace(root)
 	tt := gitHistoryTester(a, w)
-	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 2 })
+	waitGitHistory(t, tt, q, func() bool { return !w.gitHistoryLoading && len(w.gitHistory) == 50 })
 	old := w.gitHistory[0].Hash
 	w.root = filepath.Join(root, "missing")
-	a.gitLoadHistory(w, false)
-	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading && w.gitHistoryError != "" })
-	if len(w.gitHistory) != 2 || w.gitHistory[0].Hash != old {
+	list, _ := tt.Find("COMMITS 列表")
+	tt.Scroll(list.X+20, list.Y+list.H/2, 0, 100000)
+	waitGitHistory(t, tt, q, func() bool { return !w.gitHistoryLoading && w.gitHistoryError != "" })
+	if len(w.gitHistory) != 50 || w.gitHistory[0].Hash != old {
 		t.Fatal("failure discarded snapshot")
 	}
 	for range 5 {
@@ -79,10 +98,34 @@ func TestGitCommitsFailurePreservesSnapshotAndManualRetry(t *testing.T) {
 		t.Fatal("failure retried automatically")
 	}
 	w.root = root
-	list, _ := tt.Find("COMMITS 列表")
 	tt.Scroll(list.X+20, list.Y+list.H/2, 0, 100000)
 	if err := tt.Click("重试读取提交"); err != nil {
 		t.Fatal(err)
 	}
-	p4Wait(t, tt, q, func() bool { return !w.gitHistoryLoading && w.gitHistoryError == "" })
+	waitGitHistory(t, tt, q, func() bool { return !w.gitHistoryLoading && w.gitHistoryError == "" })
+}
+
+func TestGitCommitsAutoPaginationRequiresScrollableOpenList(t *testing.T) {
+	a, q, root, _ := gitWorkflowApp(t)
+	w := a.workspace(root)
+	tt := gitHistoryTester(a, w)
+	waitGitHistory(t, tt, q, func() bool { return w.gitHistoryLoaded && !w.gitHistoryLoading })
+	// Even when the backend offers another page, fitting content alone must
+	// not request it. The user needs to scroll through the loaded rows.
+	w.gitHistoryMore = true
+	for range 5 {
+		advanceGitHistory(tt)
+	}
+	if w.gitHistoryLoading || len(q) != 0 {
+		t.Fatal("fitting content requested another page")
+	}
+	if err := tt.Click("切换 COMMITS"); err != nil {
+		t.Fatal(err)
+	}
+	for range 5 {
+		advanceGitHistory(tt)
+	}
+	if commitsOpen(w) || w.gitHistoryLoading || len(q) != 0 {
+		t.Fatal("collapsed history requested another page")
+	}
 }
