@@ -281,7 +281,7 @@ func TestPendingInteractionLimitKeepsRPCUsable(t *testing.T) {
 			if i < MaxPendingRequests && e.Method != "item/fileChange/requestApproval" {
 				t.Fatal(e)
 			}
-			if i == MaxPendingRequests && e.Method != "fuyu/unsupported" {
+			if i == MaxPendingRequests && e.Method != "sasa/unsupported" {
 				t.Fatal("missing visible overflow notice")
 			}
 		case <-ctx.Done():
@@ -307,7 +307,7 @@ func TestControlOverflowDisconnectsExplicitly(t *testing.T) {
 			if !ok {
 				t.Fatal("closed without explicit disconnect")
 			}
-			if e.Method == "fuyu/disconnected" {
+			if e.Method == "sasa/disconnected" {
 				if e.Err == nil || !strings.Contains(e.Err.Error(), "buffer exceeded") {
 					t.Fatal(e.Err)
 				}
@@ -378,7 +378,7 @@ func TestMalformedAndUnsupportedInteractionsFailClosed(t *testing.T) {
 			}
 			select {
 			case e := <-c.Events():
-				if e.Method != "fuyu/unsupported" || e.Err == nil {
+				if e.Method != "sasa/unsupported" || e.Err == nil {
 					t.Fatal(e)
 				}
 			case <-ctx.Done():
@@ -519,7 +519,7 @@ func TestDeltaFloodPreservesRPCAndTerminalEvent(t *testing.T) {
 	for {
 		select {
 		case e := <-c.Events():
-			if e.Method == "fuyu/eventGap" {
+			if e.Method == "sasa/eventGap" {
 				gap = true
 			}
 			if e.Method == "turn/completed" {
@@ -558,7 +558,7 @@ func TestDisconnectReleasesRequestsAndEvents(t *testing.T) {
 			}
 			select {
 			case e := <-c.Events():
-				if e.Method != "fuyu/disconnected" {
+				if e.Method != "sasa/disconnected" {
 					t.Fatal(e)
 				}
 			case <-ctx.Done():

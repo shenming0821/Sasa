@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func TestCompletionDiskCacheShowsPreviousResultWhileRevalidating(t *testing.T) {

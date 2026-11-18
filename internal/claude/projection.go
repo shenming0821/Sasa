@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func toolItem(block contentBlock, cwd string) map[string]any {
@@ -63,7 +63,7 @@ func (r *execution) project(message frame) {
 					for !utf8.ValidString(delta) {
 						delta = delta[:len(delta)-1]
 					}
-					r.emit("fuyu/eventGap", nil)
+					r.emit("sasa/eventGap", nil)
 				}
 				block.Text += delta
 				if delta != "" {
@@ -157,7 +157,7 @@ func (r *execution) project(message frame) {
 			r.client.mu.Lock()
 			r.session.EffectiveModel, r.session.Version = message.Model, message.Version
 			r.client.mu.Unlock()
-			r.emit("fuyu/runtime", map[string]any{"threadId": r.session.ID, "model": message.Model, "version": message.Version})
+			r.emit("sasa/runtime", map[string]any{"threadId": r.session.ID, "model": message.Model, "version": message.Version})
 		}
 		if message.Subtype == "task_notification" {
 			id := message.ToolUseID

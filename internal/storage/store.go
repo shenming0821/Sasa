@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/project"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/project"
 
 	_ "modernc.org/sqlite"
 )
@@ -167,7 +167,7 @@ func Open(dir string) (_ *Store, err error) {
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	lock, err := os.OpenFile(filepath.Join(dir, "fuyu.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	lock, err := os.OpenFile(filepath.Join(dir, "sasa.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func Open(dir string) (_ *Store, err error) {
 			s.Close()
 		}
 	}()
-	path := filepath.Join(dir, "fuyu.db")
+	path := filepath.Join(dir, "sasa.db")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
@@ -241,7 +241,7 @@ func Open(dir string) (_ *Store, err error) {
 			return nil, fmt.Errorf("迁移前读取索引，保留原数据库：%w", err)
 		}
 		if version > 0 {
-			backup := filepath.Join(dir, "fuyu-before-v3.db")
+			backup := filepath.Join(dir, "sasa-before-v3.db")
 			info, statErr := os.Lstat(backup)
 			if statErr != nil && !os.IsNotExist(statErr) {
 				return nil, fmt.Errorf("核对迁移备份：%w", statErr)
@@ -255,7 +255,7 @@ func Open(dir string) (_ *Store, err error) {
 				}
 				// A previous valid backup may predate newer work in schema 2.
 				// Keep it and take a fresh snapshot for this migration attempt.
-				f, err := os.CreateTemp(dir, "fuyu-before-v3-*.db")
+				f, err := os.CreateTemp(dir, "sasa-before-v3-*.db")
 				if err != nil {
 					return nil, fmt.Errorf("创建迁移备份：%w", err)
 				}

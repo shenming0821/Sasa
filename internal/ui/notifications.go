@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/egoist/mygo"
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func (a *App) notifyCompletion(e agent.Event) {
@@ -44,7 +44,7 @@ func (a *App) notifyCompletion(e agent.Event) {
 			return mygo.NewNotification(options).Show()
 		}
 	}
-	options := mygo.NotificationOptions{ID: fmt.Sprintf("fuyu-session-%d", a.id), Title: "任务已完成", Body: a.title(), Group: "fuyu-tasks", Silent: !root.preferences.NotificationSound}
+	options := mygo.NotificationOptions{ID: fmt.Sprintf("sasa-session-%d", a.id), Title: "任务已完成", Body: a.title(), Group: "sasa-tasks", Silent: !root.preferences.NotificationSound}
 	go func() {
 		err := sender(options)
 		select {
@@ -64,7 +64,7 @@ func (a *App) notifyCompletion(e agent.Event) {
 
 func (a *App) installNotificationActions() {
 	mygo.App.OnNotificationClick(func(id string) {
-		sessionID, err := strconv.Atoi(strings.TrimPrefix(id, "fuyu-session-"))
+		sessionID, err := strconv.Atoi(strings.TrimPrefix(id, "sasa-session-"))
 		if err != nil {
 			return
 		}

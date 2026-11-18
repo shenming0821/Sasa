@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 const sessionIdleTimeout = 2 * time.Minute

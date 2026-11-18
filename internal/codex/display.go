@@ -1,6 +1,6 @@
 package codex
 
-import "github.com/shenming0821/Fuyu/internal/agent"
+import "github.com/shenming0821/Sasa/internal/agent"
 
 const MaxToolOutputBytes = agent.MaxToolOutputBytes
 

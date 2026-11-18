@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,13 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/claude"
-	"github.com/shenming0821/Fuyu/internal/codex"
-	"github.com/shenming0821/Fuyu/internal/release"
-	process "github.com/shenming0821/Fuyu/internal/runtime"
-	"github.com/shenming0821/Fuyu/internal/storage"
-	"github.com/shenming0821/Fuyu/internal/ui"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/claude"
+	"github.com/shenming0821/Sasa/internal/codex"
+	"github.com/shenming0821/Sasa/internal/release"
+	process "github.com/shenming0821/Sasa/internal/runtime"
+	"github.com/shenming0821/Sasa/internal/storage"
+	"github.com/shenming0821/Sasa/internal/ui"
 )
 
 func main() {
@@ -25,6 +26,52 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func migrateDataDir(legacy, target string) error {
+	if _, err := os.Stat(target); err == nil {
+		entries, err := os.ReadDir(target)
+		if err != nil {
+			return err
+		}
+		if len(entries) > 0 && (len(entries) > 1 || entries[0].Name() != "release-channel") {
+			return fmt.Errorf("目标数据目录已存在且非空：%s", target)
+		}
+		if err := os.RemoveAll(target); err != nil {
+			return err
+		}
+	}
+	if err := os.Rename(legacy, target); err != nil {
+		return err
+	}
+	for _, name := range []string{"sasa.db", "sasa.db-wal", "sasa.db-shm", "sasa.lock", "sasa.sqlite"} {
+		old := filepath.Join(target, name)
+		newPath := filepath.Join(target, "sasa"+name[len("sasa"):])
+		if _, err := os.Stat(old); err == nil {
+			if err := os.Rename(old, newPath); err != nil {
+				return fmt.Errorf("重命名数据库文件：%w", err)
+			}
+		}
+	}
+	dbPath := filepath.Join(target, "sasa.db")
+	if _, err := os.Stat(dbPath); err == nil {
+		if err := rewriteRuntimePaths(dbPath, legacy, target); err != nil {
+			return fmt.Errorf("重写数据库路径：%w", err)
+		}
+	}
+	return nil
+}
+
+func rewriteRuntimePaths(dbPath, legacy, target string) error {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	legacyRuntime := filepath.Join(legacy, "runtimes")
+	targetRuntime := filepath.Join(target, "runtimes")
+	_, err = db.Exec("UPDATE runtime_identity SET home = REPLACE(home, ?, ?)", legacyRuntime, targetRuntime)
+	return err
 }
 
 func run() error {
@@ -42,12 +89,29 @@ func run() error {
 	if *showVersion {
 		return json.NewEncoder(os.Stdout).Encode(identity)
 	}
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
+	legacyName := "Sasa"
+	if identity.Channel == "preview" {
+		legacyName = "Sasa Preview"
+	}
+	legacy := filepath.Join(configDir, legacyName)
+	target := filepath.Join(configDir, identity.DataName())
 	if *dataDir == "" {
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			return err
+		*dataDir = target
+	}
+	resolved, _ := filepath.Abs(*dataDir)
+	if resolved == legacy && legacy != target {
+		*dataDir = target
+	}
+	if legacy != target {
+		if _, err := os.Stat(legacy); err == nil && *dataDir == target {
+			if migrateErr := migrateDataDir(legacy, target); migrateErr != nil {
+				return fmt.Errorf("迁移旧数据目录：%w", migrateErr)
+			}
 		}
-		*dataDir = filepath.Join(configDir, identity.DataName())
 	}
 	*dataDir, err = filepath.Abs(*dataDir)
 	if err != nil {

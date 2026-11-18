@@ -2,12 +2,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef void *fuyu_terminal_t;
-const char *fuyu_terminal_load(const char *, const char *);
-fuyu_terminal_t fuyu_terminal_new(uintptr_t, uintptr_t, const char *, double, double, double, double, bool);
-const char *fuyu_terminal_error(void);
-void fuyu_terminal_present(fuyu_terminal_t, double, double, double, double, bool, bool);
-void fuyu_terminal_hide(fuyu_terminal_t);
-void fuyu_terminal_free(fuyu_terminal_t);
-bool fuyu_terminal_exited(fuyu_terminal_t);
-void fuyu_terminal_text(fuyu_terminal_t, const char *);
+typedef void *sasa_terminal_t;
+const char *sasa_terminal_load(const char *, const char *);
+sasa_terminal_t sasa_terminal_new(uintptr_t, uintptr_t, const char *, double, double, double, double, bool);
+const char *sasa_terminal_error(void);
+void sasa_terminal_present(sasa_terminal_t, double, double, double, double, bool, bool);
+void sasa_terminal_hide(sasa_terminal_t);
+void sasa_terminal_free(sasa_terminal_t);
+bool sasa_terminal_exited(sasa_terminal_t);
+void sasa_terminal_text(sasa_terminal_t, const char *);

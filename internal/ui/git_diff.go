@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 var diffInlineIcon = icon(`<path d="M4 7h16M4 12h16M4 17h16"/>`)

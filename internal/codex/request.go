@@ -1,6 +1,6 @@
 package codex
 
-import "github.com/shenming0821/Fuyu/internal/agent"
+import "github.com/shenming0821/Sasa/internal/agent"
 
 type Option = agent.Option
 type Question = agent.Question

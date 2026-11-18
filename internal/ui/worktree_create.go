@@ -7,8 +7,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
-	"github.com/shenming0821/Fuyu/internal/project"
+	gitview "github.com/shenming0821/Sasa/internal/git"
+	"github.com/shenming0821/Sasa/internal/project"
 )
 
 type worktreeCreation struct {

@@ -185,7 +185,7 @@ func saveWith(ctx context.Context, base File, text string, recreate bool, ops sa
 	if len(raw) > EditBytes {
 		return base, fmt.Errorf("编辑内容超过 4 MiB")
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(base.Path), ".fuyu-save-*")
+	tmp, err := os.CreateTemp(filepath.Dir(base.Path), ".sasa-save-*")
 	if err != nil {
 		return base, err
 	}

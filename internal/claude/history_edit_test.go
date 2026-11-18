@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestClaudeEditHistoryUsesNativePrefixAndSurvivesRestart(t *testing.T) {

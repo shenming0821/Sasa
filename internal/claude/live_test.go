@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestLiveClaudeFileApprovalResume(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for real Claude Code verification")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for real Claude Code verification")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -88,7 +88,7 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 		}
 	}
 	firstStarted := time.Now()
-	first, err := client.Send(ctx, thread.Thread.ID, "In this working directory only, use Bash to write proof.txt containing exactly FUYU_CLAUDE_LIVE followed by a newline. Keep the token FUYU_CLAUDE_LIVE in this conversation for our next turn. Do not save it to memory files, do not use background tasks, and do not change any other files.")
+	first, err := client.Send(ctx, thread.Thread.ID, "In this working directory only, use Bash to write proof.txt containing exactly SASA_CLAUDE_LIVE followed by a newline. Keep the token SASA_CLAUDE_LIVE in this conversation for our next turn. Do not save it to memory files, do not use background tasks, and do not change any other files.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 	firstProcess := idleExecution(t, client, thread.Thread.ID)
 	firstDuration := time.Since(firstStarted)
 	raw, err := os.ReadFile(filepath.Join(cwd, "proof.txt"))
-	if err != nil || string(raw) != "FUYU_CLAUDE_LIVE\n" {
+	if err != nil || string(raw) != "SASA_CLAUDE_LIVE\n" {
 		t.Fatalf("proof=%q err=%v", raw, err)
 	}
 	secondStarted := time.Now()
@@ -104,7 +104,7 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply := wait(second); !strings.Contains(reply, "FUYU_CLAUDE_LIVE") {
+	if reply := wait(second); !strings.Contains(reply, "SASA_CLAUDE_LIVE") {
 		t.Fatalf("context=%q", reply)
 	}
 	if current := idleExecution(t, client, thread.Thread.ID); current.process != firstProcess.process {
@@ -130,11 +130,11 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply := wait(third); !strings.Contains(reply, "FUYU_CLAUDE_LIVE") {
+	if reply := wait(third); !strings.Contains(reply, "SASA_CLAUDE_LIVE") {
 		t.Fatalf("restart context=%q", reply)
 	}
-	if os.Getenv("FUYU_LIVE_CLAUDE_COMPACT") == "1" {
-		compact, err := reopened.Send(ctx, thread.Thread.ID, "/compact Preserve the exact token FUYU_CLAUDE_LIVE and the proof.txt result. Do not write memory files.")
+	if os.Getenv("SASA_LIVE_CLAUDE_COMPACT") == "1" {
+		compact, err := reopened.Send(ctx, thread.Thread.ID, "/compact Preserve the exact token SASA_CLAUDE_LIVE and the proof.txt result. Do not write memory files.")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +156,7 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if reply := wait(after); !strings.Contains(reply, "FUYU_CLAUDE_LIVE") {
+		if reply := wait(after); !strings.Contains(reply, "SASA_CLAUDE_LIVE") {
 			t.Fatal("compact lost context", reply)
 		}
 	}
@@ -164,8 +164,8 @@ func TestLiveClaudeFileApprovalResume(t *testing.T) {
 }
 
 func TestLiveClaudeDenialQuestionAndInterrupt(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for real Claude Code verification")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for real Claude Code verification")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -185,7 +185,7 @@ func TestLiveClaudeDenialQuestionAndInterrupt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			prompt := "Use Bash to write denied.txt containing FUYU_DENIED in this directory. If permission is denied, do not retry or use other tools; just say denied. Do not change other files."
+			prompt := "Use Bash to write denied.txt containing SASA_DENIED in this directory. If permission is denied, do not retry or use other tools; just say denied. Do not change other files."
 			if mode == "question" {
 				prompt = "Use AskUserQuestion now to ask me which platform to target. Provide choices Mac and Linux, with multiSelect true. Do not answer it yourself and do not use any other tools. After my answer, repeat my selected platforms."
 			}
@@ -218,7 +218,7 @@ func TestLiveClaudeDenialQuestionAndInterrupt(t *testing.T) {
 							}
 							err = client.Respond(event.ID, map[string]any{"answers": answers})
 						} else {
-							err = client.Respond(event.ID, map[string]string{"decision": "decline", "feedback": "FUYU_DENIED_FEEDBACK: leave the directory unchanged and do not retry"})
+							err = client.Respond(event.ID, map[string]string{"decision": "decline", "feedback": "SASA_DENIED_FEEDBACK: leave the directory unchanged and do not retry"})
 						}
 						if err != nil {
 							t.Fatal(err)
@@ -248,8 +248,8 @@ func TestLiveClaudeDenialQuestionAndInterrupt(t *testing.T) {
 }
 
 func TestLiveClaudeProcessFailureIsSessionScoped(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for real process failure verification")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for real process failure verification")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -267,7 +267,7 @@ func TestLiveClaudeProcessFailureIsSessionScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Send(ctx, broken.Thread.ID, "Use Bash to create failure-proof.txt containing FUYU_FAILURE. Do not write other files, use background tools, or save memory."); err != nil {
+	if _, err := client.Send(ctx, broken.Thread.ID, "Use Bash to create failure-proof.txt containing SASA_FAILURE. Do not write other files, use background tools, or save memory."); err != nil {
 		t.Fatal(err)
 	}
 	var permission json.RawMessage
@@ -294,14 +294,14 @@ func TestLiveClaudeProcessFailureIsSessionScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Send(ctx, healthy.Thread.ID, "Without tools or memory files reply exactly FUYU_HEALTHY."); err != nil {
+	if _, err := client.Send(ctx, healthy.Thread.ID, "Without tools or memory files reply exactly SASA_HEALTHY."); err != nil {
 		t.Fatal(err)
 	}
 	brokenDone, healthyDone, disconnected := false, false, false
 	for !brokenDone || !healthyDone || !disconnected {
 		select {
 		case event := <-client.Events():
-			if event.Method == "fuyu/disconnected" {
+			if event.Method == "sasa/disconnected" {
 				if event.Session.SessionID != broken.Thread.ID {
 					t.Fatal("process failure disconnected other sessions", event.Session)
 				}
@@ -349,8 +349,8 @@ func TestLiveClaudeProcessFailureIsSessionScoped(t *testing.T) {
 }
 
 func TestLiveClaudeInterruptStreaming(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for real streaming interruption")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for real streaming interruption")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -446,8 +446,8 @@ func TestLiveClaudeInterruptRunningTool(t *testing.T) {
 
 func testLiveClaudeInterruptTool(t *testing.T, background, resumed bool) {
 	t.Helper()
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for running tool interruption")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for running tool interruption")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -467,7 +467,7 @@ func testLiveClaudeInterruptTool(t *testing.T, background, resumed bool) {
 	}
 	var warmProcess *execution
 	if resumed {
-		warmup, err := client.Send(ctx, thread.Thread.ID, "Reply only FUYU_RESUME_STOP_READY. Do not use tools or write memory.")
+		warmup, err := client.Send(ctx, thread.Thread.ID, "Reply only SASA_RESUME_STOP_READY. Do not use tools or write memory.")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -10,9 +10,9 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func TestPlanSlashBadgeHoverAndExitKeepDraft(t *testing.T) {
@@ -69,7 +69,7 @@ func TestPlanSlashBadgeHoverAndExitKeepDraft(t *testing.T) {
 
 func savePlanFrame(t *testing.T, tt *native.Tester, name string) {
 	t.Helper()
-	dir := os.Getenv("FUYU_PLAN_UI_ARTIFACTS")
+	dir := os.Getenv("SASA_PLAN_UI_ARTIFACTS")
 	if dir == "" {
 		return
 	}

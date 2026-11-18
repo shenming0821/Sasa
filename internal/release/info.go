@@ -55,13 +55,11 @@ func (info Info) Name() string {
 	return "Sasa"
 }
 
-// DataName retains the original on-disk identity across the Sasa rename.
-// Keeping the directory also preserves absolute attachment and runtime paths.
 func (info Info) DataName() string {
 	if info.Channel == "preview" {
-		return "Fuyu Preview"
+		return "Sasa Preview"
 	}
-	return "Fuyu"
+	return "Sasa"
 }
 
 func (info Info) WindowTitle() string {

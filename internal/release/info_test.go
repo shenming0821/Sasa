@@ -10,8 +10,8 @@ import (
 
 func TestBundleIdentityAndPromotion(t *testing.T) {
 	root := t.TempDir()
-	executable := filepath.Join(root, "Fuyu.app", "Contents", "MacOS", "Fuyu")
-	resources := filepath.Join(root, "Fuyu.app", "Contents", "Resources")
+	executable := filepath.Join(root, "Sasa.app", "Contents", "MacOS", "Sasa")
+	resources := filepath.Join(root, "Sasa.app", "Contents", "Resources")
 	if err := os.MkdirAll(resources, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestChannelsCannotAdoptEachOthersData(t *testing.T) {
 		t.Fatal("Preview accepted stable data")
 	}
 	legacy := t.TempDir()
-	if err := os.WriteFile(filepath.Join(legacy, "fuyu.db"), []byte("original"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(legacy, "sasa.db"), []byte("original"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := preview.ValidateDataDir(legacy); err == nil {
@@ -139,8 +139,8 @@ func TestReadyAcknowledgement(t *testing.T) {
 
 func TestSasaRenameKeepsExistingDataDirectories(t *testing.T) {
 	for _, tc := range []struct{ channel, name, data string }{
-		{"stable", "Sasa", "Fuyu"},
-		{"preview", "Sasa Preview", "Fuyu Preview"},
+		{"stable", "Sasa", "Sasa"},
+		{"preview", "Sasa Preview", "Sasa Preview"},
 	} {
 		info := Info{Channel: tc.channel, BuildID: "test-build"}
 		if info.Name() != tc.name || info.DataName() != tc.data {

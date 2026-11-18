@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 // Opt in explicitly: this test uses the existing Codex login and real model service.
 // It verifies turn/start effort reaches the native rollout turn_context.
 func TestLiveEffortReachesTurnContext(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 to run real Codex")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 to run real Codex")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()

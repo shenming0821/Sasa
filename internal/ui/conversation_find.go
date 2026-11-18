@@ -10,7 +10,7 @@ import (
 	"github.com/egoist/mygo/ui/editor"
 	"github.com/egoist/mygo/ui/markdown"
 	"github.com/egoist/mygo/ui/markdown/parser"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 // conversationFind is the session's Cmd+F find bar over message text: the

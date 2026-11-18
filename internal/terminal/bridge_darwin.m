@@ -6,7 +6,7 @@
 #include "bridge.h"
 #include "native/ghostty.h"
 
-extern void fuyuTerminalEvent(uintptr_t, int);
+extern void sasaTerminalEvent(uintptr_t, int);
 
 #define GHOSTTY_FUNCTIONS(X) \
     X(init) X(config_new) X(config_free) X(config_load_default_files) \
@@ -30,7 +30,7 @@ static ghostty_app_t terminalApp;
 static char lastError[4096];
 static atomic_bool tickPending;
 
-@interface FuyuGhosttyView : NSView <NSTextInputClient>
+@interface SasaGhosttyView : NSView <NSTextInputClient>
 @property(nonatomic, assign) ghostty_surface_t surface;
 @property(nonatomic, assign) uintptr_t token;
 @property(nonatomic, assign) BOOL ended;
@@ -72,14 +72,14 @@ static void wakeup(void *userdata) {
 }
 
 static void closeSurface(void *userdata, bool processAlive) {
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)userdata;
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)userdata;
     if (!view.token) return;
     if (!processAlive) view.ended = YES;
-    fuyuTerminalEvent(view.token, processAlive ? 1 : 0);
+    sasaTerminalEvent(view.token, processAlive ? 1 : 0);
 }
 
 static bool readClipboard(void *userdata, ghostty_clipboard_e clipboard, void *state) {
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)userdata;
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)userdata;
     if (!view.surface) return false;
     NSString *text = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString] ?: @"";
     gt_surface_complete_clipboard_request(view.surface, text.UTF8String, state, false);
@@ -87,7 +87,7 @@ static bool readClipboard(void *userdata, ghostty_clipboard_e clipboard, void *s
 }
 
 static void confirmClipboard(void *userdata, const char *text, void *state, ghostty_clipboard_request_e request) {
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)userdata;
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)userdata;
     if (!view.surface) return;
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = request == GHOSTTY_CLIPBOARD_REQUEST_PASTE ? @"允许粘贴终端内容？" : @"允许终端程序访问剪贴板？";
@@ -115,7 +115,7 @@ static void writeClipboard(void *userdata, ghostty_clipboard_e clipboard, const 
         [[NSPasteboard generalPasteboard] setString:text forType:NSPasteboardTypeString];
     };
     if (!confirm) { write(); return; }
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)userdata;
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)userdata;
     NSAlert *alert = [[NSAlert alloc] init];
     alert.messageText = @"允许终端程序写入剪贴板？";
     [alert addButtonWithTitle:@"取消"];
@@ -126,13 +126,13 @@ static void writeClipboard(void *userdata, ghostty_clipboard_e clipboard, const 
 }
 
 static bool action(ghostty_app_t app, ghostty_target_s target, ghostty_action_s action) {
-    FuyuGhosttyView *view = target.tag == GHOSTTY_TARGET_SURFACE ? (__bridge FuyuGhosttyView *)gt_surface_userdata(target.target.surface) : nil;
+    SasaGhosttyView *view = target.tag == GHOSTTY_TARGET_SURFACE ? (__bridge SasaGhosttyView *)gt_surface_userdata(target.target.surface) : nil;
     switch (action.tag) {
     case GHOSTTY_ACTION_RENDER:
         if (view) [view setNeedsDisplay:YES];
         return true;
     case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
-        if (view && view.token) { view.ended = YES; fuyuTerminalEvent(view.token, 0); }
+        if (view && view.token) { view.ended = YES; sasaTerminalEvent(view.token, 0); }
         return true;
     case GHOSTTY_ACTION_RING_BELL:
         NSBeep();
@@ -143,14 +143,14 @@ static bool action(ghostty_app_t app, ghostty_target_s target, ghostty_action_s 
         return true;
     case GHOSTTY_ACTION_NEW_TAB:
     case GHOSTTY_ACTION_NEW_WINDOW:
-        if (view.token) fuyuTerminalEvent(view.token, 3);
+        if (view.token) sasaTerminalEvent(view.token, 3);
         return view != nil;
     case GHOSTTY_ACTION_QUIT:
         [NSApp terminate:nil];
         return true;
     case GHOSTTY_ACTION_CLOSE_TAB:
     case GHOSTTY_ACTION_CLOSE_WINDOW:
-        if (view.token) fuyuTerminalEvent(view.token, 1);
+        if (view.token) sasaTerminalEvent(view.token, 1);
         return view != nil;
     case GHOSTTY_ACTION_OPEN_URL:
         if (action.action.open_url.url) {
@@ -180,7 +180,7 @@ static ghostty_config_t configuration(void) {
     return config;
 }
 
-const char *fuyu_terminal_load(const char *path, const char *resources) {
+const char *sasa_terminal_load(const char *path, const char *resources) {
     if (terminalApp) return NULL;
     void *library = dlopen(path, RTLD_NOW | RTLD_LOCAL);
     if (!library) { snprintf(lastError, sizeof(lastError), "%s", dlerror()); return lastError; }
@@ -213,7 +213,7 @@ static NSView *nativeHost(NSView *parent) {
     return nil;
 }
 
-fuyu_terminal_t fuyu_terminal_new(uintptr_t window, uintptr_t token, const char *cwd, double x, double y, double width, double height, bool dark) {
+sasa_terminal_t sasa_terminal_new(uintptr_t window, uintptr_t token, const char *cwd, double x, double y, double width, double height, bool dark) {
     NSWindow *hostWindow = (__bridge NSWindow *)(void *)window;
     NSView *host = nativeHost(hostWindow.contentView);
     if (!host) { snprintf(lastError, sizeof(lastError), "没有找到 Sasa 原生视图"); return NULL; }
@@ -223,7 +223,7 @@ fuyu_terminal_t fuyu_terminal_new(uintptr_t window, uintptr_t token, const char 
     gt_config_free(config);
     gt_app_set_color_scheme(terminalApp, dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT);
     NSRect frame = [host convertRect:NSMakeRect(x, y, width, height) toView:host.superview];
-    FuyuGhosttyView *view = [[FuyuGhosttyView alloc] initWithFrame:frame];
+    SasaGhosttyView *view = [[SasaGhosttyView alloc] initWithFrame:frame];
     view.coordinateView = host;
     view.token = token;
     view.marked = [[NSMutableAttributedString alloc] init];
@@ -253,10 +253,10 @@ fuyu_terminal_t fuyu_terminal_new(uintptr_t window, uintptr_t token, const char 
     return (__bridge_retained void *)view;
 }
 
-const char *fuyu_terminal_error(void) { return lastError; }
+const char *sasa_terminal_error(void) { return lastError; }
 
-void fuyu_terminal_present(fuyu_terminal_t pointer, double x, double y, double width, double height, bool dark, bool focus) {
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)pointer;
+void sasa_terminal_present(sasa_terminal_t pointer, double x, double y, double width, double height, bool dark, bool focus) {
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)pointer;
     NSRect frame = [view.coordinateView convertRect:NSMakeRect(x, y, width, height) toView:view.superview];
     if (!NSEqualRects(frame, view.frame)) { view.frame = frame; [view syncSize]; }
     if (view.hidden) { view.hidden = NO; gt_surface_set_occlusion(view.surface, true); }
@@ -264,8 +264,8 @@ void fuyu_terminal_present(fuyu_terminal_t pointer, double x, double y, double w
     if (focus) [view.window makeFirstResponder:view];
 }
 
-void fuyu_terminal_hide(fuyu_terminal_t pointer) {
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)pointer;
+void sasa_terminal_hide(sasa_terminal_t pointer) {
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)pointer;
     if (view.hidden) return;
     gt_surface_set_focus(view.surface, false);
     gt_surface_set_occlusion(view.surface, false);
@@ -273,24 +273,24 @@ void fuyu_terminal_hide(fuyu_terminal_t pointer) {
     if (view.window.firstResponder == view) [view.window makeFirstResponder:view.coordinateView];
 }
 
-void fuyu_terminal_free(fuyu_terminal_t pointer) {
-    FuyuGhosttyView *view = (__bridge_transfer FuyuGhosttyView *)pointer;
+void sasa_terminal_free(sasa_terminal_t pointer) {
+    SasaGhosttyView *view = (__bridge_transfer SasaGhosttyView *)pointer;
     view.token = 0;
     if (view.surface) { gt_surface_free(view.surface); view.surface = NULL; }
     [view removeFromSuperview];
 }
 
-bool fuyu_terminal_exited(fuyu_terminal_t pointer) {
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)pointer;
+bool sasa_terminal_exited(sasa_terminal_t pointer) {
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)pointer;
     return view.ended || !view.surface || gt_surface_process_exited(view.surface);
 }
 
-void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
-    FuyuGhosttyView *view = (__bridge FuyuGhosttyView *)pointer;
+void sasa_terminal_text(sasa_terminal_t pointer, const char *text) {
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)pointer;
     if (view.surface) gt_surface_text(view.surface, text, strlen(text));
 }
 
-@implementation FuyuGhosttyView
+@implementation SasaGhosttyView
 - (BOOL)isFlipped { return YES; }
 - (BOOL)acceptsFirstResponder { return YES; }
 - (BOOL)becomeFirstResponder {
@@ -308,10 +308,10 @@ void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
     for (id observer in self.observers) [[NSNotificationCenter defaultCenter] removeObserver:observer];
     self.observers = [NSMutableArray array];
     if (self.window) {
-        __weak FuyuGhosttyView *weakView = self;
+        __weak SasaGhosttyView *weakView = self;
         for (NSString *name in @[NSWindowDidBecomeKeyNotification, NSWindowDidResignKeyNotification, NSWindowDidChangeOcclusionStateNotification, NSWindowDidChangeScreenNotification]) {
             id observer = [[NSNotificationCenter defaultCenter] addObserverForName:name object:self.window queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *notification) {
-                FuyuGhosttyView *view = weakView;
+                SasaGhosttyView *view = weakView;
                 if (!view.surface) return;
                 gt_app_set_focus(terminalApp, NSApp.active);
                 gt_surface_set_focus(view.surface, view.window.keyWindow && view.window.firstResponder == view);
@@ -404,7 +404,7 @@ void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
         NSString *key = event.charactersIgnoringModifiers.lowercaseString;
         if ([key isEqualToString:@"w"] || [key isEqualToString:@","] || [key isEqualToString:@"p"]) {
             int code = [key isEqualToString:@"w"] ? 1 : [key isEqualToString:@","] ? 2 : 5;
-            if (self.token) fuyuTerminalEvent(self.token, code);
+            if (self.token) sasaTerminalEvent(self.token, code);
             return YES;
         }
     }
@@ -453,7 +453,7 @@ void fuyu_terminal_text(fuyu_terminal_t pointer, const char *text) {
 - (void)otherMouseDragged:(NSEvent *)event { [self mouseMoved:event]; }
 - (void)mouseDown:(NSEvent *)event {
     [self.window makeFirstResponder:self];
-    if (self.token) fuyuTerminalEvent(self.token, 4);
+    if (self.token) sasaTerminalEvent(self.token, 4);
     [self mouseMoved:event];
     if (self.surface) gt_surface_mouse_button(self.surface, GHOSTTY_MOUSE_PRESS, (ghostty_input_mouse_button_e)(event.buttonNumber + 1), modifiers(event.modifierFlags));
 }

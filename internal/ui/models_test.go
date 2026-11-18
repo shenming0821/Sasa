@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/codex"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type modelCaptureBackend struct {
@@ -242,7 +242,7 @@ func TestModelMenuSelectionIsolationPersistenceAndDetails(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	if output := os.Getenv("FUYU_MODELS_SCREENSHOT"); output != "" {
+	if output := os.Getenv("SASA_MODELS_SCREENSHOT"); output != "" {
 		f, err := os.Create(output)
 		if err != nil {
 			t.Fatal(err)
@@ -473,7 +473,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("速度选项 Fast"); err != nil {
 		t.Fatal(err)
 	}
-	if output := os.Getenv("FUYU_OPTIONS_SCREENSHOT"); output != "" {
+	if output := os.Getenv("SASA_OPTIONS_SCREENSHOT"); output != "" {
 		tt.Frame()
 		f, err := os.Create(output)
 		if err != nil {

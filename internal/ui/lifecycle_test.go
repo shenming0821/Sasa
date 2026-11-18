@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/egoist/mygo"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 type quitBackend struct {
@@ -53,7 +53,7 @@ func TestQuitStopsAllOwnedTurnsOnceAndWaitsForNativeTerminal(t *testing.T) {
 	if len(a.activeTasks()) != 1 || !a.quitStopping {
 		t.Fatal("one terminal event prematurely finished shared shutdown")
 	}
-	a.applyBatch([]codex.Event{{Method: "fuyu/disconnected"}})
+	a.applyBatch([]codex.Event{{Method: "sasa/disconnected"}})
 	if len(a.activeTasks()) != 1 {
 		// A completed task also becomes disconnected when its shared transport
 		// exits, but only an unfinished target must block the quit confirmation.

@@ -20,7 +20,7 @@
 
 涉及相关问题时查阅本文。遇到已复现的问题或交付遗漏时，记录触发场景、原因、可执行规则和证据。反复适用的规则整理进[代码标准](docs/code-standards.md)，本文保留案例与链接。
 
-实际回归与运行时观察见下文；参考项目的经验与 Fuyu 的实测结果分别记录。
+实际回归与运行时观察见下文；参考项目的经验与 Sasa 的实测结果分别记录。
 
 ## 设计阶段已确认的经验
 
@@ -75,7 +75,7 @@ MyGo 的 Element 只在当前构建阶段有效。输入候选处理键盘时，
 
 ## 2026-10-23：外部会话占用
 
-`thread/resume` 报告已有 active writer 时，表示另一进程持有写入权。此时以原生只读接口加载历史，并提供重试或独立分叉；保留原会话及草稿。仅管理 Fuyu 自有任务，不因外部占用创建 Busy 状态或提交不确定标记。分叉时明确延后目标自动续跑，直接使用 fork 返回状态分页，等待用户发送下一项任务。依据：`internal/ui/occupied_test.go`、`internal/codex/history_test.go`。
+`thread/resume` 报告已有 active writer 时，表示另一进程持有写入权。此时以原生只读接口加载历史，并提供重试或独立分叉；保留原会话及草稿。仅管理 Sasa 自有任务，不因外部占用创建 Busy 状态或提交不确定标记。分叉时明确延后目标自动续跑，直接使用 fork 返回状态分页，等待用户发送下一项任务。依据：`internal/ui/occupied_test.go`、`internal/codex/history_test.go`。
 
 ## 2026-10-23：工具卡片文字越界
 
@@ -149,6 +149,6 @@ Finder / Dock 启动的应用可能缺少终端配置的 PATH。仅将 Codex 改
 
 ## 2026-11-09：终端页 Cmd+P 被原生视图吞掉且 picker 被遮盖
 
-终端页内 Cmd+P 无反应。第一层原因：嵌入的 `FuyuGhosttyView` 是 `MyGoSurfaceView` 的上层兄弟视图且持有 first responder，`performKeyEquivalent:` 只转发 w/，，其余键被终端吞掉，mygo `Shortcut` 收不到。第二层原因：即使事件送达，picker 画在 mygo 层会被终端画面完全盖住——首轮修复只通了事件路径，状态断言全过但用户实测仍“没有反应”。
+终端页内 Cmd+P 无反应。第一层原因：嵌入的 `SasaGhosttyView` 是 `MyGoSurfaceView` 的上层兄弟视图且持有 first responder，`performKeyEquivalent:` 只转发 w/，，其余键被终端吞掉，mygo `Shortcut` 收不到。第二层原因：即使事件送达，picker 画在 mygo 层会被终端画面完全盖住——首轮修复只通了事件路径，状态断言全过但用户实测仍“没有反应”。
 
 当问题涉及原生 NSView 叠加时，验证须覆盖“输入事件 → 状态变化 → 屏幕层级”整条链；`a.win == nil` 的受控测试走不到原生合成路径，遮挡类问题只能真实运行暴露。另一个教训是否决方案前先查框架实际 API：曾以“要脱离 mygo 重写”否决浮层方案，实际锁定版 mygo 的 `NewFlyout` 透明浮层原语可直接复用 `native.View` 渲染同一 picker，成本极低且体验更好（终端不隐藏、不 resize）；既有约定（浮层打开即隐藏终端）解释现状，不构成新方案的上限。最终方案见提交 `4240273`（`internal/ui/quick_open.go` 的 `syncQuickOpenWindow`、`returnTerminal` 焦点恢复），回归 `TestQuickOpenIndependentSurfaceDismissAndReopen`、`TestTerminalShortcutOpensQuickOpen`。

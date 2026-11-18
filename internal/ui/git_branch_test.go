@@ -10,7 +10,7 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 func TestGitBranchPickerLayoutAndMotion(t *testing.T) {
@@ -58,7 +58,7 @@ func TestGitBranchPickerLayoutAndMotion(t *testing.T) {
 				if current.Y >= first.Y || first.Y >= second.Y {
 					t.Fatal("current branch is not first or other branches changed order")
 				}
-				if dir := os.Getenv("FUYU_UI_EVIDENCE"); dir != "" {
+				if dir := os.Getenv("SASA_UI_EVIDENCE"); dir != "" {
 					if err := os.MkdirAll(dir, 0700); err != nil {
 						t.Fatal(err)
 					}

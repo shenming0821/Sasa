@@ -127,7 +127,7 @@ def prepare():
                         f'{source.name}/build.zig', f'{source.name}/src/build/SharedDeps.zig',
                         f'{source.name}/src/renderer/metal/shaders.zig',
                         f'{source.name}/src/build/GhosttyLib.zig'], check=True)
-    zig = os.environ.get('FUYU_ZIG') or shutil.which('zig')
+    zig = os.environ.get('SASA_ZIG') or shutil.which('zig')
     if not zig:
         zig_archive = CACHE / 'zig-fast.tar.xz'
         fetch('https://fs.liujiacai.net/zigbuilds/zig-aarch64-macos-0.15.2.tar.xz', zig_archive, ZIG_SHA)

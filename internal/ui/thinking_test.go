@@ -12,7 +12,7 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func TestThinkingFollowsCurrentRequest(t *testing.T) {
@@ -49,7 +49,7 @@ func TestThinkingFollowsCurrentRequest(t *testing.T) {
 	a.State.Phase = "正在执行"
 	a.State.Error = "请求失败"
 	check(false)
-	event("fuyu/disconnected", `{}`)
+	event("sasa/disconnected", `{}`)
 	check(false)
 }
 
@@ -97,7 +97,7 @@ func TestThinkingAnimationStaysInsideSingleTextGlyphs(t *testing.T) {
 			for frame := 0; frame < 10; frame++ {
 				animated.Advance(180 * time.Millisecond)
 				got := animated.Image()
-				if output := os.Getenv("FUYU_THINKING_SCREENSHOT"); output != "" && frame == 0 && !dark {
+				if output := os.Getenv("SASA_THINKING_SCREENSHOT"); output != "" && frame == 0 && !dark {
 					for suffix, img := range map[string]*image.RGBA{"-reference.png": mask, "-animated.png": got} {
 						f, err := os.Create(output + suffix)
 						if err != nil {

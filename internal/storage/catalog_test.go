@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestCatalogCachePersistsMetadataWithBoundsAndIgnoresDamage(t *testing.T) {

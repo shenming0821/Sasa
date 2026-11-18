@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	process "github.com/shenming0821/Fuyu/internal/runtime"
+	process "github.com/shenming0821/Sasa/internal/runtime"
 )
 
 // GenerateSessionTitle never resumes a chat or saves a native transcript. Its
@@ -32,7 +32,7 @@ func (c *Client) GenerateSessionTitle(ctx context.Context, model, prompt string)
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	dir, err := os.MkdirTemp("", "fuyu-title-")
+	dir, err := os.MkdirTemp("", "sasa-title-")
 	if err != nil {
 		return "", err
 	}

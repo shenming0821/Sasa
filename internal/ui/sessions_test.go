@@ -9,8 +9,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 type delayedBackend struct {
@@ -104,7 +104,7 @@ func TestBackgroundEventsAndCallbacksKeepSessionOwner(t *testing.T) {
 	if !second.State.Busy || second.State.TurnID != "turn-second" {
 		t.Fatal("another thread's completion stopped selected task")
 	}
-	a.applyBatch([]codex.Event{{Method: "fuyu/disconnected"}})
+	a.applyBatch([]codex.Event{{Method: "sasa/disconnected"}})
 	for _, s := range a.sessions {
 		if !s.State.Disconnected || s.State.Busy || len(s.State.PendingInteractions()) != 0 {
 			t.Fatalf("shared connection loss not projected: %+v", s.State)

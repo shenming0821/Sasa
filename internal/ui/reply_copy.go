@@ -3,7 +3,7 @@ package ui
 import (
 	"strings"
 
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func (a *App) replyCopyText(target *app.Message) string {

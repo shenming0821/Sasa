@@ -51,7 +51,7 @@ func TestP4CanceledHighlightLeavesQueueBeforeWorkerIsFree(t *testing.T) {
 }
 
 func TestP4HighlightPublishesViewportBeforeWholeDocument(t *testing.T) {
-	a, q, d := highlightFixture(t, strings.Repeat("var value = \"Fuyu\"\n", 2000))
+	a, q, d := highlightFixture(t, strings.Repeat("var value = \"Sasa\"\n", 2000))
 	d.scroll.Y = 20000
 	a.requestHighlight(d)
 	highlightUpdate(t, q)

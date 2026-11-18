@@ -2,7 +2,7 @@ package codex
 
 import (
 	"context"
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/attachment"
 	"os"
 	"testing"
 	"time"
@@ -34,12 +34,12 @@ func TestSkillsExplicitRefreshBypassesRuntimeCache(t *testing.T) {
 
 // This opt-in reads installed skills only; it never creates a thread or turn.
 func TestLiveSkillsReadOnly(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_SKILLS") != "1" {
-		t.Skip("set FUYU_LIVE_SKILLS=1 for native read-only skills verification")
+	if os.Getenv("SASA_LIVE_SKILLS") != "1" {
+		t.Skip("set SASA_LIVE_SKILLS=1 for native read-only skills verification")
 	}
-	cwd := os.Getenv("FUYU_SKILLS_CWD")
+	cwd := os.Getenv("SASA_SKILLS_CWD")
 	if cwd == "" {
-		t.Fatal("set FUYU_SKILLS_CWD")
+		t.Fatal("set SASA_SKILLS_CWD")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

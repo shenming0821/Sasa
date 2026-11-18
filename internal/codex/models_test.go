@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 func TestEmptyModelCatalogRetriesAndRecovers(t *testing.T) {
@@ -99,8 +99,8 @@ func TestSendOptionsPassEffortAndServiceTier(t *testing.T) {
 
 // Reads native discovery/config only; no thread, turn or model invocation.
 func TestLiveModelsReadOnly(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_MODELS") != "1" {
-		t.Skip("set FUYU_LIVE_MODELS=1")
+	if os.Getenv("SASA_LIVE_MODELS") != "1" {
+		t.Skip("set SASA_LIVE_MODELS=1")
 	}
 	cwd, err := os.Getwd()
 	if err != nil {

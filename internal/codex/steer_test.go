@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 func TestSteerPassesActiveTurnMessageSkillsAndImages(t *testing.T) {
@@ -21,8 +21,8 @@ func TestSteerPassesActiveTurnMessageSkillsAndImages(t *testing.T) {
 }
 
 func TestLiveContinuousSteer(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_STEER") != "1" {
-		t.Skip("set FUYU_LIVE_STEER=1 for native continuous input verification")
+	if os.Getenv("SASA_LIVE_STEER") != "1" {
+		t.Skip("set SASA_LIVE_STEER=1 for native continuous input verification")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -31,7 +31,7 @@ func TestLiveContinuousSteer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	if threadID := os.Getenv("FUYU_LIVE_STEER_THREAD"); threadID != "" {
+	if threadID := os.Getenv("SASA_LIVE_STEER_THREAD"); threadID != "" {
 		raw, err := client.ReadThread(ctx, threadID)
 		if err != nil {
 			t.Fatal(err)

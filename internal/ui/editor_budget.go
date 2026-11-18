@@ -4,7 +4,7 @@ import (
 	"sort"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/workspace"
+	"github.com/shenming0821/Sasa/internal/workspace"
 )
 
 func (a *App) observeFile(d *filePage) {

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestTimingCoversSubmissionAndFreezesAtTerminal(t *testing.T) {
@@ -36,7 +36,7 @@ func TestTimingCoversSubmissionAndFreezesAtTerminal(t *testing.T) {
 }
 
 func TestTimingDisconnectAndMissingStart(t *testing.T) {
-	for _, method := range []string{"turn/completed", "fuyu/disconnected"} {
+	for _, method := range []string{"turn/completed", "sasa/disconnected"} {
 		state := New("/tmp")
 		state.Begin("task")
 		state.Apply(agent.Event{Method: method, Params: json.RawMessage(`{"turn":{"id":"turn","status":"completed"}}`)})

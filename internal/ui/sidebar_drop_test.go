@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/project"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/project"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func sidebarDropTester(t *testing.T, a *App) (*native.Tester, chan func()) {
@@ -130,7 +130,9 @@ func TestSidebarDropPlainDirectory(t *testing.T) {
 				t.Fatalf("plain directory disappeared after sessions emptied: %+v", groups)
 			}
 			items := a.projectItems()
-			if !slices.ContainsFunc(items, func(item sidebarProject) bool { return item.id == directoryProjectID(filepath.Clean(a.workspaceRoot(folder))) }) {
+			if !slices.ContainsFunc(items, func(item sidebarProject) bool {
+				return item.id == directoryProjectID(filepath.Clean(a.workspaceRoot(folder)))
+			}) {
 				t.Fatalf("plain directory missing from sidebar items after sessions emptied: %+v", items)
 			}
 			// Removing the project must close the empty tab on that workspace.

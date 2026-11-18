@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 const retiredAgent = "devin"
@@ -39,7 +39,7 @@ ALTER TABLE runtime_identity_v6 RENAME TO runtime_identity;
 
 func (s *Store) migrateV6(backupExisting bool) error {
 	if backupExisting {
-		path, err := s.vacuumBackup("fuyu-before-v6-*.db")
+		path, err := s.vacuumBackup("sasa-before-v6-*.db")
 		if err != nil {
 			return err
 		}

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestRecordedControlResponsesMatchAdapter(t *testing.T) {
@@ -85,7 +85,7 @@ func TestRecordedControlResponsesMatchAdapter(t *testing.T) {
 			} else {
 				var response any = map[string]string{"decision": "accept"}
 				if mode == "deny" {
-					response = map[string]string{"decision": "decline", "feedback": "FUYU_CONTROL_DENIED"}
+					response = map[string]string{"decision": "decline", "feedback": "SASA_CONTROL_DENIED"}
 				} else if mode == "question" {
 					response = map[string]any{"answers": map[string]any{"0": map[string]any{"answers": []string{"Mac", "Linux"}}}}
 				}

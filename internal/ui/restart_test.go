@@ -17,20 +17,20 @@ func TestRestartUsesLaunchServicesAndPreservesChannelEnvironment(t *testing.T) {
 		t.Skip("Launch Services is macOS only")
 	}
 	t.Setenv("PATH", "/usr/bin:/custom/bin")
-	t.Setenv("CODEX_HOME", "/data/Fuyu Preview/codex")
-	t.Setenv("CLAUDE_CONFIG_DIR", "/data/Fuyu Preview/claude")
-	arguments := []string{"-cwd", "/project with spaces", "-data-dir", "/data/Fuyu Preview"}
-	for _, application := range []string{"/Applications/Fuyu.app", "/build/Fuyu Preview.app"} {
-		actual, err := replacementArguments(filepath.Join(application, "Contents/MacOS/Fuyu"), arguments)
+	t.Setenv("CODEX_HOME", "/data/Sasa Preview/codex")
+	t.Setenv("CLAUDE_CONFIG_DIR", "/data/Sasa Preview/claude")
+	arguments := []string{"-cwd", "/project with spaces", "-data-dir", "/data/Sasa Preview"}
+	for _, application := range []string{"/Applications/Sasa.app", "/build/Sasa Preview.app"} {
+		actual, err := replacementArguments(filepath.Join(application, "Contents/MacOS/Sasa"), arguments)
 		expected := []string{"/usr/bin/open", "-n", "-a", application,
-			"--env", "PATH=/usr/bin:/custom/bin", "--env", "CODEX_HOME=/data/Fuyu Preview/codex",
-			"--env", "CLAUDE_CONFIG_DIR=/data/Fuyu Preview/claude", "--args"}
+			"--env", "PATH=/usr/bin:/custom/bin", "--env", "CODEX_HOME=/data/Sasa Preview/codex",
+			"--env", "CLAUDE_CONFIG_DIR=/data/Sasa Preview/claude", "--args"}
 		expected = append(expected, arguments...)
 		if err != nil || !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("launch=%q err=%v", actual, err)
 		}
 	}
-	if _, err := replacementArguments("/tmp/Fuyu", arguments); err == nil {
+	if _, err := replacementArguments("/tmp/Sasa", arguments); err == nil {
 		t.Fatal("non-bundle executable bypassed Launch Services")
 	}
 }

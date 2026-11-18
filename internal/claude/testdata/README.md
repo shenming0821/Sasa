@@ -7,7 +7,7 @@
 - 调用路径：`/home/ming/.local/bin/claude`；实际文件：`/home/ming/.local/share/claude/versions/2.1.311`。
 - `claude --version` 实际输出：`2.1.311 (Claude Code)`；`codex --version`：`codex-cli 0.164.0`。
 - SDK 类型来源：用户提供的 `/tmp/p6-source-typescript.d.ts`；SHA-256：`64a59ddbcae4dc05da268dd3e009431c67e91a23616bce38f122b9247650271f`。未用 SDK 包版本推断 CLI 能力。
-- 每次调用使用独立 `/tmp/fuyu-p6-*` 工作目录，实际 cwd 见 `recording.json`。保留用户原有配置，不读取或复制凭据值。
+- 每次调用使用独立 `/tmp/sasa-p6-*` 工作目录，实际 cwd 见 `recording.json`。保留用户原有配置，不读取或复制凭据值。
 - `CLAUDE_CONFIG_DIR`：未设置；实际 init 中的 `memory_paths.auto` 位于 `/home/ming/.claude/projects/`。`CLAUDECODE`、`CLAUDE_CODE_ENTRYPOINT`：均未设置；未据此声称已验证嵌套环境过滤。
 - 请求参数 `--dangerously-skip-permissions`；实际 `permissionMode=bypassPermissions`。本次只有问候任务，不涉及工具审批或文件修改。
 - 实际 init 的 `model=zhipu/glm-5.3`，assistant 的 `model=glm-5.3`，result 的 `modelUsage` 键为 `zhipu/glm-5.3`。这是已有 provider 配置下的 Claude CLI 真实运行，未验证 Anthropic 直连模型。
@@ -68,7 +68,7 @@ system/init 实测包含当前 model、tools、slash_commands、terminal_slash_c
 | 片段 | 来源会话与内容 | SHA-256 |
 |---|---|---|
 | `mac-subagent-events.jsonl` | `dcf5240f-abd3-4aba-b2aa-c2c8d20ee575`；5 帧，前台 Agent 启动、更新、完成及工具结果 | `64778caebbbe49cdd2a7f61a6a377dc4540a511fcd0f3025809fd6ca116d6444` |
-| `mac-background-events.jsonl` | `7b399caa-b830-446e-962a-c2dbe7d4c01c`；9 帧，后台 Bash 与完成通知；实际 `background-proof.txt` 等于 `FUYU_BACKGROUND_OK` 加换行 | `b7e84eabc90b96f6207a53a8d0fbd28a5c69146bca205487f3d43a5b8ceccb44` |
+| `mac-background-events.jsonl` | `7b399caa-b830-446e-962a-c2dbe7d4c01c`；9 帧，后台 Bash 与完成通知；实际 `background-proof.txt` 等于 `SASA_BACKGROUND_OK` 加换行 | `b7e84eabc90b96f6207a53a8d0fbd28a5c69146bca205487f3d43a5b8ceccb44` |
 | `mac-subagent-tool-events.jsonl` | `38823aa7-883e-442d-bcdd-9af39eb11d8a`；8 帧，Agent 中的 Bash 带有真实 `parent_tool_use_id` | `1a8fe8f86b5f6a9b6a1746cce0805271413f9acb0d0d3110801488b48bd978e2` |
 
 三次原生进程退出码均为 0、result 为 `success/is_error=false/terminal_reason=completed`；所选片段中的 task_notification 均在 result 前到达，不将本次录制声明为 result 后通知的真实证据。`tasks_test.go` 回放这些片段并验证所有工具终态；result 后通知另以合成输入验证。
@@ -77,7 +77,7 @@ system/init 实测包含当前 model、tools、slash_commands、terminal_slash_c
 
 ## Mac 控制协议与原生历史补录（2026-10-28）
 
-`live_controls.py /Users/shenming/.local/bin/claude [allow|deny|question|interrupt]` 使用同版本、default 模型及 default 权限，在独立临时 cwd 先 initialize 再发送任务。允许操作实际写出 `FUYU_CONTROL_OK\n`；拒绝、问答和中断均没有 `approved.txt`。中断得到原生 `control_cancel_request`、interrupt success 回执以及 `error_during_execution/is_error=true/terminal_reason=aborted_tools`，进程实际退出码为 1。首次录制器把所有非零退出视为录制失败，已按原生结果修正并重录中断；不把这一录制器断言当成 adapter 缺陷。
+`live_controls.py /Users/shenming/.local/bin/claude [allow|deny|question|interrupt]` 使用同版本、default 模型及 default 权限，在独立临时 cwd 先 initialize 再发送任务。允许操作实际写出 `SASA_CONTROL_OK\n`；拒绝、问答和中断均没有 `approved.txt`。中断得到原生 `control_cancel_request`、interrupt success 回执以及 `error_during_execution/is_error=true/terminal_reason=aborted_tools`，进程实际退出码为 1。首次录制器把所有非零退出视为录制失败，已按原生结果修正并重录中断；不把这一录制器断言当成 adapter 缺陷。
 
 `mac-control-*.jsonl` 保留双向控制帧和 result 的投影。initialize 响应只保留版本、能力、模型目录和 `current_permission_mode`，未复制 account、路径和其他非验收字段；result 只保留类型、错误标记、原因和会话标识。原始完整解析 wire 仍在独立临时目录、文件权限 0600，不以仓库片段冒充完整响应。录制时模型目录有 6 项，这只用于固定样本断言；生产目录仍动态读取。
 

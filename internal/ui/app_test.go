@@ -5,8 +5,8 @@ import (
 	"fmt"
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/codex"
 	"strings"
 	"testing"
 )
@@ -18,7 +18,7 @@ func (stubBackend) StartThread(context.Context, string) (codex.Thread, error) {
 }
 
 func TestReadingWhileMessageGrows(t *testing.T) {
-	a := New(stubBackend{}, "test version", "/tmp/fuyu-component", nil)
+	a := New(stubBackend{}, "test version", "/tmp/sasa-component", nil)
 	a.md.Reveal = &markdown.Reveal{Unit: markdown.AtOnce}
 	msg := &app.Message{ID: "stream", Role: "assistant", Text: strings.Repeat("A garden paragraph.\n\n", 100)}
 	a.State.Messages = []*app.Message{msg}
@@ -92,7 +92,7 @@ func TestComposerAndSendGates(t *testing.T) {
 	if count != 0 {
 		t.Fatal("sent without directory")
 	}
-	a.State.Cwd = "/tmp/fuyu-component"
+	a.State.Cwd = "/tmp/sasa-component"
 	tt.Frame()
 	tt.Key(native.Cmd, native.KeyA)
 	tt.Type("甲乙")

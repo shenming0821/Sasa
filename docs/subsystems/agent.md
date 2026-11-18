@@ -12,7 +12,7 @@
 
 `internal/ui/agents.go` 的 `RegisterBackend` 在恢复索引和 `Run` 前注册额外连接；连接由创建者管理生命周期，不能重复注册或在窗口运行后替换。`sessionBackend` 按会话 Agent/Runtime 选择已注册连接；默认 Codex 使用已有共享 backend，缺失 Claude 连接返回不可用。后台动作先通过 `forSession` 固定所属会话，注册表在运行期间保持不变。
 
-每条事件的 `Method` 保持字符串，`Params` 保持 `json.RawMessage`；原始 wire 帧仍由 adapter 处理。Codex 现有方法名、参数与原生 turn ID 直接透传，默认事件由接收循环补充 Codex/Runtime 影响域。UI 按 Agent/Runtime/session/generation 筛选；旧测试的无来源事件仅用于默认 Codex。Claude 单进程异常携带 session 和 generation，预期退出不投影为 `fuyu/disconnected`，未知退出阻止所属会话续发；显示控制队列耗尽才升级为 Claude 后端范围故障。
+每条事件的 `Method` 保持字符串，`Params` 保持 `json.RawMessage`；原始 wire 帧仍由 adapter 处理。Codex 现有方法名、参数与原生 turn ID 直接透传，默认事件由接收循环补充 Codex/Runtime 影响域。UI 按 Agent/Runtime/session/generation 筛选；旧测试的无来源事件仅用于默认 Codex。Claude 单进程异常携带 session 和 generation，预期退出不投影为 `sasa/disconnected`，未知退出阻止所属会话续发；显示控制队列耗尽才升级为 Claude 后端范围故障。
 
 模型目录与加载状态存放在 session，目录与 Runtime 改变后失效，异步回调核对 Agent/Runtime/cwd 后写回原 session；模型选择的持久化包含 `ModelAgent`。模型推理强度与服务档位选择按会话保存（`SelectedEffort`/`SelectedTier`），同时在 SQLite 设置的 `ModelEfforts` 中按 `Agent + Runtime + Model` 记录各模型最近选择的推理强度；切换到某模型或新建/解析到该模型时自动带出其绑定推理强度，服务档位在切换模型时重置。`OptionSender` 是可选发送接口，Codex 在 `turn/start` 以 `effort`/`serviceTierForTurn` 透传，Claude 以 `--effort` 启动参数透传并将档位并入空闲进程复用键。历史目录合并默认 Codex 与已注册 Claude 来源，`ThreadMeta.Agent/Runtime` 在 UI 取得原生列表后补充，不进入原生协议 JSON；各来源的 cursor 与读取完成状态独立保存，按 Agent/Runtime/thread ID 去重。合并目录与来源状态为应用级共享，不随会话或项目切换重建。技能候选也由各 session 按 cwd 保存，Claude 原生命令保留名称和参数。Claude 会话中 `$` 仅行首触发，列出标记为技能的原生命令，确认后插入 `/名称 ` 文本走原生命令调用；句中 `$` 不弹候选，与 `/` 的触发形状一致。`agent.CacheKey` 明确 Agent/Runtime/cwd 的缓存边界，Claude Runtime 为实际生效的规范化配置根。
 
@@ -52,4 +52,4 @@ Claude 允许原生用户 UUID 与输入 prompt UUID 不同，通过 checkpoint�
 
 新增测试：`internal/agent/agent_test.go`、`internal/app/agent_test.go`、`internal/codex/agent_test.go`、`internal/storage/agent_test.go`、`internal/ui/agents_test.go`、`internal/claude/fixture_test.go`。原 Codex/app/UI 发送、审批、停止、恢复、分叉、多会话测试保留，用于 Mac 等价回归。
 
-真实基础证据见[夹具说明](../../internal/claude/testdata/README.md)。参考项目和静态检查均不能替代 Fuyu 的 Go 测试、真实 Runtime 与原生窗口验收。
+真实基础证据见[夹具说明](../../internal/claude/testdata/README.md)。参考项目和静态检查均不能替代 Sasa 的 Go 测试、真实 Runtime 与原生窗口验收。

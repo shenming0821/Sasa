@@ -35,22 +35,22 @@ func (s *Session) Present(window uintptr, bounds native.Rect, dark, focus bool) 
 			libraryName, resourcesName := C.CString(library), C.CString(resources)
 			defer C.free(unsafe.Pointer(libraryName))
 			defer C.free(unsafe.Pointer(resourcesName))
-			if message := C.fuyu_terminal_load(libraryName, resourcesName); message != nil {
+			if message := C.sasa_terminal_load(libraryName, resourcesName); message != nil {
 				result = errors.New(C.GoString(message))
 				return
 			}
 			token := cgo.NewHandle(s)
 			root := C.CString(s.root)
 			defer C.free(unsafe.Pointer(root))
-			s.handle = unsafe.Pointer(C.fuyu_terminal_new(C.uintptr_t(window), C.uintptr_t(token), root, C.double(bounds.X), C.double(bounds.Y), C.double(bounds.W), C.double(bounds.H), C.bool(dark)))
+			s.handle = unsafe.Pointer(C.sasa_terminal_new(C.uintptr_t(window), C.uintptr_t(token), root, C.double(bounds.X), C.double(bounds.Y), C.double(bounds.W), C.double(bounds.H), C.bool(dark)))
 			if s.handle == nil {
 				token.Delete()
-				result = errors.New(C.GoString(C.fuyu_terminal_error()))
+				result = errors.New(C.GoString(C.sasa_terminal_error()))
 				return
 			}
 			s.token = uintptr(token)
 		}
-		C.fuyu_terminal_present(C.fuyu_terminal_t(s.handle), C.double(bounds.X), C.double(bounds.Y), C.double(bounds.W), C.double(bounds.H), C.bool(dark), C.bool(focus))
+		C.sasa_terminal_present(C.sasa_terminal_t(s.handle), C.double(bounds.X), C.double(bounds.Y), C.double(bounds.W), C.double(bounds.H), C.bool(dark), C.bool(focus))
 	})
 	return result
 }
@@ -58,7 +58,7 @@ func (s *Session) Present(window uintptr, bounds native.Rect, dark, focus bool) 
 func (s *Session) Hide() {
 	mygo.RunOnMain(func() {
 		if s.handle != nil {
-			C.fuyu_terminal_hide(C.fuyu_terminal_t(s.handle))
+			C.sasa_terminal_hide(C.sasa_terminal_t(s.handle))
 		}
 	})
 }
@@ -69,7 +69,7 @@ func (s *Session) Close() {
 			return
 		}
 		if s.handle != nil {
-			C.fuyu_terminal_free(C.fuyu_terminal_t(s.handle))
+			C.sasa_terminal_free(C.sasa_terminal_t(s.handle))
 			s.handle = nil
 			cgo.Handle(s.token).Delete()
 			s.token = 0
@@ -77,8 +77,8 @@ func (s *Session) Close() {
 	})
 }
 
-//export fuyuTerminalEvent
-func fuyuTerminalEvent(token C.uintptr_t, event C.int) {
+//export sasaTerminalEvent
+func sasaTerminalEvent(token C.uintptr_t, event C.int) {
 	session := cgo.Handle(token).Value().(*Session)
 	switch event {
 	case 0:

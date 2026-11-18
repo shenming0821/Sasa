@@ -2,7 +2,7 @@
 
 ## 项目与开发
 
-Fuyu 使用 Go + MyGo Native UI，macOS 优先，接入 Codex 与 Claude Code 原生 Runtime。任务范围以用户当前要求为准，当前行为以源码、配置和运行结果核验。
+Sasa 使用 Go + MyGo Native UI，macOS 优先，接入 Codex 与 Claude Code 原生 Runtime。任务范围以用户当前要求为准，当前行为以源码、配置和运行结果核验。
 
 按任务需要查阅[代码标准](docs/code-standards.md)、[经验记录](LESSONS.md)和[子系统索引](docs/subsystems/README.md)；环境与验证命令见[开发指南](docs/development.md)。
 

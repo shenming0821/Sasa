@@ -10,9 +10,9 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
-	"github.com/shenming0821/Fuyu/internal/editor"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/codex"
+	"github.com/shenming0821/Sasa/internal/editor"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func TestP4RecoveryCleanupFailureKeepsDirtyFileOpen(t *testing.T) {

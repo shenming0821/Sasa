@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestLiveCodexEarlyInterruptDelivery(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 to run real Codex")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 to run real Codex")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -97,9 +97,9 @@ func TestLiveCodexEarlyInterruptDelivery(t *testing.T) {
 }
 
 func TestLiveCodexInterruptedHistoryDelivery(t *testing.T) {
-	threadID, turnID := os.Getenv("FUYU_LIVE_INTERRUPTED_THREAD"), os.Getenv("FUYU_LIVE_INTERRUPTED_TURN")
-	if os.Getenv("FUYU_LIVE") != "1" || threadID == "" || turnID == "" {
-		t.Skip("set FUYU_LIVE and interrupted thread/turn IDs to verify an existing native record")
+	threadID, turnID := os.Getenv("SASA_LIVE_INTERRUPTED_THREAD"), os.Getenv("SASA_LIVE_INTERRUPTED_TURN")
+	if os.Getenv("SASA_LIVE") != "1" || threadID == "" || turnID == "" {
+		t.Skip("set SASA_LIVE and interrupted thread/turn IDs to verify an existing native record")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

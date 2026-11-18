@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func (c *Client) EditHistory(ctx context.Context, threadID, turnID, messageID string) (agent.HistoryEdit, error) {

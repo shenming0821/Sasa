@@ -8,25 +8,25 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func TestConversationFindStepsAndEscapes(t *testing.T) {
 	a := New(stubBackend{}, "test", "/tmp", nil)
 	a.md.Reveal = &markdown.Reveal{Unit: markdown.AtOnce}
 	a.State.Messages = []*app.Message{
-		{ID: "u1", Role: "user", Text: "请检查 fuyu 的搜索功能", Done: true},
+		{ID: "u1", Role: "user", Text: "请检查 sasa 的搜索功能", Done: true},
 		{ID: "a1", Role: "assistant", Text: "好的，先看代码。\n\n" + strings.Repeat("填充段落。\n\n", 200), Done: true},
 		{ID: "u2", Role: "user", Text: "再验证一遍", Done: true},
-		{ID: "a2", Role: "assistant", Text: "fuyu 搜索已就绪，fuyu 再见", Done: true},
+		{ID: "a2", Role: "assistant", Text: "sasa 搜索已就绪，sasa 再见", Done: true},
 	}
 	tt := native.NewTester(a.view, 1100, 760)
 	tt.Key(native.Cmd, native.KeyF)
 	if !a.find.open {
 		t.Fatal("Cmd+F did not open the conversation find bar")
 	}
-	tt.Type("fuyu")
+	tt.Type("sasa")
 	tt.Frame()
 	if len(a.find.matches) != 3 {
 		t.Fatal("wrong match count", len(a.find.matches))
@@ -72,63 +72,63 @@ func TestSessionFindMarkedScopesToInlines(t *testing.T) {
 	// span splits it so only the hit parts mark; one in a link
 	// destination or autolink marks the covering inline. Fenced code
 	// stays untouched: the code block hook highlights its hits.
-	src := "plain fuyu、**加粗 fuyu**、`代码 fuyu`、[链接 fuyu](https://x)、<https://fuyu.dev>。\n\n```\nfuyu 围栏\n```"
-	marked := sessionFindMarked(src, "fuyu", [2]int{-1, -1})
+	src := "plain sasa、**加粗 sasa**、`代码 sasa`、[链接 sasa](https://x)、<https://sasa.dev>。\n\n```\nsasa 围栏\n```"
+	marked := sessionFindMarked(src, "sasa", [2]int{-1, -1})
 	if got := strings.Count(marked, "<mark>"); got != 5 {
 		t.Fatal("wrong mark count", got, marked)
 	}
 	for _, want := range []string{
-		"plain <mark>fuyu</mark>",
-		"加粗 <mark>fuyu</mark>**",
-		"`代码 `<mark>`fuyu`</mark>",
-		"链接 <mark>fuyu</mark>](https://x)",
-		"<mark><https://fuyu.dev></mark>",
+		"plain <mark>sasa</mark>",
+		"加粗 <mark>sasa</mark>**",
+		"`代码 `<mark>`sasa`</mark>",
+		"链接 <mark>sasa</mark>](https://x)",
+		"<mark><https://sasa.dev></mark>",
 	} {
 		if !strings.Contains(marked, want) {
 			t.Fatal("missing mark", want, marked)
 		}
 	}
-	if !strings.Contains(marked, "```\nfuyu 围栏\n```") {
+	if !strings.Contains(marked, "```\nsasa 围栏\n```") {
 		t.Fatal("code block source changed", marked)
 	}
 	// A hit spanning a code span's boundary marks the covering inlines.
-	if marked := sessionFindMarked("a fuyu 和 `fuyu` 结束", "u 和 `f", [2]int{-1, -1}); marked != "<mark>a fuyu 和 `fuyu`</mark> 结束" {
+	if marked := sessionFindMarked("a sasa 和 `sasa` 结束", "和 `s", [2]int{-1, -1}); marked != "<mark>a sasa 和 `sasa`</mark> 结束" {
 		t.Fatal("boundary hit not covered", marked)
 	}
 	// The current match keeps a plain mark where the overlay can brighten
 	// it and gets an underline only where the overlay cannot reach, as in
 	// a table cell.
-	cur := sessionFindRanges("a fuyu 和 fuyu", "fuyu")[1]
-	fm := sessionFindMarks("a fuyu 和 fuyu", "fuyu", cur)
-	marked = applyMarkEdits("a fuyu 和 fuyu", fm.edits)
-	if strings.Contains(marked, "<u>") || !strings.Contains(marked, "<mark>fuyu</mark>") {
+	cur := sessionFindRanges("a sasa 和 sasa", "sasa")[1]
+	fm := sessionFindMarks("a sasa 和 sasa", "sasa", cur)
+	marked = applyMarkEdits("a sasa 和 sasa", fm.edits)
+	if strings.Contains(marked, "<u>") || !strings.Contains(marked, "<mark>sasa</mark>") {
 		t.Fatal("current hit should mark without underline", marked)
 	}
-	if fm.curSrc != "a fuyu 和 <mark>fuyu</mark>" {
+	if fm.curSrc != "a sasa 和 <mark>sasa</mark>" {
 		t.Fatal("overlay source not scoped to the current hit", fm.curSrc)
 	}
-	cell := "| a |\n| - |\n| fuyu 与 fuyu |"
-	fm = sessionFindMarks(cell, "fuyu", sessionFindRanges(cell, "fuyu")[1])
-	if marked = applyMarkEdits(cell, fm.edits); !strings.Contains(marked, "<mark><u>fuyu</u></mark>") {
+	cell := "| a |\n| - |\n| sasa 与 sasa |"
+	fm = sessionFindMarks(cell, "sasa", sessionFindRanges(cell, "sasa")[1])
+	if marked = applyMarkEdits(cell, fm.edits); !strings.Contains(marked, "<mark><u>sasa</u></mark>") {
 		t.Fatal("cell hit should fall back to underline", marked)
 	}
 	if fm.curSrc != "" {
 		t.Fatal("table cell should not get an overlay source", fm.curSrc)
 	}
 	// Literal text keeps every hit markable.
-	if got := sessionFindMarkRanges("fUyU 和 fuyu", "fuyu"); len(got) != 2 {
+	if got := sessionFindMarkRanges("sAsA 和 sasa", "sasa"); len(got) != 2 {
 		t.Fatal("case-insensitive ranges", got)
 	}
 }
 
 func TestSessionFindCodeBlockHits(t *testing.T) {
-	src := "前文 fuyu。\n\n```go\nfunc fuyu() {\n\tmain := \"fuyu\"\n}\n```"
-	marks := sessionFindMarkRanges(src, "fuyu")
-	codes := sessionFindCodeRanges(src, "fuyu")
+	src := "前文 sasa。\n\n```go\nfunc sasa() {\n\tmain := \"sasa\"\n}\n```"
+	marks := sessionFindMarkRanges(src, "sasa")
+	codes := sessionFindCodeRanges(src, "sasa")
 	if len(marks) != 1 || len(codes) != 2 {
 		t.Fatal("wrong hit split", marks, codes)
 	}
-	matches := sessionFindMatches([]*app.Message{{Role: "assistant", Text: src}}, "fuyu")
+	matches := sessionFindMatches([]*app.Message{{Role: "assistant", Text: src}}, "sasa")
 	if len(matches) != 3 {
 		t.Fatal("code-block hits not counted", matches)
 	}
@@ -138,14 +138,14 @@ func TestSessionFindCodeBlockHits(t *testing.T) {
 	th.Mark = native.RGBA(1, 2, 3, .5)
 	curMark := native.RGBA(9, 9, 9, .9)
 	cur := &[2]int{24, 28}
-	spans := markedCodeSpans("func fuyu() {\n\tmain := \"fuyu\"\n}\n", "go", sessionFindRanges("func fuyu() {\n\tmain := \"fuyu\"\n}\n", "fuyu"), th, cur, curMark)
+	spans := markedCodeSpans("func sasa() {\n\tmain := \"sasa\"\n}\n", "go", sessionFindRanges("func sasa() {\n\tmain := \"sasa\"\n}\n", "sasa"), th, cur, curMark)
 	var texts []string
 	marked, brighter := 0, 0
 	for _, sp := range spans {
 		texts = append(texts, sp.Text)
 		if sp.Background.A != 0 {
 			marked++
-			if sp.Text != "fuyu" {
+			if sp.Text != "sasa" {
 				t.Fatal("marked non-hit span", sp.Text)
 			}
 			if sp.Background == curMark {
@@ -153,25 +153,25 @@ func TestSessionFindCodeBlockHits(t *testing.T) {
 			}
 		}
 	}
-	if marked != 2 || brighter != 1 || strings.Join(texts, "") != "func fuyu() {\n\tmain := \"fuyu\"\n}" {
+	if marked != 2 || brighter != 1 || strings.Join(texts, "") != "func sasa() {\n\tmain := \"sasa\"\n}" {
 		t.Fatal("marked code spans rebuilt wrong", marked, brighter, texts)
 	}
 }
 
 func TestMarkSpansHighlightsOnlyMatches(t *testing.T) {
-	ranges := sessionFindRanges("ab fuyu cd fuyu", "fuyu")
+	ranges := sessionFindRanges("ab sasa cd sasa", "sasa")
 	mark := native.RGBA(1, 2, 3, .25)
 	curMark := native.RGBA(1, 2, 3, .55)
-	spans := markSpans("ab fuyu cd fuyu", ranges, mark, curMark, &ranges[1])
+	spans := markSpans("ab sasa cd sasa", ranges, mark, curMark, &ranges[1])
 	if len(spans) != 4 {
 		t.Fatal("wrong span count", len(spans))
 	}
-	for i, want := range []string{"ab ", "fuyu", " cd ", "fuyu"} {
+	for i, want := range []string{"ab ", "sasa", " cd ", "sasa"} {
 		if spans[i].Text != want {
 			t.Fatal("wrong span text", i, spans[i].Text)
 		}
 		var wantBg native.Color
-		if want == "fuyu" {
+		if want == "sasa" {
 			wantBg = mark
 			if i == 3 {
 				wantBg = curMark
@@ -186,10 +186,10 @@ func TestMarkSpansHighlightsOnlyMatches(t *testing.T) {
 	}
 	// Assistant rows count inline-cover and code hits; user rows every hit.
 	messages := []*app.Message{
-		{Role: "assistant", Text: "见 `fuyu` 与 fuyu"},
-		{Role: "user", Text: "见 `fuyu` 与 fuyu"},
+		{Role: "assistant", Text: "见 `sasa` 与 sasa"},
+		{Role: "user", Text: "见 `sasa` 与 sasa"},
 	}
-	matches := sessionFindMatches(messages, "fuyu")
+	matches := sessionFindMatches(messages, "sasa")
 	if len(matches) != 4 || matches[0].row != 0 || matches[1].row != 0 || matches[2].row != 1 || matches[3].row != 1 {
 		t.Fatal("row match count did not follow render path", matches)
 	}
@@ -202,10 +202,10 @@ func TestMarkSpansHighlightsOnlyMatches(t *testing.T) {
 func TestFindOverlayBrightensTheCurrentMatch(t *testing.T) {
 	a := New(stubBackend{}, "test", t.TempDir(), nil)
 	a.md.Reveal = &markdown.Reveal{Unit: markdown.AtOnce}
-	msg := &app.Message{ID: "m1", Role: "assistant", Text: "fuyu fuyu fuyu fuyu", Done: true}
+	msg := &app.Message{ID: "m1", Role: "assistant", Text: "sasa sasa sasa sasa", Done: true}
 	a.session.projectedMessages = []*app.Message{msg}
-	a.find.open, a.find.query, a.find.index = true, "fuyu", 1
-	a.find.matches = sessionFindMatches(a.session.projectedMessages, "fuyu")
+	a.find.open, a.find.query, a.find.index = true, "sasa", 1
+	a.find.matches = sessionFindMatches(a.session.projectedMessages, "sasa")
 	var accent native.Color
 	tt := native.NewTester(func(c *native.Context) {
 		accent = c.Theme().Accent
@@ -259,12 +259,12 @@ func TestConversationFindStepButtons(t *testing.T) {
 	a := New(stubBackend{}, "test", "/tmp", nil)
 	a.md.Reveal = &markdown.Reveal{Unit: markdown.AtOnce}
 	a.State.Messages = []*app.Message{
-		{ID: "u1", Role: "user", Text: "fuyu", Done: true},
-		{ID: "a1", Role: "assistant", Text: "fuyu fuyu", Done: true},
+		{ID: "u1", Role: "user", Text: "sasa", Done: true},
+		{ID: "a1", Role: "assistant", Text: "sasa sasa", Done: true},
 	}
 	tt := native.NewTester(a.view, 1100, 760)
 	tt.Key(native.Cmd, native.KeyF)
-	tt.Type("fuyu")
+	tt.Type("sasa")
 	tt.Frame()
 	if len(a.find.matches) != 3 {
 		t.Fatal("wrong match count", len(a.find.matches))

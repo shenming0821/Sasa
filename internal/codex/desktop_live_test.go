@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	process "github.com/shenming0821/Fuyu/internal/runtime"
+	process "github.com/shenming0821/Sasa/internal/runtime"
 )
 
 // Only initializes the real App Server; never creates a thread or model turn.
 func TestLiveDesktopRuntimeDiscovery(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 to check installed Codex with Finder-like PATH")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 to check installed Codex with Finder-like PATH")
 	}
 	t.Setenv("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
 	executable, path, err := process.ResolveCodex("codex")

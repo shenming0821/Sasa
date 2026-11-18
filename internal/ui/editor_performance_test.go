@@ -14,7 +14,7 @@ import (
 )
 
 func TestP4MixedTabsAndLargeTextPerformance(t *testing.T) {
-	if os.Getenv("FUYU_P4_PERF") != "1" {
+	if os.Getenv("SASA_P4_PERF") != "1" {
 		t.Skip("opt-in P4 performance sample")
 	}
 	a, q, root := p4App(t)

@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/claude"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/claude"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func TestLiveMessageEditContext(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_EDIT") != "1" {
-		t.Skip("set FUYU_LIVE_EDIT=1 to verify native history editing")
+	if os.Getenv("SASA_LIVE_EDIT") != "1" {
+		t.Skip("set SASA_LIVE_EDIT=1 to verify native history editing")
 	}
 	for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
 		t.Run(string(kind), func(t *testing.T) {

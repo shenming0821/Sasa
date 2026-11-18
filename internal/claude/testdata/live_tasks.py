@@ -12,7 +12,7 @@ import uuid
 
 
 def probe(executable, mode):
-    root = Path(tempfile.mkdtemp(prefix="fuyu-claude-" + mode + "-"))
+    root = Path(tempfile.mkdtemp(prefix="sasa-claude-" + mode + "-"))
     session = str(uuid.uuid4())
     args = [executable, "-p", "--verbose", "--input-format", "stream-json",
             "--output-format", "stream-json", "--include-partial-messages",
@@ -39,8 +39,8 @@ def probe(executable, mode):
 
     prompts = {
         "subagent": "Use the Agent tool to start exactly one general-purpose subagent in the foreground. Ask it to reply exactly FU YU joined without spaces followed by _SUBAGENT_OK, without any tools or file writes. Return the same token after it finishes. Do not write memory files or use other tools.",
-        "background": "Use Bash once with run_in_background=true to run exactly: sleep 2; printf 'FUYU_BACKGROUND_OK\\n' > background-proof.txt . Then wait for that background task using TaskOutput before replying FUYU_BACKGROUND_OK. Work only in this directory. Do not write memory files or use other tools.",
-        "subagent-tool": "Use Agent once in the foreground with subagent_type=general-purpose. Ask the subagent to use Bash once to run printf FUYU_CHILD_TOOL_OK in this working directory, then return its output. Do not write any files or memory. Return that exact output after the subagent completes. The parent must not run Bash itself.",
+        "background": "Use Bash once with run_in_background=true to run exactly: sleep 2; printf 'SASA_BACKGROUND_OK\\n' > background-proof.txt . Then wait for that background task using TaskOutput before replying SASA_BACKGROUND_OK. Work only in this directory. Do not write memory files or use other tools.",
+        "subagent-tool": "Use Agent once in the foreground with subagent_type=general-purpose. Ask the subagent to use Bash once to run printf SASA_CHILD_TOOL_OK in this working directory, then return its output. Do not write any files or memory. Return that exact output after the subagent completes. The parent must not run Bash itself.",
     }
     initialized = False
     result = None

@@ -2,7 +2,7 @@ package ui
 
 import (
 	"github.com/egoist/mygo"
-	"github.com/shenming0821/Fuyu/internal/release"
+	"github.com/shenming0821/Sasa/internal/release"
 )
 
 func (a *App) startReleaseControl() (func(), error) {

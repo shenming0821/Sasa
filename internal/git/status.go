@@ -64,7 +64,7 @@ func CompareText(ctx context.Context, local, disk string) (string, error) {
 	if len(local)+len(disk) > 2*OutputLimit {
 		return "", errors.New("比较内容超过容量限制")
 	}
-	dir, err := os.MkdirTemp("", "fuyu-compare-*")
+	dir, err := os.MkdirTemp("", "sasa-compare-*")
 	if err != nil {
 		return "", err
 	}

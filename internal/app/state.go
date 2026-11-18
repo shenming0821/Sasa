@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 const MaxMessageBytes = 2 * 1024 * 1024
@@ -121,7 +121,7 @@ func (s *State) Apply(event agent.Event) {
 	if event.Session.Agent != "" {
 		s.Agent = event.Session.Agent.Normalized()
 	}
-	if event.Method == "fuyu/runtime" {
+	if event.Method == "sasa/runtime" {
 		var runtime struct {
 			ThreadID string `json:"threadId"`
 			Model    string `json:"model"`
@@ -136,12 +136,12 @@ func (s *State) Apply(event agent.Event) {
 		}
 		return
 	}
-	if event.Method == "fuyu/eventGap" {
+	if event.Method == "sasa/eventGap" {
 		s.Incomplete, s.NeedsSnapshot = true, true
 		s.Notice = "输出过快，部分增量未保留；任务结束后将核验原生记录。"
 		return
 	}
-	if event.Method == "fuyu/disconnected" {
+	if event.Method == "sasa/disconnected" {
 		s.FinishTiming()
 		s.expireInteractions("已失效")
 		s.Disconnected, s.Busy, s.Phase = true, false, "连接已断开"
@@ -154,7 +154,7 @@ func (s *State) Apply(event agent.Event) {
 	if s.Disconnected {
 		return
 	}
-	if event.Method == "fuyu/unsupported" {
+	if event.Method == "sasa/unsupported" {
 		s.Error = "当前交互未能处理，请核验请求或停止任务。"
 		if event.Err != nil {
 			s.Error += " " + event.Err.Error()

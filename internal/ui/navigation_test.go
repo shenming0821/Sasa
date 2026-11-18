@@ -7,8 +7,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/codex"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func TestProjectNavigationCollapseAndTabs(t *testing.T) {

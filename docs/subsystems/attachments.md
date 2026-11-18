@@ -22,4 +22,4 @@
 
 ## 验证入口
 
-受控测试位于 `internal/attachment/image_test.go`、`internal/app/images_test.go`、`internal/ui/images_test.go` 和 Codex 协议测试。真实模型验证显式设置 `FUYU_LIVE_IMAGES=1`，仅发送程序生成的几何图形，使用临时只读 thread。
+受控测试位于 `internal/attachment/image_test.go`、`internal/app/images_test.go`、`internal/ui/images_test.go` 和 Codex 协议测试。真实模型验证显式设置 `SASA_LIVE_IMAGES=1`，仅发送程序生成的几何图形，使用临时只读 thread。

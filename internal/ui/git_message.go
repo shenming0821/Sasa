@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 type commitMessageBackend interface {

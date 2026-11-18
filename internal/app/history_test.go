@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func TestNativeHistoryProjectsTurnsAndDoesNotInventCompletion(t *testing.T) {

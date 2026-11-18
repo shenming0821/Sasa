@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func (c *Client) historyChain(s session) ([]transcriptEntry, string, error) {

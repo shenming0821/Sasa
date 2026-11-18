@@ -11,8 +11,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/project"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/project"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func projectFixture(t *testing.T) project.Repository {
@@ -166,9 +166,9 @@ func TestProjectRefreshPersistenceAndScanFailure(t *testing.T) {
 
 func TestRepositoryNavigationLayoutAndCollapse(t *testing.T) {
 	for _, width := range []int{640, 1000, 1400} {
-		a := New(stubBackend{}, "test", "/workspace/fuyu", nil)
-		a.repositories = []project.Repository{{CommonDir: "/workspace/fuyu/.git", Path: "/workspace/fuyu", Name: "Fuyu", Worktrees: []project.Worktree{
-			{Path: "/workspace/fuyu", Branch: "main", Main: true},
+		a := New(stubBackend{}, "test", "/workspace/sasa", nil)
+		a.repositories = []project.Repository{{CommonDir: "/workspace/sasa/.git", Path: "/workspace/sasa", Name: "Sasa", Worktrees: []project.Worktree{
+			{Path: "/workspace/sasa", Branch: "main", Main: true},
 			{Path: "/workspace/feature-chat", Branch: "feature/chat-navigation"},
 		}}}
 		a.saved.Title = "优化项目导航"
@@ -184,7 +184,7 @@ func TestRepositoryNavigationLayoutAndCollapse(t *testing.T) {
 		if !ok || branch.W <= 0 || tt.HasText("新建工作区会话 /workspace/feature-chat") {
 			t.Fatalf("worktree row missing or retains removed action at %d: %+v", width, branch)
 		}
-		if preview := os.Getenv("FUYU_PROJECT_PREVIEW"); preview != "" && width == 1000 {
+		if preview := os.Getenv("SASA_PROJECT_PREVIEW"); preview != "" && width == 1000 {
 			file, err := os.Create(preview)
 			if err != nil {
 				t.Fatal(err)
@@ -195,7 +195,7 @@ func TestRepositoryNavigationLayoutAndCollapse(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := tt.Click("展开仓库 /workspace/fuyu/.git"); err != nil {
+		if err := tt.Click("展开仓库 /workspace/sasa/.git"); err != nil {
 			t.Fatal(err)
 		}
 		tt.Advance(300 * time.Millisecond)
@@ -228,9 +228,9 @@ func TestNestedRepositoryOwnershipAndUnavailableWorktrees(t *testing.T) {
 // Opt-in verification of user-retained local worktrees. Git is only read here;
 // optional app data must point to a dedicated test directory.
 func TestLiveProjectWorktreesReadOnly(t *testing.T) {
-	path := os.Getenv("FUYU_PROJECT_TEST_REPO")
+	path := os.Getenv("SASA_PROJECT_TEST_REPO")
 	if path == "" {
-		t.Skip("set FUYU_PROJECT_TEST_REPO to a retained test repository")
+		t.Skip("set SASA_PROJECT_TEST_REPO to a retained test repository")
 	}
 	repo, err := project.Discover(context.Background(), path)
 	if err != nil {
@@ -239,7 +239,7 @@ func TestLiveProjectWorktreesReadOnly(t *testing.T) {
 	if len(repo.Worktrees) < 5 {
 		t.Fatalf("expected at least five real worktrees, got %d", len(repo.Worktrees))
 	}
-	data := os.Getenv("FUYU_PROJECT_TEST_DATA")
+	data := os.Getenv("SASA_PROJECT_TEST_DATA")
 	if data == "" {
 		data = t.TempDir()
 	}
@@ -306,7 +306,7 @@ func TestLiveProjectWorktreesReadOnly(t *testing.T) {
 			t.Fatal("restart lost draft or created model task")
 		}
 	}
-	if preview := os.Getenv("FUYU_PROJECT_PREVIEW"); preview != "" {
+	if preview := os.Getenv("SASA_PROJECT_PREVIEW"); preview != "" {
 		tt.Frame()
 		file, err := os.Create(preview)
 		if err != nil {
@@ -395,8 +395,8 @@ func TestWorktreeCardShowsOnlyLatestConversation(t *testing.T) {
 
 func TestWorktreeCardHoverAndClickCoverFullWidth(t *testing.T) {
 	a := New(stubBackend{}, "test", "/repo", nil)
-	a.saved.Title = "审阅 Fuyu 设计文档 v2.0"
-	a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "Fuyu", Worktrees: []project.Worktree{{Path: "/repo", Branch: "main", Main: true}, {Path: "/other", Branch: "feature/chat"}}}}
+	a.saved.Title = "审阅 Sasa 设计文档 v2.0"
+	a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "Sasa", Worktrees: []project.Worktree{{Path: "/repo", Branch: "main", Main: true}, {Path: "/other", Branch: "feature/chat"}}}}
 	a.newSession("/other")
 	tt := native.NewTester(a.view, 1000, 760)
 	body, ok := tt.Find("打开工作区 /repo")
@@ -415,7 +415,7 @@ func TestWorktreeCardHoverAndClickCoverFullWidth(t *testing.T) {
 	if tt.Image().RGBAAt(x1, y) != hover.RGBAAt(x1, y) {
 		t.Fatal("moving to the right edge split the card background")
 	}
-	if preview := os.Getenv("FUYU_CARD_PREVIEW"); preview != "" {
+	if preview := os.Getenv("SASA_CARD_PREVIEW"); preview != "" {
 		file, err := os.Create(preview)
 		if err != nil {
 			t.Fatal(err)
@@ -483,7 +483,7 @@ func TestAddProjectSupportsPlainFoldersAndPreservesGitErrors(t *testing.T) {
 	if a.projectsError == "" || len(a.sessions) != sessions || a.session != selected {
 		t.Fatal("broken Git repository was silently treated as an ordinary folder")
 	}
-	if err := os.WriteFile(filepath.Join(broken, ".git"), []byte("gitdir: /missing-fuyu-test-git-dir\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(broken, ".git"), []byte("gitdir: /missing-sasa-test-git-dir\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	a.addProject(broken)

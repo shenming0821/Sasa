@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestV6RemovesRetiredAgentDataAndSettings(t *testing.T) {
@@ -20,7 +20,7 @@ func TestV6RemovesRetiredAgentDataAndSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := sql.Open("sqlite", filepath.Join(dir, "fuyu.db"))
+	db, err := sql.Open("sqlite", filepath.Join(dir, "sasa.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestV6RemovesRetiredAgentDataAndSettings(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, retiredAgent)); !os.IsNotExist(err) {
 		t.Fatalf("retired application data remains: %v", err)
 	}
-	backups, err := filepath.Glob(filepath.Join(dir, "fuyu-before-v6-*.db"))
+	backups, err := filepath.Glob(filepath.Join(dir, "sasa-before-v6-*.db"))
 	if err != nil || len(backups) != 1 {
 		t.Fatalf("backups=%v err=%v", backups, err)
 	}

@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/shenming0821/Fuyu/internal/app"
+import "github.com/shenming0821/Sasa/internal/app"
 
 type conversationCache struct {
 	projectionKeys    []conversationKey

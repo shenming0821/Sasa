@@ -13,10 +13,10 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type editTestBackend struct {
@@ -351,9 +351,9 @@ func TestComposerEscapeStopsOnceAndKeepsDraft(t *testing.T) {
 }
 
 func TestMessageEditScreenshots(t *testing.T) {
-	directory := os.Getenv("FUYU_EDIT_SNAPSHOTS")
+	directory := os.Getenv("SASA_EDIT_SNAPSHOTS")
 	if directory == "" {
-		t.Skip("set FUYU_EDIT_SNAPSHOTS to save component renders")
+		t.Skip("set SASA_EDIT_SNAPSHOTS to save component renders")
 	}
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		t.Fatal(err)

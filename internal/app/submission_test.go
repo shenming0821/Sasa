@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 func TestInterruptedSubmissionReconcilesDelivery(t *testing.T) {

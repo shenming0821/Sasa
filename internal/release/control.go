@@ -29,7 +29,7 @@ func StartControl(quit func()) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	return listenControl(filepath.Join(cache, "Fuyu", "control", fmt.Sprintf("%d.sock", os.Getpid())), executable, quit)
+	return listenControl(filepath.Join(cache, "Sasa", "control", fmt.Sprintf("%d.sock", os.Getpid())), executable, quit)
 }
 
 func listenControl(path, executable string, quit func()) (func(), error) {

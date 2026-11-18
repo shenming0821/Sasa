@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func TestOpenHistoryReusesTheSharedListAcrossAgents(t *testing.T) {
@@ -140,15 +140,15 @@ func TestDisconnectScopeAndLateProcessGeneration(t *testing.T) {
 	second.kind, second.runtimeKey, second.generation = agent.Claude, "/claude", 1
 	second.State.ThreadID = "other"
 	source := agent.SessionKey{Agent: agent.Claude, Runtime: "/claude", SessionID: "same"}
-	a.applyBatch([]agent.Event{{Session: source, Generation: 1, Method: "fuyu/disconnected"}})
+	a.applyBatch([]agent.Event{{Session: source, Generation: 1, Method: "sasa/disconnected"}})
 	if first.State.Disconnected || second.State.Disconnected || codexSession.State.Disconnected {
 		t.Fatal("旧进程事件污染新连接")
 	}
-	a.applyBatch([]agent.Event{{Session: source, Generation: 2, Method: "fuyu/disconnected"}})
+	a.applyBatch([]agent.Event{{Session: source, Generation: 2, Method: "sasa/disconnected"}})
 	if !first.State.Disconnected || second.State.Disconnected || codexSession.State.Disconnected {
 		t.Fatal("单会话断线传播到其他 Agent 或会话")
 	}
-	a.applyBatch([]agent.Event{{Method: "fuyu/disconnected"}})
+	a.applyBatch([]agent.Event{{Method: "sasa/disconnected"}})
 	if !codexSession.State.Disconnected || second.State.Disconnected {
 		t.Fatal("旧 Codex 广播失联语义不兼容或污染 Claude")
 	}

@@ -34,7 +34,7 @@ func (s *Store) migrateV4(backupExisting bool) error {
 	}
 	if backupExisting {
 		// A unique backup per attempt includes committed WAL pages via VACUUM.
-		f, err := os.CreateTemp(s.dir, "fuyu-before-v4-*.db")
+		f, err := os.CreateTemp(s.dir, "sasa-before-v4-*.db")
 		if err != nil {
 			return err
 		}

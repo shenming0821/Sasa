@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 type threadCompactor interface {

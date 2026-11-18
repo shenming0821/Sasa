@@ -75,7 +75,7 @@ func TestContentSearchScopeSkipsAndTruncates(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("main.go", "package main\n// 你好 Fuyu\nfunc main() {}\n")
+	write("main.go", "package main\n// 你好 Sasa\nfunc main() {}\n")
 	write("sub/note.md", "Needle line\nneedle 你好 second\n")
 	write("node_modules/pkg/x.go", "needle hidden\n")
 	write("binary.bin", "needle\x00inside\n")
@@ -107,7 +107,7 @@ func TestContentSearchScopeSkipsAndTruncates(t *testing.T) {
 		t.Fatal("match location or preview wrong", second)
 	}
 
-	cjk, err := SearchContent(context.Background(), root, ContentQuery{Text: "fuyu"})
+	cjk, err := SearchContent(context.Background(), root, ContentQuery{Text: "sasa"})
 	if err != nil || len(cjk.Matches) != 1 {
 		t.Fatal(cjk, err)
 	}

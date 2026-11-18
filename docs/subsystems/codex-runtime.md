@@ -2,9 +2,9 @@
 
 ## 入口与资源归属
 
-`cmd/desktop/main.go` 校验初始目录、恢复本地索引并创建窗口，随后后台启动自有 App Server。`internal/ui/startup.go` 在主线程安装连接并恢复对应会话；退出时取消启动并等待加载器执行 `Client.Close()`，随后 main 才根据错误设置退出码。Fuyu 不连接或终止共享 Codex daemon，不改动用户登录、模型或权限配置。
+`cmd/desktop/main.go` 校验初始目录、恢复本地索引并创建窗口，随后后台启动自有 App Server。`internal/ui/startup.go` 在主线程安装连接并恢复对应会话；退出时取消启动并等待加载器执行 `Client.Close()`，随后 main 才根据错误设置退出码。Sasa 不连接或终止共享 Codex daemon，不改动用户登录、模型或权限配置。
 
-窗口创建后的后台加载器调用 `internal/runtime/codex.go` 的 `ResolveCodex`：根据当前用户目录、继承环境和有时限的交互式登录 shell 探测定位可执行文件，并返回包含 Node.js 安装目录的 PATH。在启动 Agent 子进程前更新 Fuyu 进程的 PATH；保留其余环境、`CODEX_HOME` 与用户原生配置。显式路径失效时直接报错，不替换为另一安装。脚本包装入口单独检查 Node.js 依赖；自动搜索不使用项目当前目录。版本探测与 App Server 初始化并行，分别采用 5 秒和 60 秒截止时间，普通 RPC 截止时间保持原约定。
+窗口创建后的后台加载器调用 `internal/runtime/codex.go` 的 `ResolveCodex`：根据当前用户目录、继承环境和有时限的交互式登录 shell 探测定位可执行文件，并返回包含 Node.js 安装目录的 PATH。在启动 Agent 子进程前更新 Sasa 进程的 PATH；保留其余环境、`CODEX_HOME` 与用户原生配置。显式路径失效时直接报错，不替换为另一安装。脚本包装入口单独检查 Node.js 依赖；自动搜索不使用项目当前目录。版本探测与 App Server 初始化并行，分别采用 5 秒和 60 秒截止时间，普通 RPC 截止时间保持原约定。
 
 `internal/runtime/` 通过参数数组启动进程，为其建立独立进程组。stdio 关闭后读取者负责清理自有组并回收 leader；正常关闭先关闭 stdin，等待最多 2 秒，超时再终止自有组。隔离测试确认：忽略 EOF 的 leader 能强制退出并回收；另建进程组的后代仍可能残留。当前只保证原进程组清理，不保证所有后代清理，也不以模糊名称匹配终止进程。测试自行按精确 PID 清理受控后代。
 
@@ -18,7 +18,7 @@ Codex 0.166.0 的原生模型管理器可能在目录刷新失败后返回成功
 
 手动 `/compact` 由 `internal/codex/compact.go` 调用 `thread/compact/start`，只传 `threadId`，不把命令作为用户文本发往 `turn/start`。RPC 的空响应仅表示受理；UI 保持忙碌，绑定原生 turn，并把 `contextCompaction` 的开始、完成及历史条目显示为上下文压缩状态，以 `turn/completed` 确认终态。命令使用独立送达标记，不等待原生用户消息回显。错误、断连和恢复沿用会话核验与队列暂停机制；旧的 `thread/compacted` 通知不作为完成依据。
 
-`internal/codex/display.go` 在事件入队前裁剪最终工具输出和文件内容，保留原生 ID、状态、退出码与截断标记，防止最终聚合事件绕过显示上限。事件队列限制为 4 MiB / 4096 条；超限先移除可丢弃的文字/工具增量，并产生 `fuyu/eventGap`。生命周期和审批事件不静默丢弃；仅控制事件就超过容量时明确断开自有连接，提示结果需要核验。
+`internal/codex/display.go` 在事件入队前裁剪最终工具输出和文件内容，保留原生 ID、状态、退出码与截断标记，防止最终聚合事件绕过显示上限。事件队列限制为 4 MiB / 4096 条；超限先移除可丢弃的文字/工具增量，并产生 `sasa/eventGap`。生命周期和审批事件不静默丢弃；仅控制事件就超过容量时明确断开自有连接，提示结果需要核验。
 
 `internal/codex/interactions.go` 注册原生请求，`request.go` 解码 thread/turn/item ID、审批选项与问题结构。单个请求上限 256 KiB，同时最多保留 16 个待解决请求。请求 ID 保留字符串或 int64 类型；响应前进行一次性占用，写入失败也不能盲目再次批准。响应写入截止时间为 10 秒。`serverRequest/resolved` 按 thread/request ID 释放；turn 完成时按 thread/turn 释放。
 
@@ -66,6 +66,6 @@ Markdown 的列表缩进设为 3 em，兼容锁定版本按比例数字测宽、
 
 Git 提交信息生成使用 `internal/codex/message.go` 的独立临时 CLI 进程，复用 App Server 已解析的可执行路径和原生模型配置。参数为 `exec --ephemeral --sandbox read-only --skip-git-repo-check -c approval_policy="never" --color never --output-last-message <临时文件> -`；只通过 stdin 提供用户选定差异和近期提交格式，cwd 是独立临时目录。输出上限 64 KiB，UI 输入差异上限 256 KiB、超时 2 分钟；临时目录完成后清理。取消/退出管理自有进程组，不建立应用会话或自动提交。受控 CLI 参数、阻塞输入取消及本机真实生成分别验证。
 
-提供多个独立会话，共享一个 Fuyu 自有 App Server；各会话独立绑定 cwd 和原生 thread/turn，异步回调固定所属会话。历史来自原生接口，应用索引只保存界面元数据，详见[会话管理](sessions.md)与[存储与恢复](storage.md)。
+提供多个独立会话，共享一个 Sasa 自有 App Server；各会话独立绑定 cwd 和原生 thread/turn，异步回调固定所属会话。历史来自原生接口，应用索引只保存界面元数据，详见[会话管理](sessions.md)与[存储与恢复](storage.md)。
 
 关闭窗口保存状态并隐藏，Dock 菜单或再次激活应用可打开原窗口。退出时列出全部活动任务，选择停止后逐个中断，最多等待 10 秒；未确认时提供返回核验或强制退出。连接丢失保留未确认任务，不能代替原生终态。进程清理仍只作用于自有原进程组。

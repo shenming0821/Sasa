@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 // Only initialize and native mode controls; no prompt or model task is sent.
 func TestLiveClaudePlanModeControl(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_PLAN") != "1" {
-		t.Skip("set FUYU_LIVE_PLAN=1 for native mode control verification")
+	if os.Getenv("SASA_LIVE_PLAN") != "1" {
+		t.Skip("set SASA_LIVE_PLAN=1 for native mode control verification")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {

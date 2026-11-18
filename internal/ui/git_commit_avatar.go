@@ -8,7 +8,7 @@ import (
 	"unicode/utf8"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 // These local marks and co-author identities follow Mayoi's agent catalog.

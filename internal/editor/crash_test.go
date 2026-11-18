@@ -15,11 +15,11 @@ import (
 // Only the isolated test executable kills itself; the parent verifies both disk
 // content and the independently readable recovery envelope after termination.
 func TestAtomicWriteCrashHelper(t *testing.T) {
-	if os.Getenv("FUYU_CRASH_HELPER") != "1" {
+	if os.Getenv("SASA_CRASH_HELPER") != "1" {
 		t.Skip("subprocess helper")
 	}
-	root := os.Getenv("FUYU_CRASH_ROOT")
-	kind, stage := os.Getenv("FUYU_CRASH_KIND"), os.Getenv("FUYU_CRASH_STAGE")
+	root := os.Getenv("SASA_CRASH_ROOT")
+	kind, stage := os.Getenv("SASA_CRASH_KIND"), os.Getenv("SASA_CRASH_STAGE")
 	base, err := Read(filepath.Join(root, "document.txt"))
 	if err != nil {
 		t.Fatal(err)
@@ -102,8 +102,8 @@ func TestAtomicWriteSurvivesProcessCrash(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 				cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestAtomicWriteCrashHelper$")
-				cmd.Env = append(os.Environ(), "FUYU_CRASH_HELPER=1", "FUYU_CRASH_ROOT="+root,
-					"FUYU_CRASH_KIND="+kind, "FUYU_CRASH_STAGE="+stage)
+				cmd.Env = append(os.Environ(), "SASA_CRASH_HELPER=1", "SASA_CRASH_ROOT="+root,
+					"SASA_CRASH_KIND="+kind, "SASA_CRASH_STAGE="+stage)
 				output, err := cmd.CombinedOutput()
 				var exit *exec.ExitError
 				if ctx.Err() != nil || !errors.As(err, &exit) {

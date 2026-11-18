@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestQueuePreservesApprovalAndTerminalWhenDeltasOverflow(t *testing.T) {
@@ -41,7 +41,7 @@ func TestQueueControlOverflowFailsVisibly(t *testing.T) {
 			t.Fatal("premature overflow")
 		}
 	}
-	if queue.push(agent.Event{Method: "turn/completed"}) || !queue.overflow || len(queue.pending) != 1 || queue.pending[0].Method != "fuyu/disconnected" {
+	if queue.push(agent.Event{Method: "turn/completed"}) || !queue.overflow || len(queue.pending) != 1 || queue.pending[0].Method != "sasa/disconnected" {
 		t.Fatal("control overflow failed silently")
 	}
 }

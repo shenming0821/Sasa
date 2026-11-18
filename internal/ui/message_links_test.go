@@ -10,7 +10,7 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestMessageFileLinkPaths(t *testing.T) {
@@ -98,7 +98,7 @@ func TestMessageLinkLocatesLineAndPreservesBuffer(t *testing.T) {
 	for _, done := range []bool{true, false} {
 		t.Run(fmt.Sprint(done), func(t *testing.T) {
 			a, queue, root := p4App(t)
-			text := strings.Repeat("你好 Fuyu\n", 160)
+			text := strings.Repeat("你好 Sasa\n", 160)
 			path := filepath.Join(root, "README.md")
 			if err := os.WriteFile(path, []byte(text), 0600); err != nil {
 				t.Fatal(err)

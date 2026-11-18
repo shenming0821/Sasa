@@ -7,7 +7,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func activeState() State {
@@ -84,7 +84,7 @@ func TestQuestionResponseValidationSecretsAndExpiry(t *testing.T) {
 		t.Fatal(r2.Status)
 	}
 	r3 := request(&s, `3`, "item/permissions/requestApproval", `,"permissions":{"network":{"enabled":true}}`)
-	s.Apply(codex.Event{Method: "fuyu/disconnected"})
+	s.Apply(codex.Event{Method: "sasa/disconnected"})
 	if r3.Status != "已失效" || len(s.PendingInteractions()) != 0 {
 		t.Fatal(r3.Status)
 	}
@@ -155,7 +155,7 @@ func TestOutputAndTotalDisplayLimits(t *testing.T) {
 
 func TestGapReconcilesFromAuthoritativeItems(t *testing.T) {
 	s := activeState()
-	s.Apply(codex.Event{Method: "fuyu/eventGap"})
+	s.Apply(codex.Event{Method: "sasa/eventGap"})
 	apply(&s, "item/commandExecution/outputDelta", `{"threadId":"thread","turnId":"turn","itemId":"cmd","delta":"incomplete"}`)
 	apply(&s, "turn/completed", `{"threadId":"thread","turn":{"id":"turn","status":"completed"}}`)
 	if !s.NeedsSnapshot || !s.Incomplete {
@@ -179,7 +179,7 @@ func TestUnprojectedCompatibilityNoticeDoesNotBecomeParseFailure(t *testing.T) {
 	if s.Error != "" || !s.Busy {
 		t.Fatal(s.Error)
 	}
-	add := FileChange{Path: "proof.txt", Kind: json.RawMessage(`{"type":"add"}`), Diff: "fuyu-p2-proof\n"}
+	add := FileChange{Path: "proof.txt", Kind: json.RawMessage(`{"type":"add"}`), Diff: "sasa-p2-proof\n"}
 	if add.Summary() != "新增 proof.txt  +1 −0" {
 		t.Fatal(add.Summary())
 	}

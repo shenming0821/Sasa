@@ -12,8 +12,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	gitview "github.com/shenming0821/Sasa/internal/git"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func gitWorkflowApp(t *testing.T) (*App, chan func(), string, func(...string) string) {
@@ -485,7 +485,7 @@ func TestGitRowDiscardArmsThenConfirmsAndExpires(t *testing.T) {
 		t.Fatal(err)
 	}
 	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && len(gitEntries(w, "更改")) == 1 })
-	if data, _ := os.ReadFile(readme); string(data) != "# Fuyu\n原生工作区编辑器\n" {
+	if data, _ := os.ReadFile(readme); string(data) != "# Sasa\n原生工作区编辑器\n" {
 		t.Fatal("confirmed discard did not restore the file", string(data))
 	}
 	if out := strings.TrimSpace(git("status", "--porcelain")); !strings.Contains(out, "internal/main.go") || strings.Contains(out, "README") {
@@ -595,7 +595,7 @@ func TestGitPanelLightDarkNarrowWorkflowLayout(t *testing.T) {
 						t.Fatal("workflow control not within panel", label, r)
 					}
 				}
-				if dir := os.Getenv("FUYU_UI_EVIDENCE"); dir != "" {
+				if dir := os.Getenv("SASA_UI_EVIDENCE"); dir != "" {
 					os.MkdirAll(dir, 0700)
 					f, err := os.Create(filepath.Join(dir, fmt.Sprintf("git-dark-%v-width-%d.png", dark, width)))
 					if err != nil {

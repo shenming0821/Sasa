@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 // These tests validate captured evidence, not a production Claude adapter.

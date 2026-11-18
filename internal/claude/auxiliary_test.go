@@ -145,8 +145,8 @@ func TestAuxiliaryTitleCancellationAndClientCloseReapProcess(t *testing.T) {
 }
 
 func TestLiveClaudeAuxiliaryTitle(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE_TITLE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE_TITLE=1 for a real auxiliary title request")
+	if os.Getenv("SASA_LIVE_CLAUDE_TITLE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE_TITLE=1 for a real auxiliary title request")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -159,9 +159,9 @@ func TestLiveClaudeAuxiliaryTitle(t *testing.T) {
 	defer client.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	model := os.Getenv("FUYU_LIVE_TITLE_MODEL")
+	model := os.Getenv("SASA_LIVE_TITLE_MODEL")
 	if model == "" {
-		t.Fatal("FUYU_LIVE_TITLE_MODEL must name an explicitly selected model")
+		t.Fatal("SASA_LIVE_TITLE_MODEL must name an explicitly selected model")
 	}
 	started := time.Now()
 	text, err := client.GenerateSessionTitle(ctx, model, `{"currentTitle":"新会话","messages":[{"role":"user","text":"修复会话切换后输入框草稿丢失的问题"},{"role":"assistant","text":"已经修复，并验证切换会话与重启后的草稿恢复"}]}`)

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func TestImageMessageBeginAndHistory(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	process "github.com/shenming0821/Fuyu/internal/runtime"
+	process "github.com/shenming0821/Sasa/internal/runtime"
 )
 
 // GenerateCommitMessage uses the same resolved executable and user model
@@ -17,7 +17,7 @@ func (c *Client) GenerateCommitMessage(ctx context.Context, prompt string) (stri
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	dir, err := os.MkdirTemp("", "fuyu-commit-message-")
+	dir, err := os.MkdirTemp("", "sasa-commit-message-")
 	if err != nil {
 		return "", err
 	}

@@ -8,4 +8,4 @@ https://github.com/google/fonts/tree/main/ofl/mpluscodelatin
 Copyright 2021 The M+ FONTS Project Authors.
 Distributed under the SIL Open Font License 1.1, included in `OFL.txt`.
 The font is embedded in the executable; `scripts/build` includes its license
-in `Fuyu.app/Contents/Resources/licenses/MPLUSCodeLatin-OFL.txt`.
+in `Sasa.app/Contents/Resources/licenses/MPLUSCodeLatin-OFL.txt`.

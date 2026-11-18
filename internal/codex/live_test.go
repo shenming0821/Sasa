@@ -12,8 +12,8 @@ import (
 
 // Opt in explicitly: this test uses the existing Codex login and real model service.
 func TestLiveCodexLoop(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 to run real Codex")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 to run real Codex")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
@@ -41,7 +41,7 @@ func TestLiveCodexLoop(t *testing.T) {
 				if !ok {
 					t.Fatal("disconnected before completion")
 				}
-				if e.Method == "fuyu/disconnected" || e.Method == "fuyu/unsupported" {
+				if e.Method == "sasa/disconnected" || e.Method == "sasa/unsupported" {
 					t.Fatalf("%s: %v", e.Method, e.Err)
 				}
 				var p struct {
@@ -91,7 +91,7 @@ func TestLiveCodexLoop(t *testing.T) {
 			}
 		}
 	}
-	nonce := "fuyu-" + time.Now().Format("150405.000000")
+	nonce := "sasa-" + time.Now().Format("150405.000000")
 	first, err := c.Send(ctx, thread.Thread.ID, "Create a file named proof.txt in the working directory containing exactly "+nonce+" followed by a newline. Remember this token for our next turn. Do not modify any other files.")
 	if err != nil {
 		t.Fatal(err)

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func deliveryEvent(method, thread, turn, delta string) agent.Event {
@@ -20,7 +20,7 @@ func TestFirstContentAndInteractionsFlushWithoutTimer(t *testing.T) {
 		{Method: "item/tool/requestUserInput", ID: json.RawMessage(`"request"`)},
 		{Method: "item/commandExecution/requestApproval", ID: json.RawMessage(`"request"`)},
 		{Method: "turn/completed"},
-		{Method: "fuyu/disconnected"},
+		{Method: "sasa/disconnected"},
 	} {
 		t.Run(event.Method, func(t *testing.T) {
 			delivery := eventDelivery{}

@@ -62,8 +62,8 @@ func TestCommandCatalogDoesNotFallBackToActions(t *testing.T) {
 }
 
 func TestLiveClaudeSkillCommandCatalog(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for real skill catalog verification")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for real skill catalog verification")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -75,11 +75,11 @@ func TestLiveClaudeSkillCommandCatalog(t *testing.T) {
 	}
 	defer client.Close()
 	cwd := t.TempDir()
-	skillDirectory := filepath.Join(cwd, ".claude", "skills", "fuyu-catalog-probe")
+	skillDirectory := filepath.Join(cwd, ".claude", "skills", "sasa-catalog-probe")
 	if err := os.MkdirAll(skillDirectory, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(skillDirectory, "SKILL.md"), []byte("---\nname: fuyu-catalog-probe\ndescription: Fuyu isolated catalog verification\ndisable-model-invocation: true\n---\nReturn the requested text.\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(skillDirectory, "SKILL.md"), []byte("---\nname: sasa-catalog-probe\ndescription: Sasa isolated catalog verification\ndisable-model-invocation: true\n---\nReturn the requested text.\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -93,7 +93,7 @@ func TestLiveClaudeSkillCommandCatalog(t *testing.T) {
 		if command.IsSkill {
 			skillCount++
 		}
-		if command.Name == "fuyu-catalog-probe" && command.IsSkill {
+		if command.Name == "sasa-catalog-probe" && command.IsSkill {
 			found = true
 		}
 		if (command.Name == "model" || command.Name == "compact") && command.IsSkill {

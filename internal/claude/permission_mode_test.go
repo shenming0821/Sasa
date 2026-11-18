@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestInitializationInheritsPermissionMode(t *testing.T) {
@@ -98,9 +98,9 @@ func TestInitializationInheritsPermissionMode(t *testing.T) {
 }
 
 func TestLiveClaudeConfiguredPermissionMode(t *testing.T) {
-	expected := os.Getenv("FUYU_LIVE_CLAUDE_PERMISSION_MODE")
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" || expected == "" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 and FUYU_LIVE_CLAUDE_PERMISSION_MODE for native configuration verification")
+	expected := os.Getenv("SASA_LIVE_CLAUDE_PERMISSION_MODE")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" || expected == "" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 and SASA_LIVE_CLAUDE_PERMISSION_MODE for native configuration verification")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {

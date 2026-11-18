@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/workspace"
+	"github.com/shenming0821/Sasa/internal/workspace"
 )
 
 const completionFilesTTL = time.Minute

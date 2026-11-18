@@ -9,7 +9,7 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestInlineCodeBackgroundsMeetWithoutOverlap(t *testing.T) {
@@ -84,7 +84,7 @@ func TestSearchInlineCodeBackgroundExamples(t *testing.T) {
 						t.Fatalf("search changed displayed code or link text: missing %q", text)
 					}
 				}
-				if dir := os.Getenv("FUYU_INLINE_CODE_EVIDENCE"); dir != "" {
+				if dir := os.Getenv("SASA_INLINE_CODE_EVIDENCE"); dir != "" {
 					if err := os.MkdirAll(dir, 0755); err != nil {
 						t.Fatal(err)
 					}

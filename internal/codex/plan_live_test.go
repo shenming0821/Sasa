@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestLiveCodexPlanThenImplement(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_PLAN") != "1" {
-		t.Skip("set FUYU_LIVE_PLAN=1 for isolated real plan/execute verification")
+	if os.Getenv("SASA_LIVE_PLAN") != "1" {
+		t.Skip("set SASA_LIVE_PLAN=1 for isolated real plan/execute verification")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -36,7 +36,7 @@ func TestLiveCodexPlanThenImplement(t *testing.T) {
 		for {
 			select {
 			case event, ok := <-c.Events():
-				if !ok || event.Method == "fuyu/disconnected" {
+				if !ok || event.Method == "sasa/disconnected" {
 					t.Fatal("runtime disconnected", event.Err)
 				}
 				if len(event.ID) > 0 {

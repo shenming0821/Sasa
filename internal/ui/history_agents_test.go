@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type failingHistoryBackend struct {
@@ -148,9 +148,9 @@ func TestHistoryOpensTheRowAgentInsteadOfDefault(t *testing.T) {
 }
 
 func TestHistoryPanelRemovesProjectCaption(t *testing.T) {
-	application := New(stubBackend{}, "test", "/project/Fuyu", nil)
+	application := New(stubBackend{}, "test", "/project/Sasa", nil)
 	tester := native.NewTester(application.historyPanel, 360, 600)
-	if tester.HasText("Fuyu") || !tester.HasText("当前项目") || !tester.HasText("全部项目") {
+	if tester.HasText("Sasa") || !tester.HasText("当前项目") || !tester.HasText("全部项目") {
 		t.Fatal("history scope retained the redundant project caption or lost the controls")
 	}
 }

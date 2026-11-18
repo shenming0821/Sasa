@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	process "github.com/shenming0821/Fuyu/internal/runtime"
+	"github.com/shenming0821/Sasa/internal/agent"
+	process "github.com/shenming0821/Sasa/internal/runtime"
 )
 
 type Event = agent.Event
@@ -57,7 +57,7 @@ func Start(ctx context.Context, executable, cwd string) (*Client, error) {
 	}
 	var result json.RawMessage
 	err = c.Call(ctx, "initialize", map[string]any{
-		"clientInfo":   map[string]string{"name": "fuyu", "title": "Sasa", "version": "0.1.0"},
+		"clientInfo":   map[string]string{"name": "sasa", "title": "Sasa", "version": "0.1.0"},
 		"capabilities": map[string]bool{"experimentalApi": true},
 	}, &result)
 	if err == nil {
@@ -185,7 +185,7 @@ func (c *Client) read() {
 	if err := c.process.Wait(); readErr == nil {
 		readErr = err
 	}
-	c.enqueue(Event{Method: "fuyu/disconnected", Err: readErr})
+	c.enqueue(Event{Method: "sasa/disconnected", Err: readErr})
 	c.mu.Lock()
 	close(c.done)
 	c.mu.Unlock()
@@ -215,7 +215,7 @@ func (c *Client) unsupported(msg envelope, err error) {
 	if err != nil {
 		detail = fmt.Errorf("拒绝响应未送达（%s）：%w", msg.Method, err)
 	}
-	c.enqueue(Event{Method: "fuyu/unsupported", Params: msg.Params, Err: detail})
+	c.enqueue(Event{Method: "sasa/unsupported", Params: msg.Params, Err: detail})
 }
 
 const MaxQueueBytes = agent.MaxQueueBytes
@@ -251,7 +251,7 @@ func (c *Client) enqueue(e Event) {
 				c.signal()
 				return
 			}
-			c.queue = []Event{{Method: "fuyu/disconnected", Err: errors.New("Codex control event buffer exceeded capacity; results require verification")}}
+			c.queue = []Event{{Method: "sasa/disconnected", Err: errors.New("Codex control event buffer exceeded capacity; results require verification")}}
 			c.queueBytes = eventBytes(c.queue[0])
 			c.overflow = true
 			c.queueMu.Unlock()
@@ -286,7 +286,7 @@ func (c *Client) dispatch() {
 			c.gap = false
 			c.queueMu.Unlock()
 			select {
-			case c.events <- Event{Method: "fuyu/eventGap"}:
+			case c.events <- Event{Method: "sasa/eventGap"}:
 			case <-c.abort:
 				return
 			}

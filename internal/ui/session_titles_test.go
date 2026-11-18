@@ -12,8 +12,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 type titleCall struct {
@@ -321,7 +321,7 @@ func TestTitleSwitchAndModelSelectionAreIndependent(t *testing.T) {
 		t.Fatal("enabling switch processed existing history")
 	default:
 	}
-	if path := os.Getenv("FUYU_AUXILIARY_SCREENSHOT"); path != "" {
+	if path := os.Getenv("SASA_AUXILIARY_SCREENSHOT"); path != "" {
 		tt.Advance(300 * time.Millisecond)
 		f, err := os.Create(path)
 		if err != nil {

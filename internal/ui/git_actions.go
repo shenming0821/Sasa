@@ -9,8 +9,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	gitview "github.com/shenming0821/Sasa/internal/git"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type gitDecision struct {

@@ -14,20 +14,20 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
-	"github.com/shenming0821/Fuyu/internal/editor"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
-	"github.com/shenming0821/Fuyu/internal/project"
-	"github.com/shenming0821/Fuyu/internal/storage"
-	"github.com/shenming0821/Fuyu/internal/workspace"
+	"github.com/shenming0821/Sasa/internal/codex"
+	"github.com/shenming0821/Sasa/internal/editor"
+	gitview "github.com/shenming0821/Sasa/internal/git"
+	"github.com/shenming0821/Sasa/internal/project"
+	"github.com/shenming0821/Sasa/internal/storage"
+	"github.com/shenming0821/Sasa/internal/workspace"
 )
 
 func p4App(t *testing.T) (*App, chan func(), string) {
 	t.Helper()
 	root := t.TempDir()
 	os.Mkdir(filepath.Join(root, "internal"), 0700)
-	os.WriteFile(filepath.Join(root, "internal", "main.go"), []byte("package main\n\nfunc main() {\n\tprintln(\"你好 Fuyu\")\n}\n"), 0640)
-	os.WriteFile(filepath.Join(root, "README.md"), []byte("# Fuyu\n原生工作区编辑器\n"), 0640)
+	os.WriteFile(filepath.Join(root, "internal", "main.go"), []byte("package main\n\nfunc main() {\n\tprintln(\"你好 Sasa\")\n}\n"), 0640)
+	os.WriteFile(filepath.Join(root, "README.md"), []byte("# Sasa\n原生工作区编辑器\n"), 0640)
 	a := New(stubBackend{}, "test", root, nil)
 	queue := make(chan func(), 500)
 	a.dispatch = func(fn func()) {
@@ -102,7 +102,7 @@ func TestP4BrowseEditSaveAndMixedTabs(t *testing.T) {
 	if a.currentFile() != d {
 		t.Fatal("file tab was duplicated")
 	}
-	if out := os.Getenv("FUYU_P4_PREVIEW"); out != "" {
+	if out := os.Getenv("SASA_P4_PREVIEW"); out != "" {
 		file, e := os.Create(out)
 		if e != nil {
 			t.Fatal(e)
@@ -246,7 +246,7 @@ func TestP4NarrowEditorKeepsSaveAndFilePanelSeparate(t *testing.T) {
 	if w.selected != filepath.Dir(path) || w.expanded[filepath.Dir(path)] {
 		t.Fatal("collapsed directory left its child selected")
 	}
-	if out := os.Getenv("FUYU_P4_NARROW_PREVIEW"); out != "" {
+	if out := os.Getenv("SASA_P4_NARROW_PREVIEW"); out != "" {
 		tt.Frame()
 		f, err := os.Create(out)
 		if err != nil {
@@ -426,7 +426,7 @@ func TestP4TreeKeyboardAndSearch(t *testing.T) {
 	if e := tt.Click("搜索文件内容"); e != nil {
 		t.Fatal(e)
 	}
-	tt.Type("fuyu")
+	tt.Type("sasa")
 	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
 	first := w.contentSearch.Matches[0].Path
 	tt.Key(0, native.KeyEnter)
@@ -488,7 +488,7 @@ func TestP4GitPanelDiffAndReadOnly(t *testing.T) {
 		t.Fatal("wrong staged baseline")
 	}
 	tt.Advance(300 * time.Millisecond)
-	if out := os.Getenv("FUYU_P4_GIT_PREVIEW"); out != "" {
+	if out := os.Getenv("SASA_P4_GIT_PREVIEW"); out != "" {
 		f, e := os.Create(out)
 		if e != nil {
 			t.Fatal(e)
@@ -860,9 +860,9 @@ func TestP4FindCaseAndExpiredResult(t *testing.T) {
 	p4Wait(t, tt, q, func() bool { return a.currentFile().loaded && !a.currentFile().highlighting })
 	a.closeWorkspaceResources()
 	d := a.currentFile()
-	d.buffer.Set("你好 FUYU\n你好 fuyu\n")
+	d.buffer.Set("你好 SASA\n你好 sasa\n")
 	d.observe()
-	d.findOpen, d.query = true, "fuyu"
+	d.findOpen, d.query = true, "sasa"
 	a.findInFile(d, false)
 	p4Wait(t, tt, q, func() bool { return d.findResult == "1/2" })
 	if d.anchor != 3 || d.caret != 7 {
@@ -1051,7 +1051,7 @@ func TestP4WorkspaceSwitchCancelsQueuedFileAndGitReads(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("returning file could not be loaded")
 	}
-	if !d.loaded || d.loading || d.buffer.String() != "# Fuyu\n原生工作区编辑器\n" {
+	if !d.loaded || d.loading || d.buffer.String() != "# Sasa\n原生工作区编辑器\n" {
 		t.Fatal("fresh file result was lost after cancellation", d.err)
 	}
 }

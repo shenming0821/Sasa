@@ -4,7 +4,7 @@ import (
 	native "github.com/egoist/mygo/ui"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func TestDebugHistoryRender(t *testing.T) {

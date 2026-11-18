@@ -8,12 +8,12 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func legacyV3(t *testing.T, dir string) []byte {
 	t.Helper()
-	db, err := sql.Open("sqlite", filepath.Join(dir, "fuyu.db"))
+	db, err := sql.Open("sqlite", filepath.Join(dir, "sasa.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestV4MigratesCodexIdentityWithoutChangingPayload(t *testing.T) {
 	if s.BindAgentRuntime("devin", "/devin/home") == nil || s.BindAgentRuntime("unknown", "/unknown/home") == nil {
 		t.Fatal("未知 Agent 不应通过绑定")
 	}
-	backups, err := filepath.Glob(filepath.Join(dir, "fuyu-before-v4-*.db"))
+	backups, err := filepath.Glob(filepath.Join(dir, "sasa-before-v4-*.db"))
 	if err != nil || len(backups) != 1 {
 		t.Fatal("缺少本次一致性备份", backups, err)
 	}
@@ -131,7 +131,7 @@ func TestV4NamespacesNativeIDsAndRollsBackDuplicate(t *testing.T) {
 func TestV4MigrationFailurePreservesSchemaAndLegacyRows(t *testing.T) {
 	dir := t.TempDir()
 	raw := legacyV3(t, dir)
-	db, err := sql.Open("sqlite", filepath.Join(dir, "fuyu.db"))
+	db, err := sql.Open("sqlite", filepath.Join(dir, "sasa.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestV4MigrationFailurePreservesSchemaAndLegacyRows(t *testing.T) {
 		s.Close()
 		t.Fatal("无效旧表应导致迁移失败")
 	}
-	db, err = sql.Open("sqlite", filepath.Join(dir, "fuyu.db"))
+	db, err = sql.Open("sqlite", filepath.Join(dir, "sasa.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

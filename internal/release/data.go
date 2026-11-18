@@ -25,7 +25,7 @@ func (info Info) ValidateDataDir(directory string) error {
 	if err != nil {
 		return err
 	}
-	stable, err := canonicalPath(filepath.Join(config, "Fuyu"))
+	stable, err := canonicalPath(filepath.Join(config, "Sasa"))
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func (info Info) ValidateDataDir(directory string) error {
 	if relative, err := filepath.Rel(stable, directory); err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
 		return fmt.Errorf("Preview requires a separate data directory: %s", directory)
 	}
-	if _, err := os.Stat(filepath.Join(directory, "fuyu.db")); err == nil {
+	if _, err := os.Stat(filepath.Join(directory, "sasa.db")); err == nil {
 		return fmt.Errorf("Preview cannot adopt an unmarked existing database: %s", directory)
 	} else if !os.IsNotExist(err) {
 		return err

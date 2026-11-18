@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func toolCaption(t *app.Tool) string {

@@ -8,14 +8,14 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/claude"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/claude"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func TestLiveAgentsRunIndependently(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_AGENTS") != "1" {
-		t.Skip("set FUYU_LIVE_AGENTS=1 to verify both real runtimes")
+	if os.Getenv("SASA_LIVE_AGENTS") != "1" {
+		t.Skip("set SASA_LIVE_AGENTS=1 to verify both real runtimes")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -48,7 +48,7 @@ func TestLiveAgentsRunIndependently(t *testing.T) {
 	defer func() { close(a.shutdown); a.closeWorkspaceResources() }()
 	tester := native.NewTester(a.view, 1200, 800)
 	codexSession := a.session
-	codexSession.State.Draft = "Use the shell tool to run sleep 2; printf 'FUYU_CODEX_PARALLEL\\n' > codex-proof.txt in this working directory. Do not modify any other file. Then reply CODEX_DONE."
+	codexSession.State.Draft = "Use the shell tool to run sleep 2; printf 'SASA_CODEX_PARALLEL\\n' > codex-proof.txt in this working directory. Do not modify any other file. Then reply CODEX_DONE."
 	a.send()
 	if err := a.newAgentSession(agent.Claude); err != nil {
 		t.Fatal(err)
@@ -57,7 +57,7 @@ func TestLiveAgentsRunIndependently(t *testing.T) {
 	if claudeSession == codexSession || !codexSession.State.Busy {
 		t.Fatal("switch did not preserve the running Codex task")
 	}
-	claudeSession.State.Draft = "Use Bash to write claude-proof.txt containing exactly FUYU_CLAUDE_PARALLEL followed by one newline. Do not change other files, use background tasks, or save memory. Then reply CLAUDE_DONE."
+	claudeSession.State.Draft = "Use Bash to write claude-proof.txt containing exactly SASA_CLAUDE_PARALLEL followed by one newline. Do not change other files, use background tasks, or save memory. Then reply CLAUDE_DONE."
 	a.send()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -103,7 +103,7 @@ func TestLiveAgentsRunIndependently(t *testing.T) {
 			break
 		}
 	}
-	for name, expected := range map[string]string{"codex-proof.txt": "FUYU_CODEX_PARALLEL\n", "claude-proof.txt": "FUYU_CLAUDE_PARALLEL\n"} {
+	for name, expected := range map[string]string{"codex-proof.txt": "SASA_CODEX_PARALLEL\n", "claude-proof.txt": "SASA_CLAUDE_PARALLEL\n"} {
 		raw, err := os.ReadFile(filepath.Join(cwd, name))
 		if err != nil || string(raw) != expected {
 			t.Fatalf("%s=%q err=%v", name, raw, err)

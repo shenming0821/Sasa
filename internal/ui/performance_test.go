@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func performanceMessages(count int) []*app.Message {

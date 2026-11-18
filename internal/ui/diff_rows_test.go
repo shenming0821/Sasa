@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 func TestDiffCodeRowsKeepSourceAndRealLineNumbers(t *testing.T) {
@@ -105,7 +105,7 @@ func TestDiffSourcePresentationAndNavigation(t *testing.T) {
 		for _, split := range []bool{false, true} {
 			t.Run(fmt.Sprintf("dark=%v/split=%v", dark, split), func(t *testing.T) {
 				a, queue, root := p4App(t)
-				patch := "diff --git a/example.go b/example.go\nindex 123..456 100644\n--- a/example.go\n+++ b/example.go\n@@ -1,5 +1,6 @@\n package ui\n \n func greeting() string {\n-\treturn \"old\"\n+\tmessage := \"你好，Fuyu\"\n+\treturn message\n }\n"
+				patch := "diff --git a/example.go b/example.go\nindex 123..456 100644\n--- a/example.go\n+++ b/example.go\n@@ -1,5 +1,6 @@\n package ui\n \n func greeting() string {\n-\treturn \"old\"\n+\tmessage := \"你好，Sasa\"\n+\treturn message\n }\n"
 				review := gitview.ParsePatch(patch)
 				d := &filePage{id: "diff", root: root, path: filepath.Join(root, "example.go"), kind: "diff", compare: "更改", gitDiffState: gitDiffState{gitSplit: split}}
 				a.gitSetDiffText(d, patch, &review)
@@ -127,7 +127,7 @@ func TestDiffSourcePresentationAndNavigation(t *testing.T) {
 				}
 				d.scroll.Y, d.gitLeftScroll.Y, d.gitRightScroll.Y, d.gitSplitY = 0, 0, 0, 0
 				tester.Frame()
-				if directory := os.Getenv("FUYU_DIFF_SCREENSHOTS"); directory != "" {
+				if directory := os.Getenv("SASA_DIFF_SCREENSHOTS"); directory != "" {
 					if err := os.MkdirAll(directory, 0700); err != nil {
 						t.Fatal(err)
 					}

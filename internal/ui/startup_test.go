@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestStartupKeepsDraftEditableBeforeConnectionAndDiscardsLateResult(t *testing.T) {

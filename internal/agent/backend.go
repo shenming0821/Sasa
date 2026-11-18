@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 var ErrUnsupported = errors.New("当前 Agent 不支持此能力")

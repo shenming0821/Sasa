@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 func (s *State) acceptUserItem(id, turnID string, raw json.RawMessage) {

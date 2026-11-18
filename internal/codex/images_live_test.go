@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 // This opt-in sends only a generated geometric image in an ephemeral thread.
 func TestLiveImageInput(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_IMAGES") != "1" {
-		t.Skip("set FUYU_LIVE_IMAGES=1 for generated-image native verification")
+	if os.Getenv("SASA_LIVE_IMAGES") != "1" {
+		t.Skip("set SASA_LIVE_IMAGES=1 for generated-image native verification")
 	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "shape.png")

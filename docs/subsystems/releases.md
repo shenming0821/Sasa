@@ -7,17 +7,17 @@
 | 项目 | 正式版 | Preview |
 |---|---|---|
 | 应用 | `/Applications/Sasa.app`；入口 `bin/Sasa.app`、`bin/sasa` | `bin/Sasa Preview.app` |
-| Bundle ID 与签名标识 | `com.shenming.fuyu` | `com.shenming.fuyu.preview` |
-| 默认数据目录 | `~/Library/Application Support/Fuyu` | `~/Library/Application Support/Fuyu Preview` |
+| Bundle ID 与签名标识 | `com.shenming.sasa` | `com.shenming.sasa.preview` |
+| 默认数据目录 | `~/Library/Application Support/Sasa` | `~/Library/Application Support/Sasa Preview` |
 | Codex 原生目录 | `CODEX_HOME`，未设置时 `~/.codex` | `<Preview 数据目录>/runtimes/codex` |
 | Claude 原生目录 | `CLAUDE_CONFIG_DIR`，未设置时 `~/.claude` | `<Preview 数据目录>/runtimes/claude` |
 | 视觉识别 | 红橙 S/a 图标与 Sasa 标题 | 紫色 P 图标标记，标题含 Preview 与构建 ID |
 
-应用显示名称与主程序为 Sasa / Sasa Preview；Bundle ID、数据目录及发布备份目录继续沿用原有名称。首次默认安装时，旧 `/Applications/Fuyu.app` 移入本次恢复目录并移除旧名称入口，不请求正在运行的正式版退出。旧构建候选保留原文件，需重新构建 Sasa 候选后验收晋升。
+应用显示名称与主程序为 Sasa / Sasa Preview；Bundle ID、数据目录及发布备份目录继续沿用原有名称。首次默认安装时，旧 `/Applications/Sasa.app` 移入本次恢复目录并移除旧名称入口，不请求正在运行的正式版退出。旧构建候选保留原文件，需重新构建 Sasa 候选后验收晋升。
 
 `cmd/desktop/main.go` 在读写数据库前通过 `internal/release` 读取包内渠道信息，校验与链接到程序中的构建 ID、源码版本和源码摘要一致。直接 `go run` 的开发程序默认使用 Preview。`-version` 以 JSON 输出渠道、构建 ID、源码版本、源码摘要、应用版本和支持的数据版本，随后退出，不打开数据库。
 
-应用数据目录带 `release-channel` 标记，同一目录仍由原有 `fuyu.lock` 排他持有。Preview 拒绝正式版默认目录及其子目录、正式版标记和未标记的既有数据库。正式版可接续未标记的旧正式版数据，拒绝 Preview 标记。
+应用数据目录带 `release-channel` 标记，同一目录仍由原有 `sasa.lock` 排他持有。Preview 拒绝正式版默认目录及其子目录、正式版标记和未标记的既有数据库。正式版可接续未标记的旧正式版数据，拒绝 Preview 标记。
 
 Preview 首次启动从现有环境配置根复制 Codex 的 `config.toml`、`auth.json` 和 Claude 的 `settings.json`、`.credentials.json`；已有 Preview 原生目录不再覆盖。仅复制存在的文件，目标目录 0700、凭据副本 0600，不复制原生会话、历史数据库、项目历史或应用草稿。缺少文件凭据、钥匙串登录不适用或登录过期时，需要在 Preview 的配置根完成原生 CLI 登录。配置中的外部 MCP、绝对路径和模型服务仍指向原服务；配置文件副本不能视为外部资源隔离。
 
@@ -54,12 +54,12 @@ Preview 启动和回退重开通过 macOS Launch Services（`/usr/bin/open -n -a
 
 晋升复制该候选，切换渠道信息、应用名、图标、Bundle ID 和主程序 UUID，再重新签名；不重新编译 Go、不读取新工作区功能代码。比较程序摘要时移除签名并将 UUID 的 16 字节归零，确认其余功能程序与候选相同。候选与安装文件清单仍校验完整字节，UUID 归一化仅用于跨渠道功能程序比较。
 
-在正式版安装目录旁的 `.Fuyu-releases/` 保存每次事务。晋升固定采用延迟生效流程，不请求运行中的应用退出：
+在正式版安装目录旁的 `.Sasa-releases/` 保存每次事务。晋升固定采用延迟生效流程，不请求运行中的应用退出：
 
 1. 验证候选，准备并签名完整正式版应用包。
 2. 备份应用数据与上一版应用。SQLite 通过 backup API 创建一致性备份并执行 `quick_check`，草稿、附件和其他应用数据随备份保存；不取得数据锁，运行中的正式版可继续持有。
-3. 在同一文件系统中移动完整应用目录。正在运行的实例持有旧应用 inode 不受影响，下次启动自然进入新版；首次从旧 `bin/Fuyu.app` 迁移时旧应用复制为上一版恢复来源。
-4. 回执记录 `installed` 与安装文件清单，`latest.json` 指向本次事务。登记应用后，默认位置发布将旧 `bin/Fuyu.app` 实体移到 `bin/.stable-backups/<事务ID>/Fuyu.app`，移除 `bin/Fuyu.app`、`bin/fuyu` 和 `/Applications/Fuyu.app` 的旧符号链接，仅保留 `bin/Sasa.app` 与 `bin/sasa` 启动入口。入口整理仅随真实默认位置发布执行，普通构建与隔离验收保持原入口。
+3. 在同一文件系统中移动完整应用目录。正在运行的实例持有旧应用 inode 不受影响，下次启动自然进入新版；首次从旧 `bin/Sasa.app` 迁移时旧应用复制为上一版恢复来源。
+4. 回执记录 `installed` 与安装文件清单，`latest.json` 指向本次事务。登记应用后，默认位置发布将旧 `bin/Sasa.app` 实体移到 `bin/.stable-backups/<事务ID>/Sasa.app`，移除 `bin/Sasa.app`、`bin/sasa` 和 `/Applications/Sasa.app` 的旧符号链接，仅保留 `bin/Sasa.app` 与 `bin/sasa` 启动入口。入口整理仅随真实默认位置发布执行，普通构建与隔离验收保持原入口。
 
 正常发布沿用正式版自己的数据，不合并 Preview 会话或设置。晋升不验证新版可启动（同一程序已在 Preview 验收中运行过），安装后如需撤回经 `./scripts/rollback` 回退；目录交换失败时自动还原上一版应用。异常断电或进程强制终止时，依据事务目录的 `receipt.json`、`previous.app`、`data-before/` 接续人工恢复；当前不提供跨进程崩溃后的自动事务重放。
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 var gitPlusIcon = icon(`<path d="M12 5v14M5 12h14"/>`)

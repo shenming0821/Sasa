@@ -32,7 +32,7 @@ ALTER TABLE runtime_identity_v5 RENAME TO runtime_identity;
 
 func (s *Store) migrateV5(backupExisting bool) error {
 	if backupExisting {
-		f, err := os.CreateTemp(s.dir, "fuyu-before-v5-*.db")
+		f, err := os.CreateTemp(s.dir, "sasa-before-v5-*.db")
 		if err != nil {
 			return err
 		}

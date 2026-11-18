@@ -16,8 +16,8 @@ import (
 // Uses the installed Codex, an isolated CODEX_HOME, and a controlled MCP server.
 // It never submits a model turn or reads the user's credentials.
 func TestLiveIdleThreadReleasesMCPProcesses(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_IDLE") != "1" {
-		t.Skip("set FUYU_LIVE_IDLE=1 to check native Codex resource disposal")
+	if os.Getenv("SASA_LIVE_IDLE") != "1" {
+		t.Skip("set SASA_LIVE_IDLE=1 to check native Codex resource disposal")
 	}
 	dir := t.TempDir()
 	t.Setenv("CODEX_HOME", dir)
@@ -32,7 +32,7 @@ for line in sys.stdin:
         continue
     if m.get("method") == "initialize":
         result = {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
-                  "serverInfo": {"name": "fuyu-idle-fixture", "version": "1"}}
+                  "serverInfo": {"name": "sasa-idle-fixture", "version": "1"}}
     elif m.get("method") == "tools/list":
         result = {"tools": []}
     else:

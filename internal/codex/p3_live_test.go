@@ -11,8 +11,8 @@ import (
 )
 
 func TestLiveP3DirectoriesAndRestart(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 for real native runtime recovery")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 for real native runtime recovery")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
@@ -36,11 +36,11 @@ func TestLiveP3DirectoriesAndRestart(t *testing.T) {
 	for _, thread := range []Thread{first, second} {
 		t.Logf("thread=%s cwd=%s model=%s policy=%s sandbox=%s", thread.Thread.ID, thread.Cwd, thread.Model, thread.ApprovalPolicy, thread.Sandbox)
 	}
-	firstTurn, err := client.Send(ctx, first.Thread.ID, "In this working directory only, implement a small Python module sum_numbers.py with function sum_numbers(values) returning the sum of a list of numbers. Add test_sum_numbers.py using unittest covering empty input, negative values, and multiple numbers. Run /usr/bin/python3 -m unittest -v and fix any failures. Do not modify files outside the working directory. Remember token FUYU_P3_FIRST for our next turn.")
+	firstTurn, err := client.Send(ctx, first.Thread.ID, "In this working directory only, implement a small Python module sum_numbers.py with function sum_numbers(values) returning the sum of a list of numbers. Add test_sum_numbers.py using unittest covering empty input, negative values, and multiple numbers. Run /usr/bin/python3 -m unittest -v and fix any failures. Do not modify files outside the working directory. Remember token SASA_P3_FIRST for our next turn.")
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondTurn, err := client.Send(ctx, second.Thread.ID, "In this working directory only, create proof.txt containing exactly FUYU_P3_SECOND followed by a newline. Do not touch the first directory or any other files.")
+	secondTurn, err := client.Send(ctx, second.Thread.ID, "In this working directory only, create proof.txt containing exactly SASA_P3_SECOND followed by a newline. Do not touch the first directory or any other files.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestLiveP3DirectoriesAndRestart(t *testing.T) {
 		for len(turns) > 0 {
 			select {
 			case e, ok := <-c.Events():
-				if !ok || e.Method == "fuyu/disconnected" || e.Method == "fuyu/unsupported" {
+				if !ok || e.Method == "sasa/disconnected" || e.Method == "sasa/unsupported" {
 					t.Fatalf("runtime disconnected or unsupported: %s %v", e.Method, e.Err)
 				}
 				if len(e.ID) > 0 {
@@ -90,7 +90,7 @@ func TestLiveP3DirectoriesAndRestart(t *testing.T) {
 	} else {
 		t.Log(string(out))
 	}
-	if raw, err := os.ReadFile(filepath.Join(secondDir, "proof.txt")); err != nil || string(raw) != "FUYU_P3_SECOND\n" {
+	if raw, err := os.ReadFile(filepath.Join(secondDir, "proof.txt")); err != nil || string(raw) != "SASA_P3_SECOND\n" {
 		t.Fatalf("second cwd proof=%q err=%v", raw, err)
 	}
 	if _, err := os.Stat(filepath.Join(firstDir, "proof.txt")); !os.IsNotExist(err) {
@@ -117,12 +117,12 @@ func TestLiveP3DirectoriesAndRestart(t *testing.T) {
 	if _, err := reopened.ListThreads(ctx, nil); err != nil {
 		t.Fatal(err)
 	}
-	next, err := reopened.Send(ctx, first.Thread.ID, "Continue the previous task. Write followup.txt containing only the exact FUYU token I asked you to remember in our first turn, followed by a newline. Do not change other files.")
+	next, err := reopened.Send(ctx, first.Thread.ID, "Continue the previous task. Write followup.txt containing only the exact SASA token I asked you to remember in our first turn, followed by a newline. Do not change other files.")
 	if err != nil {
 		t.Fatal(err)
 	}
 	wait(reopened, map[string]string{first.Thread.ID: next.ID})
-	if raw, err := os.ReadFile(filepath.Join(firstDir, "followup.txt")); err != nil || string(raw) != "FUYU_P3_FIRST\n" {
+	if raw, err := os.ReadFile(filepath.Join(firstDir, "followup.txt")); err != nil || string(raw) != "SASA_P3_FIRST\n" {
 		t.Fatalf("resumed context proof=%q err=%v", raw, err)
 	}
 	t.Log("two independent cwd tasks, small development task, native history and same-thread continuation passed")

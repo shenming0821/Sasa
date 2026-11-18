@@ -16,10 +16,10 @@ import (
 
 	"github.com/egoist/mygo/transfer"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/codex"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/codex"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func imageFixture(t *testing.T) (attachment.Image, []byte) {
@@ -210,7 +210,7 @@ func TestImagePreviewZoomRemoveAndMissingFileLayouts(t *testing.T) {
 				if len(a.State.DraftImages) != 1 || tt.HasText("移除附件 2") {
 					t.Fatal("single attachment remove failed")
 				}
-				if output := os.Getenv("FUYU_IMAGES_SCREENSHOT"); output != "" && width == 1000 && !dark {
+				if output := os.Getenv("SASA_IMAGES_SCREENSHOT"); output != "" && width == 1000 && !dark {
 					f, err := os.Create(output)
 					if err != nil {
 						t.Fatal(err)

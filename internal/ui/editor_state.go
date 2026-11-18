@@ -12,10 +12,10 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/fsnotify/fsnotify"
-	"github.com/shenming0821/Fuyu/internal/editor"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
-	"github.com/shenming0821/Fuyu/internal/storage"
-	"github.com/shenming0821/Fuyu/internal/workspace"
+	"github.com/shenming0821/Sasa/internal/editor"
+	gitview "github.com/shenming0821/Sasa/internal/git"
+	"github.com/shenming0821/Sasa/internal/storage"
+	"github.com/shenming0821/Sasa/internal/workspace"
 )
 
 type editorState struct {

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SPEC = importlib.util.spec_from_file_location('fuyu_release', Path(__file__).with_name('release.py'))
+SPEC = importlib.util.spec_from_file_location('sasa_release', Path(__file__).with_name('release.py'))
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
 
@@ -18,14 +18,14 @@ class ApplicationRegistrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             app = root / 'Sasa.app'
-            previous = root / '.Fuyu-releases/old/previous.app'
-            legacy = root / '.Fuyu-releases/old/legacy-installed.app'
-            preview = root / '.Fuyu-releases/other/previous.app'
+            previous = root / '.Sasa-releases/old/previous.app'
+            legacy = root / '.Sasa-releases/old/legacy-installed.app'
+            preview = root / '.Sasa-releases/other/previous.app'
             for bundle, identifier, icon in [
-                    (app, 'com.shenming.fuyu', 'Sasa.icns'),
-                    (previous, 'com.shenming.fuyu', 'Fuyu.icns'),
-                    (legacy, 'com.shenming.fuyu', 'Fuyu.icns'),
-                    (preview, 'com.shenming.fuyu.preview', 'SasaPreview.icns')]:
+                    (app, 'com.shenming.sasa', 'Sasa.icns'),
+                    (previous, 'com.shenming.sasa', 'Sasa.icns'),
+                    (legacy, 'com.shenming.sasa', 'Sasa.icns'),
+                    (preview, 'com.shenming.sasa.preview', 'SasaPreview.icns')]:
                 metadata = bundle / 'Contents/Info.plist'
                 metadata.parent.mkdir(parents=True)
                 with metadata.open('wb') as handle:
@@ -101,7 +101,7 @@ class FakePlatform:
     def launch(self, app, data, identity, timeout, work):
         self.launches.append(identity)
         if self.failure:
-            with sqlite3.connect(data / 'fuyu.db') as database:
+            with sqlite3.connect(data / 'sasa.db') as database:
                 database.execute('UPDATE sample SET value="new-data"')
                 database.execute('PRAGMA user_version=5')
             (data / 'new-file').write_text('startup-side-effect')
@@ -113,7 +113,7 @@ class MacOSLaunchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             app = Path(directory) / 'app.app'
             (app / 'Contents').mkdir(parents=True)
-            for name in ['Fuyu', 'Sasa']:
+            for name in ['Sasa', 'Sasa']:
                 with (app / 'Contents/Info.plist').open('wb') as handle:
                     plistlib.dump({'CFBundleExecutable': name}, handle)
                 self.assertEqual(release.application_executable(app), app / 'Contents/MacOS' / name)
@@ -136,7 +136,7 @@ class MacOSLaunchTests(unittest.TestCase):
                 release.write_json(ready, {'pid': reported_pid, 'token': arguments[-1], 'dataDir': str(root), **identity})
 
             with patch.object(platform, 'open_app', side_effect=acknowledge), patch.object(platform, 'running', side_effect=running), patch.object(release.time, 'sleep'):
-                platform.launch(root / 'Fuyu.app', root, identity, 2, root)
+                platform.launch(root / 'Sasa.app', root, identity, 2, root)
 
     def test_launch_accepts_pid_from_verified_window_acknowledgement(self):
         self.check_launch(321, [[321], [321]])
@@ -173,7 +173,7 @@ class ReleaseTests(unittest.TestCase):
             release.configure_channel(app, self.identity, channel)
         release.write_json(self.source.parent / 'candidate.json', {'identity': self.identity, 'files': release.inventory(self.source)})
         self.data.mkdir()
-        with sqlite3.connect(self.data / 'fuyu.db') as database:
+        with sqlite3.connect(self.data / 'sasa.db') as database:
             database.execute('PRAGMA journal_mode=WAL')
             database.execute('PRAGMA user_version=4')
             database.execute('CREATE TABLE sample(value TEXT)')
@@ -192,26 +192,26 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(release.read_json(self.app / release.IDENTITY)['channel'], 'stable')
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
         with (self.app / 'Contents/Info.plist').open('rb') as handle:
-            self.assertEqual(plistlib.load(handle)['CFBundleIdentifier'], 'com.shenming.fuyu')
+            self.assertEqual(plistlib.load(handle)['CFBundleIdentifier'], 'com.shenming.sasa')
 
     def test_new_brand_keeps_application_identity_and_data(self):
         with (self.app / 'Contents/Info.plist').open('rb') as handle:
             metadata = plistlib.load(handle)
         self.assertEqual(metadata['CFBundleName'], 'Sasa')
         self.assertEqual(metadata['CFBundleDisplayName'], 'Sasa')
-        self.assertEqual(metadata['CFBundleIdentifier'], 'com.shenming.fuyu')
+        self.assertEqual(metadata['CFBundleIdentifier'], 'com.shenming.sasa')
         self.assertEqual(metadata['CFBundleIconFile'], 'Sasa.icns')
-        self.assertEqual(release.DEFAULT_DATA.name, 'Fuyu')
+        self.assertEqual(release.DEFAULT_DATA.name, 'Sasa')
 
     def test_rename_preserves_previous_install_and_removes_old_entries(self):
         legacy = self.app.parent / 'Fuyu.app'
         release.shutil.copytree(self.app, legacy)
         release.shutil.rmtree(self.app)
-        old_executable = Path('Contents/MacOS/Fuyu')
+        old_executable = Path('Contents/MacOS/Sasa')
         (legacy / release.EXECUTABLE).rename(legacy / old_executable)
         with (legacy / 'Contents/Info.plist').open('rb') as handle:
             metadata = plistlib.load(handle)
-        metadata['CFBundleExecutable'] = 'Fuyu'
+        metadata['CFBundleExecutable'] = 'Sasa'
         with (legacy / 'Contents/Info.plist').open('wb') as handle:
             plistlib.dump(metadata, handle)
         self.bin.mkdir(exist_ok=True)
@@ -224,21 +224,21 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
         self.assertEqual((self.bin / 'Sasa.app').resolve(), self.app.resolve())
         self.assertEqual((self.bin / 'sasa').resolve(), (self.app / release.EXECUTABLE).resolve())
-        self.assertFalse((self.bin / 'fuyu').is_symlink())
-        transaction = release.read_json(self.app.parent / '.Fuyu-releases/latest.json')['transaction']
-        self.assertEqual((self.app.parent / '.Fuyu-releases' / transaction / 'previous.app' / old_executable).read_bytes(), b'old-program')
+        self.assertTrue((self.bin / 'sasa').is_symlink())
+        transaction = release.read_json(self.app.parent / '.Sasa-releases/latest.json')['transaction']
+        self.assertEqual((self.app.parent / '.Sasa-releases' / transaction / 'previous.app' / old_executable).read_bytes(), b'old-program')
         with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
             release.rollback(self.app, self.data, 1, platform=FakePlatform())
         self.assertEqual((self.app / old_executable).read_bytes(), b'old-program')
         self.assertFalse(legacy.exists())
-        self.assertFalse((self.bin / 'fuyu').is_symlink())
+        self.assertTrue((self.bin / 'sasa').is_symlink())
         self.assertEqual((self.bin / 'sasa').resolve(), (self.app / old_executable).resolve())
 
     def test_release_removes_existing_legacy_symlinks_without_recreating_them(self):
         legacy = self.app.parent / 'Fuyu.app'
         legacy.symlink_to(self.app, target_is_directory=True)
         self.bin.mkdir(exist_ok=True)
-        (self.bin / 'Fuyu.app').symlink_to(self.app, target_is_directory=True)
+        (self.bin / 'Sasa.app').symlink_to(self.app, target_is_directory=True)
         (self.bin / 'fuyu').symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
         with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
             release.promote(self.build_id, self.app, self.data)
@@ -273,7 +273,7 @@ class ReleaseTests(unittest.TestCase):
     def test_snapshot_checkpointed_wal_without_sidecars(self):
         data = self.root / 'closed-wal-data'
         data.mkdir()
-        path = data / 'fuyu.db'
+        path = data / 'sasa.db'
         with closing(sqlite3.connect(path)) as connection:
             connection.execute('PRAGMA journal_mode=WAL')
             connection.execute('CREATE TABLE sample(value TEXT)')
@@ -286,7 +286,7 @@ class ReleaseTests(unittest.TestCase):
                 sidecar.unlink()
         backup = self.root / 'closed-wal-backup'
         release.snapshot_data(data, backup)
-        with closing(sqlite3.connect(backup / 'fuyu.db')) as connection:
+        with closing(sqlite3.connect(backup / 'sasa.db')) as connection:
             self.assertEqual(connection.execute('PRAGMA quick_check').fetchone()[0], 'ok')
             self.assertEqual(connection.execute('SELECT value FROM sample').fetchone()[0], 'checkpointed')
 
@@ -311,14 +311,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
 
     def test_promote_installs_while_data_is_locked(self):
-        with release.locked(self.data / 'fuyu.lock'):
+        with release.locked(self.data / 'sasa.lock'):
             release.promote(self.build_id, self.app, self.data)
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'tested-program')
-        transaction = release.read_json(self.app.parent / '.Fuyu-releases/latest.json')['transaction']
-        receipt = release.read_json(self.app.parent / '.Fuyu-releases' / transaction / 'receipt.json')
+        transaction = release.read_json(self.app.parent / '.Sasa-releases/latest.json')['transaction']
+        receipt = release.read_json(self.app.parent / '.Sasa-releases' / transaction / 'receipt.json')
         self.assertEqual(receipt['state'], 'installed')
-        self.assertTrue((self.app.parent / '.Fuyu-releases' / transaction / 'previous.app').exists())
-        self.assertTrue((self.app.parent / '.Fuyu-releases' / transaction / 'data-before/fuyu.db').exists())
+        self.assertTrue((self.app.parent / '.Sasa-releases' / transaction / 'previous.app').exists())
+        self.assertTrue((self.app.parent / '.Sasa-releases' / transaction / 'data-before/sasa.db').exists())
 
     def test_manual_rollback_keeps_new_data_when_schema_compatible(self):
         release.promote(self.build_id, self.app, self.data)
@@ -339,7 +339,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_schema_rollback_requires_explicit_restore_and_preserves_newer_backup(self):
         release.promote(self.build_id, self.app, self.data)
-        with sqlite3.connect(self.data / 'fuyu.db') as database:
+        with sqlite3.connect(self.data / 'sasa.db') as database:
             database.execute('PRAGMA user_version=5')
         (self.data / 'draft').write_text('newer draft')
         with self.assertRaisesRegex(RuntimeError, '--restore-data'):
@@ -347,14 +347,14 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'tested-program')
         release.rollback(self.app, self.data, 1, restore=True, platform=FakePlatform())
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
-        self.assertTrue(list((self.app.parent / '.Fuyu-releases').glob('*/data-before-rollback-*/draft')))
+        self.assertTrue(list((self.app.parent / '.Sasa-releases').glob('*/data-before-rollback-*/draft')))
 
     def test_preview_or_candidate_cannot_be_install_target(self):
         for target in [release.PREVIEW_APP, self.source]:
             with self.assertRaises(RuntimeError):
                 release.promote(self.build_id, target, self.data)
         with self.assertRaises(RuntimeError):
-            release.promote(self.build_id, self.app, self.app.parent / '.Fuyu-releases')
+            release.promote(self.build_id, self.app, self.app.parent / '.Sasa-releases')
 
 
 if __name__ == '__main__':

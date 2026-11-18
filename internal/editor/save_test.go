@@ -79,7 +79,7 @@ func TestSaveFailureStagesPreserveOriginalOrReportReplacement(t *testing.T) {
 			if stage == "short-write" && !errors.Is(err, io.ErrShortWrite) {
 				t.Fatal("partial write was not rejected before replacement", err)
 			}
-			temporary, err := filepath.Glob(filepath.Join(root, ".fuyu-save-*"))
+			temporary, err := filepath.Glob(filepath.Join(root, ".sasa-save-*"))
 			if err != nil || len(temporary) != 0 {
 				t.Fatal("save left unfinished temporary files", temporary, err)
 			}
@@ -98,7 +98,7 @@ func TestSavePreservesMacExtendedAttributes(t *testing.T) {
 	if err := os.WriteFile(path, []byte("original\n"), 0640); err != nil {
 		t.Fatal(err)
 	}
-	if out, err := exec.Command("/usr/bin/xattr", "-w", "com.fuyu.p4-test", "metadata", path).CombinedOutput(); err != nil {
+	if out, err := exec.Command("/usr/bin/xattr", "-w", "com.sasa.p4-test", "metadata", path).CombinedOutput(); err != nil {
 		t.Fatal(err, string(out))
 	}
 	base, err := Read(path)
@@ -108,7 +108,7 @@ func TestSavePreservesMacExtendedAttributes(t *testing.T) {
 	if _, err := Save(context.Background(), base, "changed\n", false); err != nil {
 		t.Fatal(err)
 	}
-	out, err := exec.Command("/usr/bin/xattr", "-p", "com.fuyu.p4-test", path).CombinedOutput()
+	out, err := exec.Command("/usr/bin/xattr", "-p", "com.sasa.p4-test", path).CombinedOutput()
 	if err != nil || strings.TrimSpace(string(out)) != "metadata" {
 		t.Fatal("atomic save stripped extended attributes", err, string(out))
 	}

@@ -21,18 +21,18 @@ func writeExecutable(t *testing.T, path, body string) string {
 
 func TestCodexDiscoveryAndOverrides(t *testing.T) {
 	home := filepath.Join(t.TempDir(), "home with spaces")
-	inherited := writeExecutable(t, filepath.Join(home, "inherited/fuyu-test-codex"), "#!/bin/sh\nexit 0\n")
-	login := writeExecutable(t, filepath.Join(home, "login/fuyu-test-codex"), "#!/bin/sh\nexit 0\n")
-	fallback := writeExecutable(t, filepath.Join(home, ".bun/bin/fuyu-test-codex"), "#!/bin/sh\nexit 0\n")
+	inherited := writeExecutable(t, filepath.Join(home, "inherited/sasa-test-codex"), "#!/bin/sh\nexit 0\n")
+	login := writeExecutable(t, filepath.Join(home, "login/sasa-test-codex"), "#!/bin/sh\nexit 0\n")
+	fallback := writeExecutable(t, filepath.Join(home, ".bun/bin/sasa-test-codex"), "#!/bin/sh\nexit 0\n")
 	for _, tc := range []struct {
 		name, executable, inherited, login, want string
 	}{
-		{"inherited first", "fuyu-test-codex", filepath.Dir(inherited), filepath.Dir(login), inherited},
-		{"login next", "fuyu-test-codex", "/usr/bin:/bin", filepath.Dir(login), login},
-		{"common installation", "fuyu-test-codex", "/usr/bin:/bin", "", fallback},
+		{"inherited first", "sasa-test-codex", filepath.Dir(inherited), filepath.Dir(login), inherited},
+		{"login next", "sasa-test-codex", "/usr/bin:/bin", filepath.Dir(login), login},
+		{"common installation", "sasa-test-codex", "/usr/bin:/bin", "", fallback},
 		{"absolute override", fallback, filepath.Dir(inherited), filepath.Dir(login), fallback},
 		{"invalid override", filepath.Join(home, "missing/codex"), filepath.Dir(inherited), "", ""},
-		{"missing command", "fuyu-uninstalled-test-command", "/usr/bin:/bin", "", ""},
+		{"missing command", "sasa-uninstalled-test-command", "/usr/bin:/bin", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, path, err := resolveCodex(tc.executable, tc.inherited, tc.login, home, "")
@@ -48,10 +48,10 @@ func TestCodexDiscoveryAndOverrides(t *testing.T) {
 
 func TestFinderPathStartsNodeWrapper(t *testing.T) {
 	home := t.TempDir()
-	wrapper := writeExecutable(t, filepath.Join(home, ".bun/bin/fuyu-test-codex"), "#!/usr/bin/env node\nignored by fake node\n")
+	wrapper := writeExecutable(t, filepath.Join(home, ".bun/bin/sasa-test-codex"), "#!/usr/bin/env node\nignored by fake node\n")
 	writeExecutable(t, filepath.Join(home, ".local/share/nvm/v24.9.0/bin/node"), "#!/bin/sh\nprintf wrong-version\n")
 	writeExecutable(t, filepath.Join(home, ".local/share/nvm/v24.10.0/bin/node"), "#!/bin/sh\nprintf finder-launch-ok\n")
-	resolved, path, err := resolveCodex("fuyu-test-codex", "/usr/bin:/bin:/usr/sbin:/sbin", filepath.Join(home, ".local/share/nvm/v24.10.0/bin"), home, "")
+	resolved, path, err := resolveCodex("sasa-test-codex", "/usr/bin:/bin:/usr/sbin:/sbin", filepath.Join(home, ".local/share/nvm/v24.10.0/bin"), home, "")
 	if err != nil || resolved != wrapper {
 		t.Fatalf("resolve: %q, %v", resolved, err)
 	}
@@ -66,11 +66,11 @@ func TestFinderPathStartsNodeWrapper(t *testing.T) {
 
 func TestDiscoveryRejectsNonExecutableAndRelativeSearch(t *testing.T) {
 	home := t.TempDir()
-	path := writeExecutable(t, filepath.Join(home, ".bun/bin/fuyu-test-codex"), "#!/bin/sh\n")
+	path := writeExecutable(t, filepath.Join(home, ".bun/bin/sasa-test-codex"), "#!/bin/sh\n")
 	if err := os.Chmod(path, 0600); err != nil {
 		t.Fatal(err)
 	}
-	_, search, err := resolveCodex("fuyu-test-codex", ".:relative/bin::/usr/bin", "/usr/bin:/bin", home, "")
+	_, search, err := resolveCodex("sasa-test-codex", ".:relative/bin::/usr/bin", "/usr/bin:/bin", home, "")
 	if err == nil {
 		t.Fatal("non-executable file accepted")
 	}
@@ -85,7 +85,7 @@ func TestDiscoveryRejectsNonExecutableAndRelativeSearch(t *testing.T) {
 
 func TestLoginShellPathIsBoundedAndParsesOnlyMarkedOutput(t *testing.T) {
 	for _, tc := range []struct{ name, body, want string }{
-		{"startup noise", "printf 'startup noise\\n\\000FUYU_PATH\\000/isolated/bin:/usr/bin\\n'", "/isolated/bin:/usr/bin"},
+		{"startup noise", "printf 'startup noise\\n\\000SASA_PATH\\000/isolated/bin:/usr/bin\\n'", "/isolated/bin:/usr/bin"},
 		{"missing marker", "printf '/untrusted-output'", ""},
 		{"failure", "exit 1", ""},
 		{"timeout", "exec /bin/sleep 30", ""},
@@ -109,7 +109,7 @@ func TestNodeRequirementAndVersionOrder(t *testing.T) {
 	for _, version := range []string{"v9.0.0", "v24.9.0", "v24.10.0"} {
 		writeExecutable(t, filepath.Join(home, ".nvm/versions/node", version, "bin/node"), "#!/bin/sh\n")
 	}
-	_, path, _ := resolveCodex("fuyu-uninstalled-test-command", "/usr/bin:/bin", "", home, "")
+	_, path, _ := resolveCodex("sasa-uninstalled-test-command", "/usr/bin:/bin", "", home, "")
 	if !(strings.Index(path, "v24.10.0") < strings.Index(path, "v24.9.0") && strings.Index(path, "v24.9.0") < strings.Index(path, "v9.0.0")) {
 		t.Fatalf("wrong version priority: %s", path)
 	}

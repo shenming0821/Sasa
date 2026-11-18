@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/workspace"
+	"github.com/shenming0821/Sasa/internal/workspace"
 )
 
 func workspacePathChanged(paths map[string]bool, path string) bool {

@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type paneState struct {

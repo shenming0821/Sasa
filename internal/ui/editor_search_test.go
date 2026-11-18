@@ -9,7 +9,7 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/workspace"
+	"github.com/shenming0821/Sasa/internal/workspace"
 )
 
 func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
@@ -34,13 +34,13 @@ func TestP4FolderContentSearchMenuScopeAndOpen(t *testing.T) {
 	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Type("fuyu")
+	tt.Type("sasa")
 	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 1 })
 	m := w.contentSearch.Matches[0]
 	if m.Path != filepath.Join(dir, "main.go") || m.Line != 4 || m.Col != 14 {
 		t.Fatal("unexpected match", m)
 	}
-	if !tt.HasText("println(\"你好 Fuyu\")") || !tt.HasText("1 个结果，位于 1 个文件") {
+	if !tt.HasText("println(\"你好 Sasa\")") || !tt.HasText("1 个结果，位于 1 个文件") {
 		t.Fatal("match preview or summary missing")
 	}
 	tt.Key(0, native.KeyEnter)
@@ -79,7 +79,7 @@ func TestP4ContentSearchKeyboardAndOpen(t *testing.T) {
 	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Type("fuyu")
+	tt.Type("sasa")
 	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
 	tt.Key(0, native.KeyDown)
 	if w.searchIndex != 1 || w.selected != w.contentSearch.Matches[1].Path {
@@ -106,7 +106,7 @@ func TestP4ContentSearchOptionsGroupsAndCollapse(t *testing.T) {
 	if err := tt.Click("搜索文件内容"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Type("fuyu")
+	tt.Type("sasa")
 	p4Wait(t, tt, q, func() bool { return !w.searchLoading && len(w.contentSearch.Matches) == 2 })
 	readme := filepath.Join(root, "README.md")
 	if !tt.HasText("2 个结果，位于 2 个文件") || len(contentSearchRows(w.contentSearch.Matches, nil)) != 4 {
@@ -116,7 +116,7 @@ func TestP4ContentSearchOptionsGroupsAndCollapse(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Advance(300 * time.Millisecond)
-	if !w.searchCollapsed[readme] || tt.HasText("# Fuyu") {
+	if !w.searchCollapsed[readme] || tt.HasText("# Sasa") {
 		t.Fatal("file heading did not collapse its matches")
 	}
 	if err := tt.Click("搜索文件内容"); err != nil {
@@ -201,7 +201,7 @@ func TestP4SearchInFolderSeedsEditorSelection(t *testing.T) {
 	a.openFile(root, path)
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
 	d := a.currentFile()
-	d.buffer.Set("fuyu one\nfuyu two\n")
+	d.buffer.Set("sasa one\nsasa two\n")
 	d.observe()
 	if err := tt.Click("文件内容 " + path); err != nil {
 		t.Fatal(err)
@@ -236,9 +236,9 @@ func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
 	a.openFile(root, path)
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
 	d := a.currentFile()
-	d.buffer.Set("fuyu one\nfuyu two\nFUYU three\n")
+	d.buffer.Set("sasa one\nsasa two\nSASA three\n")
 	d.observe()
-	d.findOpen, d.query = true, "fuyu"
+	d.findOpen, d.query = true, "sasa"
 	a.findInFile(d, false)
 	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findMatches) == 3 })
 	if d.findResult != "1/3" || d.anchor != 0 || d.caret != 4 {
@@ -296,7 +296,7 @@ func TestP4FindSeedsSelectedWord(t *testing.T) {
 	a.openFile(root, path)
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
 	d := a.currentFile()
-	d.buffer.Set("fuyu one\nfuyu two\n")
+	d.buffer.Set("sasa one\nsasa two\n")
 	d.observe()
 	if err := tt.Click("文件内容 " + path); err != nil {
 		t.Fatal(err)
@@ -331,7 +331,7 @@ func TestP4SelectionWordHighlights(t *testing.T) {
 	a.openFile(root, path)
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
 	d := a.currentFile()
-	d.buffer.Set("fuyu one\nfuyu two\nfuyu one\n")
+	d.buffer.Set("sasa one\nsasa two\nsasa one\n")
 	d.observe()
 	if err := tt.Click("文件内容 " + path); err != nil {
 		t.Fatal(err)
@@ -358,7 +358,7 @@ func TestP4SelectionWordHighlights(t *testing.T) {
 		t.Fatal("oversized selection kept word highlights", len(d.words))
 	}
 	// 纯空白选区不高亮
-	d.buffer.Set("fuyu one\n   x\nfuyu one\n")
+	d.buffer.Set("sasa one\n   x\nsasa one\n")
 	d.observe()
 	d.pendingSelection = &[2]int{9, 12} // "   "
 	tt.Frame()
@@ -366,20 +366,20 @@ func TestP4SelectionWordHighlights(t *testing.T) {
 		t.Fatal("whitespace selection kept word highlights", d.words)
 	}
 	// 只有光标没有选区不高亮
-	d.pendingSelection = &[2]int{1, 1} // caret inside "fuyu"
+	d.pendingSelection = &[2]int{1, 1} // caret inside "sasa"
 	tt.Frame()
 	if len(d.words) != 0 {
 		t.Fatal("bare caret highlighted the word under it", d.words)
 	}
 	// 查找栏有匹配时让位给搜索高亮
-	d.buffer.Set("fuyu one\nfuyu two\n")
+	d.buffer.Set("sasa one\nsasa two\n")
 	d.observe()
 	d.pendingSelection = &[2]int{5, 8} // "one"
 	tt.Frame()
 	if len(d.words) != 1 {
 		t.Fatal("selection occurrences not matched before find", d.words)
 	}
-	d.findOpen, d.query = true, "fuyu"
+	d.findOpen, d.query = true, "sasa"
 	a.findInFile(d, false)
 	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findMatches) == 2 })
 	tt.Frame()
@@ -390,15 +390,15 @@ func TestP4SelectionWordHighlights(t *testing.T) {
 }
 
 func TestScanBufferContentMatches(t *testing.T) {
-	snap := native.NewTextBuffer("Fuyu 你好\nfuyu 世界\nFUYU\n").Snapshot()
-	matches, err := scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "fuyu"})
+	snap := native.NewTextBuffer("Sasa 你好\nsasa 世界\nSASA\n").Snapshot()
+	matches, err := scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "sasa"})
 	if err != nil || len(matches) != 3 {
 		t.Fatal("case-insensitive matches", matches, err)
 	}
 	if matches[0] != (findMatch{0, 4}) || matches[1] != (findMatch{8, 12}) || matches[2] != (findMatch{16, 20}) {
 		t.Fatal("wrong rune offsets", matches)
 	}
-	matches, err = scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "fuyu", MatchCase: true})
+	matches, err = scanBufferContentMatches(context.Background(), snap, workspace.ContentQuery{Text: "sasa", MatchCase: true})
 	if err != nil || len(matches) != 1 || matches[0] != (findMatch{8, 12}) {
 		t.Fatal("case-sensitive matches", matches, err)
 	}

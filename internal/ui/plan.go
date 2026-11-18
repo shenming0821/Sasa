@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 // Tabler Icons bulb, using the composer's existing stroke and theme color.

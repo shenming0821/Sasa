@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 const MaxRequestBytes = agent.MaxRequestBytes
@@ -26,7 +26,7 @@ func (c *Client) handleRequest(msg envelope) {
 	owner, decodeErr := DecodeInteraction(Event{ID: msg.ID, Method: msg.Method, Params: msg.Params})
 	if len(msg.Params) > MaxRequestBytes || decodeErr != nil {
 		_ = c.write(map[string]any{"id": msg.ID, "error": RPCError{Code: -32602, Message: "Invalid or oversized interaction"}})
-		c.enqueue(Event{Method: "fuyu/unsupported", Err: errors.New("交互内容过大或格式无效，已拒绝；请停止后核验任务")})
+		c.enqueue(Event{Method: "sasa/unsupported", Err: errors.New("交互内容过大或格式无效，已拒绝；请停止后核验任务")})
 		return
 	}
 	c.mu.Lock()
@@ -38,7 +38,7 @@ func (c *Client) handleRequest(msg envelope) {
 	if len(c.server) >= MaxPendingRequests {
 		c.mu.Unlock()
 		_ = c.write(map[string]any{"id": msg.ID, "error": RPCError{Code: -32000, Message: "Too many pending interactions"}})
-		c.enqueue(Event{Method: "fuyu/unsupported", Err: errors.New("待处理交互达到上限，请先处理或停止任务")})
+		c.enqueue(Event{Method: "sasa/unsupported", Err: errors.New("待处理交互达到上限，请先处理或停止任务")})
 		return
 	}
 	c.server[key] = &serverRequest{thread: owner.ThreadID, turn: owner.TurnID}

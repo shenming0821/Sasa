@@ -8,7 +8,7 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 type gitCommitStatRead struct {

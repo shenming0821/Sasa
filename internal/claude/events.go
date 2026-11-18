@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 type eventQueue struct {
@@ -33,7 +33,7 @@ func (q *eventQueue) start() {
 				q.gap = false
 				q.mu.Unlock()
 				select {
-				case q.events <- agent.Event{Method: "fuyu/eventGap"}:
+				case q.events <- agent.Event{Method: "sasa/eventGap"}:
 				case <-q.done:
 					return
 				}
@@ -87,7 +87,7 @@ func (q *eventQueue) push(event agent.Event) bool {
 			if event.Method == "item/agentMessage/delta" {
 				return true
 			}
-			failure := agent.Event{Method: "fuyu/disconnected", Err: errors.New("Claude 控制事件队列超过容量，结果需要重新核验")}
+			failure := agent.Event{Method: "sasa/disconnected", Err: errors.New("Claude 控制事件队列超过容量，结果需要重新核验")}
 			q.pending, q.bytes, q.overflow = []agent.Event{failure}, eventBytes(failure), true
 			return false
 		}

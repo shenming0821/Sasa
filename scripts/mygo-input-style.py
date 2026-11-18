@@ -175,7 +175,7 @@ def main():
                 if not patched_module.is_dir():
                     raise
     # A temporary modfile leaves the checked-in module and sums unchanged.
-    with tempfile.TemporaryDirectory(prefix="fuyu-mygo-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="sasa-mygo-") as tmp:
         modfile = pathlib.Path(tmp) / "go.mod"
         modfile.write_text(
             (root / "go.mod").read_text()

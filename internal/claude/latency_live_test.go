@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestLiveClaudeProcessLatency(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for native latency samples")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for native latency samples")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -36,7 +36,7 @@ func TestLiveClaudeProcessLatency(t *testing.T) {
 			last.expireIdle()
 		}
 		started := time.Now()
-		turn, err := client.Send(ctx, thread.Thread.ID, "Without tools or memory files, reply exactly FUYU_LATENCY_READY.")
+		turn, err := client.Send(ctx, thread.Thread.ID, "Without tools or memory files, reply exactly SASA_LATENCY_READY.")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +67,7 @@ func TestLiveClaudeProcessLatency(t *testing.T) {
 					}
 				}
 				if event.Method == "turn/completed" && p.Turn.ID == turn.ID {
-					if p.Turn.Status != "completed" || !strings.Contains(text, "FUYU_LATENCY_READY") {
+					if p.Turn.Status != "completed" || !strings.Contains(text, "SASA_LATENCY_READY") {
 						t.Fatalf("mode=%s terminal=%+v text=%q", mode, p.Turn, text)
 					}
 					current := idleExecution(t, client, thread.Thread.ID)

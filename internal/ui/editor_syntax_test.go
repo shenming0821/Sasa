@@ -15,7 +15,7 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	native "github.com/egoist/mygo/ui"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 func TestEditorLanguageTokens(t *testing.T) {
@@ -66,7 +66,7 @@ func TestEditorLanguageTokens(t *testing.T) {
 			}
 		})
 	}
-	for _, path := range []string{"source.unknown-fuyu", "go.mod", "go.work", "go.sum"} {
+	for _, path := range []string{"source.unknown-sasa", "go.mod", "go.work", "go.sum"} {
 		if editorLexer(path) != nil {
 			t.Fatalf("%s received an unrelated lexer", path)
 		}
@@ -163,10 +163,10 @@ func TestEditorGitHubThemesAcrossViews(t *testing.T) {
 	for _, mode := range []string{"file", "inline", "split"} {
 		t.Run(mode, func(t *testing.T) {
 			a, queue, root := p4App(t)
-			d := &filePage{id: "theme", root: root, path: filepath.Join(root, "source.go"), kind: "file", loaded: true, buffer: native.NewTextBuffer("package main\n\nfunc greeting() string {\n\treturn \"你好，Fuyu\"\n}\n")}
+			d := &filePage{id: "theme", root: root, path: filepath.Join(root, "source.go"), kind: "file", loaded: true, buffer: native.NewTextBuffer("package main\n\nfunc greeting() string {\n\treturn \"你好，Sasa\"\n}\n")}
 			if mode != "file" {
 				d.kind, d.gitSplit = "diff", mode == "split"
-				patch := "@@ -1,5 +1,5 @@\n package main\n \n func greeting() string {\n-\treturn \"old\"\n+\treturn \"你好，Fuyu\"\n }\n"
+				patch := "@@ -1,5 +1,5 @@\n package main\n \n func greeting() string {\n-\treturn \"old\"\n+\treturn \"你好，Sasa\"\n }\n"
 				review := gitview.ParsePatch(patch)
 				a.gitSetDiffText(d, patch, &review)
 			}
@@ -216,7 +216,7 @@ func TestEditorGitHubThemesAcrossViews(t *testing.T) {
 				if d.highlighting || d.buffer.Version() != version || !reflect.DeepEqual(original, d.highlights) || d.dirty() {
 					t.Fatal("appearance change altered the document or restarted lexing")
 				}
-				if directory := os.Getenv("FUYU_EDITOR_THEME_PREVIEW"); directory != "" {
+				if directory := os.Getenv("SASA_EDITOR_THEME_PREVIEW"); directory != "" {
 					if err := os.MkdirAll(directory, 0700); err != nil {
 						t.Fatal(err)
 					}

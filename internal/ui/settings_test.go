@@ -12,7 +12,7 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 func TestSettingsDefaultChineseFontRemainsSelectable(t *testing.T) {
@@ -174,7 +174,7 @@ func TestSettingsLayoutAndDefaultMigration(t *testing.T) {
 			})
 		}
 	}
-	if path := os.Getenv("FUYU_SETTINGS_SCREENSHOT"); path != "" {
+	if path := os.Getenv("SASA_SETTINGS_SCREENSHOT"); path != "" {
 		a.openSettings()
 		tt := native.NewTester(a.view, 1000, 760)
 		f, err := os.Create(path)
@@ -226,7 +226,7 @@ func TestCompletionNotificationsRespectForegroundPreferencesAndDuplicates(t *tes
 			if tc.want {
 				select {
 				case o := <-calls:
-					if o.Silent == tc.sound || o.ID != fmt.Sprintf("fuyu-session-%d", owner.id) {
+					if o.Silent == tc.sound || o.ID != fmt.Sprintf("sasa-session-%d", owner.id) {
 						t.Fatal("notification options incorrect", o)
 					}
 				case <-time.After(time.Second):

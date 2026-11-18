@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func (c *Client) startCatalog(ctx context.Context, cwd string) (*execution, json.RawMessage, error) {

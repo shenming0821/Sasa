@@ -6,9 +6,9 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/power"
-	"github.com/shenming0821/Fuyu/internal/storage"
-	"github.com/shenming0821/Fuyu/internal/terminal"
+	"github.com/shenming0821/Sasa/internal/power"
+	"github.com/shenming0821/Sasa/internal/storage"
+	"github.com/shenming0821/Sasa/internal/terminal"
 )
 
 type powerSettings interface {

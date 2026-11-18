@@ -14,12 +14,12 @@ import (
 	"github.com/egoist/mygo/transfer"
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	"github.com/shenming0821/Fuyu/internal/power"
-	"github.com/shenming0821/Fuyu/internal/project"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
+	"github.com/shenming0821/Sasa/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/power"
+	"github.com/shenming0821/Sasa/internal/project"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type Backend = agent.Backend
@@ -606,7 +606,7 @@ func (a *App) applyBatch(batch []agent.Event) {
 	}
 	a.releaseClosedSessions(time.Now())
 	for _, event := range batch {
-		if event.Method == "turn/completed" || event.Method == "fuyu/disconnected" {
+		if event.Method == "turn/completed" || event.Method == "sasa/disconnected" {
 			a.persist()
 			break
 		}
@@ -623,11 +623,11 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 		if !a.session.accepts(e) {
 			continue
 		}
-		if e.Method == "fuyu/commands" {
+		if e.Method == "sasa/commands" {
 			a.invalidateCompletionCatalogs(e.Session)
 			continue
 		}
-		if e.Method == "fuyu/mode" {
+		if e.Method == "sasa/mode" {
 			var mode struct {
 				ThreadID       string                `json:"threadId"`
 				Mode           agent.InteractionMode `json:"mode"`
@@ -642,23 +642,23 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 			}
 			continue
 		}
-		if a.recovering && e.Method == "fuyu/eventGap" {
+		if a.recovering && e.Method == "sasa/eventGap" {
 			a.historyOverflow = true
 			continue
 		}
 		if a.session.bufferRecovery(e) {
 			continue
 		}
-		if a.writerOccupied && e.Method != "fuyu/disconnected" {
+		if a.writerOccupied && e.Method != "sasa/disconnected" {
 			continue
 		}
-		if e.Method == "fuyu/disconnected" {
+		if e.Method == "sasa/disconnected" {
 			a.pauseInputs()
 			a.recoveryEpoch++
 			a.recovering, a.recoveryBlocked = false, true
 			a.recoveryEvents, a.recoveryBytes = nil, 0
 		}
-		if e.Method == "fuyu/eventGap" && a.State.ThreadID == "" {
+		if e.Method == "sasa/eventGap" && a.State.ThreadID == "" {
 			continue
 		}
 		wasBusy, wasCompacting := a.State.Busy, a.State.Compacting()

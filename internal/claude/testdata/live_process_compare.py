@@ -12,7 +12,7 @@ import uuid
 
 
 def probe(executable, persistent):
-    root = Path(tempfile.mkdtemp(prefix="fuyu-claude-process-"))
+    root = Path(tempfile.mkdtemp(prefix="sasa-claude-process-"))
     session = str(uuid.uuid4())
     transcript = open(root / "wire.jsonl", "w")
     process = None

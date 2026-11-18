@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	process "github.com/shenming0821/Fuyu/internal/runtime"
+	process "github.com/shenming0821/Sasa/internal/runtime"
 )
 
 func messageClient(t *testing.T, script string) *Client {
@@ -62,8 +62,8 @@ func TestGenerateMessageFailureIsNotAnEmptySuccess(t *testing.T) {
 }
 
 func TestLiveGitCommitMessage(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 to use the existing Codex login")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 to use the existing Codex login")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

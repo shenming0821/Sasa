@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestAgentSpecificErrorsKeepProjectionSource(t *testing.T) {
@@ -18,7 +18,7 @@ func TestAgentSpecificErrorsKeepProjectionSource(t *testing.T) {
 			if !strings.Contains(s.Error, kind.String()) {
 				t.Fatal("解析失败文案丢失 Agent 归属", s.Error)
 			}
-			s.Apply(agent.Event{Session: source, Method: "fuyu/disconnected"})
+			s.Apply(agent.Event{Session: source, Method: "sasa/disconnected"})
 			if !s.Disconnected || !strings.HasPrefix(s.Error, kind.String()+" 连接已断开") {
 				t.Fatal("断线文案归属错误", s.Error)
 			}

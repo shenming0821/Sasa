@@ -9,9 +9,9 @@ import (
 
 	"github.com/alecthomas/chroma/v2"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/editor"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/editor"
+	gitview "github.com/shenming0821/Sasa/internal/git"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 func (a *App) requestHighlight(d *filePage) {

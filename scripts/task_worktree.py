@@ -14,7 +14,7 @@ import sys
 import tempfile
 
 DEFAULT_APP = Path('/Applications/Sasa.app')
-DEFAULT_DATA = Path.home() / 'Library/Application Support/Fuyu'
+DEFAULT_DATA = Path.home() / 'Library/Application Support/Sasa'
 
 
 def git(root, *args, check=True):
@@ -39,7 +39,7 @@ class Tasks:
         self.common = (self.root / common).resolve()
         # Git lists the primary worktree first, even when invoked in a linked one.
         self.main = Path(self.worktrees()[0]['worktree']).resolve()
-        self.directory = self.common / 'fuyu-tasks'
+        self.directory = self.common / 'sasa-tasks'
         self.registry = self.directory / 'tasks.json'
         self.parent = self.main.parent / (self.main.name + '.worktrees')
 
@@ -117,7 +117,7 @@ class Tasks:
 
     def installed(self):
         app = DEFAULT_APP
-        releases = app.parent / '.Fuyu-releases'
+        releases = app.parent / '.Sasa-releases'
         latest = json.loads((releases / 'latest.json').read_text())
         transaction = latest['transaction']
         if Path(transaction).name != transaction:

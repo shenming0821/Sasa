@@ -127,7 +127,7 @@ func loginShellPath(shell string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	// Use external printenv so fish and POSIX shells export PATH identically.
-	cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c", `/usr/bin/printf '\000FUYU_PATH\000'; /usr/bin/printenv PATH`)
+	cmd := exec.CommandContext(ctx, shell, "-l", "-i", "-c", `/usr/bin/printf '\000SASA_PATH\000'; /usr/bin/printenv PATH`)
 	configureGroup(cmd)
 	cmd.Cancel = func() error { killGroup(cmd); return nil }
 	cmd.WaitDelay = 100 * time.Millisecond
@@ -137,7 +137,7 @@ func loginShellPath(shell string) string {
 	if err := cmd.Run(); err != nil {
 		return ""
 	}
-	const marker = "\x00FUYU_PATH\x00"
+	const marker = "\x00SASA_PATH\x00"
 	_, path, ok := strings.Cut(output.String(), marker)
 	if !ok {
 		return ""

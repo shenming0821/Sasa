@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/terminal"
+	"github.com/shenming0821/Sasa/internal/terminal"
 )
 
 type testTerminal struct {
@@ -109,7 +109,7 @@ func TestEmbeddedTerminalRestoresTabsAndStartsShell(t *testing.T) {
 	restored.terminalFactory = func(root string) (terminalConnection, error) { calls++; return &testTerminal{}, nil }
 	t.Cleanup(restored.closeWorkspaceResources)
 	tester := native.NewTester(restored.view, 1000, 760)
-	if tester.HasText("重新启动 Fuyu 后，终端需要新建 shell 会话。") || calls != 1 || restored.currentTerminal() != page || page.connection == nil {
+	if tester.HasText("重新启动 Sasa 后，终端需要新建 shell 会话。") || calls != 1 || restored.currentTerminal() != page || page.connection == nil {
 		t.Fatal("restored terminal did not start shell automatically")
 	}
 	restored.newTerminal()

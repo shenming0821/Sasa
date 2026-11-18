@@ -11,7 +11,7 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func textEnvelope(text string) string {
@@ -111,7 +111,7 @@ func TestToolDisclosureLayoutAndCopy(t *testing.T) {
 				if tt.Clipboard() != strings.Repeat("line with readable text\n", 40) {
 					t.Fatal("copied escaped envelope")
 				}
-				if dir := os.Getenv("FUYU_TOOL_PREVIEW"); dir != "" {
+				if dir := os.Getenv("SASA_TOOL_PREVIEW"); dir != "" {
 					os.MkdirAll(dir, 0700)
 					f, err := os.Create(filepath.Join(dir, fmt.Sprintf("tool-%d-%v.png", width, dark)))
 					if err != nil {
@@ -184,7 +184,7 @@ func TestProcessRecordsShareHierarchyAndCompactSpacing(t *testing.T) {
 					}
 					previous = r
 				}
-				if dir := os.Getenv("FUYU_PROCESS_PREVIEW"); dir != "" {
+				if dir := os.Getenv("SASA_PROCESS_PREVIEW"); dir != "" {
 					os.MkdirAll(dir, 0700)
 					f, err := os.Create(filepath.Join(dir, fmt.Sprintf("process-%d-%v.png", width, dark)))
 					if err != nil {

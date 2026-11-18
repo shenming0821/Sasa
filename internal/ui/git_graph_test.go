@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	git "github.com/shenming0821/Fuyu/internal/git"
+	git "github.com/shenming0821/Sasa/internal/git"
 )
 
 // commitsOf makes commits from lines of "hash parent…", newest first.

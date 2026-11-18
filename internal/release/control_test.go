@@ -12,28 +12,28 @@ import (
 )
 
 func TestControlValidatesTargetAndCleansUpSocket(t *testing.T) {
-	directory, err := os.MkdirTemp("", "fuyu-ctl-")
+	directory, err := os.MkdirTemp("", "sasa-ctl-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(directory)
 	path := filepath.Join(directory, "control.sock")
 	var requests atomic.Int32
-	stop, err := listenControl(path, "/app/Fuyu", func() { requests.Add(1) })
+	stop, err := listenControl(path, "/app/Sasa", func() { requests.Add(1) })
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stop()
-	if _, err := listenControl(path, "/app/Fuyu", func() {}); err == nil {
+	if _, err := listenControl(path, "/app/Sasa", func() {}); err == nil {
 		t.Fatal("replaced an active listener")
 	}
 	for _, test := range []struct {
 		request quitRequest
 		want    string
 	}{
-		{quitRequest{Action: "quit", Executable: "/other/Fuyu"}, "rejected\n"},
-		{quitRequest{Action: "force-quit", Executable: "/app/Fuyu"}, "rejected\n"},
-		{quitRequest{Action: "quit", Executable: "/app/Fuyu"}, "accepted\n"},
+		{quitRequest{Action: "quit", Executable: "/other/Sasa"}, "rejected\n"},
+		{quitRequest{Action: "force-quit", Executable: "/app/Sasa"}, "rejected\n"},
+		{quitRequest{Action: "quit", Executable: "/app/Sasa"}, "accepted\n"},
 	} {
 		connection, err := net.DialTimeout("unix", path, time.Second)
 		if err != nil {

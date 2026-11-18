@@ -3,7 +3,7 @@
 
 package ui
 
-import git "github.com/shenming0821/Fuyu/internal/git"
+import git "github.com/shenming0821/Sasa/internal/git"
 
 // graphLane is a lane of the history's graph between two rows: the commit
 // it leads down to, "" while free, and its color.

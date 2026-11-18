@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/project"
+	"github.com/shenming0821/Sasa/internal/project"
 )
 
 func repositoryProjectID(common string) string { return "repo:" + common }

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestInterruptedTranscriptMarkerKeepsConfirmedTurn(t *testing.T) {
@@ -124,7 +124,7 @@ func TestRecordedTranscriptCompactionAndInterruption(t *testing.T) {
 				t.Fatalf("unfinished=%t busy=%t err=%v", unfinished, state.Busy, err)
 			}
 			encoded, _ := json.Marshal(turns)
-			if mode == "compact" && (!strings.Contains(string(encoded), "FUYU_CLAUDE_LIVE") || strings.Contains(string(encoded), "<local-command-caveat>")) {
+			if mode == "compact" && (!strings.Contains(string(encoded), "SASA_CLAUDE_LIVE") || strings.Contains(string(encoded), "<local-command-caveat>")) {
 				t.Fatal("compaction lost context or leaked command metadata")
 			}
 			client.mu.Lock()

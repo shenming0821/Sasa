@@ -4,15 +4,15 @@
 
 主窗口通过 MyGo 的 `WindowOptions.StateKey = "main"` 保存窗口状态。状态单独写入应用数据目录的 `window-state.json`，随 `-data-dir` 隔离；正常退出时保存，下次创建窗口时恢复。首次启动或无可读记录时采用 1000×760 DIP，最小尺寸为 640×480 DIP。MyGo 同时记录位置、最大化与全屏状态，并提供显示器可见范围处理；当前原生验收确认尺寸恢复。隐藏窗口继续保留当前原生窗口。此记录不进入 SQLite，也不改变数据库版本。
 
-`internal/storage/store.go` 使用 `modernc.org/sqlite v1.60.1` 保存应用索引。macOS 正式版默认路径为 `~/Library/Application Support/Fuyu/fuyu.db`，Preview 为 `~/Library/Application Support/Fuyu Preview/fuyu.db`，可通过 `-data-dir` 指定独立目录。入口在打开数据库前校验 `release-channel` 渠道标记；Preview 拒绝使用正式版默认目录、正式版标记或未标记的既有数据库，正式版拒绝 Preview 标记。首次打开后在数据锁内记录渠道。Preview 的原生历史根与配置复制边界见[双渠道与发布](releases.md)。
+`internal/storage/store.go` 使用 `modernc.org/sqlite v1.60.1` 保存应用索引。macOS 正式版默认路径为 `~/Library/Application Support/Sasa/sasa.db`，Preview 为 `~/Library/Application Support/Sasa Preview/sasa.db`，可通过 `-data-dir` 指定独立目录。入口在打开数据库前校验 `release-channel` 渠道标记；Preview 拒绝使用正式版默认目录、正式版标记或未标记的既有数据库，正式版拒绝 Preview 标记。首次打开后在数据锁内记录渠道。Preview 的原生历史根与配置复制边界见[双渠道与发布](releases.md)。
 
 数据库保存会话 ID、原生 thread ID、cwd、标题、草稿、选中会话、已打开标签、侧栏开关与宽度、项目折叠、历史面板开关、阅读锚点和条目内偏移、工具展开状态，以及未确认任务标记。消息、工具正文由 Codex 原生历史提供；凭据、待处理协议请求和秘密表单答案不写入应用数据库。用户主动输入的草稿属于本地持久数据。
 
-`fuyu.lock` 通过非阻塞独占 flock 防止两个进程同时使用同一数据目录；进程退出后操作系统释放锁。新目录权限 0700，数据库权限 0600。按 Agent 分别绑定规范化后的历史根目录；Codex 保留 `CODEX_HOME`（默认 `~/.codex`）校验，同一 Agent 切换原生历史目录时要求独立应用数据目录。Claude 配置根的实际接线待会话入口与存储集成时核验。
+`sasa.lock` 通过非阻塞独占 flock 防止两个进程同时使用同一数据目录；进程退出后操作系统释放锁。新目录权限 0700，数据库权限 0600。按 Agent 分别绑定规范化后的历史根目录；Codex 保留 `CODEX_HOME`（默认 `~/.codex`）校验，同一 Agent 切换原生历史目录时要求独立应用数据目录。Claude 配置根的实际接线待会话入口与存储集成时核验。
 
 ## Schema 与事务
 
-`Preferences.Terminal` 在 settings JSON 中保存原生终端默认实现，目前支持 `ghostty`。旧记录缺失、网页原型的 `xterm` 或无效值由 UI 归一为 `ghostty`，无须迁移数据库。`WorkspaceTabs` 中 `Kind=terminal` 的记录保存 ID、Workspace 及 `TerminalEngine`，重启恢复标签并提示用户新建 shell；原生 surface、PTY 进程及输出不写入索引。Ghostty 自身的配置从本机文件读取，不复制到 Fuyu 索引。
+`Preferences.Terminal` 在 settings JSON 中保存原生终端默认实现，目前支持 `ghostty`。旧记录缺失、网页原型的 `xterm` 或无效值由 UI 归一为 `ghostty`，无须迁移数据库。`WorkspaceTabs` 中 `Kind=terminal` 的记录保存 ID、Workspace 及 `TerminalEngine`，重启恢复标签并提示用户新建 shell；原生 surface、PTY 进程及输出不写入索引。Ghostty 自身的配置从本机文件读取，不复制到 Sasa 索引。
 
 删除会话使用 `Store.DeleteSession(snapshot, id)` 在同一 SQLite 事务内删除指定 `sessions` 行并保存剩余会话及设置；验证或写入失败时整个事务回滚。设置 payload 的 `DeletedThreads` 保存 `Agent`、`Runtime`、`ThreadID`，由 UI 在原生历史呈现时过滤。旧设置缺少此字段等同于空列表，无需变更 schema 版本。原生历史和共享图片不在此事务中删除。行为见[会话管理](sessions.md#删除会话)。
 
@@ -29,11 +29,11 @@
 
 拒绝高于当前支持版本 6 的数据库；旧版程序也会拒绝打开 v4+，避免误把 Claude 会话作为 Codex。v1/v2 升级至 v3 前先读取并校验旧 JSON；已有数据库以 `VACUUM INTO` 创建一致性备份，权限 0600，并校验备份版本 2 与 `quick_check`。同名备份损坏或不是普通文件时保留原数据库并报错；已有有效备份时保留旧备份，另建唯一名称的新快照，避免把过时备份当作本次迁移来源。版本提升在事务内完成。
 
-v4 迁移先校验现有 JSON，再通过 `VACUUM INTO` 创建本次唯一命名的 `fuyu-before-v4-*.db` 一致性备份，校验版本 3 与 `quick_check`、权限 0600；在同一事务重建会话和 Runtime 身份表并提升版本，失败回滚。旧列归属填为 codex，空原生 ID 转为 NULL，不占唯一约束；旧 home 和 payload 字节保持不变。会话 payload 新增 `Agent`（空值经 `Normalized()` 默认为 Codex）、`Runtime` 与 `ModelAgent`；模型归属不匹配或未知 Agent 的保存被拒绝。相同原生 ID 可分别属于 Codex 和 Claude，同一 Agent 内仍唯一。Linux 编写，Mac 待验证，新增回归见 `internal/storage/agent_test.go`。
+v4 迁移先校验现有 JSON，再通过 `VACUUM INTO` 创建本次唯一命名的 `sasa-before-v4-*.db` 一致性备份，校验版本 3 与 `quick_check`、权限 0600；在同一事务重建会话和 Runtime 身份表并提升版本，失败回滚。旧列归属填为 codex，空原生 ID 转为 NULL，不占唯一约束；旧 home 和 payload 字节保持不变。会话 payload 新增 `Agent`（空值经 `Normalized()` 默认为 Codex）、`Runtime` 与 `ModelAgent`；模型归属不匹配或未知 Agent 的保存被拒绝。相同原生 ID 可分别属于 Codex 和 Claude，同一 Agent 内仍唯一。Linux 编写，Mac 待验证，新增回归见 `internal/storage/agent_test.go`。
 
-v5 以同样方式重建两张表把 agent CHECK 放宽为 codex/claude/devin，备份 `fuyu-before-v5-*.db` 校验版本 4；不触及 payload 与其他列，Devin 会话和 Runtime 绑定自该版本起可持久化。
+v5 以同样方式重建两张表把 agent CHECK 放宽为 codex/claude/devin，备份 `sasa-before-v5-*.db` 校验版本 4；不触及 payload 与其他列，Devin 会话和 Runtime 绑定自该版本起可持久化。
 
-v6 备份 `fuyu-before-v6-*.db` 并校验版本 5，在同一事务中重建会话与 Runtime 身份表，只保留 codex/claude。设置中的旧默认 Agent、已删除会话的打开标签、分屏页签、选中项、模型偏好和删除记录一并清理；提交后删除应用数据目录下的旧 `devin/` 检查点。迁移不删除项目文件或外部客户端自己的原生历史。
+v6 备份 `sasa-before-v6-*.db` 并校验版本 5，在同一事务中重建会话与 Runtime 身份表，只保留 codex/claude。设置中的旧默认 Agent、已删除会话的打开标签、分屏页签、选中项、模型偏好和删除记录一并清理；提交后删除应用数据目录下的旧 `devin/` 检查点。迁移不删除项目文件或外部客户端自己的原生历史。
 
 版本提升保留旧 settings JSON，UI 兼容读取旧 `OpenTabs` / `Selected` 后，在首次成功保存时将有序混合标签与会话索引一同写入事务。`WorkspaceTabs` 是新记录的打开标签来源，明确空数组保持空白；旧记录缺少 `OpenTabs` 时仅打开选中会话，已有数组保留顺序并去重。文件正文按需读取，不因恢复标签批量加载。
 

@@ -17,7 +17,7 @@
         "1",
         "--dangerously-skip-permissions"
       ],
-      "cwd": "/tmp/fuyu-p6-stream-json-3ifbhkn5",
+      "cwd": "/tmp/sasa-p6-stream-json-3ifbhkn5",
       "exit_code": 0,
       "stdout_bytes": 14635,
       "stderr_bytes": 80,
@@ -36,7 +36,7 @@
         "1",
         "--dangerously-skip-permissions"
       ],
-      "cwd": "/tmp/fuyu-p6-text-r0ad5_p0",
+      "cwd": "/tmp/sasa-p6-text-r0ad5_p0",
       "exit_code": 0,
       "stdout_bytes": 13216,
       "stderr_bytes": 80,
@@ -52,7 +52,7 @@
         "1",
         "--dangerously-skip-permissions"
       ],
-      "cwd": "/tmp/fuyu-p6-plain-0t1a372u",
+      "cwd": "/tmp/sasa-p6-plain-0t1a372u",
       "exit_code": 0,
       "stdout_bytes": 7,
       "stderr_bytes": 327,

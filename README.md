@@ -1,6 +1,6 @@
 # Sasa
 
-Sasa（原 Fuyu）是面向编程 Agent 的原生桌面工作台，采用 Go + MyGo Native UI，优先支持 macOS。
+Sasa（原 Sasa）是面向编程 Agent 的原生桌面工作台，采用 Go + MyGo Native UI，优先支持 macOS。
 
 在桌面窗口中选择工作目录与 Agent、连续对话、查看执行过程、处理交互并审查代码修改，复用各 Agent 的原生 Runtime。当前工作区正在完成 Claude Code 接入，已实现 Codex / Claude Code 会话入口，验收与支持边界见相关子系统说明。
 

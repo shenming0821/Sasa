@@ -1,4 +1,4 @@
-//go:build darwin && cgo && fuyu_terminal_probe
+//go:build darwin && cgo && sasa_terminal_probe
 
 package terminal
 
@@ -22,7 +22,7 @@ import (
 func init() { runtime.LockOSThread() }
 
 func TestMain(tests *testing.M) {
-	if os.Getenv("FUYU_TERMINAL_HELPER") == "1" {
+	if os.Getenv("SASA_TERMINAL_HELPER") == "1" {
 		if err := nativeProbe(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -33,8 +33,8 @@ func TestMain(tests *testing.M) {
 }
 
 func TestLiveNativeMetalTerminal(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_TERMINAL") != "1" {
-		t.Skip("set FUYU_LIVE_TERMINAL=1 after building the native library")
+	if os.Getenv("SASA_LIVE_TERMINAL") != "1" {
+		t.Skip("set SASA_LIVE_TERMINAL=1 after building the native library")
 	}
 	root := t.TempDir()
 	contents := filepath.Join(root, "Probe.app", "Contents")
@@ -55,7 +55,7 @@ func TestLiveNativeMetalTerminal(t *testing.T) {
 	if err := os.WriteFile(executable, data, 0700); err != nil {
 		t.Fatal(err)
 	}
-	plist := `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleExecutable</key><string>terminal.test</string><key>CFBundleIdentifier</key><string>com.shenming.fuyu.terminal-probe</string><key>CFBundleName</key><string>Fuyu Terminal Probe</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`
+	plist := `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleExecutable': 'Sasa Terminal Probe</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`
 	if err := os.WriteFile(filepath.Join(contents, "Info.plist"), []byte(plist), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -83,11 +83,11 @@ func TestLiveNativeMetalTerminal(t *testing.T) {
 	defer cancel()
 	command := exec.CommandContext(ctx, executable)
 	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "HOME=") && !strings.HasPrefix(entry, "XDG_CONFIG_HOME=") && !strings.HasPrefix(entry, "FUYU_TERMINAL_HELPER=") && !strings.HasPrefix(entry, "NO_COLOR=") {
+		if !strings.HasPrefix(entry, "HOME=") && !strings.HasPrefix(entry, "XDG_CONFIG_HOME=") && !strings.HasPrefix(entry, "SASA_TERMINAL_HELPER=") && !strings.HasPrefix(entry, "NO_COLOR=") {
 			command.Env = append(command.Env, entry)
 		}
 	}
-	command.Env = append(command.Env, "HOME="+filepath.Join(root, "home"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "FUYU_TERMINAL_HELPER=1", "FUYU_TERMINAL_PROBE_ROOT="+root, "NO_COLOR=1")
+	command.Env = append(command.Env, "HOME="+filepath.Join(root, "home"), "XDG_CONFIG_HOME="+filepath.Join(root, "config"), "SASA_TERMINAL_HELPER=1", "SASA_TERMINAL_PROBE_ROOT="+root, "NO_COLOR=1")
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("native Metal terminal probe: %v\n%s", err, output)
@@ -101,9 +101,9 @@ func TestLiveNativeMetalTerminal(t *testing.T) {
 func nativeProbe() error {
 	outcome := make(chan error, 1)
 	mygo.App.WhenReady(func() {
-		window := mygo.NewWindow(mygo.WindowOptions{Title: "Fuyu 原生终端验证", Width: 1000, Height: 760, Content: native.View(func(c *native.Context) { native.Box(c).Fill() })})
+		window := mygo.NewWindow(mygo.WindowOptions{Title: "Sasa 原生终端验证", Width: 1000, Height: 760, Content: native.View(func(c *native.Context) { native.Box(c).Fill() })})
 		go func() {
-			outcome <- exerciseNativeTerminal(window, os.Getenv("FUYU_TERMINAL_PROBE_ROOT"))
+			outcome <- exerciseNativeTerminal(window, os.Getenv("SASA_TERMINAL_PROBE_ROOT"))
 			mygo.App.Quit()
 		}()
 	})

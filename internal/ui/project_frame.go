@@ -3,7 +3,7 @@ package ui
 import (
 	"path/filepath"
 
-	"github.com/shenming0821/Fuyu/internal/project"
+	"github.com/shenming0821/Sasa/internal/project"
 )
 
 // Only live for one sidebar render. History and repository changes are picked

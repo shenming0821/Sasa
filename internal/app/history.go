@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/attachment"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/attachment"
 )
 
 // Project persisted native turns without reviving old transport requests.

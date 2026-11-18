@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/attachment"
-	process "github.com/shenming0821/Fuyu/internal/runtime"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/attachment"
+	process "github.com/shenming0821/Sasa/internal/runtime"
 )
 
 type controlReply struct {
@@ -752,7 +752,7 @@ func (r *execution) finishTurn(exitErr error) {
 	r.emit("turn/completed", map[string]any{"threadId": s.ID, "turn": turn})
 	if status == "unknown" {
 		raw, _ := json.Marshal(map[string]any{"threadId": s.ID})
-		if !c.queue.push(agent.Event{Session: r.identity.Session, Generation: r.identity.Generation, Method: "fuyu/disconnected", Params: raw, Err: problem}) {
+		if !c.queue.push(agent.Event{Session: r.identity.Session, Generation: r.identity.Generation, Method: "sasa/disconnected", Params: raw, Err: problem}) {
 			go c.failQueue()
 		}
 	}

@@ -6,7 +6,7 @@ import (
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/markdown"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestMessageStrongTextUsesThemeRed(t *testing.T) {

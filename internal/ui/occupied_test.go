@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
-	"github.com/shenming0821/Fuyu/internal/storage"
+	"github.com/shenming0821/Sasa/internal/codex"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type occupiedBackend struct {
@@ -77,7 +77,7 @@ func TestOccupiedHistoryRemainsReadableAndRetryUnlocksComposer(t *testing.T) {
 	if a.State.Busy || a.State.TurnID == "external" {
 		t.Fatal("external events granted control over occupied thread")
 	}
-	// Saving an occupied view must not invent an uncertain Fuyu submission.
+	// Saving an occupied view must not invent an uncertain Sasa submission.
 	if a.snapshot().Sessions[0].Active {
 		t.Fatal("external writer became an uncertain local submission")
 	}

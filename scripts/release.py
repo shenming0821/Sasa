@@ -23,9 +23,9 @@ ROOT = Path(__file__).resolve().parent.parent
 BIN = ROOT / 'bin'
 CANDIDATES = BIN / 'candidates'
 SUPPORT = Path.home() / 'Library/Application Support'
-DEFAULT_DATA = SUPPORT / 'Fuyu'
+DEFAULT_DATA = SUPPORT / 'Sasa'
 DEFAULT_APP = Path('/Applications/Sasa.app')
-LEGACY_APP = Path('/Applications/Fuyu.app')
+LEGACY_APP = Path('/Applications/Sasa.app')
 PREVIEW_APP = BIN / 'Sasa Preview.app'
 IDENTITY = Path('Contents/Resources/release.json')
 EXECUTABLE = Path('Contents/MacOS/Sasa')
@@ -90,8 +90,8 @@ def set_executable_uuid(executable, value):
 
 
 def executable_payload(app):
-    with tempfile.TemporaryDirectory(prefix='fuyu-payload-') as temporary:
-        executable = Path(temporary) / 'Fuyu'
+    with tempfile.TemporaryDirectory(prefix='sasa-payload-') as temporary:
+        executable = Path(temporary) / 'Sasa'
         shutil.copy2(app / EXECUTABLE, executable)
         run('codesign', '--remove-signature', executable)
         set_executable_uuid(executable, bytes(16))
@@ -132,7 +132,7 @@ def configure_channel(app, identity, channel):
     write_json(app / IDENTITY, identity)
     preview = channel == 'preview'
     name = 'Sasa Preview' if preview else 'Sasa'
-    bundle_id = 'com.shenming.fuyu.preview' if preview else 'com.shenming.fuyu'
+    bundle_id = 'com.shenming.sasa.preview' if preview else 'com.shenming.sasa'
     set_executable_uuid(app / EXECUTABLE, uuid.uuid5(uuid.NAMESPACE_URL, bundle_id + '/' + identity['buildID']).bytes)
     metadata = {
         'CFBundleExecutable': 'Sasa', 'CFBundleIdentifier': bundle_id,
@@ -147,10 +147,10 @@ def configure_channel(app, identity, channel):
 
 
 def sign(app):
-    signing = os.environ.get('FUYU_CODESIGN_IDENTITY')
+    signing = os.environ.get('SASA_CODESIGN_IDENTITY')
     if signing is None:
-        probe = subprocess.run(['security', 'find-certificate', '-c', 'Fuyu Dev', '-Z', os.path.expanduser('~/Library/Keychains/login.keychain-db')], capture_output=True)
-        signing = 'Fuyu Dev' if probe.returncode == 0 else '-'
+        probe = subprocess.run(['security', 'find-certificate', '-c', 'Sasa Dev', '-Z', os.path.expanduser('~/Library/Keychains/login.keychain-db')], capture_output=True)
+        signing = 'Sasa Dev' if probe.returncode == 0 else '-'
     with (app / 'Contents/Info.plist').open('rb') as handle:
         identifier = plistlib.load(handle)['CFBundleIdentifier']
     run('codesign', '--force', '--sign', signing, '--timestamp=none', app / 'Contents/Frameworks/libghostty.dylib')
@@ -163,7 +163,7 @@ def register(app):
     if tool.exists():
         with (app / 'Contents/Info.plist').open('rb') as handle:
             identifier = plistlib.load(handle)['CFBundleIdentifier']
-        backups = app.parent / '.Fuyu-releases'
+        backups = app.parent / '.Sasa-releases'
         for metadata in sorted(backups.glob('*/*.app/Contents/Info.plist')):
             with metadata.open('rb') as handle:
                 backup_identifier = plistlib.load(handle).get('CFBundleIdentifier')
@@ -210,7 +210,7 @@ def build():
         shutil.copy2(ROOT / 'internal/ui/fonts/OFL.txt', resources / 'licenses/MPLUSCodeLatin-OFL.txt')
         shutil.copy2(ROOT / 'THIRD_PARTY_NOTICES/Mayoi-LICENSE', resources / 'licenses/Mayoi-MIT.txt')
         run('python3', ROOT / 'scripts/prepare-ghostty.py', contents)
-        package = 'github.com/shenming0821/Fuyu/internal/release'
+        package = 'github.com/shenming0821/Sasa/internal/release'
         flags = f'-X {package}.BuildID={build_id} -X {package}.SourceVersion={revision} -X {package}.SourceDigest={source_digest}'
         run(ROOT / 'scripts/go', 'build', '-ldflags', flags, '-o', app / EXECUTABLE, './cmd/desktop', cwd=ROOT)
         make_icons(resources, temporary)
@@ -259,7 +259,7 @@ def application_executable(app):
     if metadata.exists():
         with metadata.open('rb') as handle:
             name = plistlib.load(handle).get('CFBundleExecutable')
-        if name not in {'Sasa', 'Fuyu'}:
+        if name not in {'Sasa', 'Sasa'}:
             raise RuntimeError(f'应用主程序名称无效：{app}')
         return app / 'Contents/MacOS' / name
     return app / EXECUTABLE
@@ -282,7 +282,7 @@ class MacOS:
     def stop(self, app, timeout):
         pids = self.running(app)
         for pid in pids:
-            control = Path.home() / f'Library/Caches/Fuyu/control/{pid}.sock'
+            control = Path.home() / f'Library/Caches/Sasa/control/{pid}.sock'
             if control.exists():
                 with socket.socket(socket.AF_UNIX) as connection:
                     connection.settimeout(2)
@@ -335,7 +335,7 @@ class MacOS:
 def snapshot_data(data, backup):
     backup.mkdir(mode=0o700)
     for source in data.iterdir():
-        if source.name in {'fuyu.lock', 'fuyu.db', 'fuyu.db-wal', 'fuyu.db-shm'}:
+        if source.name in {'sasa.lock', 'sasa.db', 'sasa.db-wal', 'sasa.db-shm'}:
             continue
         if source.is_symlink():
             raise RuntimeError(f'数据目录含符号链接，请先处理：{source}')
@@ -343,20 +343,20 @@ def snapshot_data(data, backup):
             shutil.copytree(source, backup / source.name, symlinks=True)
         else:
             shutil.copy2(source, backup / source.name)
-    database = data / 'fuyu.db'
+    database = data / 'sasa.db'
     if database.exists():
         with closing(sqlite3.connect(database.as_uri() + '?mode=rw', uri=True)) as source:
             source.execute('PRAGMA query_only=ON')
-            with closing(sqlite3.connect(backup / 'fuyu.db')) as target:
+            with closing(sqlite3.connect(backup / 'sasa.db')) as target:
                 source.backup(target)
                 if target.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
                     raise RuntimeError('数据库备份校验失败。')
-        (backup / 'fuyu.db').chmod(0o600)
+        (backup / 'sasa.db').chmod(0o600)
 
 
 def restore_data(data, backup):
     for entry in data.iterdir():
-        if entry.name != 'fuyu.lock':
+        if entry.name != 'sasa.lock':
             if entry.is_dir() and not entry.is_symlink():
                 shutil.rmtree(entry)
             else:
@@ -373,15 +373,15 @@ def validate_destination(app, data):
         raise RuntimeError('应用必须是普通 .app 目录，应用和数据目录不能是符号链接。')
     if app == PREVIEW_APP or CANDIDATES in app.parents or app in data.parents or data in app.parents or app == data:
         raise RuntimeError('正式版安装位置、候选目录与数据目录必须相互独立。')
-    backups = app.parent / '.Fuyu-releases'
+    backups = app.parent / '.Sasa-releases'
     if backups == data or backups in data.parents or data in backups.parents:
         raise RuntimeError('正式版数据目录与发布备份目录必须相互独立。')
     marker = data / 'release-channel'
-    if data.resolve() == (SUPPORT / 'Fuyu Preview').resolve() or (marker.exists() and marker.read_text().strip() != 'stable'):
+    if data.resolve() == (SUPPORT / 'Sasa Preview').resolve() or (marker.exists() and marker.read_text().strip() != 'stable'):
         raise RuntimeError('正式版必须使用正式版数据目录。')
     if app.exists():
         with (app / 'Contents/Info.plist').open('rb') as handle:
-            if plistlib.load(handle).get('CFBundleIdentifier') != 'com.shenming.fuyu':
+            if plistlib.load(handle).get('CFBundleIdentifier') != 'com.shenming.sasa':
                 raise RuntimeError('目标位置已有其他应用，请选择 Sasa 正式版位置。')
 
 
@@ -422,7 +422,7 @@ def promote(build_id, app, data, check=False):
         print(json.dumps({'candidate': identity, 'app': str(app), 'data': str(data)}, ensure_ascii=False, indent=2))
         return
     app.parent.mkdir(parents=True, exist_ok=True)
-    releases = app.parent / '.Fuyu-releases'
+    releases = app.parent / '.Sasa-releases'
     releases.mkdir(mode=0o700, exist_ok=True)
     with locked(releases / 'release.lock'):
         work = releases / (build_id + '-' + uuid.uuid4().hex[:8])
@@ -438,7 +438,7 @@ def promote(build_id, app, data, check=False):
         snapshot_data(data, work / 'data-before')
         receipt = {'buildID': build_id, 'app': str(app), 'data': str(data), 'identity': dict(identity, channel='stable'), 'state': 'prepared'}
         write_json(work / 'receipt.json', receipt)
-        legacy = BIN / 'Fuyu.app'
+        legacy = BIN / 'Sasa.app'
         if app.exists():
             app.rename(work / 'previous.app')
         elif legacy_install:
@@ -472,7 +472,7 @@ def promote(build_id, app, data, check=False):
 def rollback(app, data, timeout, restore=False, platform=None):
     validate_destination(app, data)
     platform = platform or MacOS()
-    releases = app.parent / '.Fuyu-releases'
+    releases = app.parent / '.Sasa-releases'
     with locked(releases / 'release.lock'):
         name = read_json(releases / 'latest.json')['transaction']
         if Path(name).name != name or name in {'.', '..'}:
@@ -485,9 +485,9 @@ def rollback(app, data, timeout, restore=False, platform=None):
         if inventory(app) != receipt['installedFiles']:
             raise RuntimeError('正式版文件已变化，请先核对恢复记录。')
         platform.stop(app, timeout)
-        with locked(data / 'fuyu.lock'):
-            before_db = work / 'data-before/fuyu.db'
-            current_db = data / 'fuyu.db'
+        with locked(data / 'sasa.lock'):
+            before_db = work / 'data-before/sasa.db'
+            current_db = data / 'sasa.db'
             versions = []
             for database in [before_db, current_db]:
                 if database.exists():
@@ -533,9 +533,9 @@ def run_preview(build_id, timeout):
                 PREVIEW_APP.rename(Path(temporary) / 'previous.app')
             stage.rename(PREVIEW_APP)
             register(PREVIEW_APP)
-        logs = SUPPORT / 'Fuyu Preview/release-logs'
+        logs = SUPPORT / 'Sasa Preview/release-logs'
         logs.mkdir(parents=True, mode=0o700, exist_ok=True)
-        platform.launch(PREVIEW_APP, SUPPORT / 'Fuyu Preview', identity, timeout, logs)
+        platform.launch(PREVIEW_APP, SUPPORT / 'Sasa Preview', identity, timeout, logs)
         print(f'Preview 已启动：{build_id}\n正式版继续运行。')
 
 

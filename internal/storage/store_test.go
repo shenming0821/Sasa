@@ -32,7 +32,7 @@ func TestVersionTwoBackupAndMixedTabs(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatal("version 2 migration lost state", got, err)
 	}
-	path := filepath.Join(dir, "fuyu-before-v3.db")
+	path := filepath.Join(dir, "sasa-before-v3.db")
 	info, err := os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0600 {
 		t.Fatal("backup missing or not private", err)
@@ -82,12 +82,12 @@ func TestInvalidMigrationBackupKeepsVersionTwoAndSnapshot(t *testing.T) {
 			if err := s.Close(); err != nil {
 				t.Fatal(err)
 			}
-			backup := filepath.Join(dir, "fuyu-before-v3.db")
+			backup := filepath.Join(dir, "sasa-before-v3.db")
 			switch kind {
 			case "directory":
 				err = os.Mkdir(backup, 0700)
 			case "symlink":
-				err = os.Symlink(filepath.Join(dir, "fuyu.db"), backup)
+				err = os.Symlink(filepath.Join(dir, "sasa.db"), backup)
 			case "corrupt":
 				err = os.WriteFile(backup, []byte("not a database"), 0600)
 			case "empty":
@@ -109,7 +109,7 @@ func TestInvalidMigrationBackupKeepsVersionTwoAndSnapshot(t *testing.T) {
 			} else if !strings.Contains(err.Error(), "备份") {
 				t.Fatal("unexpected migration failure", err)
 			}
-			db, err := sql.Open("sqlite", filepath.Join(dir, "fuyu.db"))
+			db, err := sql.Open("sqlite", filepath.Join(dir, "sasa.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -153,7 +153,7 @@ func TestMigrationKeepsOldBackupAndSnapshotsLatestVersionTwo(t *testing.T) {
 	if _, err := s.db.Exec("PRAGMA user_version=2"); err != nil {
 		t.Fatal(err)
 	}
-	firstBackup := filepath.Join(dir, "fuyu-before-v3.db")
+	firstBackup := filepath.Join(dir, "sasa-before-v3.db")
 	if _, err := s.db.Exec("VACUUM INTO ?", firstBackup); err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestMigrationKeepsOldBackupAndSnapshotsLatestVersionTwo(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	fresh, err := filepath.Glob(filepath.Join(dir, "fuyu-before-v3-*.db"))
+	fresh, err := filepath.Glob(filepath.Join(dir, "sasa-before-v3-*.db"))
 	if err != nil || len(fresh) != 1 {
 		t.Fatal("migration did not create a fresh backup", fresh, err)
 	}
@@ -213,7 +213,7 @@ func TestUnreadableVersionTwoPayloadDoesNotAdvanceMigration(t *testing.T) {
 		migrated.Close()
 		t.Fatal("migration accepted an unreadable snapshot")
 	}
-	db, err := sql.Open("sqlite", filepath.Join(dir, "fuyu.db"))
+	db, err := sql.Open("sqlite", filepath.Join(dir, "sasa.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestReopenDraftsMetadataAndExclusiveOwner(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("got=%+v err=%v", got, err)
 	}
-	info, _ := os.Stat(filepath.Join(dir, "fuyu.db"))
+	info, _ := os.Stat(filepath.Join(dir, "sasa.db"))
 	if info.Mode().Perm() != 0600 {
 		t.Fatalf("database permissions: %v", info.Mode())
 	}

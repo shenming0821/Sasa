@@ -14,7 +14,7 @@
 
 Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clear`、`/plan` 和透传给 CLI 的 `/compact`（可附压缩指引）。`catalog.go` 在同一探测进程中继续发送只读 `get_skills_dialog`，用技能的 `name`、`display_name` 与 initialize 的命令名关联，为 `agent.Command.IsSkill` 标记有效且未关闭的技能；UI 展示该标记为真的命令，保留原生命令名和参数提示。技能目录读取失败时返回错误，由候选入口提供重试；目录为空时不回退展示其他原生命令，UI 提供的命令保持可见。该能力已核对本机 CLI `2.1.307`，旧版本或其他连接拒绝该请求时会明确显示读取错误。计划模式控制及确认入口见[会话管理](sessions.md#计划模式)。
 
-本机 CLI 的 `/clear` 会发出 `conversation_reset` 并更换 session UUID。Fuyu 发送入口在本地处理这一命令：保存并保留旧会话历史，切换到相同 cwd、后端和模型的空白会话，后续任务再分配新原生 UUID，避免继续持有已被重置的旧身份。
+本机 CLI 的 `/clear` 会发出 `conversation_reset` 并更换 session UUID。Sasa 发送入口在本地处理这一命令：保存并保留旧会话历史，切换到相同 cwd、后端和模型的空白会话，后续任务再分配新原生 UUID，避免继续持有已被重置的旧身份。
 
 普通成功轮次在完整原生 success/completed result 后保存终态并保留进程，下一轮复用其 reader/writer 和已初始化上下文，分配新的应用轮次身份。空闲 2 分钟回收，最多 4 个空闲进程；模型、推理强度或关联配置变化时先回收再重新 initialize/resume。slash 命令、失败、中断和仍有后台工具的结果沿用排空并退出的路径。目录探测独立于任务进程。策略、摘要核验和退出边界见[使用性能](performance.md#claude-连续对话进程)。真实同 PID 双轮上下文、重启续聊、同 PID 允许/拒绝/提问和第二轮运行中断通过。
 
@@ -36,7 +36,7 @@ Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clea
 
 ## 历史与恢复
 
-`history.go` 只读取 Fuyu 创建并持有检查点的会话，原生记录位于配置根的 `projects/*/<session>.jsonl`。读取上限 64 MiB，核验文件身份、大小、修改时间和完整尾行；坏行、缺父链、替换或正在写入均返回不确定错误。沿 parentUuid 选择有效主链，补回同一模型消息的并行工具调用与结果，排除 sidechain/team/meta。分页以完整 turn 为单位，每页 20 轮，游标绑定内容摘要。
+`history.go` 只读取 Sasa 创建并持有检查点的会话，原生记录位于配置根的 `projects/*/<session>.jsonl`。读取上限 64 MiB，核验文件身份、大小、修改时间和完整尾行；坏行、缺父链、替换或正在写入均返回不确定错误。沿 parentUuid 选择有效主链，补回同一模型消息的并行工具调用与结果，排除 sidechain/team/meta。分页以完整 turn 为单位，每页 20 轮，游标绑定内容摘要。
 
 检查点终态与 transcript 内容摘要共同决定可续发状态；旧任务 unknown/inProgress 或外部改变记录时保留历史展示并阻止续发。不自动重发旧用户输入或恢复旧审批。已确认 completed、failed 或 interrupted 的任务中，同一原生 promptId 的标准中断标记归属原任务，保留检查点终态，不新建待完成的用户轮次；未知终态、不同 promptId 或实际发送的同文输入继续按普通输入核验。compact 支持字符串 summary、preservedSegment/preservedMessages 重连与完整 turn 分页；原生 local command 的 promptId 关联发送检查点，重复摘要与 hook 命令不作为新用户问题显示。真实 compact 后历史及上下文续发已通过，更多复杂嵌套压缩仍保留回归范围。摘要核验不能替代外部 writer 锁；当前不提供外部会话接管、Claude 分叉或强制解除未知任务入口。
 
@@ -48,4 +48,4 @@ Claude 的 `/` 原生目录候选仅显示技能，另由 UI 提供本地 `/clea
 
 ## 验证
 
-`adapter_test.go`、`queue_test.go` 与合成 `testdata/server.py` 验证审批不堵 reader、取消/停止、跨会话失败隔离、重复响应、问答、多选、目录绑定、坏帧、未知终态、历史分支与分页、队列上限。真实测试需显式 `FUYU_LIVE_CLAUDE=1`，使用临时 cwd 与现有原生登录。
+`adapter_test.go`、`queue_test.go` 与合成 `testdata/server.py` 验证审批不堵 reader、取消/停止、跨会话失败隔离、重复响应、问答、多选、目录绑定、坏帧、未知终态、历史分支与分页、队列上限。真实测试需显式 `SASA_LIVE_CLAUDE=1`，使用临时 cwd 与现有原生登录。

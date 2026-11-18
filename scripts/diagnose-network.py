@@ -28,7 +28,7 @@ def main():
 
     os.umask(0o077)
     started = datetime.datetime.now().astimezone()
-    parent = Path.home() / 'Library/Logs/Fuyu/network'
+    parent = Path.home() / 'Library/Logs/Sasa/network'
     parent.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix=started.strftime('%Y%m%d-%H%M%S-'), dir=parent))
     print('正在保存故障现场：' + str(directory), flush=True)
@@ -44,7 +44,7 @@ def main():
     except (OSError, subprocess.SubprocessError) as error:
         results.append({'file': 'processes.json', 'error': str(error)})
     application_pids = {row['pid'] for row in process_rows
-                        if row['executable'].endswith(('/Sasa.app/Contents/MacOS/Sasa', '/Sasa Preview.app/Contents/MacOS/Sasa', '/Fuyu.app/Contents/MacOS/Fuyu', '/Fuyu Preview.app/Contents/MacOS/Fuyu'))}
+                        if row['executable'].endswith(('/Sasa.app/Contents/MacOS/Sasa', '/Sasa Preview.app/Contents/MacOS/Sasa', '/Sasa.app/Contents/MacOS/Sasa', '/Sasa Preview.app/Contents/MacOS/Sasa'))}
     owned_pids = set(application_pids)
     while True:
         descendants = {row['pid'] for row in process_rows if row['ppid'] in owned_pids}
@@ -59,7 +59,7 @@ def main():
     log_command = ['/usr/bin/log', 'show', '--start', cutoff.strftime('%Y-%m-%d %H:%M:%S'),
                    '--end', started.strftime('%Y-%m-%d %H:%M:%S'), '--style', 'ndjson', '--info']
     kernel_predicate = 'process == "kernel" AND eventMessage CONTAINS[c] ":' + str(arguments.port) + '"'
-    helper_predicate = ('process == "nehelper" AND (eventMessage CONTAINS[c] "fuyu" '
+    helper_predicate = ('process == "nehelper" AND (eventMessage CONTAINS[c] "sasa" '
                         'OR eventMessage CONTAINS[c] "sasa" OR eventMessage CONTAINS[c] "a.out")')
     results.append(capture(directory, 'kernel-network.ndjson', log_command + ['--predicate', kernel_predicate]))
     results.append(capture(directory, 'network-policy.ndjson', log_command + ['--predicate', helper_predicate]))
@@ -85,7 +85,7 @@ def main():
     if failures:
         print('部分采集失败，请查看 capture.json；已保留其余证据。', flush=True)
     if not application_pids:
-        print('未找到正在运行的 Sasa / Fuyu，已保存系统日志；下次请在重启前采集。', flush=True)
+        print('未找到正在运行的 Sasa，已保存系统日志；下次请在重启前采集。', flush=True)
     print('采集完成：' + str(directory), flush=True)
     print('文件仅保存到本机。保留故障会话，记录是哪条消息及大致发送时间。', flush=True)
     return 1 if failures else 0

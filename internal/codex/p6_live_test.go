@@ -10,8 +10,8 @@ import (
 )
 
 func TestLiveP6ApprovalAndFork(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 for native approval and fork verification")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 for native approval and fork verification")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -31,7 +31,7 @@ func TestLiveP6ApprovalAndFork(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("thread=%s cwd=%s model=%s policy=%s sandbox=%s", thread.Thread.ID, thread.Cwd, thread.Model, thread.ApprovalPolicy, thread.Sandbox)
-	turn, err := client.Send(ctx, thread.Thread.ID, "Use the shell tool to run exactly printf 'FUYU_P6_APPROVED\\n' > approved.txt in the working directory. Request sandbox_permissions=require_escalated for this single command because the thread is read-only. Do not use apply_patch or modify any other file. After approval and execution, reply DONE.")
+	turn, err := client.Send(ctx, thread.Thread.ID, "Use the shell tool to run exactly printf 'SASA_P6_APPROVED\\n' > approved.txt in the working directory. Request sandbox_permissions=require_escalated for this single command because the thread is read-only. Do not use apply_patch or modify any other file. After approval and execution, reply DONE.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestLiveP6ApprovalAndFork(t *testing.T) {
 	for {
 		select {
 		case event, ok := <-client.Events():
-			if !ok || event.Method == "fuyu/disconnected" || event.Method == "fuyu/unsupported" {
+			if !ok || event.Method == "sasa/disconnected" || event.Method == "sasa/unsupported" {
 				t.Fatalf("connection failed: %s %v", event.Method, event.Err)
 			}
 			if len(event.ID) > 0 {
@@ -76,7 +76,7 @@ func TestLiveP6ApprovalAndFork(t *testing.T) {
 	}
 
 completed:
-	if raw, err := os.ReadFile(filepath.Join(dir, "approved.txt")); err != nil || string(raw) != "FUYU_P6_APPROVED\n" {
+	if raw, err := os.ReadFile(filepath.Join(dir, "approved.txt")); err != nil || string(raw) != "SASA_P6_APPROVED\n" {
 		t.Fatalf("approved file=%q err=%v", raw, err)
 	}
 	fork, err := client.ForkThread(ctx, thread.Thread.ID)

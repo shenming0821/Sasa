@@ -12,7 +12,7 @@ import (
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/project"
+	"github.com/shenming0821/Sasa/internal/project"
 )
 
 func mergeRepository(repos []project.Repository, repo project.Repository) []project.Repository {

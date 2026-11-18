@@ -11,8 +11,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 type historyBackend = agent.HistoryBackend
@@ -723,7 +723,7 @@ func sortThreadsByActivity(threads []agent.ThreadMeta) {
 }
 
 func (s *session) bufferRecovery(e agent.Event) bool {
-	if !s.recovering || e.Method == "fuyu/disconnected" || e.Method == "fuyu/eventGap" {
+	if !s.recovering || e.Method == "sasa/disconnected" || e.Method == "sasa/eventGap" {
 		return false
 	}
 	var p struct {

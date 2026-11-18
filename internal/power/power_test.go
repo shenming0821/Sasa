@@ -327,7 +327,7 @@ func TestConcurrentUpdatesAndClose(t *testing.T) {
 }
 
 func TestLiveRead(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_POWER") != "1" {
+	if os.Getenv("SASA_LIVE_POWER") != "1" {
 		t.Skip("requires explicit native power verification")
 	}
 	controller := New()

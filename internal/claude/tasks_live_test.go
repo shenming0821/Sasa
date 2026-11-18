@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestLiveClaudeTaskProjection(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for real task lifecycle verification")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for real task lifecycle verification")
 	}
 	for _, mode := range []string{"subagent", "background"} {
 		t.Run(mode, func(t *testing.T) {
@@ -34,9 +34,9 @@ func TestLiveClaudeTaskProjection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			prompt := "Use Agent once in the foreground with subagent_type=general-purpose. Ask the subagent to use Bash once to run printf FUYU_CHILD_TOOL_OK in this working directory, then return its output. Do not write any files or memory. Return that exact output after the subagent completes. The parent must not run Bash itself."
+			prompt := "Use Agent once in the foreground with subagent_type=general-purpose. Ask the subagent to use Bash once to run printf SASA_CHILD_TOOL_OK in this working directory, then return its output. Do not write any files or memory. Return that exact output after the subagent completes. The parent must not run Bash itself."
 			if mode == "background" {
-				prompt = "Use Bash once with run_in_background=true to run exactly: sleep 2; printf 'FUYU_BACKGROUND_OK\\n' > background-proof.txt . Wait for that background task to complete before replying FUYU_BACKGROUND_OK. Work only in this directory. Do not write memory files."
+				prompt = "Use Bash once with run_in_background=true to run exactly: sleep 2; printf 'SASA_BACKGROUND_OK\\n' > background-proof.txt . Wait for that background task to complete before replying SASA_BACKGROUND_OK. Work only in this directory. Do not write memory files."
 			}
 			state := app.New(cwd)
 			state.Agent, state.ThreadID = agent.Claude, thread.Thread.ID
@@ -92,7 +92,7 @@ func TestLiveClaudeTaskProjection(t *testing.T) {
 			}
 			if mode == "background" {
 				proof, err := os.ReadFile(filepath.Join(cwd, "background-proof.txt"))
-				if backgroundTools == 0 || err != nil || string(proof) != "FUYU_BACKGROUND_OK\n" {
+				if backgroundTools == 0 || err != nil || string(proof) != "SASA_BACKGROUND_OK\n" {
 					t.Fatalf("background=%d proof=%q err=%v", backgroundTools, proof, err)
 				}
 			}

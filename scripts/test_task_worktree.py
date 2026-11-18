@@ -16,7 +16,7 @@ class TaskWorktreeTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve() / 'repo'
         self.root.mkdir()
-        app_patch = patch.object(task_worktree, 'DEFAULT_APP', self.root.parent / 'Fuyu.app')
+        app_patch = patch.object(task_worktree, 'DEFAULT_APP', self.root.parent / 'Sasa.app')
         app_patch.start()
         self.addCleanup(app_patch.stop)
         data_patch = patch.object(task_worktree, 'DEFAULT_DATA', self.root.parent / 'data')
@@ -178,12 +178,12 @@ class TaskWorktreeTests(unittest.TestCase):
         self.assertEqual(self.tasks.commit_digest(head), digest)
 
     def test_installed_receipt_and_actual_files_are_required(self):
-        app = self.root / 'Fuyu.app'
+        app = self.root / 'Sasa.app'
         resources = app / 'Contents/Resources'
         resources.mkdir(parents=True)
         identity = self.identity()
         (resources / 'release.json').write_text(json.dumps(identity))
-        transaction = app.parent / '.Fuyu-releases/transaction'
+        transaction = app.parent / '.Sasa-releases/transaction'
         transaction.mkdir(parents=True)
         (transaction.parent / 'latest.json').write_text(json.dumps({'transaction': 'transaction'}))
         receipt = {
@@ -199,7 +199,7 @@ class TaskWorktreeTests(unittest.TestCase):
 
     def test_preflight_and_isolated_promotion_do_not_cleanup(self):
         for forwarded in (['build', '--check'], ['build', '--ch'],
-                          ['build', '--app=/tmp/Fuyu.app'],
+                          ['build', '--app=/tmp/Sasa.app'],
                           ['build', '--data-dir', '/tmp/data'],
                           ['build', '--data-d', '/tmp/data']):
             with patch('sys.argv', ['task_worktree.py', 'after-promote', *forwarded]), \

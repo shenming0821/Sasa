@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestMultipleQuestionSelectionsAndOtherAnswer(t *testing.T) {
@@ -36,11 +36,11 @@ func TestMultipleQuestionSelectionsAndOtherAnswer(t *testing.T) {
 func TestRuntimeDetailsUseNativeModelAndVersion(t *testing.T) {
 	state := New("/project")
 	state.Agent, state.ThreadID, state.Model = agent.Claude, "current", "default"
-	state.Apply(agent.Event{Method: "fuyu/runtime", Params: json.RawMessage(`{"threadId":"other","model":"wrong","version":"wrong"}`)})
+	state.Apply(agent.Event{Method: "sasa/runtime", Params: json.RawMessage(`{"threadId":"other","model":"wrong","version":"wrong"}`)})
 	if state.Model != "default" || state.RuntimeVersion != "" {
 		t.Fatal("foreign metadata changed runtime details")
 	}
-	state.Apply(agent.Event{Method: "fuyu/runtime", Params: json.RawMessage(`{"threadId":"current","model":"provider/model","version":"2.1.307"}`)})
+	state.Apply(agent.Event{Method: "sasa/runtime", Params: json.RawMessage(`{"threadId":"current","model":"provider/model","version":"2.1.307"}`)})
 	if state.Model != "provider/model" || state.RuntimeVersion != "2.1.307" {
 		t.Fatal("runtime details did not retain native values")
 	}

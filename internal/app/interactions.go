@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 type Interaction struct {

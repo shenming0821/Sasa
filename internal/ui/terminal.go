@@ -6,8 +6,8 @@ import (
 	"sync"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/storage"
-	"github.com/shenming0821/Fuyu/internal/terminal"
+	"github.com/shenming0821/Sasa/internal/storage"
+	"github.com/shenming0821/Sasa/internal/terminal"
 )
 
 var launchTerminalIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3m6 0h4"/>`)

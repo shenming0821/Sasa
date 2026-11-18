@@ -16,7 +16,7 @@ import (
 )
 
 func TestProcessHelper(t *testing.T) {
-	if len(os.Args) < 3 || os.Args[len(os.Args)-1] != "fuyu-process-helper" {
+	if len(os.Args) < 3 || os.Args[len(os.Args)-1] != "sasa-process-helper" {
 		return
 	}
 	child := exec.Command("sleep", "60")
@@ -31,7 +31,7 @@ func TestProcessHelper(t *testing.T) {
 }
 
 func TestForcedCloseAndIndependentGroupBoundary(t *testing.T) {
-	p, err := Start(os.Args[0], []string{"-test.run=^TestProcessHelper$", "fuyu-process-helper"}, t.TempDir(), io.Discard)
+	p, err := Start(os.Args[0], []string{"-test.run=^TestProcessHelper$", "sasa-process-helper"}, t.TempDir(), io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}

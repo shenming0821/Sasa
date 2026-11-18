@@ -7,8 +7,8 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/app"
-	gitview "github.com/shenming0821/Fuyu/internal/git"
+	"github.com/shenming0821/Sasa/internal/app"
+	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
 func BenchmarkToolDetailsFormatting(b *testing.B) {

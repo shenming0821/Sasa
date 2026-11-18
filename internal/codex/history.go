@@ -3,7 +3,7 @@ package codex
 import (
 	"context"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func IsActiveWriter(err error, id string) bool { return agent.IsActiveWriter(err, id) }

@@ -2,7 +2,7 @@ package app
 
 import (
 	"encoding/json"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -49,7 +49,7 @@ func TestDisconnectAndFailure(t *testing.T) {
 	if s.Phase != "执行失败" || s.Error != "failed test" {
 		t.Fatal(s)
 	}
-	s.Apply(codex.Event{Method: "fuyu/disconnected"})
+	s.Apply(codex.Event{Method: "sasa/disconnected"})
 	if !s.Disconnected || s.Busy || s.Phase != "连接已断开" {
 		t.Fatal(s)
 	}

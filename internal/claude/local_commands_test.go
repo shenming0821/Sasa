@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func localCommandTestSession(t *testing.T) (*Client, *session, string) {
@@ -148,8 +148,8 @@ func TestLocalCommandRecoveryChecksOwnershipAndStableHistory(t *testing.T) {
 }
 
 func TestLiveClaudeLocalCommandResume(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for real local command recovery verification")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for real local command recovery verification")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {

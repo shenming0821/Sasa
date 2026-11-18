@@ -11,20 +11,20 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/codex"
+	"github.com/shenming0821/Sasa/internal/codex"
 )
 
 // Opt in: a real Codex task writes only two files in an isolated temporary workspace.
 func TestLiveP4AgentWritesWhileEditing(t *testing.T) {
-	if os.Getenv("FUYU_LIVE") != "1" {
-		t.Skip("set FUYU_LIVE=1 to use the real Codex runtime")
+	if os.Getenv("SASA_LIVE") != "1" {
+		t.Skip("set SASA_LIVE=1 to use the real Codex runtime")
 	}
 	liveP4FileWrites(t, 2, 2)
 }
 
 func TestLiveP4BatchWritesWhileEditing(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_BATCH") != "1" {
-		t.Skip("set FUYU_LIVE_BATCH=1 to use the real Codex batch workload")
+	if os.Getenv("SASA_LIVE_BATCH") != "1" {
+		t.Skip("set SASA_LIVE_BATCH=1 to use the real Codex batch workload")
 	}
 	liveP4FileWrites(t, 500, 10)
 }
@@ -71,7 +71,7 @@ func liveP4FileWrites(t *testing.T, count, watched int) {
 	dirty.buffer.Set("local draft must survive\n")
 	dirty.observe()
 	owner := a.session
-	nonce := "fuyu-p4-" + time.Now().Format("150405.000000")
+	nonce := "sasa-p4-" + time.Now().Format("150405.000000")
 	a.activeTab = sessionTabID(owner.id)
 	owner.State.Draft = fmt.Sprintf("In the working directory, overwrite only these files: %s. Each file must contain exactly %s followed by one newline. Do not read or change any other files. Then reply done.", strings.Join(names, ", "), nonce)
 	if count > watched {

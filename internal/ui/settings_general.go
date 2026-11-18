@@ -2,8 +2,8 @@ package ui
 
 import (
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/power"
-	"github.com/shenming0821/Fuyu/internal/terminal"
+	"github.com/shenming0821/Sasa/internal/power"
+	"github.com/shenming0821/Sasa/internal/terminal"
 )
 
 var awakeChoices = []struct{ mode, label string }{

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 // The native mode control is acknowledged before a user frame or an approved
@@ -49,7 +49,7 @@ func (r *execution) setMode(ctx context.Context, mode agent.InteractionMode) err
 		effective = agent.ModePlan
 	}
 	if mode != "" || target == "plan" {
-		r.emit("fuyu/mode", map[string]any{"threadId": r.session.ID, "mode": effective, "permissionMode": target})
+		r.emit("sasa/mode", map[string]any{"threadId": r.session.ID, "mode": effective, "permissionMode": target})
 	}
 	return nil
 }

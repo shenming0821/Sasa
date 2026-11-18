@@ -12,7 +12,7 @@ import uuid
 
 
 def probe(executable, mode):
-    root = Path(tempfile.mkdtemp(prefix="fuyu-claude-control-" + mode + "-"))
+    root = Path(tempfile.mkdtemp(prefix="sasa-claude-control-" + mode + "-"))
     session = str(uuid.uuid4())
     args = [executable, "-p", "--verbose", "--input-format", "stream-json",
             "--output-format", "stream-json", "--include-partial-messages",
@@ -38,7 +38,7 @@ def probe(executable, mode):
         child.stdin.write(json.dumps(value) + "\n")
         child.stdin.flush()
 
-    prompt = "Use Bash once to write approved.txt containing exactly FUYU_CONTROL_OK followed by a newline in this directory. Do not use other tools or write memory files. If denied, do not retry and reply with the denial feedback."
+    prompt = "Use Bash once to write approved.txt containing exactly SASA_CONTROL_OK followed by a newline in this directory. Do not use other tools or write memory files. If denied, do not retry and reply with the denial feedback."
     if mode == "question":
         prompt = "Use AskUserQuestion once to ask which platforms to target, with options Mac and Linux and multiSelect=true. Then reply only with the selected platforms. Do not use other tools or write files or memory."
     deadline = time.monotonic() + 90
@@ -80,7 +80,7 @@ def probe(executable, mode):
                 if mode == "interrupt":
                     send({"type": "control_request", "request_id": "interrupt-probe", "request": {"subtype": "interrupt"}})
                     continue
-                decision = {"behavior": "deny", "message": "FUYU_CONTROL_DENIED"}
+                decision = {"behavior": "deny", "message": "SASA_CONTROL_DENIED"}
                 if mode == "allow":
                     decision = {"behavior": "allow", "updatedInput": request["input"]}
                 elif mode == "question":
@@ -97,7 +97,7 @@ def probe(executable, mode):
             raise RuntimeError("incomplete control recording")
         if mode != "interrupt" and (child.returncode != 0 or result != {"subtype": "success", "is_error": False, "terminal_reason": "completed"}):
             raise RuntimeError("unsuccessful control result")
-        if mode == "allow" and proof != "FUYU_CONTROL_OK\n":
+        if mode == "allow" and proof != "SASA_CONTROL_OK\n":
             raise RuntimeError("allowed file mismatch")
         if mode != "allow" and proof is not None:
             raise RuntimeError("denied or interrupted write occurred")

@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 func TestLiveClaudeReusedApprovals(t *testing.T) {
-	if os.Getenv("FUYU_LIVE_CLAUDE") != "1" {
-		t.Skip("set FUYU_LIVE_CLAUDE=1 for native reused-process approvals")
+	if os.Getenv("SASA_LIVE_CLAUDE") != "1" {
+		t.Skip("set SASA_LIVE_CLAUDE=1 for native reused-process approvals")
 	}
 	executable, err := ResolveExecutable()
 	if err != nil {
@@ -41,10 +41,10 @@ func TestLiveClaudeReusedApprovals(t *testing.T) {
 	}
 	var process *execution
 	for _, mode := range []string{"warmup", "allow", "deny", "question"} {
-		prompt := "Without tools or memory, reply only FUYU_REUSE_READY."
+		prompt := "Without tools or memory, reply only SASA_REUSE_READY."
 		switch mode {
 		case "allow":
-			prompt = "Use Bash once to run exactly: printf FUYU_ALLOWED > allowed.txt . Work only here and do not write memory."
+			prompt = "Use Bash once to run exactly: printf SASA_ALLOWED > allowed.txt . Work only here and do not write memory."
 		case "deny":
 			prompt = "Use Bash once to run exactly: printf forbidden > denied.txt . If denied, stop without retry or another tool. Work only here and do not write memory."
 		case "question":
@@ -101,7 +101,7 @@ func TestLiveClaudeReusedApprovals(t *testing.T) {
 		t.Logf("mode=%s PID=%d completed=true interaction=%v", mode, run.process.Cmd.Process.Pid, interacted)
 	}
 	raw, err := os.ReadFile(filepath.Join(cwd, "allowed.txt"))
-	if err != nil || string(raw) != "FUYU_ALLOWED" {
+	if err != nil || string(raw) != "SASA_ALLOWED" {
 		t.Fatal("approved write missing", string(raw), err)
 	}
 	if _, err := os.Stat(filepath.Join(cwd, "denied.txt")); !os.IsNotExist(err) {

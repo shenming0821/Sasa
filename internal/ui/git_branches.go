@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	gitview "github.com/shenming0821/Fuyu/internal/git"
-	"github.com/shenming0821/Fuyu/internal/project"
-	"github.com/shenming0821/Fuyu/internal/workspace"
+	gitview "github.com/shenming0821/Sasa/internal/git"
+	"github.com/shenming0821/Sasa/internal/project"
+	"github.com/shenming0821/Sasa/internal/workspace"
 )
 
 type branchCatalogState struct {

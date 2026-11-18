@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shenming0821/Fuyu/internal/agent"
+	"github.com/shenming0821/Sasa/internal/agent"
 )
 
 type eventTurn struct {
@@ -22,7 +22,7 @@ func (d *eventDelivery) immediate(event agent.Event) bool {
 		return true
 	}
 	switch event.Method {
-	case "turn/started", "turn/completed", "fuyu/disconnected", "fuyu/eventGap", "serverRequest/resolved", "error":
+	case "turn/started", "turn/completed", "sasa/disconnected", "sasa/eventGap", "serverRequest/resolved", "error":
 		return true
 	}
 	var p struct {

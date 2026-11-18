@@ -24,11 +24,11 @@ func TestStartValidatesWorkspaceWithoutStartingShell(t *testing.T) {
 }
 
 func TestLibraryPathsUseAppResources(t *testing.T) {
-	library, resources := libraryPaths("/Applications/Fuyu.app/Contents/MacOS/Fuyu")
-	if library != "/Applications/Fuyu.app/Contents/Frameworks/libghostty.dylib" || resources != "/Applications/Fuyu.app/Contents/Resources/ghostty" {
+	library, resources := libraryPaths("/Applications/Sasa.app/Contents/MacOS/Sasa")
+	if library != "/Applications/Sasa.app/Contents/Frameworks/libghostty.dylib" || resources != "/Applications/Sasa.app/Contents/Resources/ghostty" {
 		t.Fatal(library, resources)
 	}
-	library, resources = libraryPaths("/tmp/Fuyu")
+	library, resources = libraryPaths("/tmp/Sasa")
 	if library != "/tmp/libghostty.dylib" || resources != "/tmp/ghostty" {
 		t.Fatal(library, resources)
 	}

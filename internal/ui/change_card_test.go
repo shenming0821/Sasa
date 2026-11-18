@@ -11,7 +11,7 @@ import (
 	"time"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func changeMessage(id, turn, path, patch string) *app.Message {
@@ -87,7 +87,7 @@ func TestChangeCardResponsiveExpansionAndHistoricReview(t *testing.T) {
 				tt := native.NewTester(func(c *native.Context) { native.Column(c).Fill().Children(func() { a.changeCard(c, messages) }) }, width, 650)
 				tt.SetDark(dark)
 				tt.Advance(200 * time.Millisecond)
-				if dir := os.Getenv("FUYU_CHANGE_PREVIEW"); dir != "" {
+				if dir := os.Getenv("SASA_CHANGE_PREVIEW"); dir != "" {
 					if err := os.MkdirAll(dir, 0700); err != nil {
 						t.Fatal(err)
 					}

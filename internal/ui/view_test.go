@@ -7,14 +7,14 @@ import (
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
-	"github.com/shenming0821/Fuyu/internal/app"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 func TestConversationLayoutAndDetails(t *testing.T) {
 	for _, size := range [][2]int{{640, 480}, {1000, 760}, {1600, 900}} {
 		for _, dark := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%dx%d/dark=%v", size[0], size[1], dark), func(t *testing.T) {
-				a := New(stubBackend{}, "test version", "/tmp/fuyu-layout", nil)
+				a := New(stubBackend{}, "test version", "/tmp/sasa-layout", nil)
 				a.State.Model, a.State.Policy, a.State.Sandbox = "provider/model", `"never"`, `{"type":"dangerFullAccess"}`
 				a.State.Busy, a.State.TurnID = true, "turn"
 				a.State.Messages = []*app.Message{
@@ -84,7 +84,7 @@ func TestUserBubbleAlignment(t *testing.T) {
 }
 
 func TestUserBubbleLongPlainTextLayout(t *testing.T) {
-	text := "请检查 Fuyu 的显示效果。\n\n1. 保留原始换行与编号。\n2. 路径 /Users/example/Documents/Fuyu/internal/ui/view.go 和 English 混排。\n" + strings.Repeat("LongIdentifierWithoutSpaces", 12)
+	text := "请检查 Sasa 的显示效果。\n\n1. 保留原始换行与编号。\n2. 路径 /Users/example/Documents/Sasa/internal/ui/view.go 和 English 混排。\n" + strings.Repeat("LongIdentifierWithoutSpaces", 12)
 	for _, width := range []int{320, 640, 1000} {
 		for _, dark := range []bool{false, true} {
 			t.Run(fmt.Sprintf("width=%d/dark=%v", width, dark), func(t *testing.T) {
