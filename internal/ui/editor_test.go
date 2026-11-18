@@ -551,6 +551,7 @@ func TestP4GitBackgroundRefreshKeepsListSteady(t *testing.T) {
 	w := a.workspace("/repo")
 	w.gitLoading = true
 	tt := native.NewTester(a.view, 1280, 800)
+	tt.SetPreferences(native.Preferences{ReduceMotion: true, TextScale: 1})
 	if !tt.HasText("正在读取 Git…") {
 		t.Fatal("initial Git load did not show progress")
 	}
@@ -567,15 +568,16 @@ func TestP4GitBackgroundRefreshKeepsListSteady(t *testing.T) {
 	if !ok {
 		t.Fatal("missing Git group")
 	}
+	beforeScroll, _ := tt.Find("Git 更改 file-10.go")
 	tt.Scroll(header.X+40, header.Y+80, 0, 180)
-	if w.gitScroll.Y <= 0 {
-		t.Fatal("Git list did not scroll")
+	afterScroll, _ := tt.Find("Git 更改 file-10.go")
+	if afterScroll.Y >= beforeScroll.Y {
+		t.Fatalf("Git list did not scroll: before=%+v after=%+v header=%+v", beforeScroll, afterScroll, header)
 	}
 	row, ok := tt.Find("Git 更改 file-10.go")
 	if !ok {
 		t.Fatal("missing scrolled Git row")
 	}
-	scrollY := w.gitScroll.Y
 	for i := range 6 {
 		w.gitLoading = i%2 == 0
 		tt.Frame()
@@ -583,8 +585,8 @@ func TestP4GitBackgroundRefreshKeepsListSteady(t *testing.T) {
 			t.Fatal("cached background refresh inserted a loading row")
 		}
 		next, ok := tt.Find("Git 更改 file-10.go")
-		if !ok || next != row || w.gitScroll.Y != scrollY {
-			t.Fatalf("background refresh moved Git content: before=%+v after=%+v scroll=%v/%v", row, next, scrollY, w.gitScroll.Y)
+		if !ok || next != row {
+			t.Fatalf("background refresh moved Git content: before=%+v after=%+v", row, next)
 		}
 	}
 	w.gitLoading = true

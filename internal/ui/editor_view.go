@@ -638,7 +638,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			a.loadFile(d)
 		} else if strings.HasPrefix(d.compare, "提交 ") {
 			d.gitCommit = strings.TrimPrefix(d.compare, "提交 ")
-			a.gitLoadCommit(d, gitview.CommitInfo{Hash: d.gitCommit, Subject: "提交 " + d.gitCommit[:min(8, len(d.gitCommit))]})
+			a.gitLoadCommit(d, gitview.CommitInfo{Hash: d.gitCommit, Subject: gitCommitLabel(d.gitCommit)})
 		} else if d.compare == "外部更改" {
 			d.err = "比较快照未保存，请从原文件重新打开外部更改比较"
 		} else {

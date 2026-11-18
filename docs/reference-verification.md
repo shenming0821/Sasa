@@ -298,3 +298,9 @@ Mayoi 当前声明 MyGo v0.6.0，但通过 replace 实际使用 `github.com/sorr
 ### 2026-10-26 Git 工作流补充核对
 
 本轮刷新本地参考至 `2ba263790582069d766860103ffac45c7142e399`，核对 `cmd/mayoi/` 中的 `scm.go`、`git.go`、`scmpanels.go`、`diffview.go`、`diffhunks.go`、`aicommit.go`、`mergeview.go`。参考其暂存/提交/远程、分页历史、分块差异、冲突源版本与提交说明生成的工作流结构。Fuyu 保留自己的工作区、异步派发、文件保存与 Codex 进程归属；Git 操作通过显式参数和临时仓库独立验证，未将 Mayoi 的测试视为 Fuyu 验收。当前 Git 工作流见[编辑器子系统](subsystems/editor.md)。
+
+## Mayoi COMMITS 移植（2026-11-18）
+
+固定源码为 Mayoi `6f2190e9297bbdd187ae0d28a80c191b2243d41b`，本地参考 `/tmp/mayoi-branch-review-20261117`。实际构建并运行 Mayoi，核对 Git 侧栏的 COMMITS、全部分支及双端点比较。Sasa 直接移植 `cmd/mayoi/graph.go` 的图布局与对应测试，并适配 `scm.go`、`committree.go`、`coauthors.go`、`commitactions.go`、`internal/git/git.go` 与 `internal/git/commitactions.go` 的引用解析、文件树、悬停统计、菜单、补丁及远端选择逻辑。MIT 原文保留在 `THIRD_PARTY_NOTICES/Mayoi-LICENSE`，适配文件标明来源。
+
+实现沿用 Sasa 的工作区、异步取消、文件保存、Diff 和冲突状态；范围为本地 Git COMMITS，未加入 GitHub PR、CI 状态或远程头像。自动化通过临时 Git 仓库和 MyGo 原生测试器独立核验，不以 Mayoi 自身运行结果替代 Sasa 验收。任务目录完成自动化后仍需主目录集成和公共 Preview 验收。

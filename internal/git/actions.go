@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // Root resolves the actual worktree, including linked worktrees.
@@ -312,30 +311,9 @@ func commandInput(ctx context.Context, root string, input []byte, args ...string
 	return out.Bytes(), nil
 }
 
-type CommitInfo struct {
-	Hash, Subject, Author string
-	Time                  time.Time
-}
-
+// History returns current-branch history; COMMITS uses ReadHistory for all refs.
 func History(ctx context.Context, root string, limit, skip int) ([]CommitInfo, error) {
-	limit = min(max(limit, 1), 100)
-	out, err := run(ctx, root, "log", fmt.Sprintf("-%d", limit), fmt.Sprintf("--skip=%d", max(skip, 0)), "--format=%H%x00%s%x00%an%x00%at%x00", "--no-show-signature")
-	if err != nil {
-		st, check := Read(ctx, root)
-		if check == nil && st.Head == "(initial)" {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var result []CommitInfo
-	fields := strings.Split(string(out), "\x00")
-	for len(fields) >= 4 {
-		var seconds int64
-		fmt.Sscan(fields[3], &seconds)
-		result = append(result, CommitInfo{strings.TrimSpace(fields[0]), fields[1], fields[2], time.Unix(seconds, 0)})
-		fields = fields[4:]
-	}
-	return result, nil
+	return readCommitLog(ctx, root, limit, skip, []string{"HEAD"})
 }
 
 func validHash(hash string) bool {
@@ -344,6 +322,9 @@ func validHash(hash string) bool {
 }
 
 func CommitFiles(ctx context.Context, root, hash string) ([]Entry, error) {
+	if from, to, ok := comparisonEnds(hash); ok {
+		return CompareFiles(ctx, root, from, to)
+	}
 	if !validHash(hash) {
 		return nil, errors.New("提交 ID 无效")
 	}
@@ -351,7 +332,11 @@ func CommitFiles(ctx context.Context, root, hash string) ([]Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	fields := strings.Split(string(out), "\x00")
+	return parseCommitFiles(string(out))
+}
+
+func parseCommitFiles(out string) ([]Entry, error) {
+	fields := strings.Split(out, "\x00")
 	var result []Entry
 	for i := 0; i+1 < len(fields); {
 		state := fields[i]
@@ -373,6 +358,9 @@ func CommitFiles(ctx context.Context, root, hash string) ([]Entry, error) {
 }
 
 func CommitDiff(ctx context.Context, root, hash string, entry Entry) (string, error) {
+	if from, to, ok := comparisonEnds(hash); ok {
+		return CompareDiff(ctx, root, from, to, entry)
+	}
 	if !validHash(hash) {
 		return "", errors.New("提交 ID 无效")
 	}

@@ -30,7 +30,29 @@ type gitCommitTree struct {
 	err                       string
 }
 
+type gitRefPrompt struct {
+	hash, name, err string
+	tag             bool
+}
 type gitWorkflow struct {
+	gitHistoryLimit    int
+	gitHistoryRequest  uint64
+	gitHistoryCancel   context.CancelFunc
+	gitCommitStats     map[string]*gitCommitStatRead
+	gitHistoryAll      bool
+	gitGraph           []graphRow
+	gitUnpushed        map[string]bool
+	gitAncestors       map[string]bool
+	gitList            native.ListState
+	gitListRow         int
+	gitCommitSelection map[string]bool
+	gitCommitAnchor    string
+	gitCompareSelected string
+	gitCompareRequest  uint64
+	gitPreview         string
+	gitRefPrompt       *gitRefPrompt
+	gitCommitDirs      map[string]bool
+
 	gitMessage, gitBusy, gitNotice, gitActionError string
 	gitSelection                                   map[string]bool
 	gitAnchor                                      string
@@ -49,7 +71,6 @@ type gitWorkflow struct {
 	gitHistoryMore                                 bool
 	gitHistoryError                                string
 	gitHistoryTime                                 time.Time
-	gitHistoryScroll                               native.ScrollState
 	gitCommitTrees                                 map[string]*gitCommitTree
 	gitStats                                       map[string]gitview.Review
 	gitStatsLoading                                bool
@@ -126,6 +147,7 @@ func (a *App) gitAction(w *workspacePage, label string, fn func(context.Context)
 		return
 	}
 	a.cancelGitRefresh(w)
+	a.cancelGitHistory(w)
 	w.gitBusy, w.gitActionError, w.gitNotice = label, "", ""
 	indexOnly := isGitIndexAction(label)
 	ctx, cancel := a.projectContext(2 * time.Minute)
@@ -352,43 +374,98 @@ func (a *App) gitSelect(w *workspacePage, group string, entry gitview.Entry, mod
 	return true
 }
 
+const gitHistoryPage = 50
+
 func (a *App) gitLoadHistory(w *workspacePage, more bool) {
 	if w.gitHistoryLoading || !a.canAsync() || w.gitBusy != "" {
 		return
 	}
-	skip := 0
+	limit := max(w.gitHistoryLimit, gitHistoryPage)
 	if more {
-		skip = len(w.gitHistory)
+		limit = max(w.gitHistoryLimit, gitHistoryPage) + gitHistoryPage
 	}
+	all := a.preferences.CommitsAllBranches
 	w.gitHistoryLoading = true
-	ctx, cancel := a.projectContext(5 * time.Second)
+	w.gitHistoryRequest++
+	request := w.gitHistoryRequest
+	ctx, cancel := a.projectContext(15 * time.Second)
+	w.gitHistoryCancel = cancel
 	a.runGitTaskContext(ctx, func() {
 		defer cancel()
-		items, err := gitview.History(ctx, w.root, 20, skip)
+		items, err := gitview.ReadHistory(ctx, w.root, limit, all)
+		unpushed := map[string]bool{}
+		ancestors := map[string]bool{}
+		if err == nil {
+			unpushed, _ = gitview.UnpushedCommits(ctx, w.root)
+			current, e := gitview.ReadHistory(ctx, w.root, limit, false)
+			if e == nil {
+				for _, cm := range current {
+					ancestors[cm.Hash] = true
+				}
+			}
+		}
 		a.update(func() {
-			w.gitHistoryLoading, w.gitHistoryLoaded = false, true
+			if w.gitHistoryRequest != request || a.preferences.CommitsAllBranches != all {
+				return
+			}
+			w.gitHistoryLoading = false
+			w.gitHistoryCancel = nil
 			w.gitHistoryTime = time.Now()
 			if err != nil {
 				w.gitHistoryError = err.Error()
+				w.gitHistoryLoaded = true
 				return
 			}
 			w.gitHistoryError = ""
-			if !more {
-				w.gitHistory = nil
+			w.gitHistoryLoaded = true
+			if w.gitHistoryAll != all {
+				w.gitList.ScrollTo(0, native.Start)
+				w.gitListRow = 0
 			}
-			w.gitHistory = append(w.gitHistory, items...)
-			w.gitHistoryMore = len(items) == 20
-			if !more {
-				trees := make(map[string]*gitCommitTree)
-				for _, item := range items {
-					if tree := w.gitCommitTrees[item.Hash]; tree != nil {
-						trees[item.Hash] = tree
-					}
+			w.gitHistoryAll = all
+			w.gitHistory = items
+			w.gitHistoryLimit = limit
+			w.gitHistoryMore = len(items) >= limit
+			w.gitGraph = layoutGraph(items)
+			w.gitUnpushed = unpushed
+			w.gitAncestors = ancestors
+			trees := map[string]*gitCommitTree{}
+			selection := map[string]bool{}
+			for _, cm := range items {
+				if tree := w.gitCommitTrees[cm.Hash]; tree != nil {
+					trees[cm.Hash] = tree
 				}
-				w.gitCommitTrees = trees
+				if w.gitCommitSelection[cm.Hash] {
+					selection[cm.Hash] = true
+				}
 			}
+			w.gitCommitTrees = trees
+			w.gitCommitSelection = selection
 		})
 	})
+}
+func (a *App) gitToggleAllBranches(w *workspacePage) {
+	a.preferences.CommitsAllBranches = !a.preferences.CommitsAllBranches
+	if err := a.persist(); err != nil {
+		a.preferences.CommitsAllBranches = !a.preferences.CommitsAllBranches
+		w.gitActionError = "保存 COMMITS 设置失败：" + err.Error()
+		return
+	}
+	for _, other := range a.workspaces {
+		a.cancelGitHistory(other)
+		other.gitHistoryLoaded = false
+		other.gitHistoryError = ""
+		other.gitHistoryLimit = gitHistoryPage
+	}
+	a.gitLoadHistory(w, false)
+}
+
+func (a *App) gitToggleCommitTree(w *workspacePage) {
+	a.preferences.CommitsTree = !a.preferences.CommitsTree
+	if err := a.persist(); err != nil {
+		a.preferences.CommitsTree = !a.preferences.CommitsTree
+		w.gitActionError = "保存 COMMITS 设置失败：" + err.Error()
+	}
 }
 
 func (a *App) gitLoadCommitTree(w *workspacePage, info gitview.CommitInfo, tree *gitCommitTree) {
@@ -414,14 +491,24 @@ func (a *App) gitLoadCommitTree(w *workspacePage, info gitview.CommitInfo, tree 
 	})
 }
 
+func gitCommitLabel(hash string) string {
+	if from, to, ok := strings.Cut(hash, ".."); ok {
+		return from[:min(7, len(from))] + " → " + to[:min(7, len(to))]
+	}
+	return "提交 " + hash[:min(7, len(hash))]
+}
+
 func (a *App) gitOpenCommit(w *workspacePage, info gitview.CommitInfo, path ...string) {
 	id := "commit-" + w.root + "-" + info.Hash
+	if w.gitPreview == id {
+		w.gitPreview = ""
+	}
 	if a.files == nil {
 		a.files = map[string]*filePage{}
 	}
 	d := a.files[id]
 	if d == nil {
-		d = &filePage{id: id, root: w.root, path: filepath.Join(w.root, "提交 "+info.Hash[:8]), kind: "diff", compare: "提交 " + info.Hash, gitDiffState: gitDiffState{gitCommit: info.Hash}}
+		d = &filePage{id: id, root: w.root, path: filepath.Join(w.root, gitCommitLabel(info.Hash)), kind: "diff", compare: "提交 " + info.Hash, gitDiffState: gitDiffState{gitCommit: info.Hash}}
 		a.files[id] = d
 		a.tabs = append(a.tabs, storage.Tab{ID: id, Kind: "diff", Workspace: w.root, Path: d.path, Compare: d.compare})
 	}
@@ -457,7 +544,11 @@ func (a *App) gitLoadCommit(d *filePage, info gitview.CommitInfo, path ...string
 		}
 		review := gitview.ParsePatch(text)
 		if err == nil && len(entries) > 0 {
-			gitview.ReadReviewBase(ctx, d.root, info.Hash+"^:", entries[selected], &review)
+			base := info.Hash + "^:"
+			if from, _, ok := strings.Cut(info.Hash, ".."); ok {
+				base = from + ":"
+			}
+			gitview.ReadReviewBase(ctx, d.root, base, entries[selected], &review)
 			review.Entry = entries[selected]
 		}
 		a.update(func() {
@@ -559,4 +650,13 @@ func (a *App) hasGitWrites() bool {
 		}
 	}
 	return false
+}
+
+func (a *App) cancelGitHistory(w *workspacePage) {
+	if w.gitHistoryCancel != nil {
+		w.gitHistoryCancel()
+		w.gitHistoryCancel = nil
+	}
+	w.gitHistoryRequest++
+	w.gitHistoryLoading = false
 }

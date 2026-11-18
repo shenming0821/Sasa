@@ -40,7 +40,7 @@ type workspacePage struct {
 	expanded, loading            map[string]bool
 	list                         native.ListState
 	contentList                  native.ListState
-	historyScroll, gitScroll     native.ScrollState
+	historyScroll                native.ScrollState
 	historyQuery                 string
 	historyScope                 int
 	directoryProgress            map[string]float32
@@ -262,6 +262,8 @@ func (a *App) selectWorkspace(root string) {
 			old.loading[path] = false
 		}
 		a.cancelGitRefresh(old)
+		a.cancelGitHistory(old)
+		old.gitCompareRequest++
 		for _, d := range a.files {
 			if d.root == old.root {
 				a.cancelFileRead(d)
@@ -917,6 +919,7 @@ func (a *App) closeWorkspaceResources() {
 			w.gitGenerateCancel()
 		}
 		a.cancelGitRefresh(w)
+		a.cancelGitHistory(w)
 		for _, task := range w.directoryTasks {
 			task.cancel()
 		}
@@ -1012,6 +1015,12 @@ func (a *App) refreshGit(w *workspacePage) {
 }
 
 func (a *App) applyGitStatus(w *workspacePage, status gitview.Status) {
+	if w.git.Head != status.Head || w.git.Upstream != status.Upstream || (!w.gitHistoryTime.IsZero() && time.Since(w.gitHistoryTime) > 5*time.Second) {
+		if !w.gitHistoryLoading {
+			w.gitHistoryLoaded = false
+		}
+	}
+
 	w.gitError = ""
 	w.gitTime = time.Now()
 	w.gitFingerprint = fmt.Sprintf("%+v", status)
