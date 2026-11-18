@@ -156,7 +156,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 		if !leftShown {
 			a.sidebarToggle(c, true)
 		}
-		scroll := native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0)
+		scroll := native.ScrollHorizontal(c).Grow(1).FillHeight().MinWidth(0).DragWindow()
 		scroll.Children(func() {
 			native.Row(c).MinWidth(scroll.Bounds().W).Shrink(0).FillHeight().AlignItems(native.Center).Children(func() {
 				for _, tab := range tabs {
@@ -281,12 +281,16 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 					})
 				}
 				if pane := a.renderingPane; pane != nil {
-					blank := native.Box(c.Key("tab-blank")).Label("新建标签页空白处 " + pane.ID).Grow(1).FillHeight()
+					blank := native.Box(c.Key("tab-blank")).Label("新建标签页空白处 " + pane.ID).Grow(1).FillHeight().DragWindow()
 					a.tabEndDropZone(c, blank, pane)
-					if blank.DoubleClicked() {
-						a.newEmptyTab(a.activeWorkspace, pane)
-						c.AnimationFrame()
-					}
+					blank.HandleInput(func(ev native.InputEvent) bool {
+						if ev.Kind == native.InputPointerDown && ev.Button == 0 && ev.Clicks == 2 {
+							a.newEmptyTab(a.activeWorkspace, pane)
+							c.AnimationFrame()
+							return true
+						}
+						return false
+					})
 				}
 			})
 		})
