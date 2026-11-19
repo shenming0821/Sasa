@@ -95,6 +95,10 @@ func (a *App) applyAppearance(c *native.Context) {
 		t.Border = native.Hex("#e4e4e4")
 	}
 	t.Font = root.preferences.EnglishFont + ", " + root.preferences.ChineseFont + ", system-ui"
+	// The status badge reads as a small dot on chrome, surface, and the
+	// editor ground: the palette's colors are pushed through legible on
+	// those backs so they read at WCAG's 4.5:1 like Mayoi's do.
+	applyStatusTheme(&t, t.Background, t.Surface, t.SurfaceHover)
 	c.SetTheme(&t)
 	root.md.Theme.Font, root.md.Theme.CodeFont = t.Font, root.codeFontFamily()
 }
