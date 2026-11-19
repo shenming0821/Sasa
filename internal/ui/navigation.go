@@ -247,10 +247,6 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 								title := native.Text(tc, a.tabTitle(tab)).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 								if target != nil {
 									title.Grow(1)
-									dot := native.Box(tc.Key("unread")).Size(6, 6).Shrink(0).Radius(3).Translate(14, 0)
-									if target.saved.Unread {
-										dot.Label("未读回复").Background(t.Accent)
-									}
 								}
 							})
 						})
