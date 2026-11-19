@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
 	"testing"
 
 	native "github.com/egoist/mygo/ui"
@@ -21,10 +20,7 @@ func TestTabSelectionKeepsTitleAndCloseButtonGeometry(t *testing.T) {
 				storage.Tab{ID: "empty", Kind: "empty", Workspace: "/project"},
 			)
 			pane := focusedPane(a.layoutFor("/project"))
-			var lineColor color.RGBA
 			tester := native.NewTester(func(c *native.Context) {
-				accent := c.Theme().Accent
-				lineColor = color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: accent.A}
 				a.withPane("/project", pane, func() {
 					native.Column(c).Fill().Children(func() { a.sessionTabs(c, true, true) })
 				})
@@ -57,12 +53,6 @@ func TestTabSelectionKeepsTitleAndCloseButtonGeometry(t *testing.T) {
 				for label, after := range geometry() {
 					if after != before[label] {
 						t.Fatalf("selecting %s moved %q: before=%+v after=%+v", tab.Kind, label, before[label], after)
-					}
-				}
-				for index, candidate := range a.tabs {
-					pixel := tester.Image().RGBAAt(index*168+84, 36)
-					if (pixel == lineColor) != (candidate.ID == tab.ID) {
-						t.Fatalf("selection underline is incorrect for %s: pixel=%+v", candidate.Kind, pixel)
 					}
 				}
 			}

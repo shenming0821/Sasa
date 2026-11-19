@@ -181,9 +181,6 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 					focused := a.paneIsFocused()
 					if focused && tab.ID == a.activeTab {
 						row.Background(t.Background)
-						row.DrawOver(func(painter *native.Painter, bounds native.Rect) {
-							painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, t.Accent, 0)
-						})
 					}
 					if focused && tab.ID == a.activeTab {
 						if a.tabsSelected != a.activeTab {
