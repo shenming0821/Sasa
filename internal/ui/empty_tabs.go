@@ -35,7 +35,7 @@ func (a *App) emptyTab(c *native.Context, tab storage.Tab) {
 	if focused && tab.ID == a.activeTab {
 		row.Background(theme.Background)
 		row.DrawOver(func(painter *native.Painter, bounds native.Rect) {
-			painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y, W: bounds.W, H: 2}, theme.Accent, 0)
+			painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, theme.Accent, 0)
 		})
 		if tab.ID != "" && a.tabsSelected != tab.ID {
 			row.ScrollIntoView()
