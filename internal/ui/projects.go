@@ -338,7 +338,6 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 					b.Children(func() {
 						native.Column(wc).FillWidth().Gap(3).Children(func() {
 							native.Row(wc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-								a.folderTabIndicator(wc, w.Path, -14)
 								native.Text(wc, a.worktreeName(w.Path)).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 								if w.Main {
 									native.Text(wc, "主要").FontSize(9).TextColor(t.TextMuted).Padding(1, 4).BorderWidth(1).BorderColor(t.Border).Radius(3)

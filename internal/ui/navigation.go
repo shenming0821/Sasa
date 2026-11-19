@@ -410,7 +410,6 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 	gc := c.Key(group.path)
 	native.Column(gc).FillWidth().Gap(3).Children(func() {
 		a.projectDisclosure(gc, group.path, "展开项目 "+group.path, func() {
-			a.folderTabIndicator(gc, group.path, -2)
 			native.Icon(gc, folderIcon).Size(14, 14)
 			native.Text(gc, projectName(group.path)).FontSize(12).Bold().TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 			native.Spacer(gc)

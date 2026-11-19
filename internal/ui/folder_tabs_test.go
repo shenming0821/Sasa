@@ -364,13 +364,8 @@ func TestFolderTabsIndicatorAndDisclosureStayStable(t *testing.T) {
 			tester := native.NewTester(a.view, 1000, 760)
 			tester.SetDark(dark)
 			before, found := tester.Find("展开项目 /a")
-			if !found || !tester.HasText("有打开的页签 /a") {
-				t.Fatal("open folder indicator missing")
-			}
-			dot, _ := tester.Find("有打开的页签 /a")
-			pixel := tester.Image().RGBAAt(int(dot.X+dot.W/2), int(dot.Y+dot.H/2))
-			if pixel.G <= pixel.R || pixel.G <= pixel.B {
-				t.Fatal("folder indicator is not green", pixel)
+			if !found {
+				t.Fatal("project heading missing")
 			}
 			selected := a.activeTab
 			if err := tester.Click("展开项目 /a"); err != nil {
@@ -383,35 +378,9 @@ func TestFolderTabsIndicatorAndDisclosureStayStable(t *testing.T) {
 			a.closeSession(a.session)
 			tester.Frame()
 			after, _ := tester.Find("展开项目 /a")
-			if tester.HasText("有打开的页签 /a") || before != after {
-				t.Fatal("indicator did not clear or moved the folder heading", before, after)
+			if before != after {
+				t.Fatal("closing a session moved the folder heading", before, after)
 			}
 		})
-	}
-}
-
-func TestFolderTabsIndicatorPreservesOriginalNameOrigin(t *testing.T) {
-	for _, worktree := range []bool{false, true} {
-		for _, dark := range []bool{false, true} {
-			t.Run(fmt.Sprintf("worktree=%t/dark=%t", worktree, dark), func(t *testing.T) {
-				a := New(stubBackend{}, "test", "/folder-name", nil)
-				if worktree {
-					a.repositories = []project.Repository{{CommonDir: "/folder-name/.git", Path: "/folder-name", Name: "Repository", Worktrees: []project.Worktree{{Path: "/folder-name", Branch: "main"}}}}
-				}
-				tester := native.NewTester(a.view, 1000, 760)
-				tester.SetDark(dark)
-				name, found := tester.Find("folder-name")
-				dot, active := tester.Find("有打开的页签 /folder-name")
-				if !found || !active || name.X != 37 || dot.X+dot.W >= name.X {
-					t.Fatal("indicator moved the original name or is not before it", name, dot)
-				}
-				a.closeSession(a.session)
-				tester.Frame()
-				after, found := tester.Find("folder-name")
-				if !found || after != name {
-					t.Fatal("clearing indicator moved or resized the folder name", name, after)
-				}
-			})
-		}
 	}
 }

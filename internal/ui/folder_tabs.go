@@ -1,9 +1,6 @@
 package ui
 
 import (
-	"slices"
-
-	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Sasa/internal/storage"
 )
 
@@ -115,13 +112,4 @@ func (a *App) selectAfterTabClose(id string, previous []storage.Tab) {
 	} else if len(previous) > 1 {
 		a.selectWorkspaceTab(previous[1])
 	}
-}
-
-func (a *App) folderTabIndicator(c *native.Context, root string, left float32) {
-	active := slices.ContainsFunc(a.folderTabs(root), func(tab storage.Tab) bool { return tab.Kind != "empty" })
-	native.Box(c.Key("folder-tabs-indicator")).Absolute().Left(left).Top(0).Bottom(0).Width(8).AlignItems(native.Center).Justify(native.Center).Children(func() {
-		if active {
-			native.Box(c).Label("有打开的页签 "+root).Size(6, 6).Radius(3).Background(c.Theme().Success)
-		}
-	})
 }
