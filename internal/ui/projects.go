@@ -350,13 +350,6 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 									agentBadge(wc, latest.kind, 12, t.Surface, sessionStatusDot(wc, latest)).Label("工作区会话 Agent " + latest.kind.String()).Shrink(0)
 									native.Text(wc, latest.title()).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 								})
-								if status := latest.navigationStatus(); status != "" && !latest.writerOccupied {
-									color := t.TextMuted
-									if latest.State.Error != "" {
-										color = t.Danger
-									}
-									native.Text(wc, status).FontSize(10).TextColor(color).SingleLine().Shrink(1).MinWidth(0)
-								}
 							}
 						})
 					})

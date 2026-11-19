@@ -432,13 +432,6 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 							agentBadge(gc, s.kind, 12, t.Surface, sessionStatusDot(gc, s)).Label("会话 Agent " + s.kind.String()).Shrink(0)
 							native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 						})
-						if status := s.navigationStatus(); status != "" {
-							color := t.TextMuted
-							if s.State.Error != "" {
-								color = t.Danger
-							}
-							native.Text(gc, status).FontSize(10).TextColor(color).SingleLine()
-						}
 					})
 				})
 				if b.Clicked() {
