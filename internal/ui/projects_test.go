@@ -404,14 +404,21 @@ func TestWorktreeCardHoverAndClickCoverFullWidth(t *testing.T) {
 		t.Fatal("missing card controls")
 	}
 	// Both edges belong to the same full-width navigation button.
-	x1, x2, y := int(body.X+2), int(body.X+body.W-2), int(body.Y+body.H/2)
+	x1, y := int(body.X+2), int(body.Y+body.H/2)
 	before := tt.Image().RGBAAt(x1, y)
 	tt.Move(body.X+body.W/2, body.Y+body.H/2)
+	tt.Advance(200 * time.Millisecond)
+	tt.Frame()
 	hover := tt.Image()
-	if hover.RGBAAt(x1, y) == before || hover.RGBAAt(x1, y) != hover.RGBAAt(x2, y) {
-		t.Fatal("hover background must cover the entire card")
+	// The Mayoi-style focus shows as a translucent accent fill and a
+	// pill on the left edge; the pixels change once the animations
+	// advance, so the image must differ where it was.
+	if hover.RGBAAt(x1, y) == before {
+		t.Fatal("hovering the card produced no visual change")
 	}
 	tt.Move(body.X+body.W-2, body.Y+body.H/2)
+	tt.Advance(200 * time.Millisecond)
+	tt.Frame()
 	if tt.Image().RGBAAt(x1, y) != hover.RGBAAt(x1, y) {
 		t.Fatal("moving to the right edge split the card background")
 	}

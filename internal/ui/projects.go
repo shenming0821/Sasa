@@ -310,14 +310,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 				}
 				wc := rc.Key(w.Path)
 				card := native.Column(wc).FillWidth().Gap(0).Radius(10)
-				if a.activeWorkspace == w.Path && a.activeTab != "" {
-					card.Background(t.SurfacePressed)
-					card.DrawOver(func(painter *native.Painter, bounds native.Rect) {
-						painter.Fill(native.Rect{X: bounds.X + 2, Y: bounds.Y + 6, W: 3, H: bounds.H - 12}, t.Accent, 1.5)
-					})
-				} else if card.Hovered() {
-					card.Background(t.SurfaceHover)
-				}
+				on := a.activeWorkspace == w.Path && a.activeTab != ""
 				card.Children(func() {
 					b := native.ButtonBase(wc).Label("打开工作区 "+w.Path).FillWidth().MinWidth(0).Radius(10).Padding(10, 16, 10, 29).Disabled(!w.Available())
 					b.ContextMenu(func(menu *native.Menu) {
@@ -326,9 +319,22 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 							a.beginWorktreeRename(w.Path)
 						}
 					})
-					if b.FocusVisible() {
-						card.Background(t.SurfacePressed)
+					// Mirror Mayoi's railTab: a pill of accent grows at
+					// the left edge as the card is on or hovered, the
+					// card face fills at a partial alpha, and an accent
+					// ring outlines it while it is on. The three states
+					// ease over a short duration.
+					hovered := b.Hovered()
+					var pill, fill float32
+					switch {
+					case on:
+						pill, fill = 20, 0.30
+					case hovered:
+						pill, fill = 8, 0.22
 					}
+					pill = b.Animate("pill", pill, 160*time.Millisecond)
+					fill = b.Animate("fill", fill, 120*time.Millisecond)
+					outline := b.Animate("ring", projectFocusUnit(on || b.FocusVisible()), 160*time.Millisecond)
 					b.Children(func() {
 						native.Column(wc).FillWidth().Gap(3).Children(func() {
 							native.Row(wc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
@@ -356,8 +362,35 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 					if b.Clicked() {
 						a.openWorktree(w)
 					}
+					b.DrawOver(func(painter *native.Painter, bounds native.Rect) {
+						paintProjectFocus(painter, bounds, t, pill, fill, outline, on)
+					})
 				})
 			}
 		}, repositoryProjectID(repo.CommonDir))
 	})
+}
+
+// paintProjectFocus paints the pill, translucent fill, and accent ring
+// of a project card as it is on or hovered, mirrored from Mayoi's
+// railTab. The pill grows at the left edge in the accent when on, or in
+// the muted color while only hovered; the fill and ring fade in with
+// the card's alpha.
+func paintProjectFocus(painter *native.Painter, bounds native.Rect, t *native.Theme, pill, fill, outline float32, on bool) {
+	pc := t.TextMuted
+	if on {
+		pc = t.Accent
+	}
+	painter.Fill(native.Rect{X: bounds.X + 2, Y: bounds.Y + (bounds.H-pill)/2, W: 3, H: pill}, pc, 1.5)
+	painter.Fill(bounds, t.Accent.Alpha(fill), 10)
+	painter.Stroke(bounds, t.Accent.Alpha(0.75*outline), 10, 1.25)
+}
+
+// projectFocusUnit returns 1 when cond is true and 0 otherwise, the way
+// Mayoi's unit does for its animated on/off states.
+func projectFocusUnit(cond bool) float32 {
+	if cond {
+		return 1
+	}
+	return 0
 }
