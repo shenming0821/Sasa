@@ -179,7 +179,11 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 					tc := c.Key(tab.ID)
 					row := native.Row(tc).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
 					focused := a.paneIsFocused()
-					tabFace(tc, row, focused && tab.ID == a.activeTab, target)
+					if focused && tab.ID == a.activeTab {
+						row.DrawOver(func(painter *native.Painter, bounds native.Rect) {
+							painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, t.Accent, 0)
+						})
+					}
 					if focused && tab.ID == a.activeTab {
 						if a.tabsSelected != a.activeTab {
 							row.ScrollIntoView()

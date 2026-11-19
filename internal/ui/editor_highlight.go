@@ -262,9 +262,6 @@ func (a *App) tabTooltip(tab storage.Tab) string {
 		for _, s := range a.sessions {
 			if s.id == tab.SessionID {
 				title := a.tabTitle(tab)
-				if status, _ := s.tabActivity(); status != "" {
-					title += "\n" + status
-				}
 				if s.saved.Unread {
 					title += "\n有未读回复"
 				}

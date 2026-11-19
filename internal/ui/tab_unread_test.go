@@ -49,8 +49,8 @@ func TestUnreadReplyBelongsToBackgroundSession(t *testing.T) {
 			if close, _ := tester.Find("关闭会话标签 1"); close != beforeClose {
 				t.Fatal("unread indicator moved the close button")
 			}
-			if got := a.tabTooltip(a.tabs[0]); got != "后台任务\n执行中\n有未读回复" {
-				t.Fatalf("tooltip lost activity or unread status: %q", got)
+			if got := a.tabTooltip(a.tabs[0]); got != "后台任务\n有未读回复" {
+				t.Fatalf("tooltip lost unread status: %q", got)
 			}
 			apply("turn/completed", `{"threadId":"thread","turn":{"id":"turn","status":"completed"}}`)
 			tester.Frame()
