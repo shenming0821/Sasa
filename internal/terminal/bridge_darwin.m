@@ -238,6 +238,9 @@ sasa_terminal_t sasa_terminal_new(uintptr_t window, uintptr_t token, const char 
     options.userdata = (__bridge void *)view;
     options.scale_factor = hostWindow.backingScaleFactor;
     options.working_directory = cwd;
+    ghostty_env_var_s terminalEnvironment[] = {{.key = "SASA_TERMINAL", .value = "1"}};
+    options.env_vars = terminalEnvironment;
+    options.env_var_count = sizeof(terminalEnvironment) / sizeof(terminalEnvironment[0]);
     view.surface = gt_surface_new(terminalApp, &options);
     if (!view.surface) {
         view.token = 0;

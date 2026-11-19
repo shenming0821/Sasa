@@ -150,7 +150,7 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	if strings.TrimSpace(string(cwd)) != root {
 		return fmt.Errorf("wrong shell directory: %s", cwd)
 	}
-	first.probeText("printf '%s' \"${NO_COLOR+set}\" > no-color; printf '%s' \"$COLORTERM\" > colorterm; echo ready > color-env-ready\r")
+	first.probeText("printf '%s' \"${NO_COLOR+set}\" > no-color; printf '%s' \"$COLORTERM\" > colorterm; printf '%s' \"$SASA_TERMINAL\" > sasa-terminal; echo ready > color-env-ready\r")
 	if err := probeWait(func() bool { return fileExists(filepath.Join(root, "color-env-ready")) }); err != nil {
 		return fmt.Errorf("terminal color environment: %w; screen=%s", err, first.probeScreen())
 	}
@@ -161,6 +161,10 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	colorTerm, err := os.ReadFile(filepath.Join(root, "colorterm"))
 	if err != nil || string(colorTerm) != "truecolor" {
 		return fmt.Errorf("terminal COLORTERM=%q: %v", colorTerm, err)
+	}
+	terminalMarker, err := os.ReadFile(filepath.Join(root, "sasa-terminal"))
+	if err != nil || string(terminalMarker) != "1" {
+		return fmt.Errorf("terminal SASA_TERMINAL=%q: %v", terminalMarker, err)
 	}
 	if os.Getenv("NO_COLOR") != "1" {
 		return fmt.Errorf("terminal creation changed the host NO_COLOR")
