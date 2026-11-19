@@ -180,8 +180,9 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 					row := native.Row(tc).Width(168).FillHeight().Padding(0, 4, 0, 0).AlignItems(native.Center)
 					focused := a.paneIsFocused()
 					if focused && tab.ID == a.activeTab {
+						row.Background(t.Background)
 						row.DrawOver(func(painter *native.Painter, bounds native.Rect) {
-							painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y + bounds.H - 2, W: bounds.W, H: 2}, t.Accent, 0)
+							painter.Fill(native.Rect{X: bounds.X, Y: bounds.Y, W: bounds.W, H: 2}, t.Accent, 0)
 						})
 					}
 					if focused && tab.ID == a.activeTab {
