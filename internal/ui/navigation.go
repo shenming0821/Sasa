@@ -225,7 +225,7 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 								if tab.Kind == "session" {
 									for _, target := range a.sessions {
 										if target.id == tab.SessionID {
-											agentIcon(tc, target.kind, 12).Label("会话 Agent " + target.kind.String())
+											agentBadge(tc, target.kind, 12, t.Surface, sessionStatusDot(tc, target)).Label("会话 Agent " + target.kind.String())
 											break
 										}
 									}
@@ -429,7 +429,7 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 				b.Children(func() {
 					native.Column(gc).FillWidth().Gap(4).Children(func() {
 						native.Row(gc.Key("session-title")).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-							agentIcon(gc, s.kind, 12).Label("会话 Agent " + s.kind.String()).Shrink(0)
+							agentBadge(gc, s.kind, 12, t.Surface, sessionStatusDot(gc, s)).Label("会话 Agent " + s.kind.String()).Shrink(0)
 							native.Text(gc, s.title()).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 						})
 						if status := s.navigationStatus(); status != "" {

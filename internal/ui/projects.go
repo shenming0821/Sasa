@@ -347,7 +347,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 							native.Text(wc, label).FontSize(10).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 							if latest != nil {
 								native.Row(wc.Key("session-summary")).FillWidth().Padding(5, 0, 0, 0).Gap(6).AlignItems(native.Center).Children(func() {
-									agentIcon(wc, latest.kind, 12).Label("工作区会话 Agent " + latest.kind.String()).Shrink(0)
+									agentBadge(wc, latest.kind, 12, t.Surface, sessionStatusDot(wc, latest)).Label("工作区会话 Agent " + latest.kind.String()).Shrink(0)
 									native.Text(wc, latest.title()).FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(1).MinWidth(0)
 								})
 								if status := latest.navigationStatus(); status != "" && !latest.writerOccupied {
