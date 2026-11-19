@@ -42,6 +42,8 @@
 
 Codex 通过 `thread/fork` 的 `beforeTurnId` 排除目标轮及以后各轮，再从新 thread 分页核对前缀条目，不依赖 UI 删除达到上下文隔离。Claude 通过 `--resume-session-at`、`--fork-session` 和新 `--session-id` 延迟到发送时创建原生副本；此前检查点保存来源、摘要与准确的 assistant UUID，恢复和分页只投影该 UUID 之前的有效链。首次发送成功产生新 transcript 后清除延迟来源，后续发送与恢复使用新原生 ID。
 
+Codex 历史消息允许包含显式技能引用。编辑前从原生消息取得技能名称与路径，随编辑草稿持久化，重发和失败重试仅附带修改后文字中仍存在的技能引用；删除 `$技能名` 后不再附带该技能。引用缺少名称或路径、或包含未知输入类型时，在创建新会话前阻止编辑。
+
 Claude 允许原生用户 UUID 与输入 prompt UUID 不同，通过 checkpoint、PromptID 和有效父链交叉定位；回答与下一问题之间的 attachment、progress、stop_hook_summary 记账条目不被误认作另一轮问题。已压缩历史、未知中间消息和缺少完整 assistant 边界时明确阻止编辑。进程重建后的 generation 按新会话重新建立，旧 ID 的事件不会进入新会话。
 
 `agent.RequestTable` 提供带缓冲、非阻塞、按 ID 关联的响应表；Codex Call 超时或结束时移除等待者，reader 路由响应不等待 UI。原有关闭、写入截止时间、事件队列策略不变。协议帧 16 MiB、事件队列 4 MiB/4096 条、交互 256 KiB/16 条的限额统一由 agent 常量提供；显示投影与裁剪也已移入 agent，Codex 保留包装函数。

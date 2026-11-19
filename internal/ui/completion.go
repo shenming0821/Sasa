@@ -264,6 +264,10 @@ func (a *session) draftSkills(text string) []agent.Skill {
 	if a.completion.cwd != a.State.Cwd {
 		return nil
 	}
+	return referencedSkills(text, a.kind, a.completion.chosen)
+}
+
+func referencedSkills(text string, kind agent.AgentKind, chosen map[string]agent.Skill) []agent.Skill {
 	var skills []agent.Skill
 	seen := make(map[string]bool)
 	r := []rune(text)
@@ -271,11 +275,11 @@ func (a *session) draftSkills(text string) []agent.Skill {
 		if end < len(r) && !unicode.IsSpace(r[end]) {
 			continue
 		}
-		q, ok := queryCompletion(text, end, end, a.kind)
+		q, ok := queryCompletion(text, end, end, kind)
 		if !ok || q.kind != '$' || seen[q.query] {
 			continue
 		}
-		skill, ok := a.completion.chosen[q.query]
+		skill, ok := chosen[q.query]
 		if ok {
 			skills = append(skills, skill)
 			seen[q.query] = true

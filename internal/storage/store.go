@@ -70,6 +70,7 @@ type MessageEdit struct {
 	SubmittedTurnID                      string
 	PrefixTurnID                         string
 	Images                               []attachment.Image
+	Skills                               []agent.Skill
 	Prepared, Submitted                  bool
 }
 

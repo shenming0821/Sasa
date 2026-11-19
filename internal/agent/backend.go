@@ -112,6 +112,7 @@ type HistoryEditor interface {
 type HistoryEdit struct {
 	Thread ResumedThread
 	Turns  []HistoryTurn
+	Skills []Skill
 }
 
 type Command struct {

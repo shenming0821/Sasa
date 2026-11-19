@@ -18,6 +18,10 @@ func (c *Client) EditHistory(ctx context.Context, threadID, turnID, messageID st
 	if err != nil {
 		return result, err
 	}
+	result.Skills, err = agent.EditSkills(turns[boundary], messageID)
+	if err != nil {
+		return result, err
+	}
 	err = c.Call(ctx, "thread/fork", map[string]any{
 		"threadId": threadID, "beforeTurnId": turnID, "excludeTurns": true, "deferGoalContinuation": true,
 	}, &result.Thread)

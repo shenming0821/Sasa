@@ -70,7 +70,7 @@ func EditBoundary(turns []HistoryTurn, turnID, messageID string) (int, error) {
 			if item.ID == messageID && messageID != "" {
 				matched = true
 				for _, content := range item.Content {
-					if content.Type != "text" && content.Type != "image" && content.Type != "localImage" {
+					if content.Type != "text" && content.Type != "image" && content.Type != "localImage" && content.Type != "skill" {
 						return 0, fmt.Errorf("此消息包含暂不支持编辑的输入内容")
 					}
 				}
@@ -85,4 +85,35 @@ func EditBoundary(turns []HistoryTurn, turnID, messageID string) (int, error) {
 		return 0, fmt.Errorf("原生历史中未找到此消息，请重新加载会话")
 	}
 	return boundary, nil
+}
+
+func EditSkills(turn HistoryTurn, messageID string) ([]Skill, error) {
+	for _, raw := range turn.Items {
+		var item struct {
+			ID      string `json:"id"`
+			Type    string `json:"type"`
+			Content []struct {
+				Type string `json:"type"`
+				Name string `json:"name"`
+				Path string `json:"path"`
+			} `json:"content"`
+		}
+		if err := json.Unmarshal(raw, &item); err != nil {
+			return nil, err
+		}
+		if item.Type != "userMessage" || item.ID != messageID {
+			continue
+		}
+		var skills []Skill
+		for _, content := range item.Content {
+			if content.Type == "skill" {
+				if content.Name == "" || content.Path == "" {
+					return nil, fmt.Errorf("此消息的技能引用不完整")
+				}
+				skills = append(skills, Skill{Name: content.Name, Path: content.Path})
+			}
+		}
+		return skills, nil
+	}
+	return nil, fmt.Errorf("原生历史中未找到此消息，请重新加载会话")
 }

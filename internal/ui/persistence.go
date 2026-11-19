@@ -138,6 +138,7 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		if saved.EditDraft != nil {
 			draft := *saved.EditDraft
 			draft.Images = slices.Clone(draft.Images)
+			draft.Skills = slices.Clone(draft.Skills)
 			s.edit = &draft
 		}
 		if saved.ModelAgent == "" || saved.ModelAgent.Normalized() == s.kind {
@@ -242,6 +243,7 @@ func (a *App) snapshot() storage.Snapshot {
 		if s.edit != nil {
 			draft := *s.edit
 			draft.Images = slices.Clone(draft.Images)
+			draft.Skills = slices.Clone(draft.Skills)
 			item.EditDraft = &draft
 		}
 		item.TurnTimings = maps.Clone(item.TurnTimings)

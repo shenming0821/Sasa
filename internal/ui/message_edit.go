@@ -243,6 +243,7 @@ func (a *App) switchEditedHistory(result agent.HistoryEdit, restoring bool) erro
 		a.edit = nil
 		a.editError, a.editFocus = "", false
 	} else {
+		a.edit.Skills = slices.Clone(result.Skills)
 		a.edit.Prepared = true
 		a.edit.PrefixTurnID = state.TurnID
 	}

@@ -317,6 +317,16 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 	}
 	selectedEffort, selectedTier := a.sendTurnOptions()
 	skills := a.draftSkills(text)
+	if edited {
+		chosen := make(map[string]agent.Skill)
+		for _, skill := range skills {
+			chosen[skill.Name] = skill
+		}
+		for _, skill := range a.edit.Skills {
+			chosen[skill.Name] = skill
+		}
+		skills = referencedSkills(text, a.kind, chosen)
+	}
 	draft, draftImages := a.State.Draft, a.State.DraftImages
 	if edited {
 		a.removeEditPlaceholder()

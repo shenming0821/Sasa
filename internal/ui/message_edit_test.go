@@ -26,6 +26,66 @@ type editTestBackend struct {
 	edits  chan string
 	sends  chan string
 	stops  chan string
+	skills chan []agent.Skill
+}
+
+func (backend *editTestBackend) SendWithSkills(ctx context.Context, thread, text string, skills []agent.Skill) (agent.Turn, error) {
+	if backend.skills != nil {
+		backend.skills <- skills
+	}
+	return backend.Send(ctx, thread, text)
+}
+
+func TestMessageEditPreservesSkillsAcrossRestoreAndRetry(t *testing.T) {
+	for _, text := range []string{"$specflow changed", "changed without skill"} {
+		t.Run(text, func(t *testing.T) {
+			desktop, backend := editTestApp()
+			backend.skills = make(chan []agent.Skill, 2)
+			backend.result.Skills = []agent.Skill{{Name: "specflow", Path: "/skills/specflow/SKILL.md"}}
+			queue := make(chan func(), 10)
+			desktop.dispatch = func(update func()) { queue <- update }
+			desktop.beginMessageEdit(desktop.State.Messages[2])
+			desktop.edit.Text = text
+			if err := desktop.installEditedHistory(backend.result); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := json.Marshal(desktop.edit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			desktop.edit = &storage.MessageEdit{}
+			if err := json.Unmarshal(raw, desktop.edit); err != nil {
+				t.Fatal(err)
+			}
+			for attempt := 0; attempt < 2; attempt++ {
+				desktop.sendMessageEdit()
+				select {
+				case <-backend.sends:
+				case <-time.After(3 * time.Second):
+					t.Fatal("edited message was not sent")
+				}
+				var skills []agent.Skill
+				select {
+				case skills = <-backend.skills:
+				default:
+				}
+				if strings.HasPrefix(text, "$specflow") {
+					if len(skills) != 1 || skills[0].Name != "specflow" || skills[0].Path != "/skills/specflow/SKILL.md" {
+						t.Fatalf("skill reference lost: %+v", skills)
+					}
+				} else if len(skills) != 0 {
+					t.Fatalf("removed skill still sent: %+v", skills)
+				}
+				pumpUpdate(t, queue)
+				desktop.applySubmissionFailure(desktop.State.Sequence, text, &agent.NotSubmittedError{Err: errors.New("test rejection")}, true)
+			}
+			select {
+			case <-backend.edits:
+				t.Fatal("prepared retry forked history again")
+			default:
+			}
+		})
+	}
 }
 
 func (backend *editTestBackend) ResumeThread(_ context.Context, id string) (agent.ResumedThread, error) {
