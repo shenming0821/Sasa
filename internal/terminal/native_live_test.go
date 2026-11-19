@@ -55,7 +55,7 @@ func TestLiveNativeMetalTerminal(t *testing.T) {
 	if err := os.WriteFile(executable, data, 0700); err != nil {
 		t.Fatal(err)
 	}
-	plist := `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleExecutable': 'Sasa Terminal Probe</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`
+	plist := `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>CFBundleExecutable</key><string>terminal.test</string><key>CFBundleIdentifier</key><string>com.shenming.sasa.terminal-probe</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`
 	if err := os.WriteFile(filepath.Join(contents, "Info.plist"), []byte(plist), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -150,13 +150,13 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	if strings.TrimSpace(string(cwd)) != root {
 		return fmt.Errorf("wrong shell directory: %s", cwd)
 	}
-	first.probeText("printf '%s' \"$NO_COLOR\" > no-color; printf '%s' \"$COLORTERM\" > colorterm; echo ready > color-env-ready\r")
+	first.probeText("printf '%s' \"${NO_COLOR+set}\" > no-color; printf '%s' \"$COLORTERM\" > colorterm; echo ready > color-env-ready\r")
 	if err := probeWait(func() bool { return fileExists(filepath.Join(root, "color-env-ready")) }); err != nil {
 		return fmt.Errorf("terminal color environment: %w; screen=%s", err, first.probeScreen())
 	}
 	noColor, err := os.ReadFile(filepath.Join(root, "no-color"))
 	if err != nil || len(noColor) != 0 {
-		return fmt.Errorf("terminal inherited NO_COLOR=%q: %v", noColor, err)
+		return fmt.Errorf("terminal should have no NO_COLOR variable (presence=%q): %v", noColor, err)
 	}
 	colorTerm, err := os.ReadFile(filepath.Join(root, "colorterm"))
 	if err != nil || string(colorTerm) != "truecolor" {
@@ -247,7 +247,7 @@ func exerciseNativeTerminal(window *mygo.Window, root string) error {
 	if err := probeWait(second.Exited); err != nil {
 		return fmt.Errorf("native shell exit not reported: %w", err)
 	}
-	fmt.Printf("NATIVE_TERMINAL_PASS cwd, Chinese/ANSI terminal state, isolated NO_COLOR with host preserved and COLORTERM=truecolor, raw keyboard input, mutable composition commit, backing scale restoration without animation, native view resize %dx%d -> %dx%d, hidden/visible surfaces, independent shells, process cleanup, shell exit\n", columns, rows, newColumns, newRows)
+	fmt.Printf("NATIVE_TERMINAL_PASS cwd, Chinese/ANSI terminal state, NO_COLOR absent in shell and preserved in host, COLORTERM=truecolor, raw keyboard input, mutable composition commit, backing scale restoration without animation, native view resize %dx%d -> %dx%d, hidden/visible surfaces, independent shells, process cleanup, shell exit\n", columns, rows, newColumns, newRows)
 	fmt.Printf("NATIVE_OUTPUT_SAMPLE 20000 lines observed in %s (local sample, includes shell/awk/polling; not a renderer benchmark)\n", bulkDuration.Round(time.Millisecond))
 	return nil
 }

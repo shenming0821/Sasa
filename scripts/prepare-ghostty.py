@@ -12,6 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / '.cache/ghostty-native'
 REVISION = '22efb0be2bbea73e5339f5426fa3b20edabcaa11'
+BUILD_VERSION = REVISION + '-metal-source-2'
 SOURCE_SHA = '4487e1c07cfd96bc98120273a2a83e23d49ae37c7d8e1c049a1726459d471786'
 ZIG_SHA = '3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b'
 
@@ -116,7 +117,7 @@ def prepare():
     library = CACHE / 'libghostty.dylib'
     source = CACHE / f'ghostty-{REVISION}'
     stamp = CACHE / 'build-version'
-    if library.exists() and stamp.exists() and source.exists() and (CACHE / 'install/share/terminfo').exists() and stamp.read_text() == REVISION + '-metal-source-1':
+    if library.exists() and stamp.exists() and source.exists() and (CACHE / 'install/share/terminfo').exists() and stamp.read_text() == BUILD_VERSION:
         return library, source
     archive = CACHE / 'source.tar.gz'
     fetch(f'https://codeload.github.com/ghostty-org/ghostty/tar.gz/{REVISION}', archive, SOURCE_SHA)
@@ -126,7 +127,8 @@ def prepare():
         subprocess.run(['tar', '-xf', str(archive), '-C', str(CACHE),
                         f'{source.name}/build.zig', f'{source.name}/src/build/SharedDeps.zig',
                         f'{source.name}/src/renderer/metal/shaders.zig',
-                        f'{source.name}/src/build/GhosttyLib.zig'], check=True)
+                        f'{source.name}/src/build/GhosttyLib.zig',
+                        f'{source.name}/src/Surface.zig'], check=True)
     zig = os.environ.get('SASA_ZIG') or shutil.which('zig')
     if not zig:
         zig_archive = CACHE / 'zig-fast.tar.xz'
@@ -153,11 +155,14 @@ def prepare():
     replace(source / 'src/renderer/metal/shaders.zig',
             'objc.sel("newLibraryWithData:error:"),\n        .{\n            data,\n            &err,\n        },',
             'objc.sel("newLibraryWithSource:options:error:"),\n        .{\n            data,\n            @as(?*anyopaque, null),\n            &err,\n        },')
+    replace(source / 'src/Surface.zig',
+            'env.remove("GHOSTTY_LOG");',
+            'env.remove("GHOSTTY_LOG");\n        env.remove("NO_COLOR");')
     environment = build_environment()
     compile_native(zig, source, environment)
     shutil.copy2(CACHE / 'install/lib/libghostty.dylib', library)
     subprocess.run(['install_name_tool', '-id', '@rpath/libghostty.dylib', str(library)], check=True)
-    (CACHE / 'build-version').write_text(REVISION + '-metal-source-1')
+    stamp.write_text(BUILD_VERSION)
     return library, source
 
 

@@ -238,9 +238,6 @@ sasa_terminal_t sasa_terminal_new(uintptr_t window, uintptr_t token, const char 
     options.userdata = (__bridge void *)view;
     options.scale_factor = hostWindow.backingScaleFactor;
     options.working_directory = cwd;
-    ghostty_env_var_s environment[] = {{.key = "NO_COLOR", .value = ""}};
-    options.env_vars = environment;
-    options.env_var_count = sizeof(environment) / sizeof(environment[0]);
     view.surface = gt_surface_new(terminalApp, &options);
     if (!view.surface) {
         view.token = 0;
