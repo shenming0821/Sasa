@@ -386,17 +386,6 @@ def validate_destination(app, data):
 
 
 def point_installed_entries(app, transaction):
-    legacy = BIN / 'Fuyu.app'
-    if legacy != app:
-        if legacy.is_symlink():
-            legacy.unlink()
-        elif legacy.exists():
-            backup = BIN / '.stable-backups' / transaction / 'Fuyu.app'
-            backup.parent.mkdir(parents=True, exist_ok=True)
-            legacy.rename(backup)
-    old_command = BIN / 'fuyu'
-    if old_command.is_symlink():
-        old_command.unlink()
     if LEGACY_APP != app and LEGACY_APP.is_symlink() and LEGACY_APP.resolve() == app.resolve():
         LEGACY_APP.unlink()
     named = BIN / 'Sasa.app'
@@ -404,9 +393,7 @@ def point_installed_entries(app, transaction):
         named.symlink_to(app, target_is_directory=True)
     target = 'Sasa.app/' + application_executable(app).relative_to(app).as_posix()
     command = BIN / 'sasa'
-    if command.is_symlink() and os.readlink(command) in {
-            'Fuyu.app/Contents/MacOS/Fuyu', 'Sasa.app/Contents/MacOS/Sasa',
-            'Sasa.app/Contents/MacOS/Fuyu', str(LEGACY_APP / 'Contents/MacOS/Fuyu')}:
+    if command.is_symlink() and os.readlink(command) == 'Sasa.app/Contents/MacOS/Sasa':
         command.unlink()
     if not command.exists() and not command.is_symlink():
         command.symlink_to(target)
@@ -526,9 +513,6 @@ def run_preview(build_id, timeout):
             if inventory(stage) != expected_files:
                 raise RuntimeError('复制期间候选产物发生变化，请重新核对候选版本。')
             platform.stop(PREVIEW_APP, timeout)
-            legacy_preview = BIN / 'Fuyu Preview.app'
-            if legacy_preview.exists():
-                platform.stop(legacy_preview, timeout)
             if PREVIEW_APP.exists():
                 PREVIEW_APP.rename(Path(temporary) / 'previous.app')
             stage.rename(PREVIEW_APP)

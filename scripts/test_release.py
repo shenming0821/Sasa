@@ -179,7 +179,7 @@ class ReleaseTests(unittest.TestCase):
             database.execute('CREATE TABLE sample(value TEXT)')
             database.execute('INSERT INTO sample VALUES("original")')
         (self.data / 'draft').write_text('unsaved draft')
-        self.patches = [patch.object(release, 'LEGACY_APP', self.root / 'Applications/Fuyu.app'), patch.object(release, 'BIN', self.bin), patch.object(release, 'CANDIDATES', self.candidates), patch.object(release, 'PREVIEW_APP', self.bin / 'Sasa Preview.app'), patch.object(release, 'sign'), patch.object(release, 'register'), patch.object(release, 'run')]
+        self.patches = [patch.object(release, 'LEGACY_APP', self.root / 'Applications/Sasa.app'), patch.object(release, 'BIN', self.bin), patch.object(release, 'CANDIDATES', self.candidates), patch.object(release, 'PREVIEW_APP', self.bin / 'Sasa Preview.app'), patch.object(release, 'sign'), patch.object(release, 'register'), patch.object(release, 'run')]
         for mock in self.patches:
             mock.start()
             self.addCleanup(mock.stop)
@@ -202,73 +202,6 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(metadata['CFBundleIdentifier'], 'com.shenming.sasa')
         self.assertEqual(metadata['CFBundleIconFile'], 'Sasa.icns')
         self.assertEqual(release.DEFAULT_DATA.name, 'Sasa')
-
-    def test_rename_preserves_previous_install_and_removes_old_entries(self):
-        legacy = self.app.parent / 'Fuyu.app'
-        release.shutil.copytree(self.app, legacy)
-        release.shutil.rmtree(self.app)
-        old_executable = Path('Contents/MacOS/Sasa')
-        (legacy / release.EXECUTABLE).rename(legacy / old_executable)
-        with (legacy / 'Contents/Info.plist').open('rb') as handle:
-            metadata = plistlib.load(handle)
-        metadata['CFBundleExecutable'] = 'Sasa'
-        with (legacy / 'Contents/Info.plist').open('wb') as handle:
-            plistlib.dump(metadata, handle)
-        self.bin.mkdir(exist_ok=True)
-        (self.bin / 'fuyu').symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
-        with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
-            release.promote(self.build_id, self.app, self.data)
-        self.assertFalse(legacy.exists())
-        self.assertFalse(legacy.is_symlink())
-        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'tested-program')
-        self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
-        self.assertEqual((self.bin / 'Sasa.app').resolve(), self.app.resolve())
-        self.assertEqual((self.bin / 'sasa').resolve(), (self.app / release.EXECUTABLE).resolve())
-        self.assertTrue((self.bin / 'sasa').is_symlink())
-        transaction = release.read_json(self.app.parent / '.Sasa-releases/latest.json')['transaction']
-        self.assertEqual((self.app.parent / '.Sasa-releases' / transaction / 'previous.app' / old_executable).read_bytes(), b'old-program')
-        with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
-            release.rollback(self.app, self.data, 1, platform=FakePlatform())
-        self.assertEqual((self.app / old_executable).read_bytes(), b'old-program')
-        self.assertFalse(legacy.exists())
-        self.assertTrue((self.bin / 'sasa').is_symlink())
-        self.assertEqual((self.bin / 'sasa').resolve(), (self.app / old_executable).resolve())
-
-    def test_release_removes_existing_legacy_symlinks_without_recreating_them(self):
-        legacy = self.app.parent / 'Fuyu.app'
-        legacy.symlink_to(self.app, target_is_directory=True)
-        self.bin.mkdir(exist_ok=True)
-        (self.bin / 'Sasa.app').symlink_to(self.app, target_is_directory=True)
-        (self.bin / 'fuyu').symlink_to('Fuyu.app/Contents/MacOS/Fuyu')
-        with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
-            release.promote(self.build_id, self.app, self.data)
-            release.point_installed_entries(self.app, 'repeat')
-        for old in [legacy, self.bin / 'Fuyu.app', self.bin / 'fuyu']:
-            self.assertFalse(old.exists())
-            self.assertFalse(old.is_symlink())
-        self.assertEqual((self.bin / 'sasa').resolve(), (self.app / release.EXECUTABLE).resolve())
-
-    def test_preview_stops_both_names_before_reusing_preview_data(self):
-        platform = FakePlatform()
-        legacy = self.bin / 'Fuyu Preview.app'
-        release.shutil.copytree(self.app, legacy)
-        with patch.object(release, 'MacOS', return_value=platform), patch.object(release, 'SUPPORT', self.root / 'support'):
-            release.run_preview(self.build_id, 1)
-        self.assertEqual(platform.stops, [release.PREVIEW_APP, legacy])
-        self.assertEqual(len(platform.launches), 1)
-        self.assertEqual(release.inventory(release.PREVIEW_APP), release.inventory(self.source))
-
-    def test_rename_precheck_preserves_an_unrelated_old_application(self):
-        legacy = self.app.parent / 'Fuyu.app'
-        release.shutil.copytree(self.app, legacy)
-        with (legacy / 'Contents/Info.plist').open('wb') as handle:
-            plistlib.dump({'CFBundleIdentifier': 'another.application'}, handle)
-        before = release.inventory(legacy)
-        with patch.object(release, 'DEFAULT_APP', self.app):
-            with self.assertRaisesRegex(RuntimeError, '已有其他应用'):
-                release.promote(self.build_id, self.app, self.data, check=True)
-        self.assertEqual(release.inventory(legacy), before)
-        self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
 
     def test_snapshot_checkpointed_wal_without_sidecars(self):
         data = self.root / 'closed-wal-data'
@@ -326,16 +259,6 @@ class ReleaseTests(unittest.TestCase):
         release.rollback(self.app, self.data, 1, platform=FakePlatform())
         self.assertEqual((self.app / release.EXECUTABLE).read_bytes(), b'old-program')
         self.assertEqual((self.data / 'draft').read_text(), 'newer draft')
-
-    def test_first_install_removes_legacy_launcher_and_preserves_old_app(self):
-        legacy = self.bin / 'Fuyu.app'
-        release.shutil.copytree(self.app, legacy)
-        with patch.object(release, 'DEFAULT_APP', self.app), patch.object(release, 'DEFAULT_DATA', self.data):
-            release.promote(self.build_id, self.app, self.data)
-        self.assertFalse(legacy.exists())
-        self.assertFalse(legacy.is_symlink())
-        self.assertEqual((self.bin / 'Sasa.app' / release.EXECUTABLE).read_bytes(), b'tested-program')
-        self.assertTrue(list((self.bin / '.stable-backups').glob('*/Fuyu.app/Contents/MacOS/Sasa')))
 
     def test_schema_rollback_requires_explicit_restore_and_preserves_newer_backup(self):
         release.promote(self.build_id, self.app, self.data)
