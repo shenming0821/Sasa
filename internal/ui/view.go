@@ -538,7 +538,7 @@ func (a *App) message(c *native.Context, m *app.Message) {
 			if m.Role == "user" {
 				a.userMessage(c, m)
 			} else if m.ContextCompaction {
-				a.commandDisclosure(c.Key(m.ID), "上下文压缩 "+m.ID, m.Text, nil, true, !m.Done, nil)
+				a.processDisclosure(c.Key(m.ID), "上下文压缩 "+m.ID, m.Text, nil, compactIcon, !m.Done, nil, nil)
 			} else if m.Role == "assistant" {
 				if m.Plan {
 					native.Text(c, "计划").FontSize(12).TextColor(t.TextMuted)
