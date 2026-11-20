@@ -19,7 +19,7 @@ Sasa 使用 Go + MyGo Native UI，macOS 优先，接入 Codex 与 Claude Code �
 - 发现来源不明的并行修改时，暂停写入相关文件，向用户确认归属。
 - 开始独立开发任务时，通过 `./scripts/task-worktree create <任务名>` 创建开发目录，不限制并发数量。开发目录完成相关自动化验证后，报告“开发完成，待集成验收”，交接改动范围与验证结果；主目录负责串行集成、公共 Preview 验收和发布。创建目录以当前已提交版本为起点，依赖主目录未提交修改时，先协调依赖再开始开发。操作与交接见[并行开发](docs/parallel-development.md)。
 - 集成任务在获得提交与合入授权后，使用 `git rebase` 将任务分支 rebase 到主分支上保持线性历史（不使用 `git merge` 或 `--no-ff` 合并提交），再执行 `./scripts/task-worktree integrated <任务名>` 登记。开发和待发布期间保留任务目录；正式版成功安装后，发布入口自动核验发布版本包含集成提交、任务分支与登记一致且工作区干净，再回收对应 worktree。新建任务时补做遗漏回收；未交付、存在独有修改或无法核验的目录保留并报告。
-- 在主目录构建 Preview 使用 `./scripts/build preview`，通过 `./scripts/run-preview <构建ID>` 重启并确认窗口可用；集成后的功能或代码修改先运行 Preview 验证窗口可用，再报告“验证完成”。用户验收并要求发布后，用 `./scripts/promote <构建ID>` 晋升候选；晋升固定为延迟生效：不请求运行中的正式版退出，安装后于下次启动进入新版。替换 Preview 时旧实例因未保存内容或活动任务提示未退出，直接强制结束 Preview 进程后重试，无需确认。渠道隔离、备份与恢复见[发布说明](docs/subsystems/releases.md)。
+- Sasa 原生窗口验收统一使用主目录的 `bin/Sasa Preview.app`。真实 Runtime 与受控输入共用这个 Preview，禁止为验收另建或复制临时 `.app`。在主目录构建 Preview 使用 `./scripts/build preview`，通过 `./scripts/run-preview <构建ID>` 重启并确认窗口可用；集成后的功能或代码修改先运行 Preview 验证窗口可用，再报告“验证完成”。用户验收并要求发布后，用 `./scripts/promote <构建ID>` 晋升候选；晋升固定为延迟生效：不请求运行中的正式版退出，安装后于下次启动进入新版。替换 Preview 时旧实例因未保存内容或活动任务提示未退出，直接强制结束 Preview 进程后重试，无需确认。渠道隔离、备份与恢复见[发布说明](docs/subsystems/releases.md)。
 
 ## Git 操作
 
