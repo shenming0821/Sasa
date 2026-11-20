@@ -86,11 +86,14 @@ def main():
             '\t\t\tsendSuper(self, "MyGoAccessibilityElement", cmd, uintptr(cached))',
         ),
     ]
-    edits["ui/list.go"] = [(
-        "func (s *ListState) sync(e *node, n int) {\n\tst, rt := e.st, e.c.rt",
-        "func (s *ListState) sync(e *node, n int) {\n\tst, rt := e.st, e.c.rt\n"
-        "\tif !s.FollowEnd {\n\t\ts.following = false\n\t}",
-    )]
+    edits["ui/list.go"] = [
+        ("s.following = s.FollowEnd && atEnd", "s.following = atEnd"),
+        ("s.following = s.FollowEnd && top > 0", "s.following = top > 0"),
+        ("case r.end || s.following:", "case r.end || s.FollowEnd && s.following:"),
+        ("case req.end || s.following && !req.set:", "case req.end || s.FollowEnd && s.following && !req.set:"),
+        ("!s.req.set && s.following && s.followLag.value", "!s.req.set && s.FollowEnd && s.following && s.followLag.value"),
+        ("if s.FollowAnimation == nil || !s.following", "if s.FollowAnimation == nil || !s.FollowEnd || !s.following"),
+    ]
     # Keep bullets compact while ordered lists retain room for tabular digits.
     edits["ui/markdown/view.go"] = [(
         "width := th.em(th.ListIndent)\n\tif b.Ordered {",
