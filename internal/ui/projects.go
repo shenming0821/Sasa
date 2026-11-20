@@ -323,14 +323,19 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 					// the left edge as the card is on or hovered, the
 					// card face fills at a partial alpha, and an accent
 					// ring outlines it while it is on. The three states
-					// ease over a short duration.
+					// ease over a short duration. A muted short pill
+					// also stays while the folder keeps open tabs, so
+					// the list shows which folders hold pages.
 					hovered := b.Hovered()
+					hasTabs := len(a.folderTabs(w.Path)) > 0
 					var pill, fill float32
 					switch {
 					case on:
 						pill, fill = 20, 0.30
 					case hovered:
 						pill, fill = 8, 0.22
+					case hasTabs:
+						pill = 8
 					}
 					pill = b.Animate("pill", pill, 160*time.Millisecond)
 					fill = b.Animate("fill", fill, 120*time.Millisecond)

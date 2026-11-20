@@ -2,6 +2,8 @@ package ui
 
 import (
 	"context"
+	"fmt"
+	"image/color"
 	"image/png"
 	"os"
 	"os/exec"
@@ -622,5 +624,48 @@ func TestProjectTreeHidesMissingAndPrunableWorktrees(t *testing.T) {
 	}
 	if len(a.repositories[0].Worktrees) != 5 {
 		t.Fatal("filter modified repository metadata")
+	}
+}
+
+func TestWorktreeCardKeepsMutedPillWhileFolderHasTabs(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprint(dark), func(t *testing.T) {
+			a := New(stubBackend{}, "test", "/repo", nil)
+			a.repositories = []project.Repository{{CommonDir: "/repo/.git", Path: "/repo", Name: "repo", Worktrees: []project.Worktree{
+				{Path: "/repo", Branch: "main", Main: true}, {Path: "/other", Branch: "feature/chat"},
+				{Path: "/idle", Branch: "feature/idle"},
+			}}}
+			a.newSession("/other")
+			a.newSession("/repo")
+			tt := native.NewTester(a.view, 1000, 760)
+			tt.SetDark(dark)
+			pillAt := func(label string) (color.RGBA, color.RGBA) {
+				t.Helper()
+				r, ok := tt.Find(label)
+				if !ok {
+					t.Fatalf("missing card %s", label)
+				}
+				// The pill is 3pt wide starting 2pt inside the left
+				// edge, vertically centered; sample its middle and a
+				// face pixel further right for contrast.
+				img := tt.Image()
+				y := int(r.Y + r.H/2)
+				return img.RGBAAt(int(r.X+3), y), img.RGBAAt(int(r.X+40), y)
+			}
+			tt.Advance(300 * time.Millisecond)
+			tt.Frame()
+			onPill, _ := pillAt("打开工作区 /repo")
+			tabsPill, tabsFace := pillAt("打开工作区 /other")
+			idlePill, idleFace := pillAt("打开工作区 /idle")
+			if tabsPill == tabsFace {
+				t.Fatalf("open-tab folder lost the muted pill: pill=%#v face=%#v", tabsPill, tabsFace)
+			}
+			if tabsPill == onPill {
+				t.Fatalf("open-tab pill did not differ from focused pill: %#v", tabsPill)
+			}
+			if idlePill != idleFace {
+				t.Fatalf("folder without tabs gained a pill: pill=%#v face=%#v", idlePill, idleFace)
+			}
+		})
 	}
 }
