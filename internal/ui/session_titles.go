@@ -93,7 +93,7 @@ func (a *App) hasTitleExchange() bool {
 			}
 			user = true
 		}
-		reply = reply || m.Role == "assistant" && m.Tool == nil && strings.TrimSpace(m.Text) != ""
+		reply = reply || m.Role == "assistant" && !m.ContextCompaction && m.Tool == nil && strings.TrimSpace(m.Text) != ""
 		if user && reply {
 			return true
 		}
@@ -385,7 +385,7 @@ func titlePrompt(original string, messages []*app.Message) string {
 	budget := titleInputRunes - len([]rune(firstQuestion))
 	for i := len(messages) - 1; i >= max(0, len(messages)-64) && budget > 0; i-- {
 		m := messages[i]
-		if (m.Role != "user" && m.Role != "assistant") || !m.Done || m.Tool != nil || m.Interaction != nil ||
+		if (m.Role != "user" && m.Role != "assistant") || m.ContextCompaction || !m.Done || m.Tool != nil || m.Interaction != nil ||
 			m.Delivery == "unsent" || m.Delivery == "pending" {
 			continue
 		}

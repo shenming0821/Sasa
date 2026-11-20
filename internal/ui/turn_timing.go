@@ -81,7 +81,7 @@ func (s *session) hasTurnProcess(question *app.Message) bool {
 			inTurn = message == question
 			continue
 		}
-		if !inTurn {
+		if !inTurn || message.ContextCompaction {
 			continue
 		}
 		if message.Role != "assistant" {
@@ -186,7 +186,7 @@ func (s *session) visibleConversationMessages() []*app.Message {
 		visible = append(visible, message)
 		resultIndex := -1
 		for index, candidate := range s.State.Messages[start+1 : end] {
-			if candidate.Role == "assistant" && candidate.Text != "" {
+			if candidate.Role == "assistant" && !candidate.ContextCompaction && candidate.Text != "" {
 				resultIndex = index
 			}
 		}
@@ -196,7 +196,7 @@ func (s *session) visibleConversationMessages() []*app.Message {
 				result = candidate
 				continue
 			}
-			if !folded || changeRecord(candidate) || candidate.Role == "user" {
+			if !folded || candidate.ContextCompaction || changeRecord(candidate) || candidate.Role == "user" {
 				visible = append(visible, candidate)
 			}
 		}

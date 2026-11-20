@@ -537,6 +537,8 @@ func (a *App) message(c *native.Context, m *app.Message) {
 		native.Column(c.Key(m.ID)).FillWidth().Gap(4).Children(func() {
 			if m.Role == "user" {
 				a.userMessage(c, m)
+			} else if m.ContextCompaction {
+				a.commandDisclosure(c.Key(m.ID), "上下文压缩 "+m.ID, m.Text, nil, true, !m.Done, nil)
 			} else if m.Role == "assistant" {
 				if m.Plan {
 					native.Text(c, "计划").FontSize(12).TextColor(t.TextMuted)

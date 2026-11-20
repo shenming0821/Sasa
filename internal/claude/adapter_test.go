@@ -167,6 +167,40 @@ func TestFrameSupportsCompactionStringMessages(t *testing.T) {
 	}
 }
 
+func TestCompactionProjectsRunningAndCompletedStatus(t *testing.T) {
+	client := fixtureClient(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cwd := t.TempDir()
+	thread, err := client.StartThread(ctx, cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, err := client.Send(ctx, thread.Thread.ID, "/compact\tkeep focus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := app.New(cwd)
+	state.ThreadID = thread.Thread.ID
+	itemID := "compact-" + turn.ID
+	for _, want := range []string{"正在压缩上下文", "上下文已压缩"} {
+		for {
+			select {
+			case event := <-client.Events():
+				state.Apply(event)
+			case <-ctx.Done():
+				t.Fatalf("compaction did not reach %q", want)
+			}
+			if len(state.Messages) > 0 && state.Messages[0].ID == itemID && state.Messages[0].Text == want {
+				break
+			}
+		}
+	}
+	if terminal := waitTerminal(t, client, thread.Thread.ID); terminal.Status != "completed" {
+		t.Fatalf("unexpected terminal: %+v", terminal)
+	}
+}
+
 func TestCompactionReconnectsPreservedSegmentAndLocalCommand(t *testing.T) {
 	client := fixtureClient(t)
 	thread, err := client.StartThread(context.Background(), t.TempDir())
@@ -203,6 +237,9 @@ func TestCompactionReconnectsPreservedSegmentAndLocalCommand(t *testing.T) {
 	encoded, _ := json.Marshal(turns)
 	if strings.Contains(string(encoded), "private hook") || strings.Contains(string(encoded), "internal caveat") || strings.Contains(string(encoded), "superseded") {
 		t.Fatal("internal command metadata leaked into history", string(encoded))
+	}
+	if !strings.Contains(string(encoded), `"type":"contextCompaction"`) {
+		t.Fatal("compaction marker was missing from history", string(encoded))
 	}
 }
 

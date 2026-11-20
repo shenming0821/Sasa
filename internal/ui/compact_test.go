@@ -269,6 +269,38 @@ func TestCompactNativeMenuSelection(t *testing.T) {
 	}
 }
 
+func TestCompactionRendersAsCommandStatus(t *testing.T) {
+	desktop := activeFollowupApp(stubBackend{})
+	desktop.State.Apply(compactEvent("item/started", "turn", ""))
+	message := desktop.State.Messages[len(desktop.State.Messages)-1]
+	tester := native.NewTester(func(c *native.Context) { desktop.message(c, message) }, 600, 200)
+	tester.SetPreferences(native.Preferences{ReduceMotion: true})
+	status, ok := tester.Find("上下文压缩 " + message.ID)
+	if !ok || status.H != 30 || !tester.HasText("正在压缩上下文") {
+		t.Fatalf("running command status missing: %v %v", status, tester.Texts())
+	}
+
+	desktop.State.Apply(compactEvent("item/completed", "turn", ""))
+	desktop.State.Apply(compactEvent("turn/completed", "turn", "completed"))
+	tester.Frame()
+	completed, ok := tester.Find("上下文压缩 " + message.ID)
+	if !ok || completed != status || !tester.HasText("上下文已压缩") || tester.HasText("正在压缩上下文") {
+		t.Fatalf("completed status did not replace running status in place: %v %v", completed, tester.Texts())
+	}
+	if _, ok := tester.Find("复制回复"); ok {
+		t.Fatal("compaction had a reply action")
+	}
+	found := false
+	for _, row := range desktop.conversationRows() {
+		if row.message == message {
+			found = row.processRecord() && row.processID == ""
+		}
+	}
+	if !found {
+		t.Fatal("completed compaction must remain visible when the turn is collapsed")
+	}
+}
+
 func TestCompactCommandMatching(t *testing.T) {
 	for text, want := range map[string]bool{"/compact": true, " /compact\tkeep ": true, "/compaction": false, "please /compact": false} {
 		if isCompactCommand(text) != want {

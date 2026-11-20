@@ -49,6 +49,10 @@ for line in sys.stdin:
         session = message["session_id"]
         text = message["message"]["content"][-1]["text"]
         terminal_reason = "aborted_streaming" if text.endswith("streaming") else "aborted_tools"
+        if text.split()[:1] == ["/compact"]:
+            emit({"type": "system", "subtype": "compact_boundary", "uuid": "fixture-compact", "session_id": session})
+            emit({"type": "result", "subtype": "success", "is_error": False, "session_id": session})
+            continue
         if text == "bad-json":
             print("{broken", flush=True)
             break

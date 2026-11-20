@@ -5,7 +5,7 @@ import "strings"
 func (s *session) latestReply() (id, text string) {
 	for i := len(s.State.Messages) - 1; i >= 0; i-- {
 		message := s.State.Messages[i]
-		if message.Role == "assistant" && strings.TrimSpace(message.Text) != "" {
+		if message.Role == "assistant" && !message.ContextCompaction && strings.TrimSpace(message.Text) != "" {
 			return message.ID, message.Text
 		}
 	}

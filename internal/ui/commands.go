@@ -17,7 +17,7 @@ type conversationRow struct {
 }
 
 func (r conversationRow) processRecord() bool {
-	if len(r.commands) > 0 {
+	if len(r.commands) > 0 || r.message != nil && r.message.ContextCompaction {
 		return true
 	}
 	if len(r.changes) > 0 || r.message == nil || r.message.Interaction != nil || r.message.Tool == nil {
@@ -120,10 +120,10 @@ func (s *session) conversationRows() []conversationRow {
 		}
 		// Change cards stay outside the folded process so edited files remain
 		// visible after the turn collapses to its final reply.
-		if len(rows[index].changes) == 0 && (questionTurn == "" || message.TurnID == "" || message.TurnID == questionTurn) {
+		if len(rows[index].changes) == 0 && !message.ContextCompaction && (questionTurn == "" || message.TurnID == "" || message.TurnID == questionTurn) {
 			rows[index].processID = question
 		}
-		if question != "" && message.Role == "assistant" && (questionTurn == "" || message.TurnID == "" || message.TurnID == questionTurn) {
+		if question != "" && message.Role == "assistant" && !message.ContextCompaction && (questionTurn == "" || message.TurnID == "" || message.TurnID == questionTurn) {
 			result = index
 		}
 	}

@@ -14,13 +14,13 @@ type conversationKey struct {
 	role, turn, kind, status    string
 	parent                      string
 	empty, interaction, changes bool
-	finished, expanded          bool
+	finished, expanded, compact bool
 }
 
 func messageConversationKey(message *app.Message) conversationKey {
 	key := conversationKey{
 		message: message, role: message.Role, turn: message.TurnID,
-		empty: message.Role == "assistant" && message.Text == "", interaction: message.Interaction != nil,
+		empty: message.Role == "assistant" && message.Text == "", interaction: message.Interaction != nil, compact: message.ContextCompaction,
 	}
 	if message.Tool != nil {
 		key.kind, key.status = message.Tool.Kind, message.Tool.Status

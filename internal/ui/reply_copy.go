@@ -7,7 +7,7 @@ import (
 )
 
 func (a *App) replyCopyText(target *app.Message) string {
-	if target.Role != "assistant" || !target.Done || strings.TrimSpace(target.Text) == "" {
+	if target.Role != "assistant" || target.ContextCompaction || !target.Done || strings.TrimSpace(target.Text) == "" {
 		return ""
 	}
 	messages := a.State.Messages
@@ -39,7 +39,7 @@ func (a *App) replyCopyText(target *app.Message) string {
 	last := -1
 	for index := start; index < end; index++ {
 		message := messages[index]
-		if message.Role != "assistant" {
+		if message.Role != "assistant" || message.ContextCompaction {
 			continue
 		}
 		if !message.Done {

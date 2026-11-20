@@ -386,7 +386,7 @@ func (c *Client) history(s session) ([]agent.HistoryTurn, string, error) {
 		}
 		if entry.RepeatsSummary {
 			if current != nil {
-				appendItem(map[string]any{"id": entry.UUID, "type": "agentMessage", "text": "上下文已压缩"})
+				appendItem(map[string]any{"id": entry.UUID, "type": "contextCompaction"})
 			}
 			continue
 		}

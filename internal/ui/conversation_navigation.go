@@ -29,7 +29,7 @@ func conversationEntries(rows []conversationRow) []conversationEntry {
 		message := row.message
 		if message.Role == "user" {
 			entries = append(entries, conversationEntry{row: index, user: message})
-		} else if len(entries) > 0 && message.Role == "assistant" {
+		} else if len(entries) > 0 && message.Role == "assistant" && !message.ContextCompaction {
 			entry := &entries[len(entries)-1]
 			if message.TurnID == "" || message.TurnID == entry.user.TurnID {
 				entry.reply = message

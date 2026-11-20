@@ -427,6 +427,14 @@ reading:
 			}
 			if message.Type == "system" && message.Subtype == "compact_boundary" {
 				r.compactBoundary = true
+				r.mu.Lock()
+				manual := r.compactRequested
+				r.mu.Unlock()
+				itemID := message.UUID
+				if manual || itemID == "" {
+					itemID = "compact-" + string(r.identity.ID)
+				}
+				r.item("item/completed", map[string]any{"id": itemID, "type": "contextCompaction"})
 			}
 			r.project(message)
 		}
@@ -597,11 +605,16 @@ func (c *Client) send(ctx context.Context, id, text string, skills []agent.Skill
 		return turn, err
 	}
 	run.emit("turn/started", map[string]any{"threadId": id, "turn": map[string]any{"id": identity.ID, "status": "inProgress"}})
+	command := strings.Fields(text)
+	compactRequested := len(command) > 0 && command[0] == "/compact"
 	run.mu.Lock()
 	run.localCommand = strings.HasPrefix(strings.TrimSpace(text), "/")
-	run.compactRequested = strings.TrimSpace(text) == "/compact" || strings.HasPrefix(strings.TrimSpace(text), "/compact ")
+	run.compactRequested = compactRequested
 	run.userAttempted = true
 	run.mu.Unlock()
+	if compactRequested {
+		run.item("item/started", map[string]any{"id": "compact-" + string(identity.ID), "type": "contextCompaction"})
+	}
 	attempted = true
 	if err := run.write(map[string]any{"type": "user", "uuid": identity.UserUUID, "session_id": id, "parent_tool_use_id": nil, "message": map[string]any{"role": "user", "content": content}}); err != nil {
 		run.stopProcess()
