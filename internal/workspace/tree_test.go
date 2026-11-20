@@ -200,7 +200,7 @@ func TestMatchPreviewRangesOnLongLines(t *testing.T) {
 	}
 }
 
-func TestNaturalOrderAndSymlinkAncestor(t *testing.T) {
+func TestNaturalOrder(t *testing.T) {
 	root := t.TempDir()
 	for _, name := range []string{"file10.go", "file02.go", "file2.go", "File1.go"} {
 		if err := os.WriteFile(filepath.Join(root, name), nil, 0600); err != nil {
@@ -218,10 +218,43 @@ func TestNaturalOrderAndSymlinkAncestor(t *testing.T) {
 	if !slices.Equal(names, []string{"File1.go", "file2.go", "file02.go", "file10.go"}) {
 		t.Fatal("not natural order", names)
 	}
+}
+
+func TestReadDirThroughDirectorySymlink(t *testing.T) {
+	root := t.TempDir()
 	outside := t.TempDir()
-	os.Mkdir(filepath.Join(outside, "sub"), 0700)
-	os.Symlink(outside, filepath.Join(root, "link"))
-	if _, err := ReadDir(context.Background(), root, filepath.Join(root, "link", "sub")); err == nil {
-		t.Fatal("symlink ancestor escaped workspace")
+	sub := filepath.Join(outside, "sub")
+	alias := filepath.Join(root, ".specs")
+	if err := os.Mkdir(sub, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for path, target := range map[string]string{
+		alias:                         outside,
+		filepath.Join(sub, "back"):    root,
+		filepath.Join(root, "broken"): filepath.Join(outside, "missing"),
+	} {
+		if err := os.Symlink(target, path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(sub, "plan.md"), []byte("linked document"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	entries, err := ReadDir(ctx, root, root)
+	if err != nil || len(entries) != 2 || !entries[0].Dir || !entries[0].Link || entries[0].Path != alias || entries[1].Dir || !entries[1].Link {
+		t.Fatal(entries, err)
+	}
+	entries, err = ReadDir(ctx, root, filepath.Join(alias, "sub"))
+	want := filepath.Join(alias, "sub", "plan.md")
+	if err != nil || len(entries) != 2 || entries[1].Path != want {
+		t.Fatal(entries, err)
+	}
+	if _, err := ReadDir(ctx, root, filepath.Join(alias, "sub", "back", ".specs")); err == nil {
+		t.Fatal("descended through a link back to an ancestor")
+	}
+	index, err := Index(ctx, root)
+	if err != nil || len(index.Entries) != 0 {
+		t.Fatal(index, err)
 	}
 }

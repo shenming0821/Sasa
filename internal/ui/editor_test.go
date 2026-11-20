@@ -630,6 +630,53 @@ func TestP4ReloadDiscardsRecoveryAndUndo(t *testing.T) {
 	}
 }
 
+func TestP4BrowseAndSaveThroughDirectorySymlink(t *testing.T) {
+	a, queue, root := p4App(t)
+	source := t.TempDir()
+	original := filepath.Join(source, "plan.md")
+	if err := os.WriteFile(original, []byte("# Plan\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, ".specs")
+	if err := os.Symlink(source, link); err != nil {
+		t.Fatal(err)
+	}
+	a.historyOpen, a.rightTab = true, "files"
+	tt := native.NewTester(a.view, 1280, 800)
+	w := a.workspace(root)
+	p4Wait(t, tt, queue, func() bool { return len(w.children[root]) > 0 })
+	if err := tt.Click("文件树 " + link); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, queue, func() bool { return len(w.children[link]) > 0 })
+	a.loadDirectory(w, root)
+	p4Wait(t, tt, queue, func() bool { return !w.loading[root] })
+	tt.Advance(250 * time.Millisecond)
+
+	path := filepath.Join(link, "plan.md")
+	if err := tt.Click("文件树 " + path); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tt, queue, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	document := a.currentFile()
+	if document.root != root || document.path != path || document.buffer.String() != "# Plan\n" {
+		t.Fatal("linked document did not open in the current workspace", document.root, document.path, document.buffer.String())
+	}
+	if err := tt.Click("文件内容 " + path); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(native.Cmd, native.KeyA)
+	tt.Type("# Updated plan\n")
+	tt.Key(native.Cmd, native.KeyS)
+	p4Wait(t, tt, queue, func() bool {
+		raw, _ := os.ReadFile(original)
+		return !document.saving && string(raw) == "# Updated plan\n"
+	})
+	if target, err := os.Readlink(link); err != nil || target != source {
+		t.Fatal("saving changed the directory link", target, err)
+	}
+}
+
 func TestP4RemovedExpandedDirectoryIsPruned(t *testing.T) {
 	for _, refreshParent := range []bool{false, true} {
 		t.Run(fmt.Sprintf("parent=%t", refreshParent), func(t *testing.T) {

@@ -754,7 +754,7 @@ func (a *App) loadDirectory(w *workspacePage, path string) {
 			// Reconcile persisted descendants against this actual directory listing.
 			directories := make(map[string]bool, len(entries))
 			for _, entry := range entries {
-				if entry.Dir && !entry.Link {
+				if entry.Dir {
 					directories[entry.Path] = true
 				}
 			}

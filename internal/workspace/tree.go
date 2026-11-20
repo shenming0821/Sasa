@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 type Entry struct {
@@ -24,29 +25,61 @@ func Contains(root, path string) bool {
 	return e == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 func hidden(name string) bool { return name == ".git" || name == ".DS_Store" }
-func ReadDir(ctx context.Context, root, path string) ([]Entry, error) {
+func resolveDirectory(root, path string, browseLinks bool) (string, error) {
 	if !Contains(root, path) {
-		return nil, fmt.Errorf("目录不属于当前工作区")
+		return "", fmt.Errorf("目录不属于当前工作区")
 	}
-	for parent := filepath.Dir(path); parent != root && Contains(root, parent); parent = filepath.Dir(parent) {
-		info, err := os.Lstat(parent)
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
+	relative, _ := filepath.Rel(root, path)
+	if relative == "." {
+		return resolved, nil
+	}
+	ancestors := []string{resolved}
+	current := root
+	for _, name := range strings.Split(relative, string(filepath.Separator)) {
+		current = filepath.Join(current, name)
+		info, err := os.Lstat(current)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
+		resolved = filepath.Join(resolved, name)
 		if info.Mode()&os.ModeSymlink != 0 {
-			return nil, fmt.Errorf("不递归展开符号链接")
+			if !browseLinks {
+				return "", fmt.Errorf("搜索不遍历目录链接")
+			}
+			resolved, err = filepath.EvalSymlinks(current)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return "", &os.PathError{Op: "解析目录链接", Path: current, Err: os.ErrNotExist}
+				}
+				return "", err
+			}
+			for _, ancestor := range ancestors {
+				if Contains(resolved, ancestor) {
+					return "", fmt.Errorf("目录链接指向上级目录：%s", current)
+				}
+			}
 		}
+		ancestors = append(ancestors, resolved)
 	}
-	info, e := os.Lstat(path)
-	if e != nil {
-		return nil, e
+	return resolved, nil
+}
+
+func ReadDir(ctx context.Context, root, path string) ([]Entry, error) {
+	return readDir(ctx, root, path, true)
+}
+
+func readDir(ctx context.Context, root, path string, browseLinks bool) ([]Entry, error) {
+	resolved, err := resolveDirectory(root, path, browseLinks)
+	if err != nil {
+		return nil, err
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return nil, fmt.Errorf("不递归展开符号链接")
-	}
-	fd, e := os.Open(path)
-	if e != nil {
-		return nil, e
+	fd, err := os.OpenFile(resolved, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, err
 	}
 	defer fd.Close()
 	var result []Entry
@@ -61,7 +94,13 @@ func ReadDir(ctx context.Context, root, path string) ([]Entry, error) {
 			if hidden(v.Name()) {
 				continue
 			}
-			result = append(result, Entry{Path: filepath.Join(path, v.Name()), Name: v.Name(), Dir: v.IsDir(), Link: v.Type()&os.ModeSymlink != 0})
+			entry := Entry{Path: filepath.Join(path, v.Name()), Name: v.Name(), Dir: v.IsDir(), Link: v.Type()&os.ModeSymlink != 0}
+			if browseLinks && entry.Link {
+				if target, err := os.Stat(filepath.Join(resolved, v.Name())); err == nil {
+					entry.Dir = target.IsDir()
+				}
+			}
+			result = append(result, entry)
 		}
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
@@ -203,7 +242,7 @@ func walkEntries(ctx context.Context, root, dir string, respectIgnore bool, visi
 	truncated := false
 	var walk func(string) error
 	walk = func(path string) error {
-		entries, err := ReadDir(ctx, root, path)
+		entries, err := readDir(ctx, root, path, false)
 		if err != nil {
 			return err
 		}
