@@ -9,7 +9,7 @@ import (
 
 var terminalIcon = native.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="m5 6 2 2-2 2m4 0h2"/></svg>`))
 
-var compactIcon = native.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="m4 4.5 4 3.5-4 3.5"/><path d="m12 4.5-4 3.5 4 3.5"/></svg>`))
+var compactIcon = native.MustParseSVG([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 4.5 3.5 3.5 3.5-3.5"/><path d="m4.5 11.5 3.5-3.5 3.5 3.5"/></svg>`))
 
 type conversationRow struct {
 	message   *app.Message
