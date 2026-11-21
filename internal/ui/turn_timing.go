@@ -136,9 +136,10 @@ func (s *session) turnTiming(c *native.Context, message *app.Message, motions ..
 						color = c.Theme().Text
 					}
 					button.TextColor(color).Children(func() {
+						collapsed := 1 - s.processScale(message.ID)
 						native.Text(c, text).FontSize(13).SingleLine()
 						native.Icon(c, chevron).Label("执行过程箭头 "+message.ID).Size(16, 16).
-							Rotate(-90*(1-s.processScale(message.ID))).Translate(0, 0.5)
+							Rotate(-90*collapsed).Translate(0, 0.5+0.5*collapsed)
 					})
 
 				} else {

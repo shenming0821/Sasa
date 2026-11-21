@@ -205,6 +205,10 @@ func commandSummary(commands []*app.Message, continuing bool) (text string, fail
 // Process records share the same hierarchy, hover affordance and keyboard disclosure.
 func (a *App) processDisclosure(c *native.Context, label, text string, open *bool, glyph *native.SVG, live bool, suffix, content func()) {
 	theme := c.Theme()
+	glyphOffsetY := float32(0)
+	if glyph == terminalIcon {
+		glyphOffsetY = 1
+	}
 	caption := func() native.Element {
 		if live {
 			return shimmerText(c, text, 13).FontWeight(400)
@@ -214,7 +218,7 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 	if content == nil {
 		native.Row(c).Label(label).FillWidth().MinWidth(0).Height(30).Gap(8).AlignItems(native.Center).Children(func() {
 			if glyph != nil {
-				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, glyphOffsetY)
 			}
 			caption().SingleLine().MinWidth(0).Shrink(1)
 			if suffix != nil {
@@ -230,15 +234,16 @@ func (a *App) processDisclosure(c *native.Context, label, text string, open *boo
 		hover := trigger.Hovered() || trigger.FocusVisible()
 		trigger.Children(func() {
 			if glyph != nil {
-				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted)
+				native.Icon(c, glyph).Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, glyphOffsetY)
 			}
 			caption().SingleLine().MinWidth(0).Shrink(1)
 			opacity := float32(0)
 			if hover {
 				opacity = 1
 			}
-			native.Icon(c, chevron).Label(label+"箭头").Size(16, 16).Shrink(0).TextColor(theme.TextMuted).Translate(0, .5).
-				Rotate(-90 * (1 - parts.Progress())).Opacity(opacity)
+			collapsed := 1 - parts.Progress()
+			native.Icon(c, chevron).Label(label+"箭头").Size(16, 16).Shrink(0).TextColor(theme.TextMuted).
+				Rotate(-90*collapsed).Translate(0, 1.5).Opacity(opacity)
 			if suffix != nil {
 				native.Spacer(c)
 				suffix()

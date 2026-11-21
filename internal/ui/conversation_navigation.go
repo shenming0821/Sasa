@@ -187,10 +187,12 @@ func (a *App) conversationNavigator(c *native.Context, entries []conversationEnt
 	}
 	entry := entries[selected]
 	title := entry.title()
-	span := native.Span{Text: title, Size: 13, Weight: 600}
+	const titleSize, titleWeight = 13, 600
+	span := native.Span{Text: title, Size: titleSize, Weight: titleWeight}
 	_, singleLineHeight := c.MeasureText(0, span)
 	_, wrappedHeight := c.MeasureText(width-30, span)
-	titleHeight := float32(13 * 1.4)
+	titleLineHeight := max(float32(titleSize*1.4), singleLineHeight)
+	titleHeight := titleLineHeight
 	if wrappedHeight > singleLineHeight*1.5 {
 		titleHeight *= 2
 	}
@@ -205,7 +207,7 @@ func (a *App) conversationNavigator(c *native.Context, entries []conversationEnt
 	native.Column(c.Key("conversation-preview")).Label("对话预览").Absolute().Left(45).Top(top).
 		Width(width).MaxHeight(height).Padding(14).Gap(8).Radius(12).PassThrough().
 		Background(t.Background).Border(1, t.Border.Alpha(.8)).Shadow(0, 5, 16, 0, native.RGBA(0, 0, 0, .12)).Clip().Children(func() {
-		native.Text(c, title).FontSize(13).FontWeight(600).LineHeight(1.4).MaxLines(2).FillWidth()
+		native.Text(c, title).FontSize(titleSize).FontWeight(titleWeight).FixedLineHeight(titleLineHeight).MaxLines(2).FillWidth()
 		if hasReply {
 			native.Text(c, conversationExcerpt(entry.reply.Text, 260)).FontSize(12).LineHeight(1.5).TextColor(t.TextMuted).MaxLines(4).FillWidth()
 		}

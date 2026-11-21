@@ -111,14 +111,15 @@ func TestConversationNavigationBothAgents(t *testing.T) {
 					}
 					titleBounds, foundTitle := tt.Find(a.navigationEntries[2].title())
 					if !foundTitle || math.Abs(float64(titleBounds.Y+titleBounds.H+4-y)) > 1 || math.Abs(float64(preview.X-(rail.X+14+18)-9)) > 1 {
-						t.Fatalf("preview is not aligned with tick: preview=%+v rail=%+v tickY=%v", preview, rail, y)
+						t.Fatalf("preview is not aligned with tick: preview=%+v title=%+v rail=%+v tickY=%v", preview, titleBounds, rail, y)
 					}
 					reply := a.navigationEntries[2].reply
 					replyText := reply.Text
 					reply.Text = ""
 					tt.Frame()
-					if shortPreview, _ := tt.Find("对话预览"); math.Abs(float64(shortPreview.Y+24.1-y)) > 1 {
-						t.Fatal("question-only preview is not centered on title")
+					shortTitle, foundTitle := tt.Find(a.navigationEntries[2].title())
+					if !foundTitle || math.Abs(float64(shortTitle.Y+shortTitle.H/2-y)) > 1 {
+						t.Fatalf("question-only preview is not centered on title: title=%+v tickY=%v", shortTitle, y)
 					}
 					reply.Text = replyText
 					tt.Frame()

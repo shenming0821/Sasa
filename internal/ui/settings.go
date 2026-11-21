@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"runtime"
 	"slices"
 	"strings"
 
@@ -228,6 +229,10 @@ func (a *App) installSettingsMenu() {
 }
 
 func (a *App) applicationMenu() *mygo.Menu {
+	windowMenu := &mygo.MenuItem{Role: mygo.RoleWindowMenu}
+	if runtime.GOOS != "darwin" {
+		windowMenu.Submenu = []*mygo.MenuItem{{Role: mygo.RoleMinimize}}
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Label: "Sasa", Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout}, mygo.Separator(),
@@ -239,7 +244,7 @@ func (a *App) applicationMenu() *mygo.Menu {
 			{ID: "quick-open", Label: "快速打开文件", Accelerator: "CmdOrCtrl+P", Click: func(*mygo.MenuItem, *mygo.Window) { a.update(a.openQuickOpen) }},
 			{ID: "close-current-page", Label: "关闭当前页签", Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) { a.update(a.closeCurrentPage) }},
 		}},
-		{Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, {Role: mygo.RoleWindowMenu},
+		{Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, windowMenu,
 	})
 }
 
