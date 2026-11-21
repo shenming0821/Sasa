@@ -90,7 +90,60 @@ func TestThemePickChangesChromeHot(t *testing.T) {
 	}
 }
 
-// TestThemeIDPersistsAcrossReload checks the preference round-trips
+// frameTheme builds one frame of a's view with the given appearance
+// and returns the theme applyAppearance set, the chain every widget
+// reads.
+func frameTheme(a *App, dark bool) native.Theme {
+	var got native.Theme
+	tt := native.NewTester(func(c *native.Context) {
+		a.view(c)
+		got = *c.Theme()
+	}, 100, 100)
+	tt.SetDark(dark)
+	tt.Frame()
+	return got
+}
+
+// TestThemeAccentReachesFrame checks the palette's accent chain —
+// accent, selection and focus — lands in the frame theme, so links,
+// focus rings and text selection follow the theme, not the system
+// blue of MyGo's default.
+func TestThemeAccentReachesFrame(t *testing.T) {
+	a := New(stubBackend{}, "test", "/workspace", nil)
+	a.preferences.ThemeID = "claude"
+	want := themeByID("claude").light
+	if want.accent == native.LightTheme().Accent {
+		t.Fatal("test theme shares the default accent; nothing to assert")
+	}
+	got := frameTheme(a, false)
+	if got.Accent != legible(want.status.accent, false, want.background, want.surface, want.surfaceHover) {
+		t.Fatal("accent did not follow the theme", got.Accent)
+	}
+	if got.Selection != want.selection || got.Focus != want.focus {
+		t.Fatal("selection or focus did not follow the theme", got.Selection, got.Focus)
+	}
+	if got.Background != want.background {
+		t.Fatal("background did not follow the theme", got.Background)
+	}
+}
+
+// TestThemeStatusColorsFollowTheme checks the session-status colors the
+// badge dot shows resolve from the palette: Claude's working dot is
+// terracotta, not the default violet.
+func TestThemeStatusColorsFollowTheme(t *testing.T) {
+	a := New(stubBackend{}, "test", "/workspace", nil)
+	a.preferences.ThemeID = "claude"
+	got := frameTheme(a, false)
+	want := themeByID("claude").light.status
+	pal := themeByID("claude").light
+	if got.Accent != legible(want.accent, false, pal.background, pal.surface, pal.surfaceHover) {
+		t.Fatal("working color does not follow theme", got.Accent)
+	}
+	if got.Danger != legible(want.danger, false, pal.background, pal.surface, pal.surfaceHover) {
+		t.Fatal("danger color does not follow theme", got.Danger)
+	}
+}
+
 // through the store, so the picked theme survives a restart.
 func TestThemeIDPersistsAcrossReload(t *testing.T) {
 	a := New(stubBackend{}, "test", "/workspace", nil)

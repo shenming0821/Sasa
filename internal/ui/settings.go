@@ -96,9 +96,14 @@ func (a *App) applyAppearance(c *native.Context) {
 	pal.apply(&t)
 	t.Font = root.preferences.EnglishFont + ", " + root.preferences.ChineseFont + ", system-ui"
 	// The status badge reads as a small dot on chrome, surface, and the
-	// editor ground: the palette's colors are pushed through legible on
-	// those backs so they read at WCAG's 4.5:1 like Mayoi's do.
-	applyStatusTheme(&t, t.Background, t.Surface, t.SurfaceHover)
+	// editor ground. The default theme keeps the mirrored Mayoi status
+	// colors through applyStatusTheme; a palette that carries its own
+	// status colors skips that, so Claude's dot follows its accent.
+	if pal.status == (statusPalette{}) {
+		applyStatusTheme(&t, t.Background, t.Surface, t.SurfaceHover)
+	} else {
+		pal.status.apply(&t, t.Background, t.Surface, t.SurfaceHover)
+	}
 	c.SetTheme(&t)
 	root.md.Theme.Font, root.md.Theme.CodeFont = t.Font, root.codeFontFamily()
 }
