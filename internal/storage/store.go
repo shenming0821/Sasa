@@ -140,6 +140,7 @@ type Preferences struct {
 	KeepAwakeBaseline      *SleepBaseline
 	Terminal               string
 	Theme                  string
+	ThemeID                string `json:",omitempty"`
 	EnglishFont            string
 	ChineseFont            string
 	CodeFont               string

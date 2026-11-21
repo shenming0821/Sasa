@@ -352,7 +352,7 @@ func (a *App) conversation(c *native.Context) {
 func (a *App) composer(c *native.Context) {
 	t := c.Theme()
 	box := native.Column(c).FillWidth().Padding(14, 14, 10, 14).Gap(8).Radius(22).
-		Border(1, t.Border.Alpha(0.7)).Background(composerBackground(t)).
+		Border(1, t.Border.Alpha(0.7)).Background(a.composerBackground(t)).
 		Shadow(0, 2, 12, 0, native.RGBA(0, 0, 0, 0.04))
 	if box.FocusWithin() {
 		box.Border(1, t.Accent).DrawOver(func(painter *native.Painter, bounds native.Rect) {

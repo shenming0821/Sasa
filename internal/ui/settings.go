@@ -42,6 +42,8 @@ type settingsState struct {
 
 var settingsIcon = icon(`<path d="M9.59356 3.94014C9.68397 3.39768 10.1533 3.00009 10.7033 3.00009H13.2972C13.8472 3.00009 14.3165 3.39768 14.4069 3.94014L14.6204 5.22119C14.6828 5.59523 14.9327 5.9068 15.2645 6.09045C15.3387 6.13151 15.412 6.17393 15.4844 6.21766C15.8095 6.41393 16.2048 6.47495 16.5604 6.34175L17.7772 5.88587C18.2922 5.69293 18.8712 5.9006 19.1462 6.37687L20.4432 8.6233C20.7181 9.09957 20.6085 9.70482 20.1839 10.0544L19.1795 10.8812C18.887 11.122 18.742 11.4938 18.7491 11.8726C18.7498 11.915 18.7502 11.9575 18.7502 12.0001C18.7502 12.0427 18.7498 12.0852 18.7491 12.1275C18.742 12.5064 18.887 12.8782 19.1795 13.119L20.1839 13.9458C20.6085 14.2953 20.7181 14.9006 20.4432 15.3769L19.1462 17.6233C18.8712 18.0996 18.2922 18.3072 17.7772 18.1143L16.5604 17.6584C16.2048 17.5252 15.8095 17.5862 15.4844 17.7825C15.412 17.8263 15.3387 17.8687 15.2645 17.9097C14.9327 18.0934 14.6828 18.4049 14.6204 18.779L14.4069 20.06C14.3165 20.6025 13.8472 21.0001 13.2972 21.0001H10.7033C10.1533 21.0001 9.68397 20.6025 9.59356 20.06L9.38005 18.779C9.31771 18.4049 9.06774 18.0934 8.73597 17.9097C8.66179 17.8687 8.58847 17.8263 8.51604 17.7825C8.19101 17.5863 7.79568 17.5252 7.44011 17.6584L6.22325 18.1143C5.70826 18.3072 5.12926 18.0996 4.85429 17.6233L3.55731 15.3769C3.28234 14.9006 3.39199 14.2954 3.81657 13.9458L4.82092 13.119C5.11343 12.8782 5.25843 12.5064 5.25141 12.1276C5.25063 12.0852 5.25023 12.0427 5.25023 12.0001C5.25023 11.9575 5.25063 11.915 5.25141 11.8726C5.25843 11.4938 5.11343 11.122 4.82092 10.8812L3.81657 10.0544C3.39199 9.70484 3.28234 9.09958 3.55731 8.62332L4.85429 6.37688C5.12926 5.90061 5.70825 5.69295 6.22325 5.88588L7.4401 6.34176C7.79566 6.47496 8.19099 6.41394 8.51603 6.21767C8.58846 6.17393 8.66179 6.13151 8.73597 6.09045C9.06774 5.9068 9.31771 5.59523 9.38005 5.22119L9.59356 3.94014Z"/><path d="M15 12C15 13.6569 13.6569 15 12 15C10.3431 15 9 13.6569 9 12C9 10.3432 10.3431 9.00001 12 9.00001C13.6569 9.00001 15 10.3432 15 12Z"/>`)
 
+// defaultPreferences sets the theme the app ships with: the default
+// palette and the appearance following the system.
 func defaultPreferences() storage.Preferences {
 	return storage.Preferences{KeepAwake: power.Never, Terminal: terminal.Ghostty, Theme: "system", EnglishFont: latinFont, ChineseFont: ".PingFang UI SC", CodeFont: latinFont, CompletionNotification: true}
 }
@@ -53,6 +55,9 @@ func (a *App) normalizePreferences() {
 	p.Terminal = terminal.Normalize(p.Terminal)
 	if p.Theme != "light" && p.Theme != "dark" {
 		p.Theme = "system"
+	}
+	if !slices.ContainsFunc(themes, func(t themeDefinition) bool { return t.id == p.ThemeID }) {
+		p.ThemeID = themes[0].id
 	}
 	if p.EnglishFont == "" {
 		p.EnglishFont = d.EnglishFont
@@ -85,15 +90,10 @@ func (a *App) applyAppearance(c *native.Context) {
 	if root.win == nil && root.preferences.Theme == "dark" {
 		t = *native.DarkTheme()
 	}
-	if !t.Dark {
-		// Codex-style light grays: near-white sidebar, barely darker
-		// selection, and a hairline border.
-		t.Background = native.Hex("#fefefe")
-		t.Surface = native.Hex("#fafafa")
-		t.SurfaceHover = native.Hex("#efefef")
-		t.SurfacePressed = native.Hex("#e4e4e4")
-		t.Border = native.Hex("#e4e4e4")
-	}
+	// The configured theme's palette paints the chrome; zero fields of
+	// the default theme's dark palette leave MyGo's dark theme alone.
+	pal := themeByID(root.preferences.ThemeID).paletteFor(t.Dark)
+	pal.apply(&t)
 	t.Font = root.preferences.EnglishFont + ", " + root.preferences.ChineseFont + ", system-ui"
 	// The status badge reads as a small dot on chrome, surface, and the
 	// editor ground: the palette's colors are pushed through legible on
@@ -103,18 +103,31 @@ func (a *App) applyAppearance(c *native.Context) {
 	root.md.Theme.Font, root.md.Theme.CodeFont = t.Font, root.codeFontFamily()
 }
 
-// userBubbleColor fills the user's message bubble: one step off-white in
-// light mode, the control face in dark mode.
-func userBubbleColor(t *native.Theme) native.Color {
+// activePalette resolves the configured theme's palette for the given
+// appearance, so view code that draws app-specific surfaces reads the
+// same values applyAppearance painted the chrome with.
+func (a *App) activePalette(t *native.Theme) palette {
+	return themeByID(a.application().preferences.ThemeID).paletteFor(t.Dark)
+}
+
+// userBubbleColor fills the user's message bubble: the palette's bubble
+// color when it carries one, else the existing defaults.
+func (a *App) userBubbleColor(t *native.Theme) native.Color {
+	if c := a.activePalette(t).chat.userBubble; c != (native.Color{}) {
+		return c
+	}
 	if t.Dark {
 		return t.Surface
 	}
 	return native.Hex("#f0f0f1")
 }
 
-// composerBackground fills the chat input card: pure white on the light
-// theme so it lifts off the #fefefe conversation floor.
-func composerBackground(t *native.Theme) native.Color {
+// composerBackground fills the chat input card: the palette's card
+// color when it carries one, else the existing defaults.
+func (a *App) composerBackground(t *native.Theme) native.Color {
+	if c := a.activePalette(t).chat.composerCard; c != (native.Color{}) {
+		return c
+	}
 	if t.Dark {
 		return t.Background
 	}
@@ -168,6 +181,17 @@ func (a *App) savePreferences(previous storage.Preferences) {
 	a.auxiliaryPreferencesChanged(previous)
 	if a.win != nil && previous.Theme != a.preferences.Theme {
 		a.applySystemTheme()
+	}
+	// A same-appearance theme switch changes only the palette the next
+	// frame paints, so invalidating the open windows is enough; the
+	// appearance itself keeps going through applySystemTheme.
+	if previous.ThemeID != a.preferences.ThemeID {
+		if a.win != nil {
+			a.win.Invalidate()
+		}
+		if a.quickOpen.window != nil {
+			a.quickOpen.window.Invalidate()
+		}
 	}
 	if previous.CodeFont != a.preferences.CodeFont || previous.ChineseFont != a.preferences.ChineseFont {
 		for _, d := range a.files {
@@ -298,6 +322,23 @@ func (a *App) settingsView(c *native.Context) {
 func (a *App) appearanceSettings(c *native.Context) {
 	t := c.Theme()
 	native.Text(c, "外观").FontSize(14).FontWeight(600)
+	native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
+		settingLabel(c, "配色")
+		native.Row(c).Grow(1).MinWidth(0).Gap(6).Children(func() {
+			for _, choice := range themeLabels() {
+				b := treeButton(c.Key("配色 "+choice[1]), "配色 "+choice[1]).Grow(1).MinWidth(0).Height(32).Padding(0, 4)
+				if a.preferences.ThemeID == choice[0] {
+					b.Background(t.SurfacePressed).TextColor(t.Text)
+				}
+				b.Children(func() { native.Text(c, choice[1]).FontSize(12).SingleLine() })
+				if b.Clicked() {
+					previous := a.preferences
+					a.preferences.ThemeID = choice[0]
+					a.savePreferences(previous)
+				}
+			}
+		})
+	})
 	native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
 		settingLabel(c, "主题")
 		native.Row(c).Grow(1).MinWidth(0).Gap(6).Children(func() {

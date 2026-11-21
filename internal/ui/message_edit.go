@@ -359,7 +359,7 @@ func (a *App) userMessage(c *native.Context, message *app.Message) {
 		if text != "" {
 			native.Row(c).FillWidth().Justify(native.End).Children(func() {
 				a.markedMessageText(c, message, text).Selectable().FontSize(15).FontWeight(400).LineHeight(1.6).
-					MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(userBubbleColor(theme))
+					MaxWidthPercent(85).Padding(8, 16).Radius(20).Background(a.userBubbleColor(theme))
 			})
 			sentAt := message.SentAt
 			if sentAt.IsZero() && message.Timing != nil {
