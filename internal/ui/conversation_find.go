@@ -354,14 +354,6 @@ func applyMarkEdits(src string, edits []markEdit) string {
 	return b.String()
 }
 
-// findMarkColor is the background every match highlights with and
-// findCurColor the brighter one the current match takes. The markdown
-// overlay's mark stacks over the dim mark underneath it, so it asks for
-// the difference between the two.
-func findMarkColor(t *native.Theme) native.Color    { return t.Accent.Alpha(.25) }
-func findCurColor(t *native.Theme) native.Color     { return t.Accent.Alpha(.55) }
-func findOverlayColor(t *native.Theme) native.Color { return t.Accent.Alpha(.4) }
-
 // markSpans splits text at ranges into rich-text spans, marking hits;
 // the current match, cur, highlights brighter.
 func markSpans(text string, ranges [][2]int, mark, curMark native.Color, cur *[2]int) []native.Span {
@@ -405,8 +397,9 @@ func (a *App) sessionFindCurrent(m *app.Message) *[2]int {
 func (a *App) markedMessageText(c *native.Context, m *app.Message, text string) native.Element {
 	if a.find.open {
 		if ranges := sessionFindRanges(text, a.find.query); len(ranges) > 0 {
-			t := c.Theme()
-			return native.RichText(c, markSpans(text, ranges, findMarkColor(t), findCurColor(t), a.sessionFindCurrent(m))...)
+			theme := c.Theme()
+			search := a.activePalette(theme).searchFor(theme.Accent, .55)
+			return native.RichText(c, markSpans(text, ranges, search.match, search.current, a.sessionFindCurrent(m))...)
 		}
 	}
 	return native.Text(c, text)
@@ -434,7 +427,7 @@ func findMessageOptions(o *markdown.Options) *markdown.Options {
 // becomes a ghost — a hair off transparent so the theme resolver keeps
 // it rather than defaulting it — while mark alone paints, at the
 // brighter current-match alpha.
-func findOverlayOptions(o *markdown.Options, t *native.Theme) *markdown.Options {
+func findOverlayOptions(o *markdown.Options, mark native.Color) *markdown.Options {
 	out := findMessageOptions(o)
 	ghost := native.RGBA(0, 0, 0, .004)
 	if out.Theme != nil {
@@ -445,7 +438,7 @@ func findOverlayOptions(o *markdown.Options, t *native.Theme) *markdown.Options 
 		for i := range th.Headings {
 			th.Headings[i].Color = ghost
 		}
-		th.Mark = findOverlayColor(t)
+		th.Mark = mark
 		out.Theme = &th
 	}
 	out.OnLink, out.LoadImage = nil, nil
@@ -492,10 +485,14 @@ func (a *App) findCurInCode(m *app.Message, b *markdown.CodeBlockView) *[2]int {
 // the highlighted body for spans that carry the mark background on hits.
 func (a *App) markedCodeBlock(c *native.Context, m *app.Message, b *markdown.CodeBlockView) {
 	t := c.Theme()
+	search := a.activePalette(t).searchFor(t.Accent, .55)
 	th := markdown.DefaultTheme(t)
 	th.FontSize = a.md.Theme.FontSize
 	th.CodeFont = a.md.Theme.CodeFont
-	th.Mark = findMarkColor(t)
+	th.Mark = search.match
+	if a.md.Theme.CodeColors != nil {
+		th.CodeColors = a.md.Theme.CodeColors
+	}
 	cur := a.findCurInCode(m, b)
 	em := func(v float32) float32 { return v * th.FontSize }
 	pad := em(th.CodeBlockPadding)
@@ -525,7 +522,7 @@ func (a *App) markedCodeBlock(c *native.Context, m *app.Message, b *markdown.Cod
 			}
 			col.Children(func() {
 				code := b.Code()
-				el := native.RichText(c, markedCodeSpans(code, b.Language, sessionFindRanges(code, a.find.query), th, cur, findCurColor(t))...)
+				el := native.RichText(c, markedCodeSpans(code, b.Language, sessionFindRanges(code, a.find.query), th, cur, search.current)...)
 				if !a.md.WrapCode {
 					el.NoWrap()
 				}

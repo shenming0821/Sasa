@@ -443,9 +443,7 @@ func (a *App) quickOpenRow(c *native.Context, item quickOpenItem, selected bool,
 	t := c.Theme()
 	rc := c.Key(item.path)
 	row := native.ButtonBase(rc).Label("打开 "+item.rel).FillWidth().Radius(6).Padding(6, 8).KeepFocus()
-	if selected || row.Hovered() {
-		row.Background(t.SurfaceHover)
-	}
+	a.pickerRowFace(t, row, selected)
 	row.Children(func() {
 		native.Row(rc).FillWidth().AlignItems(native.Center).Gap(8).Children(func() {
 			native.Icon(rc, fileIcon).Size(13, 13).Shrink(0).TextColor(t.TextMuted)

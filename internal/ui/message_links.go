@@ -24,8 +24,12 @@ type fileLocation struct {
 }
 
 func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
-	a.md.Theme.Strong = c.Theme().Danger
-	a.md.Theme.Mark = findMarkColor(c.Theme())
+	theme := c.Theme()
+	palette := a.activePalette(theme)
+	search := palette.searchFor(theme.Accent, .55)
+	a.md.Theme.Strong = theme.Danger
+	a.md.Theme.Mark = search.match
+	a.md.Theme.CodeColors = palette.editor.codeColors
 	text := message.Text
 	owner := a.session
 	cwd := owner.State.Cwd
@@ -88,7 +92,7 @@ func (a *App) messageMarkdown(c *native.Context, message *app.Message) {
 			// The current match brightens through a transparent overlay
 			// painting only its mark, laid over the block holding it.
 			if fm != nil && fm.curSrc != "" {
-				ov := findOverlayOptions(opts, c.Theme())
+				ov := findOverlayOptions(opts, search.overlay())
 				cb, src := fm.curBlock, fm.curSrc
 				o.Block = func(cc *native.Context, d *parser.Document, i int) bool {
 					if i != cb {

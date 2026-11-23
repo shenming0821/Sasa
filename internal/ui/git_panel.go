@@ -397,7 +397,7 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 	} else if w.gitSelection[gitKey(group, entry.Path)] {
 		row.Background(t.SurfacePressed)
 	} else if shown {
-		row.Background(t.SurfaceHover)
+		row.Background(a.listRowHover(t))
 	}
 	row.Children(func() {
 		b := native.ButtonBase(c.Key("open")).Label("Git "+group+" "+entry.Path).Grow(1).FillHeight().MinWidth(0).Padding(0, 2, 0, 8)

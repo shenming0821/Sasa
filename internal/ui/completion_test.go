@@ -331,6 +331,49 @@ func (b *commandTestBackend) ListCommands(ctx context.Context, cwd string) ([]ag
 	}
 }
 
+func TestClaudeLightCompletionHoverAndKeyboardSelection(t *testing.T) {
+	a := completionTestApp()
+	a.preferences.Theme, a.preferences.ThemeID = "light", "claude"
+	a.completion.skills = append(a.completion.skills,
+		codex.Skill{Name: "review", Path: "/tmp/skills/review/SKILL.md", Enabled: true})
+	for _, test := range []struct{ trigger, first, second string }{
+		{"/", "/compact", "/new"},
+		{"$", "frontend-design", "review"},
+	} {
+		t.Run(test.trigger, func(t *testing.T) {
+			a.State.Draft = ""
+			tester := native.NewTester(a.view, 640, 480)
+			if err := tester.Click("任务输入"); err != nil {
+				t.Fatal(err)
+			}
+			tester.Type(test.trigger)
+			position := func(name string) (float32, float32) {
+				t.Helper()
+				bounds, ok := tester.Find("候选 " + name)
+				if !ok {
+					t.Fatalf("missing candidate %q", name)
+				}
+				return bounds.X + bounds.W - 12, bounds.Y + bounds.H/2
+			}
+			check := func(name string, want native.Color) {
+				t.Helper()
+				x, y := position(name)
+				got := tester.Image().RGBAAt(int(x), int(y))
+				if got.R != want.R || got.G != want.G || got.B != want.B {
+					t.Fatalf("candidate %q background = %v, want %v", name, got, want)
+				}
+			}
+			hover, selected := native.Hex("#eeebe5"), native.Hex("#e2e4f8")
+			check(test.first, selected)
+			tester.Move(position(test.second))
+			check(test.second, hover)
+			check(test.first, selected)
+			tester.Key(0, native.KeyDown)
+			check(test.second, selected)
+		})
+	}
+}
+
 func TestCompletionKeyboardSelectionAndIMEGate(t *testing.T) {
 	a := completionTestApp()
 	tt := native.NewTester(a.view, 640, 480)

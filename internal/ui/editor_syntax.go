@@ -9,6 +9,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 	native "github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/editor"
 )
 
 type syntaxToken struct {
@@ -82,6 +83,7 @@ type editorPalette struct {
 	added, deleted, addedBackground, deletedBackground native.Color
 	accent                                             native.Color
 	style                                              *chroma.Style
+	codeColors                                         *editor.Theme
 }
 
 func (a *App) activeEditorPalette(theme *native.Theme) editorPalette {
@@ -101,7 +103,7 @@ func claudeEditorPalette(dark bool) editorPalette {
 	border, accent, added, deleted := "#dcdad4", "#c4613f", "#2c7a39", "#c8374f"
 	selection := native.RGBA(87, 105, 247, 0.16)
 	keyword, typeName, function := "#4c5ee0", "#0f6e6e", "#b0532f"
-	str, number, comment := "#2c7a39", "#966c1e", "#87857f"
+	str, number, comment := "#2c7a39", "#966c1e", "#74726d"
 	operator, punctuation, builtin, tag := "#66645f", "#83817b", "#7a4fe0", "#c8207c"
 	if dark {
 		styleName = "claude-dark"
@@ -112,7 +114,7 @@ func claudeEditorPalette(dark bool) editorPalette {
 		str, number, comment = "#8fcf8f", "#f2c55c", "#7a7873"
 		operator, punctuation, builtin, tag = "#9a9893", "#7f7d78", "#af87ff", "#fd5db1"
 	}
-	editor := editorPalette{
+	palette := editorPalette{
 		background: native.Hex(background), text: native.Hex(text), muted: native.Hex(gutter),
 		border: native.Hex(border), accent: native.Hex(accent),
 		added: native.Hex(added), deleted: native.Hex(deleted),
@@ -127,10 +129,34 @@ func claudeEditorPalette(dark bool) editorPalette {
 			chroma.GenericStrong: keyword, chroma.GenericEmph: keyword, chroma.Error: deleted,
 		}),
 	}
-	editor.selection = selection.Over(editor.background)
-	editor.addedBackground = editor.added.Alpha(0.12).Over(editor.background)
-	editor.deletedBackground = editor.deleted.Alpha(0.12).Over(editor.background)
-	return editor
+	palette.selection = selection.Over(palette.background)
+	palette.addedBackground = palette.added.Alpha(0.12).Over(palette.background)
+	palette.deletedBackground = palette.deleted.Alpha(0.12).Over(palette.background)
+	if !dark {
+		palette.codeColors = palette.markdownCodeColors()
+	}
+	return palette
+}
+
+func (palette editorPalette) markdownCodeColors() *editor.Theme {
+	colors := &editor.Theme{Text: palette.text}
+	for kind, token := range map[editor.TokenKind]chroma.TokenType{
+		editor.TokenKeyword: chroma.Keyword, editor.TokenType: chroma.NameClass,
+		editor.TokenFunction: chroma.NameFunction, editor.TokenVariable: chroma.NameVariable,
+		editor.TokenProperty: chroma.NameProperty, editor.TokenConstant: chroma.NameConstant,
+		editor.TokenNumber: chroma.LiteralNumber, editor.TokenString: chroma.LiteralString,
+		editor.TokenEscape: chroma.LiteralStringEscape, editor.TokenRegexp: chroma.LiteralStringRegex,
+		editor.TokenComment: chroma.Comment, editor.TokenOperator: chroma.Operator,
+		editor.TokenPunctuation: chroma.Punctuation, editor.TokenTag: chroma.NameTag,
+		editor.TokenAttribute: chroma.NameAttribute, editor.TokenMeta: chroma.CommentPreproc,
+		editor.TokenHeading: chroma.GenericHeading, editor.TokenEmphasis: chroma.GenericEmph,
+		editor.TokenStrong: chroma.GenericStrong, editor.TokenLink: chroma.NameTag,
+		editor.TokenCode: chroma.LiteralString, editor.TokenInserted: chroma.GenericInserted,
+		editor.TokenDeleted: chroma.GenericDeleted, editor.TokenInvalid: chroma.Error,
+	} {
+		colors.Tokens[kind].Color = palette.syntaxColor(token)
+	}
+	return colors
 }
 
 func githubEditorPalette(dark bool) editorPalette {
@@ -160,18 +186,21 @@ func (palette editorPalette) lineTheme() *native.Theme {
 	return &native.Theme{TextMuted: palette.muted, Success: palette.added, Danger: palette.deleted}
 }
 
+func (palette editorPalette) syntaxColor(token chroma.TokenType) native.Color {
+	color := palette.style.Get(token).Colour
+	if color.IsSet() {
+		return native.RGB(color.Red(), color.Green(), color.Blue())
+	}
+	return palette.text
+}
+
 func (palette editorPalette) ranges(tokens []syntaxToken, start, end int) []native.TextRange {
 	var ranges []native.TextRange
 	for _, token := range tokens {
 		if token.End <= start || token.Start >= end {
 			continue
 		}
-		entry := palette.style.Get(token.Type)
-		color := palette.text
-		if entry.Colour.IsSet() {
-			color = native.RGB(entry.Colour.Red(), entry.Colour.Green(), entry.Colour.Blue())
-		}
-		ranges = append(ranges, native.TextRange{Start: token.Start, End: token.End, Color: color})
+		ranges = append(ranges, native.TextRange{Start: token.Start, End: token.End, Color: palette.syntaxColor(token.Type)})
 	}
 	return ranges
 }

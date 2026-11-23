@@ -20,11 +20,17 @@ type palette struct {
 	surfaceHover   native.Color
 	surfacePressed native.Color
 	border         native.Color
+	text           native.Color
+	textMuted      native.Color
 	accent         native.Color
 	accentHover    native.Color
 	accentPressed  native.Color
 	selection      native.Color
 	focus          native.Color
+	search         searchPalette
+	pickerHover    native.Color
+	pickerSelected native.Color
+	listRowHover   native.Color
 	// status holds the session-state colors applyStatusTheme writes:
 	// the accent for a working session, the modified color for waiting
 	// on the user, danger for failure, and added for success.
@@ -39,6 +45,29 @@ type palette struct {
 type paletteChat struct {
 	userBubble   native.Color
 	composerCard native.Color
+}
+
+type searchPalette struct {
+	match, current, ring native.Color
+}
+
+var claudeLightSearch = searchPalette{
+	match:   native.RGBA(212, 162, 64, 0.24),
+	current: native.RGBA(212, 162, 64, 0.44),
+	ring:    native.RGBA(150, 108, 30, 0.9),
+}
+
+func (p palette) searchFor(accent native.Color, currentAlpha float32) searchPalette {
+	if p.search != (searchPalette{}) {
+		return p.search
+	}
+	return searchPalette{match: accent.Alpha(.25), current: accent.Alpha(currentAlpha), ring: accent.Alpha(.9)}
+}
+
+func (p searchPalette) overlay() native.Color {
+	color := p.current
+	color.A = 255
+	return color.Alpha(float32(p.current.A-p.match.A) / float32(255-p.match.A))
 }
 
 // themeDefinition is one named color scheme: the palettes its light
@@ -87,18 +116,24 @@ var themes = []themeDefinition{
 			surfaceHover:   native.Hex("#f4f3ef"),
 			surfacePressed: native.Hex("#ebe9e4"),
 			border:         native.Hex("#dcdad4"),
+			text:           native.Hex("#1a1918"),
+			textMuted:      native.Hex("#66645f"),
 			accent:         native.Hex("#c4613f"),
 			accentHover:    native.Hex("#b65a3c"),
 			accentPressed:  native.Hex("#a04f31"),
 			selection:      native.RGBA(87, 105, 247, 0.16),
 			focus:          native.RGBA(196, 97, 63, 0.5),
+			search:         claudeLightSearch,
+			pickerHover:    native.Hex("#eeebe5"),
+			pickerSelected: native.Hex("#e2e4f8"),
+			listRowHover:   native.Hex("#f0ede7"),
 			status:         statusPalette{accent: native.Hex("#c4613f"), modified: native.Hex("#966c1e"), danger: native.Hex("#ab2b3f"), added: native.Hex("#2c7a39")},
-			chat:           paletteChat{userBubble: native.Hex("#ffffff"), composerCard: native.Hex("#fdfcfa")},
+			chat:           paletteChat{userBubble: native.Hex("#eeebe5"), composerCard: native.Hex("#fdfcfa")},
 			editor:         claudeEditorPalette(false),
 			term: terminal.Theme{
 				Background: native.Hex("#f9f8f6"), Foreground: native.Hex("#1a1918"), Cursor: native.Hex("#c4613f"),
 				Selection: native.RGBA(87, 105, 247, 0.16),
-				Search:    native.RGBA(212, 162, 64, 0.24), SearchSelected: native.RGBA(212, 162, 64, 0.44),
+				Search:    claudeLightSearch.match, SearchSelected: claudeLightSearch.current,
 				ANSI: [16]uint32{
 					0x1a1918, 0xab2b3f, 0x2c7a39, 0x966c1e, 0x3a63c8, 0xc8207c, 0x0f6e6e, 0x86847e,
 					0x66645f, 0xc8374f, 0x3c9a4c, 0xb08428, 0x5769f7, 0xe0409a, 0x1f8a8a, 0x4a4843,
@@ -168,11 +203,14 @@ func (p palette) apply(t *native.Theme) {
 	set(&t.SurfaceHover, p.surfaceHover)
 	set(&t.SurfacePressed, p.surfacePressed)
 	set(&t.Border, p.border)
+	set(&t.Text, p.text)
+	set(&t.TextMuted, p.textMuted)
 	set(&t.Accent, p.accent)
 	set(&t.AccentHover, p.accentHover)
 	set(&t.AccentPressed, p.accentPressed)
 	set(&t.Selection, p.selection)
 	set(&t.Focus, p.focus)
+	t.Caret = p.accent
 }
 
 // apply writes the palette's status colors into the theme's status

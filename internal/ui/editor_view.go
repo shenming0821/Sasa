@@ -843,6 +843,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		}
 		width := max(available, d.contentWidth)
 		palette := a.activeEditorPalette(t)
+		search := a.activePalette(t).searchFor(palette.accent, .45)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
 			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
 			var lineAtClick func() int
@@ -976,7 +977,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					}
 				}
 				a.paintWordMatches(p, r, d, snap, palette)
-				a.paintFileMatches(p, r, d, snap, palette)
+				a.paintFileMatches(p, r, d, snap, search)
 				a.paintBracketPair(p, r, d, snap, palette)
 			})
 			area.DrawOver(func(p *native.Painter, r native.Rect) {
@@ -1290,7 +1291,7 @@ func (a *App) revealFileMatch(d *filePage, i int) {
 // paintFileMatches draws the searched keywords under the text, the way
 // Mayoi's find does: every match filled, the match under the selection
 // stronger with a ring.
-func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, snap native.TextSnapshot, palette editorPalette) {
+func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, snap native.TextSnapshot, search searchPalette) {
 	if !d.findScanned || len(d.findMatches) == 0 || d.findBuffer != d.buffer || d.findVersion != snap.Version() {
 		return
 	}
@@ -1335,10 +1336,10 @@ func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, sn
 			y := r.Y + 8 + d.lines.Top(l) - d.scroll.Y
 			box := native.Rect{X: max(x0, textX) - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}
 			if cur {
-				p.Fill(box, palette.accent.Alpha(.45), 3)
-				p.Stroke(box, palette.accent.Alpha(.9), 3, 1)
+				p.Fill(box, search.current, 3)
+				p.Stroke(box, search.ring, 3, 1)
 			} else {
-				p.Fill(box, palette.accent.Alpha(.25), 3)
+				p.Fill(box, search.match, 3)
 			}
 			count++
 		}

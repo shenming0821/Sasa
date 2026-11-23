@@ -26,6 +26,9 @@ def main():
     root = pathlib.Path(__file__).resolve().parent.parent
     source = pathlib.Path(module["Dir"])
     edits = {
+        "ui/theme.go": [
+            ("	TextMuted Color\n", "	TextMuted Color\n	Caret     Color\n"),
+        ],
         "ui/editor_layout.go": [
             (
                 "p.textLayout(pl, e.x+e.contentX(), oy, t.TextMuted, ts, nil)",
@@ -38,12 +41,18 @@ def main():
         ],
         "ui/textarea.go": [],
     }
-    for changes in edits.values():
-        changes.extend([
+    for name in ("ui/editor_layout.go", "ui/textarea.go"):
+        edits[name].extend([
             ("op.Rect.W = max(round(p.scale), 1)",
              "op.Rect.W = max(round(2*p.scale), 1)"),
             ("Color: t.Accent.scene(), Wide: p.wide(t.Accent, Color{}, Color{})",
-             "Color: ts.color.scene(), Wide: p.wide(ts.color, Color{}, Color{})"),
+             "Color: caretColor.scene(), Wide: p.wide(caretColor, Color{}, Color{})"),
+            ("\t\tif (phase/blink)%2 == 0 {\n",
+             "\t\tif (phase/blink)%2 == 0 {\n"
+             "\t\t\tcaretColor := t.Caret\n"
+             "\t\t\tif caretColor == (Color{}) {\n"
+             "\t\t\t\tcaretColor = ts.color\n"
+             "\t\t\t}\n"),
         ])
     # Let multiline inputs handle Cmd+Enter through the editor's normal insertion,
     # preserving the selection, caret, undo history and native IME routing.

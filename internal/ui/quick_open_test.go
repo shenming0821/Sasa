@@ -219,6 +219,7 @@ func TestQuickOpenDismissPaths(t *testing.T) {
 
 func TestQuickOpenKeyboardSelectionAndClick(t *testing.T) {
 	a, queue, root := p4App(t)
+	a.preferences.Theme, a.preferences.ThemeID = "light", "claude"
 	main := filepath.Join(root, "internal", "main.go")
 	readme := filepath.Join(root, "README.md")
 	tt := native.NewTester(a.view, 1280, 800)
@@ -229,7 +230,28 @@ func TestQuickOpenKeyboardSelectionAndClick(t *testing.T) {
 
 	tt.Key(native.Cmd, native.KeyP)
 	p4Wait(t, tt, queue, func() bool { return !a.quickOpen.filesLoading && a.quickOpen.filesRoot == root })
+	candidate := func(label string) (float32, float32) {
+		t.Helper()
+		bounds, ok := tt.Find("打开 " + label)
+		if !ok {
+			t.Fatalf("missing result %q", label)
+		}
+		return bounds.X + bounds.W - 12, bounds.Y + bounds.H/2
+	}
+	checkBackground := func(label string, want native.Color) {
+		t.Helper()
+		x, y := candidate(label)
+		got := tt.Image().RGBAAt(int(x), int(y))
+		if got.R != want.R || got.G != want.G || got.B != want.B {
+			t.Fatalf("result %q background = %v, want %v", label, got, want)
+		}
+	}
+	selected := native.Hex("#e2e4f8")
+	checkBackground("internal/main.go", selected)
+	tt.Move(candidate("README.md"))
+	checkBackground("README.md", native.Hex("#eeebe5"))
 	tt.Key(0, native.KeyDown)
+	checkBackground("README.md", selected)
 	if a.quickOpen.selected != 1 {
 		t.Fatalf("selection = %d", a.quickOpen.selected)
 	}

@@ -422,6 +422,8 @@ func (a *App) directoryProjectRow(c *native.Context, group projectGroup) {
 					b.DrawOver(func(painter *native.Painter, bounds native.Rect) {
 						painter.Fill(native.Rect{X: bounds.X + 2, Y: bounds.Y + 6, W: 3, H: bounds.H - 12}, t.Accent, 1.5)
 					})
+				} else if b.Hovered() || b.FocusVisible() {
+					b.Background(a.listRowHover(t))
 				}
 				b.Children(func() {
 					native.Column(gc).FillWidth().Gap(4).Children(func() {

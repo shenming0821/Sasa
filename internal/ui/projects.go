@@ -275,7 +275,7 @@ func (a *App) projectDisclosure(c *native.Context, key, label string, heading, c
 	})
 	opacity := float32(0)
 	if row.Hovered() || header.FocusVisible() {
-		row.Background(c.Theme().SurfaceHover)
+		row.Background(a.listRowHover(c.Theme()))
 		opacity = 1
 	}
 	arrow.Opacity(opacity)

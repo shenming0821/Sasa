@@ -367,9 +367,7 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 			native.Column(c).FillWidth().Gap(2).Children(func() {
 				for i, item := range shown {
 					row := native.ButtonBase(c.Key(item.name + item.path + fmt.Sprint(i))).Label("候选 " + item.name).FillWidth().Radius(6).KeepFocus()
-					if i == a.completion.selected || row.Hovered() {
-						row.Background(t.SurfaceHover)
-					}
+					a.pickerRowFace(t, row, i == a.completion.selected)
 					if q.kind == '@' {
 						row.Padding(6, 8)
 						row.Children(func() {

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"time"
 
 	native "github.com/egoist/mygo/ui"
@@ -68,4 +69,17 @@ func panelTabButton(c *native.Context, label string, selected bool) native.Eleme
 	b := native.ButtonBase(c).Label(label).Tooltip(label).Size(36, 36).
 		Radius(7).Padding(0).TextColor(c.Theme().TextMuted)
 	return selectedButtonFace(c, b, selected, 7, 3)
+}
+
+func (a *App) pickerRowFace(theme *native.Theme, row native.Element, selected bool) {
+	palette := a.activePalette(theme)
+	if selected {
+		row.Background(cmp.Or(palette.pickerSelected, theme.SurfaceHover))
+	} else if row.Hovered() {
+		row.Background(cmp.Or(palette.pickerHover, theme.SurfaceHover))
+	}
+}
+
+func (a *App) listRowHover(theme *native.Theme) native.Color {
+	return cmp.Or(a.activePalette(theme).listRowHover, theme.SurfaceHover)
 }

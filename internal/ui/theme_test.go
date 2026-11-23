@@ -3,7 +3,9 @@ package ui
 import (
 	"testing"
 
+	"github.com/alecthomas/chroma/v2"
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Sasa/internal/app"
 )
 
 // dominantPixel samples the frame and returns its most common color:
@@ -87,6 +89,56 @@ func TestThemePickChangesChromeHot(t *testing.T) {
 	}
 	if settleTheme(tt) != themeByID("").light.background {
 		t.Fatal("switching back did not restore the default palette")
+	}
+}
+
+func TestCaretRepaintsWithThemeAndAppearance(t *testing.T) {
+	for _, label := range []string{"任务输入", "搜索设置", "文件内容"} {
+		t.Run(label, func(t *testing.T) {
+			app := New(stubBackend{}, "test", t.TempDir(), nil)
+			buffer := native.NewTextBuffer("")
+			var textColor native.Color
+			tester := native.NewTester(func(c *native.Context) {
+				if label == "任务输入" {
+					app.view(c)
+					textColor = c.Theme().Text
+					return
+				}
+				app.applyAppearance(c)
+				textColor = c.Theme().Text
+				if label == "搜索设置" {
+					app.settingsSearch(c, false)
+					return
+				}
+				editor := app.activeEditorPalette(c.Theme())
+				textColor = editor.text
+				editor.area(native.TextAreaBufferBase(c, buffer)).Label(label).Fill().Padding(10)
+			}, 1000, 760)
+			tester.SetDark(false)
+			if err := tester.Click(label); err != nil {
+				t.Fatal(err)
+			}
+			checkCaret := func(want native.Color) {
+				t.Helper()
+				caret, ok := tester.TextCaret()
+				if !ok {
+					t.Fatal("focused input lost its caret")
+				}
+				pixel := tester.Image().RGBAAt(int(caret.X), int(caret.Y+caret.H/2))
+				if pixel.R != want.R || pixel.G != want.G || pixel.B != want.B {
+					t.Fatalf("caret pixel = %v, want %v", pixel, want)
+				}
+			}
+			checkCaret(textColor)
+			app.preferences.ThemeID = "claude"
+			tester.Frame()
+			checkCaret(native.Hex("#c4613f"))
+			tester.SetDark(true)
+			checkCaret(native.Hex("#d77757"))
+			app.preferences.ThemeID = ""
+			tester.Frame()
+			checkCaret(textColor)
+		})
 	}
 }
 
@@ -186,6 +238,72 @@ func TestChatSurfacesFollowTheme(t *testing.T) {
 	}
 	if got := a.composerBackground(&light); got != themeByID("claude").light.chat.composerCard {
 		t.Fatal("light composer does not follow theme", got)
+	}
+}
+
+func TestClaudeLightCodeColorsRepaintInConversation(t *testing.T) {
+	a := New(stubBackend{}, "test", t.TempDir(), nil)
+	message := &app.Message{ID: "code", Role: "assistant", Done: true, Text: "```go\npackage sample\n// sample comment\n```"}
+	a.md.Theme.FontSize = 22
+	tester := native.NewTester(func(c *native.Context) {
+		a.applyAppearance(c)
+		a.messageMarkdown(c, message)
+	}, 500, 160)
+	tester.SetDark(false)
+	hasColor := func(want native.Color) bool {
+		image := tester.Image()
+		for y := 0; y < image.Bounds().Dy(); y++ {
+			for x := 0; x < image.Bounds().Dx(); x++ {
+				pixel := image.RGBAAt(x, y)
+				if pixel.R == want.R && pixel.G == want.G && pixel.B == want.B {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	palette := themeByID("claude").light.editor
+	keyword, comment := palette.syntaxColor(chroma.Keyword), palette.syntaxColor(chroma.Comment)
+	if hasColor(keyword) || hasColor(comment) {
+		t.Fatal("default Markdown unexpectedly uses Claude syntax colors")
+	}
+	a.preferences.ThemeID = "claude"
+	tester.Frame()
+	if !hasColor(keyword) || !hasColor(comment) {
+		t.Fatal("existing Markdown code block did not repaint with Claude syntax colors")
+	}
+	a.find.open, a.find.query = true, "sample"
+	tester.Frame()
+	if !hasColor(keyword) || !hasColor(comment) {
+		t.Fatal("searched Markdown code block lost Claude syntax colors")
+	}
+	tester.SetDark(true)
+	if hasColor(keyword) || hasColor(comment) {
+		t.Fatal("Claude dark retained the light syntax colors")
+	}
+}
+
+func TestClaudeLightTextAndSearchColors(t *testing.T) {
+	a := New(stubBackend{}, "test", t.TempDir(), nil)
+	a.preferences.ThemeID = "claude"
+	theme := frameTheme(a, false)
+	if theme.Text != native.Hex("#1a1918") || theme.TextMuted != native.Hex("#66645f") {
+		t.Fatal("Claude light did not apply its text colors", theme.Text, theme.TextMuted)
+	}
+	palette := themeByID("claude").light
+	editor := palette.editor
+	if ratio := contrast(editor.syntaxColor(chroma.Comment), editor.background); ratio < 4.5 {
+		t.Fatalf("editor comment contrast = %.2f, want at least 4.5", ratio)
+	}
+	search := palette.searchFor(theme.Accent, .55)
+	if search.match != palette.term.Search || search.current != palette.term.SearchSelected {
+		t.Fatal("conversation and terminal search colors differ")
+	}
+	got, want := search.overlay().Over(search.match.Over(theme.Background)), search.current.Over(theme.Background)
+	if max(int(got.R)-int(want.R), int(want.R)-int(got.R),
+		int(got.G)-int(want.G), int(want.G)-int(got.G),
+		int(got.B)-int(want.B), int(want.B)-int(got.B)) > 1 {
+		t.Fatalf("Markdown search overlay = %v, want %v", got, want)
 	}
 }
 
