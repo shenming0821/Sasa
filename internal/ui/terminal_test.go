@@ -15,6 +15,8 @@ type testTerminal struct {
 	closed   atomic.Bool
 	hidden   atomic.Bool
 	shortcut func(string)
+	colors   terminal.Theme
+	dark     bool
 }
 
 func (terminal *testTerminal) Present(uintptr, native.Rect, bool, bool) error {
@@ -25,6 +27,60 @@ func (terminal *testTerminal) Hide()                             { terminal.hidd
 func (terminal *testTerminal) Close()                            { terminal.closed.Store(true) }
 func (terminal *testTerminal) Exited() bool                      { return terminal.closed.Load() }
 func (terminal *testTerminal) SetShortcut(callback func(string)) { terminal.shortcut = callback }
+
+func (connection *testTerminal) SetTheme(colors terminal.Theme, dark bool) error {
+	connection.colors, connection.dark = colors, dark
+	return nil
+}
+
+func TestThemePickerUpdatesOpenTerminals(t *testing.T) {
+	app := New(stubBackend{}, "test", t.TempDir(), nil)
+	t.Cleanup(app.closeWorkspaceResources)
+	var connections []*testTerminal
+	app.terminalFactory = func(string) (terminalConnection, error) {
+		connection := &testTerminal{}
+		connections = append(connections, connection)
+		return connection, nil
+	}
+	tester := native.NewTester(app.view, 1000, 760)
+	tester.SetDark(false)
+	app.newTerminal()
+	app.newTerminal()
+	app.openSettings()
+	tester.Frame()
+	if err := tester.Click("设置分类 外观"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.Click("配色 Claude"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	want := themeByID("claude").light.term
+	for _, connection := range connections {
+		if connection.colors != want || connection.dark || connection.closed.Load() {
+			t.Fatal("an open terminal did not receive the new light palette in place")
+		}
+	}
+	tester.SetDark(true)
+	want = themeByID("claude").dark.term
+	for _, connection := range connections {
+		if connection.colors != want || !connection.dark {
+			t.Fatal("an open terminal did not receive the dark palette")
+		}
+	}
+	if err := tester.Click("配色 默认"); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	for _, connection := range connections {
+		if connection.colors != (terminal.Theme{}) || !connection.dark || connection.closed.Load() {
+			t.Fatal("switching back did not restore the terminal's own colors in place")
+		}
+	}
+	if len(connections) != 2 {
+		t.Fatal("changing the palette restarted a terminal")
+	}
+}
 
 func TestEmbeddedTerminalTabsKeepWorkspaceAndSession(t *testing.T) {
 	for _, width := range []int{480, 1000} {
@@ -217,6 +273,9 @@ func TestGeneralTerminalPreferencePersistence(t *testing.T) {
 				app.openSettings()
 				tester := native.NewTester(app.view, size[0], size[1])
 				tester.SetDark(dark)
+				if err := tester.Click("设置分类 通用"); err != nil {
+					t.Fatal(err)
+				}
 				for _, choice := range terminal.Choices {
 					if err := tester.Click("默认终端 " + terminal.Label(app.preferences.Terminal)); err != nil {
 						t.Fatal(err)

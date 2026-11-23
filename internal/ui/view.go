@@ -45,6 +45,7 @@ func readingColumn(c *native.Context, build func()) {
 func (a *App) view(c *native.Context) {
 	defer a.scheduleSave()
 	a.applyAppearance(c)
+	defer a.updateTerminalThemes(c)
 	defer a.hideInactiveTerminals()
 	a.syncActivePane()
 	a.focusVisiblePane(c)

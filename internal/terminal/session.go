@@ -17,6 +17,14 @@ type Session struct {
 	exited   atomic.Bool
 	callback sync.RWMutex
 	shortcut func(string)
+	theme    themeState
+}
+
+type themeState struct {
+	colors     Theme
+	dark       bool
+	generation uint64
+	err        error
 }
 
 func Start(cwd string) (*Session, error) {

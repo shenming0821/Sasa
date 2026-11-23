@@ -170,10 +170,9 @@ func (a *App) installLifecycle() {
 		if a.awakeSaving {
 			a.cancelRestart()
 			e.PreventDefault()
-			a.settingsOpen = true
+			a.settingsSection, a.settingsQuery = "通用", ""
 			a.settingsError = "请先完成或取消系统电源授权，再退出 Sasa。"
-			a.win.Show()
-			a.win.Invalidate()
+			a.openSettings()
 			return
 		}
 		if a.hasGitWrites() {

@@ -287,6 +287,9 @@ func TestTitleSwitchAndModelSelectionAreIndependent(t *testing.T) {
 	a.selectedModel = "main-model"
 	a.openSettings()
 	tt := native.NewTester(a.view, 1000, 760)
+	if err := tt.Click("设置分类 通用"); err != nil {
+		t.Fatal(err)
+	}
 	if err := tt.Click("切换自动生成会话标题"); err != nil {
 		t.Fatal(err)
 	}

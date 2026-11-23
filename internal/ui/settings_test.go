@@ -22,7 +22,7 @@ func TestSettingsDefaultChineseFontRemainsSelectable(t *testing.T) {
 	a.openSettings()
 	a.fontFamilies = []string{latinFont, "PingFang SC"}
 	tt.Frame()
-	for _, label := range []string{"设置分类 外观", "选择中文字体", "中文字体 PingFang SC", "选择中文字体", "中文字体 .PingFang UI SC"} {
+	for _, label := range []string{"设置分类 字体", "选择中文字体", "中文字体 PingFang SC", "选择中文字体", "中文字体 .PingFang UI SC"} {
 		if err := tt.Click(label); err != nil {
 			t.Fatalf("default Chinese font must remain selectable after changing fonts: %s: %v", label, err)
 		}
@@ -48,9 +48,6 @@ func TestSettingsAppearancePersistenceAndFontScope(t *testing.T) {
 	a.fontFamilies = []string{latinFont, "Menlo", "Helvetica", "PingFang SC"}
 	tt.Frame()
 	tt.Click("设置分类 外观")
-	if !tt.HasText("字体预览") || !tt.HasText("代码字体") {
-		t.Fatal("font settings missing")
-	}
 	if err := tt.Click("主题 深色"); err != nil {
 		t.Fatal(err)
 	}
@@ -58,6 +55,12 @@ func TestSettingsAppearancePersistenceAndFontScope(t *testing.T) {
 		t.Fatal("theme change failed")
 	}
 	tt.Frame()
+	if err := tt.Click("设置分类 字体"); err != nil {
+		t.Fatal(err)
+	}
+	if !tt.HasText("字体预览") || !tt.HasText("代码字体") {
+		t.Fatal("font settings missing")
+	}
 	if err := tt.Click("选择英文字体"); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +150,7 @@ func TestSettingsLayoutAndDefaultMigration(t *testing.T) {
 				a.openSettings()
 				tt.Frame()
 				tt.Click("设置分类 外观")
-				for _, label := range []string{"关闭设置", "主题 跟随系统", "选择英文字体", "选择中文字体", "选择代码字体"} {
+				for _, label := range []string{"关闭设置", "配色 默认", "配色 Claude", "主题 跟随系统"} {
 					r, ok := tt.Find(label)
 					if !ok || r.X < 0 || r.Y < 0 || r.X+r.W > float32(size[0]) || r.Y+r.H > float32(size[1]) {
 						t.Fatal("settings clipped", label, r)
@@ -157,6 +160,13 @@ func TestSettingsLayoutAndDefaultMigration(t *testing.T) {
 				tt.Click("主题 跟随系统")
 				if a.preferences.Theme != "system" {
 					t.Fatal("system theme not restored")
+				}
+				tt.Click("设置分类 字体")
+				for _, label := range []string{"选择英文字体", "选择中文字体", "选择代码字体"} {
+					bounds, found := tt.Find(label)
+					if !found || bounds.X < 0 || bounds.Y < 0 || bounds.X+bounds.W > float32(size[0]) || bounds.Y+bounds.H > float32(size[1]) {
+						t.Fatal("font setting clipped", label, bounds)
+					}
 				}
 				tt.Click("设置分类 通知")
 				tt.Click("切换后台任务完成通知")
@@ -176,7 +186,10 @@ func TestSettingsLayoutAndDefaultMigration(t *testing.T) {
 	}
 	if path := os.Getenv("SASA_SETTINGS_SCREENSHOT"); path != "" {
 		a.openSettings()
-		tt := native.NewTester(a.view, 1000, 760)
+		tt := native.NewTester(func(c *native.Context) {
+			a.applyAppearance(c)
+			a.settingsPanel(c, false)
+		}, 940, 648)
 		f, err := os.Create(path)
 		if err != nil {
 			t.Fatal(err)
@@ -266,7 +279,7 @@ func TestSettingsLabelsAndFontDropdownAlign(t *testing.T) {
 				a.fontFamilies = []string{latinFont, "Menlo", strings.Repeat("Very Long Font Family ", 5)}
 				tt := native.NewTester(a.view, size[0], size[1])
 				tt.SetDark(dark)
-				tt.Click("设置分类 外观")
+				tt.Click("设置分类 字体")
 				var controlX, controlRight float32
 				for i, label := range []string{"英文字体", "中文字体", "代码字体"} {
 					caption, ok := tt.Find("设置标签 " + label)
@@ -303,13 +316,77 @@ func TestSettingsLabelsAndFontDropdownAlign(t *testing.T) {
 					}
 					tt.Key(0, native.KeyEscape)
 				}
-				caption, _ := tt.Find("设置标签 主题")
-				theme, _ := tt.Find("主题 跟随系统")
-				if abs32(caption.Y+caption.H/2-theme.Y-theme.H/2) > 1 || abs32(theme.X-controlX) > 1 {
-					t.Fatal("theme row not aligned", caption, theme)
+				tt.Click("设置分类 外观")
+				caption, hasCaption := tt.Find("设置标签 明暗模式")
+				modes, hasModes := tt.Find("明暗模式")
+				if !hasCaption || !hasModes || caption.Y+caption.H < modes.Y || caption.Y > modes.Y+modes.H ||
+					caption.X+caption.W >= modes.X || abs32(modes.X+modes.W-controlRight) > 1 {
+					t.Fatal("appearance mode row not aligned", caption, modes)
+				}
+				defaultCard, hasDefault := tt.Find("配色 默认")
+				claudeCard, hasClaude := tt.Find("配色 Claude")
+				if !hasDefault || !hasClaude || defaultCard.W <= 0 || abs32(defaultCard.W-claudeCard.W) > 1 ||
+					abs32(defaultCard.Y-claudeCard.Y) > 1 || defaultCard.X+defaultCard.W > claudeCard.X ||
+					claudeCard.X+claudeCard.W > controlRight {
+					t.Fatal("palette cards not aligned", defaultCard, claudeCard)
 				}
 			})
 		}
+	}
+}
+
+func TestSettingsPaletteCardRepaintsWithAppearance(t *testing.T) {
+	a := New(stubBackend{}, "test", "/workspace", nil)
+	a.openSettings()
+	tt := native.NewTester(a.view, 1000, 760)
+	if err := tt.Click("设置分类 外观"); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []struct {
+		label string
+		theme *native.Theme
+	}{
+		{"主题 深色", native.DarkTheme()},
+		{"主题 浅色", native.LightTheme()},
+	} {
+		if err := tt.Click(mode.label); err != nil {
+			t.Fatal(err)
+		}
+		card, ok := tt.Find("配色 默认")
+		if !ok {
+			t.Fatal("default palette card missing")
+		}
+		want := themeByID("").paletteFor(mode.theme.Dark).editorFor(mode.theme.Dark).background
+		pixel := tt.Image().RGBAAt(int(card.X+card.W/2), int(card.Y+60))
+		if got := (native.Color{R: pixel.R, G: pixel.G, B: pixel.B, A: pixel.A}); got != want {
+			t.Fatalf("%s: palette preview background is %v, want %v", mode.label, got, want)
+		}
+	}
+}
+
+func TestSettingsSearchFindsControlsAcrossCategories(t *testing.T) {
+	a := New(stubBackend{}, "test", "/workspace", nil)
+	a.openSettings()
+	tt := native.NewTester(a.view, 640, 480)
+	if err := tt.Click("搜索设置"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("代码字体")
+	if !tt.HasText("搜索结果") || !tt.HasText("代码字体") || tt.HasText("英文字体") {
+		t.Fatal("search did not filter the settings fields")
+	}
+	if err := tt.Click("选择代码字体"); err != nil {
+		t.Fatal(err)
+	}
+	if _, found := tt.Find("字体列表 代码字体"); !found {
+		t.Fatal("control in search results could not be opened")
+	}
+	tt.Key(0, native.KeyEscape)
+	if err := tt.Click("设置分类 外观"); err != nil {
+		t.Fatal(err)
+	}
+	if a.settingsQuery != "" || tt.HasText("搜索结果") || !tt.HasText("明暗模式") {
+		t.Fatal("category selection did not leave search")
 	}
 }
 

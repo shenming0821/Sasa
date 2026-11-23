@@ -30,7 +30,9 @@ type settingsState struct {
 	terminalPicker     bool
 	preferences        storage.Preferences
 	settingsOpen       bool
+	settingsWindow     *mygo.Window
 	settingsSection    string
+	settingsQuery      string
 	settingsError      string
 	fontFamilies       []string
 	fontPicker         string
@@ -145,12 +147,17 @@ func (a *App) applySystemTheme() {
 
 func (a *App) openSettings() {
 	a = a.application()
-	a.settingsOpen, a.fontPicker = true, ""
-	a.auxiliaryPicker = ""
-	a.awakePicker = false
-	a.terminalPicker = false
+	if a.quitting || a.quitDialog || a.quitStopping {
+		return
+	}
+	if a.settingsWindow != nil {
+		a.showSettingsWindow()
+		return
+	}
+	a.resetSettingsPickers()
+	a.settingsQuery = ""
 	if a.settingsSection == "" {
-		a.settingsSection = "通用"
+		a.settingsSection = "外观"
 	}
 	if a.powerController != nil && !a.awakeSaving {
 		if mode, err := a.powerController.Sync(); err != nil {
@@ -167,9 +174,50 @@ func (a *App) openSettings() {
 			a.fontFamilies = append(a.fontFamilies, f.Name)
 		}
 	}
+	if a.win == nil {
+		a.settingsOpen = true
+		return
+	}
+	a.settingsWindow = mygo.NewWindow(mygo.WindowOptions{
+		Title: "设置", Width: 940, Height: 680, MinWidth: 640, MinHeight: 420,
+		StateKey: "settings", BackgroundColor: "light-dark(#fefefe, #18181b)",
+		Content: native.View(func(c *native.Context) {
+			a.applyAppearance(c)
+			a.settingsPanel(c, false)
+		}),
+	})
+	window := a.settingsWindow
+	window.OnClosed(func() {
+		if a.settingsWindow == window {
+			a.settingsWindow = nil
+			a.resetSettingsPickers()
+		}
+	})
+	a.showSettingsWindow()
+}
+
+func (a *App) showSettingsWindow() {
+	if a.settingsWindow.IsMinimized() {
+		a.settingsWindow.Restore()
+	}
+	a.settingsWindow.Show()
+	a.settingsWindow.Focus()
+	a.settingsWindow.Invalidate()
+}
+
+func (a *App) resetSettingsPickers() {
+	a.fontPicker, a.auxiliaryPicker = "", ""
+	a.awakePicker, a.terminalPicker = false, false
+}
+
+func (a *App) redrawSettings() {
+	if a.settingsWindow != nil {
+		a.settingsWindow.Invalidate()
+	}
 }
 
 func (a *App) savePreferences(previous storage.Preferences) {
+	defer a.redrawSettings()
 	awakeChanged := a.powerController != nil && previous.KeepAwake != a.preferences.KeepAwake
 	if awakeChanged {
 		mode := a.preferences.KeepAwake
@@ -184,16 +232,16 @@ func (a *App) savePreferences(previous storage.Preferences) {
 	}
 	a.settingsError = ""
 	a.auxiliaryPreferencesChanged(previous)
-	if a.win != nil && previous.Theme != a.preferences.Theme {
-		a.applySystemTheme()
+	if a.win != nil {
+		if previous.Theme != a.preferences.Theme {
+			a.applySystemTheme()
+		}
+		a.win.Invalidate()
 	}
 	// A same-appearance theme switch changes only the palette the next
 	// frame paints, so invalidating the open windows is enough; the
 	// appearance itself keeps going through applySystemTheme.
 	if previous.ThemeID != a.preferences.ThemeID {
-		if a.win != nil {
-			a.win.Invalidate()
-		}
 		if a.quickOpen.window != nil {
 			a.quickOpen.window.Invalidate()
 		}
@@ -221,6 +269,7 @@ func (a *App) saveKeepAwake(mode string) {
 			err = controller.Set(mode)
 		}
 		a.update(func() {
+			defer a.redrawSettings()
 			if err != nil {
 				a.awakeSaving = false
 				a.settingsError = "保持唤醒未生效：" + err.Error()
@@ -237,6 +286,7 @@ func (a *App) saveKeepAwake(mode string) {
 				go func() {
 					rollbackErr := controller.RestoreState(original)
 					a.update(func() {
+						defer a.redrawSettings()
 						a.awakeSaving = false
 						if rollbackErr != nil {
 							a.settingsError += "；恢复保持唤醒失败：" + rollbackErr.Error()
@@ -260,132 +310,53 @@ func (a *App) applicationMenu() *mygo.Menu {
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Label: "Sasa", Submenu: []*mygo.MenuItem{
 			{Role: mygo.RoleAbout}, mygo.Separator(),
-			{Label: "设置…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { a.win.Update(func() { a.openSettings() }); a.win.Show() }},
+			{Label: "设置…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { a.openSettings() }},
 			mygo.Separator(), {Role: mygo.RoleServices}, mygo.Separator(),
 			{Role: mygo.RoleHide}, {Role: mygo.RoleHideOthers}, {Role: mygo.RoleUnhide}, mygo.Separator(), {Role: mygo.RoleQuit},
 		}},
 		{Label: "文件", Submenu: []*mygo.MenuItem{
 			{ID: "quick-open", Label: "快速打开文件", Accelerator: "CmdOrCtrl+P", Click: func(*mygo.MenuItem, *mygo.Window) { a.update(a.openQuickOpen) }},
-			{ID: "close-current-page", Label: "关闭当前页签", Accelerator: "CmdOrCtrl+W", Click: func(*mygo.MenuItem, *mygo.Window) { a.update(a.closeCurrentPage) }},
+			{ID: "close-current-page", Label: "关闭当前页签", Accelerator: "CmdOrCtrl+W", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
+				if w != nil && w == a.settingsWindow {
+					w.Close()
+					return
+				}
+				a.update(a.closeCurrentPage)
+			}},
 		}},
 		{Role: mygo.RoleEditMenu}, {Role: mygo.RoleViewMenu}, {Role: mygo.RoleWindowMenu},
 	})
 }
 
 func (a *App) settingsView(c *native.Context) {
+	if a.win != nil {
+		return
+	}
 	native.Modal(c.Key("settings"), &a.settingsOpen, func() {
 		if c.Shortcut(native.Cmd, native.KeyW) {
 			a.settingsOpen = false
 		}
-		w, h := c.Size()
-		t := c.Theme()
-		native.Column(c).Width(min(w-48, 640)).Height(min(h-64, 530)).Padding(16).Gap(16).Children(func() {
-			native.Row(c).FillWidth().AlignItems(native.Center).Children(func() {
-				native.Text(c, "设置").FontSize(17).FontWeight(600).Grow(1)
-				close := treeButton(c, "关闭设置").Size(28, 28).Padding(0)
-				close.Children(func() { native.Text(c, "×").FontSize(20) })
-				if close.Clicked() {
-					a.settingsOpen = false
-				}
-			})
-			native.Row(c).FillWidth().Grow(1).MinHeight(0).Gap(20).Children(func() {
-				native.Column(c).Width(82).FillHeight().Gap(4).Children(func() {
-					for _, section := range []string{"通用", "外观", "通知"} {
-						b := treeButton(c, "设置分类 "+section).FillWidth().Padding(8).Justify(native.Start)
-						if a.settingsSection == section {
-							b.Background(t.SurfacePressed).TextColor(t.Text)
-						}
-						b.Children(func() { native.Text(c, section).FontSize(12) })
-						if b.Clicked() {
-							a.settingsSection, a.fontPicker = section, ""
-							a.auxiliaryPicker = ""
-							a.awakePicker = false
-							a.terminalPicker = false
-						}
-					}
-				})
-				native.Box(c).Width(1).FillHeight().Background(t.Border.Alpha(.6))
-				native.Scroll(c.Key(a.settingsSection)).Grow(1).MinWidth(0).FillHeight().Children(func() {
-					native.Column(c).FillWidth().Gap(18).Children(func() {
-						if a.settingsSection == "通用" {
-							a.generalSettings(c)
-						} else if a.settingsSection == "通知" {
-							a.notificationSettings(c)
-						} else {
-							a.appearanceSettings(c)
-						}
-						if a.settingsError != "" {
-							native.Text(c, a.settingsError).FontSize(11).TextColor(t.Danger).FillWidth()
-						}
-					})
-				})
-			})
-		})
+		a.settingsPanel(c, true)
 	})
 }
 
-func (a *App) appearanceSettings(c *native.Context) {
+func (a *App) settingsFontPreview(c *native.Context) {
 	t := c.Theme()
-	native.Text(c, "外观").FontSize(14).FontWeight(600)
-	native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
-		settingLabel(c, "配色")
-		native.Row(c).Grow(1).MinWidth(0).Gap(6).Children(func() {
-			for _, choice := range themeLabels() {
-				b := treeButton(c.Key("配色 "+choice[1]), "配色 "+choice[1]).Grow(1).MinWidth(0).Height(32).Padding(0, 4)
-				if a.preferences.ThemeID == choice[0] {
-					b.Background(t.SurfacePressed).TextColor(t.Text)
-				}
-				b.Children(func() { native.Text(c, choice[1]).FontSize(12).SingleLine() })
-				if b.Clicked() {
-					previous := a.preferences
-					a.preferences.ThemeID = choice[0]
-					a.savePreferences(previous)
-				}
-			}
+	settingsCard(c, "font-preview", func() {
+		native.Column(c).FillWidth().Padding(14, 16).Gap(6).Children(func() {
+			native.Text(c, "字体预览").FontSize(13).FontWeight(600).TextColor(t.Text)
+			family := a.preferences.EnglishFont + ", " + a.preferences.ChineseFont + ", system-ui"
+			native.Text(c, "让想法逐步成形，保持清晰与专注。").Font(family).FontSize(15).FillWidth()
+			native.Text(c, "Make room for your next idea. 0123456789").Font(family).FontSize(14).FillWidth()
+			native.Text(c, "const message = \"你好，Sasa\";").Font(a.codeFontFamily()).FontSize(13).FillWidth()
 		})
-	})
-	native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
-		settingLabel(c, "主题")
-		native.Row(c).Grow(1).MinWidth(0).Gap(6).Children(func() {
-			for _, choice := range [][2]string{{"system", "跟随系统"}, {"light", "浅色"}, {"dark", "深色"}} {
-				b := treeButton(c.Key(choice[0]), "主题 "+choice[1]).Grow(1).MinWidth(0).Height(32).Padding(0, 4)
-				if a.preferences.Theme == choice[0] {
-					b.Background(t.SurfacePressed).TextColor(t.Text)
-				}
-				b.Children(func() { native.Text(c, choice[1]).FontSize(12).SingleLine() })
-				if b.Clicked() {
-					previous := a.preferences
-					a.preferences.Theme = choice[0]
-					a.savePreferences(previous)
-				}
-			}
-		})
-	})
-	defaults := defaultPreferences()
-	for _, entry := range []struct {
-		label        string
-		value        *string
-		defaultValue string
-	}{
-		{"英文字体", &a.preferences.EnglishFont, defaults.EnglishFont},
-		{"中文字体", &a.preferences.ChineseFont, defaults.ChineseFont},
-		{"代码字体", &a.preferences.CodeFont, defaults.CodeFont},
-	} {
-		a.fontSetting(c.Key(entry.label), entry.label, entry.value, entry.defaultValue)
-	}
-	native.Column(c).FillWidth().Padding(12).Gap(8).Radius(10).Background(t.Surface).Children(func() {
-		native.Text(c, "字体预览").FontSize(11).TextColor(t.TextMuted)
-		family := a.preferences.EnglishFont + ", " + a.preferences.ChineseFont + ", system-ui"
-		native.Text(c, "让想法逐步成形，保持清晰与专注。").Font(family).FontSize(15).FillWidth()
-		native.Text(c, "Make room for your next idea. 0123456789").Font(family).FontSize(14).FillWidth()
-		native.Text(c, "const message = \"你好，Sasa\";").Font(a.codeFontFamily()).FontSize(13).FillWidth()
 	})
 }
 
 func (a *App) fontSetting(c *native.Context, label string, value *string, defaultValue string) {
 	native.Row(c).FillWidth().AlignItems(native.Center).Gap(12).Children(func() {
-		settingLabel(c, label)
-		b := treeButton(c, "选择"+label).Grow(1).MinWidth(0).Height(32).Padding(0, 10).Border(1, c.Theme().Border)
+		native.Text(c, label).Label("设置标签 " + label).Grow(1).MinWidth(0).FontSize(13).FontWeight(500)
+		b := treeButton(c, "选择"+label).Width(216).Shrink(0).Height(32).Padding(0, 10).Border(1, c.Theme().Border)
 		b.Children(func() {
 			native.Row(c).FillWidth().AlignItems(native.Center).Gap(6).Children(func() {
 				native.Text(c, fontDisplayName(*value)).FontSize(12).SingleLine().Grow(1).MinWidth(0)
@@ -400,7 +371,7 @@ func (a *App) fontSetting(c *native.Context, label string, value *string, defaul
 			}
 		}
 		open := a.fontPicker == label
-		native.PopoverBase(c.Key("font-list"), b, &open, func(panel native.Element) {
+		native.PopoverBase(c, b, &open, func(panel native.Element) {
 			t := c.Theme()
 			panel.Label("字体列表 "+label).Width(b.Bounds().W).Padding(4).Margin(4, 0, 0, 0).
 				Radius(8).Background(t.Background).Border(1, t.Border).
@@ -448,25 +419,10 @@ func (a *App) fontSetting(c *native.Context, label string, value *string, defaul
 	})
 }
 
-func settingLabel(c *native.Context, label string) {
-	native.Text(c, label).Label("设置标签 " + label).Width(64).Shrink(0).FontSize(12).TextColor(c.Theme().TextMuted)
-}
-
-func (a *App) notificationSettings(c *native.Context) {
-	native.Text(c, "通知").FontSize(14).FontWeight(600)
-	a.preferenceSwitch(c, "后台任务完成通知", "应用或会话处于后台时，任务完成后提醒。", &a.preferences.CompletionNotification, false)
-	a.preferenceSwitch(c, "提示音", "任务完成通知播放系统提示音。", &a.preferences.NotificationSound, !a.preferences.CompletionNotification)
-	native.Text(c, "系统通知的显示方式由 macOS 通知设置控制。").FontSize(11).TextColor(c.Theme().TextMuted).FillWidth()
-	if a.notifyError != "" {
-		native.Text(c, a.notifyError).FontSize(11).TextColor(c.Theme().Danger).FillWidth()
-	}
-}
-
 func (a *App) preferenceSwitch(c *native.Context, label, detail string, value *bool, disabled bool) {
 	native.Row(c.Key(label)).FillWidth().Gap(16).AlignItems(native.Center).Children(func() {
 		native.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
-			native.Text(c, label).FontSize(12)
-			native.Text(c, detail).FontSize(11).TextColor(c.Theme().TextMuted).FillWidth()
+			settingsFieldLabel(c, label, detail)
 		})
 		previous := a.preferences
 		if native.Switch(c, value).Label("切换" + label).Disabled(disabled).Changed() {

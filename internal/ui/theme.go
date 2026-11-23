@@ -2,6 +2,7 @@ package ui
 
 import (
 	native "github.com/egoist/mygo/ui"
+	"github.com/shenming0821/Sasa/internal/terminal"
 )
 
 // palette holds the colors one appearance of a theme paints the app
@@ -29,6 +30,8 @@ type palette struct {
 	// on the user, danger for failure, and added for success.
 	status statusPalette
 	chat   paletteChat
+	editor editorPalette
+	term   terminal.Theme
 }
 
 // paletteChat holds the chat-only surfaces: the user's message bubble
@@ -91,6 +94,16 @@ var themes = []themeDefinition{
 			focus:          native.RGBA(196, 97, 63, 0.5),
 			status:         statusPalette{accent: native.Hex("#c4613f"), modified: native.Hex("#966c1e"), danger: native.Hex("#ab2b3f"), added: native.Hex("#2c7a39")},
 			chat:           paletteChat{userBubble: native.Hex("#ffffff"), composerCard: native.Hex("#fdfcfa")},
+			editor:         claudeEditorPalette(false),
+			term: terminal.Theme{
+				Background: native.Hex("#f9f8f6"), Foreground: native.Hex("#1a1918"), Cursor: native.Hex("#c4613f"),
+				Selection: native.RGBA(87, 105, 247, 0.16),
+				Search:    native.RGBA(212, 162, 64, 0.24), SearchSelected: native.RGBA(212, 162, 64, 0.44),
+				ANSI: [16]uint32{
+					0x1a1918, 0xab2b3f, 0x2c7a39, 0x966c1e, 0x3a63c8, 0xc8207c, 0x0f6e6e, 0x86847e,
+					0x66645f, 0xc8374f, 0x3c9a4c, 0xb08428, 0x5769f7, 0xe0409a, 0x1f8a8a, 0x4a4843,
+				},
+			},
 		},
 		dark: palette{
 			// Mirrors Mayoi's claudeDarkPalette: warm near-black, the
@@ -108,6 +121,16 @@ var themes = []themeDefinition{
 			focus:          native.RGBA(215, 119, 87, 0.6),
 			status:         statusPalette{accent: native.Hex("#d77757"), modified: native.Hex("#f2c14e"), danger: native.Hex("#ff6b80"), added: native.Hex("#4eba65")},
 			chat:           paletteChat{userBubble: native.Hex("#201f1d"), composerCard: native.Hex("#171615")},
+			editor:         claudeEditorPalette(true),
+			term: terminal.Theme{
+				Background: native.Hex("#171615"), Foreground: native.Hex("#ecebe6"), Cursor: native.Hex("#d77757"),
+				Selection: native.RGBA(177, 185, 249, 0.24),
+				Search:    native.RGBA(242, 193, 78, 0.20), SearchSelected: native.RGBA(242, 193, 78, 0.38),
+				ANSI: [16]uint32{
+					0x34322f, 0xff6b80, 0x4eba65, 0xf2c14e, 0x6a9fe0, 0xfd5db1, 0x5fb3a6, 0xc9c8c3,
+					0x62605b, 0xff8a9b, 0x6fd685, 0xffd451, 0x8db8f0, 0xff85c6, 0x7fcfc2, 0xffffff,
+				},
+			},
 		},
 	},
 }
@@ -121,16 +144,6 @@ func themeByID(id string) themeDefinition {
 		}
 	}
 	return themes[0]
-}
-
-// themeLabels lists the themes for the settings picker: the ID to
-// store and the label to show.
-func themeLabels() [][2]string {
-	list := make([][2]string, 0, len(themes))
-	for _, t := range themes {
-		list = append(list, [2]string{t.id, t.label})
-	}
-	return list
 }
 
 // paletteFor resolves the palette of the configured theme for the

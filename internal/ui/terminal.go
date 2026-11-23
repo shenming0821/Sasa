@@ -14,6 +14,7 @@ var launchTerminalIcon = icon(`<rect x="3" y="4" width="18" height="16" rx="2"/>
 
 type terminalConnection interface {
 	Present(uintptr, native.Rect, bool, bool) error
+	SetTheme(terminal.Theme, bool) error
 	Hide()
 	Close()
 	Exited() bool
@@ -31,6 +32,7 @@ type terminalPage struct {
 	id, root, engine string
 	connection       terminalConnection
 	err              string
+	themeErr         string
 	focus            bool
 	closing          bool
 	layout           terminalLayout
@@ -53,6 +55,24 @@ func (a *App) hideInactiveTerminals() {
 			if a.activeTab == page.id {
 				page.focus = true
 			}
+		}
+	}
+}
+
+func (a *App) updateTerminalThemes(c *native.Context) {
+	theme := c.Theme()
+	colors := a.activePalette(theme).term
+	for _, page := range a.terminals {
+		if page.connection == nil {
+			continue
+		}
+		message := ""
+		if err := page.connection.SetTheme(colors, theme.Dark); err != nil {
+			message = "无法切换终端配色：" + err.Error()
+		}
+		if page.themeErr != message {
+			page.themeErr = message
+			c.AnimationFrame()
 		}
 	}
 }
@@ -106,7 +126,7 @@ func (a *App) startTerminal(page *terminalPage) {
 		page.err = "启动终端失败：" + err.Error()
 		return
 	}
-	page.connection, page.err = connection, ""
+	page.connection, page.err, page.themeErr = connection, "", ""
 	connection.SetShortcut(func(key string) {
 		a.update(func() {
 			if a.terminals[page.id] != page || key == "exit" || a.visibleTerms != nil && !a.visibleTerms[page.id] {
@@ -152,6 +172,9 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 		if a.win == nil {
 			native.Text(c, "终端 "+page.root).FontSize(12)
 			return
+		}
+		if page.themeErr != "" {
+			native.Text(c, page.themeErr).TextColor(c.Theme().Danger).Padding(8).FontSize(12)
 		}
 		host := native.Box(c.Key("native-terminal")).Label("工作区终端 " + page.root).Grow(1).FillWidth().MinHeight(0)
 		width, height := c.Size()

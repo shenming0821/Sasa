@@ -207,7 +207,7 @@ func (d *filePage) centerInitialDiff(split bool, viewportHeight float32) {
 
 func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 	t := c.Theme()
-	palette := githubEditorPalette(t.Dark)
+	palette := a.activeEditorPalette(t)
 	_, height := c.Size()
 	if d.gitLeft == nil || d.gitRight == nil {
 		if d.gitPairs == nil {

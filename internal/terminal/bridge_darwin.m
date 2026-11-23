@@ -10,13 +10,13 @@ extern void sasaTerminalEvent(uintptr_t, int);
 
 #define GHOSTTY_FUNCTIONS(X) \
     X(init) X(config_new) X(config_free) X(config_load_default_files) \
-    X(config_load_recursive_files) X(config_finalize) \
+    X(config_load_recursive_files) X(config_load_file) X(config_finalize) \
     X(config_diagnostics_count) X(config_get_diagnostic) \
     X(app_new) X(app_tick) X(app_set_focus) X(app_update_config) \
     X(app_set_color_scheme) X(surface_config_new) X(surface_new) \
     X(surface_free) X(surface_userdata) X(surface_set_content_scale) \
     X(surface_set_size) X(surface_set_focus) X(surface_set_occlusion) \
-    X(surface_set_color_scheme) X(surface_set_display_id) X(surface_draw) \
+    X(surface_set_color_scheme) X(surface_update_config) X(surface_set_display_id) X(surface_draw) \
     X(surface_process_exited) X(surface_key) X(surface_key_is_binding) \
     X(surface_key_translation_mods) X(surface_text) X(surface_preedit) \
     X(surface_mouse_pos) X(surface_mouse_button) X(surface_mouse_scroll) \
@@ -164,11 +164,12 @@ static bool action(ghostty_app_t app, ghostty_target_s target, ghostty_action_s 
     }
 }
 
-static ghostty_config_t configuration(void) {
+static ghostty_config_t configuration(const char *palettePath) {
     ghostty_config_t config = gt_config_new();
-    if (!config) return NULL;
+    if (!config) { snprintf(lastError, sizeof(lastError), "无法创建 Ghostty 配置"); return NULL; }
     gt_config_load_default_files(config);
     gt_config_load_recursive_files(config);
+    if (palettePath) gt_config_load_file(config, palettePath);
     gt_config_finalize(config);
     uint32_t count = gt_config_diagnostics_count(config);
     if (count) {
@@ -188,7 +189,7 @@ const char *sasa_terminal_load(const char *path, const char *resources) {
     GHOSTTY_FUNCTIONS(LOAD_FUNCTION)
     if (resources && *resources) setenv("GHOSTTY_RESOURCES_DIR", resources, 1);
     if (gt_init(0, NULL) != GHOSTTY_SUCCESS) { snprintf(lastError, sizeof(lastError), "无法初始化 Ghostty"); return lastError; }
-    ghostty_config_t config = configuration();
+    ghostty_config_t config = configuration(NULL);
     if (!config) return lastError;
     ghostty_runtime_config_s options = {
         .wakeup_cb = wakeup,
@@ -217,7 +218,7 @@ sasa_terminal_t sasa_terminal_new(uintptr_t window, uintptr_t token, const char 
     NSWindow *hostWindow = (__bridge NSWindow *)(void *)window;
     NSView *host = nativeHost(hostWindow.contentView);
     if (!host) { snprintf(lastError, sizeof(lastError), "没有找到 Sasa 原生视图"); return NULL; }
-    ghostty_config_t config = configuration();
+    ghostty_config_t config = configuration(NULL);
     if (!config) return NULL;
     gt_app_update_config(terminalApp, config);
     gt_config_free(config);
@@ -262,6 +263,16 @@ void sasa_terminal_present(sasa_terminal_t pointer, double x, double y, double w
     if (view.hidden) { view.hidden = NO; gt_surface_set_occlusion(view.surface, true); }
     gt_surface_set_color_scheme(view.surface, dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT);
     if (focus) [view.window makeFirstResponder:view];
+}
+
+const char *sasa_terminal_set_theme(sasa_terminal_t pointer, const char *palettePath, bool dark) {
+    SasaGhosttyView *view = (__bridge SasaGhosttyView *)pointer;
+    ghostty_config_t config = configuration(palettePath);
+    if (!config) return lastError;
+    gt_surface_set_color_scheme(view.surface, dark ? GHOSTTY_COLOR_SCHEME_DARK : GHOSTTY_COLOR_SCHEME_LIGHT);
+    gt_surface_update_config(view.surface, config);
+    gt_config_free(config);
+    return NULL;
 }
 
 void sasa_terminal_hide(sasa_terminal_t pointer) {

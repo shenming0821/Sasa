@@ -206,9 +206,10 @@ func (a *App) titleSendPreparing() bool {
 func (a *App) requestSessionTitle(s *session) {
 	a = a.application()
 	if a.preferences.AuxiliaryModel == "" || a.auxiliaryBackend() == nil {
-		a.openSettings()
-		a.settingsSection = "通用"
+		a.settingsSection, a.settingsQuery = "通用", ""
 		a.settingsError = "请先选择 Claude Code 配置和辅助模型。"
+		a.resetSettingsPickers()
+		a.openSettings()
 		return
 	}
 	if s == nil || s.State.Busy || s.recovering || s.releasing || s.State.ThreadID == "" || a.threadDeleted(s.kind, s.runtimeKey, s.State.ThreadID) {
@@ -317,6 +318,7 @@ func (a *App) startSessionTitle(s *session, manual bool, now time.Time) {
 			if a.titleJob != job {
 				return
 			}
+			defer a.redrawSettings()
 			a.titleJob = nil
 			current := a.preferences
 			valid := !cancelled && !job.discard && !a.auxiliaryClosed && !a.quitting && !a.quitStopping && slices.Contains(a.sessions, s) &&

@@ -267,6 +267,33 @@ func TestEditorThemeKeepsDirtySelectionAndScroll(t *testing.T) {
 				t.Fatal("theme changed editing state")
 			}
 		}
+		for _, choice := range []struct{ id, background, keyword string }{
+			{"claude", "#fdfcfa", "#4c5ee0"},
+			{"", "#ffffff", ""},
+		} {
+			a.preferences.ThemeID = choice.id
+			tester.Frame()
+			if active.anchor != anchor || active.caret != caret || active.scroll.Y != scroll || !active.dirty() || active.highlighting {
+				t.Fatal("palette switch changed editing state")
+			}
+			inset, found := tester.Find("文件内容 " + active.path)
+			if !found {
+				t.Fatal("editor surface missing")
+			}
+			image := tester.Image()
+			background := image.RGBAAt(int(inset.X+inset.W-25), int(inset.Y+25))
+			want := native.Hex(choice.background)
+			if background.R != want.R || background.G != want.G || background.B != want.B {
+				t.Fatalf("editor background for %q = %v, want %s", choice.id, background, choice.background)
+			}
+			if choice.keyword != "" {
+				palette := a.activeEditorPalette(native.LightTheme())
+				ranges := palette.ranges(active.highlights, 0, 5)
+				if len(ranges) == 0 || ranges[0].Color != native.Hex(choice.keyword) {
+					t.Fatalf("existing tokens did not pick up Claude keyword color: %v", ranges)
+				}
+			}
+		}
 	}
 }
 

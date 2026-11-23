@@ -84,6 +84,55 @@ type editorPalette struct {
 	style                                              *chroma.Style
 }
 
+func (a *App) activeEditorPalette(theme *native.Theme) editorPalette {
+	return a.activePalette(theme).editorFor(theme.Dark)
+}
+
+func (p palette) editorFor(dark bool) editorPalette {
+	if p.editor.style == nil {
+		return githubEditorPalette(dark)
+	}
+	return p.editor
+}
+
+func claudeEditorPalette(dark bool) editorPalette {
+	styleName := "claude-light"
+	background, text, gutter := "#fdfcfa", "#1a1918", "#a9a7a1"
+	border, accent, added, deleted := "#dcdad4", "#c4613f", "#2c7a39", "#c8374f"
+	selection := native.RGBA(87, 105, 247, 0.16)
+	keyword, typeName, function := "#4c5ee0", "#0f6e6e", "#b0532f"
+	str, number, comment := "#2c7a39", "#966c1e", "#87857f"
+	operator, punctuation, builtin, tag := "#66645f", "#83817b", "#7a4fe0", "#c8207c"
+	if dark {
+		styleName = "claude-dark"
+		background, text, gutter = "#1a1917", "#ecebe6", "#5c5a55"
+		border, accent, added, deleted = "#34322f", "#d77757", "#4eba65", "#ff6b80"
+		selection = native.RGBA(177, 185, 249, 0.24)
+		keyword, typeName, function = "#b1b9f9", "#5fb3a6", "#f0a585"
+		str, number, comment = "#8fcf8f", "#f2c55c", "#7a7873"
+		operator, punctuation, builtin, tag = "#9a9893", "#7f7d78", "#af87ff", "#fd5db1"
+	}
+	editor := editorPalette{
+		background: native.Hex(background), text: native.Hex(text), muted: native.Hex(gutter),
+		border: native.Hex(border), accent: native.Hex(accent),
+		added: native.Hex(added), deleted: native.Hex(deleted),
+		style: chroma.MustNewStyle(styleName, chroma.StyleEntries{
+			chroma.Text: text, chroma.Keyword: keyword, chroma.KeywordType: typeName,
+			chroma.NameClass: typeName, chroma.NameFunction: function, chroma.NameBuiltin: builtin,
+			chroma.NameConstant: number, chroma.NameTag: tag, chroma.NameAttribute: number,
+			chroma.LiteralString: str, chroma.LiteralNumber: number, chroma.Comment: comment,
+			chroma.Operator: operator, chroma.Punctuation: punctuation,
+			chroma.GenericHeading: accent, chroma.GenericSubheading: accent,
+			chroma.GenericDeleted: deleted, chroma.GenericInserted: added,
+			chroma.GenericStrong: keyword, chroma.GenericEmph: keyword, chroma.Error: deleted,
+		}),
+	}
+	editor.selection = selection.Over(editor.background)
+	editor.addedBackground = editor.added.Alpha(0.12).Over(editor.background)
+	editor.deletedBackground = editor.deleted.Alpha(0.12).Over(editor.background)
+	return editor
+}
+
 func githubEditorPalette(dark bool) editorPalette {
 	if dark {
 		return editorPalette{

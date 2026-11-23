@@ -71,6 +71,9 @@ func TestKeepAwakeAuthorizationKeepsUIResponsive(t *testing.T) {
 			a, p, queue, store := powerSettingsApp(t)
 			a.openSettings()
 			tester := native.NewTester(a.view, 1000, 760)
+			if err := tester.Click("设置分类 通用"); err != nil {
+				t.Fatal(err)
+			}
 			if err := tester.Click("保持唤醒 永不"); err != nil {
 				t.Fatal(err)
 			}
@@ -169,6 +172,9 @@ func TestGeneralKeepAwakeSettings(t *testing.T) {
 				app.openSettings()
 				tester := native.NewTester(app.view, size[0], size[1])
 				tester.SetDark(dark)
+				if err := tester.Click("设置分类 通用"); err != nil {
+					t.Fatal(err)
+				}
 				if app.settingsSection != "通用" || app.preferences.KeepAwake != power.Never {
 					t.Fatal("general defaults")
 				}

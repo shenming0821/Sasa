@@ -50,6 +50,7 @@ func (a *App) loadAuxiliaryModels(force bool) {
 		default:
 		}
 		a.update(func() {
+			defer a.redrawSettings()
 			if a.auxiliaryClosed || a.auxiliaryCatalogEpoch != epoch {
 				return
 			}
@@ -83,21 +84,15 @@ func (a *App) auxiliaryRuntime() string {
 	return runtime
 }
 
-func (a *App) auxiliarySettings(c *native.Context) {
-	native.Column(c).FillWidth().Gap(10).Children(func() {
-		native.Text(c, "辅助模型").FontSize(14).FontWeight(600)
-		a.auxiliaryModelRow(c)
-		a.auxiliaryTitleRow(c)
-	})
-}
-
 func (a *App) auxiliaryModelRow(c *native.Context) {
 	modelLabel := a.preferences.AuxiliaryModelName
 	if modelLabel == "" {
 		modelLabel = "选择模型"
 	}
 	native.Row(c).FillWidth().Gap(12).AlignItems(native.Center).Children(func() {
-		native.Text(c, "模型").FontSize(12).SingleLine().Grow(1).MinWidth(0)
+		native.Column(c).Grow(1).MinWidth(0).Children(func() {
+			settingsFieldLabel(c, "辅助模型", "")
+		})
 		trigger := treeButton(c, "选择辅助模型").Width(190).Shrink(0).Height(32).Padding(0, 10).Border(1, c.Theme().Border)
 		trigger.Children(func() {
 			native.Text(c, modelLabel).FontSize(12).SingleLine().Grow(1).MinWidth(0)
@@ -113,7 +108,7 @@ func (a *App) auxiliaryModelRow(c *native.Context) {
 			}
 		}
 		open := a.auxiliaryPicker == "model"
-		native.PopoverBase(c.Key("options"), trigger, &open, func(panel native.Element) {
+		native.PopoverBase(c, trigger, &open, func(panel native.Element) {
 			t := c.Theme()
 			panel.Width(280).Padding(4).Margin(4, 0, 0, 0).Radius(8).Background(t.Background).Border(1, t.Border).
 				Shadow(0, 6, 20, 0, native.RGBA(0, 0, 0, .18))
@@ -199,8 +194,7 @@ func (a *App) auxiliaryModelMenuStatus(c *native.Context) {
 func (a *App) auxiliaryTitleRow(c *native.Context) {
 	native.Row(c).FillWidth().Gap(16).AlignItems(native.Center).Children(func() {
 		native.Column(c).Grow(1).MinWidth(0).Gap(5).Children(func() {
-			native.Text(c, "自动生成会话标题").FontSize(12)
-			native.Text(c, "空闲时为新会话生成简短标题").FontSize(11).TextColor(c.Theme().TextMuted).FillWidth()
+			settingsFieldLabel(c, "自动生成会话标题", "空闲时为新会话生成简短标题。")
 		})
 		disabled := a.preferences.AuxiliaryModel == "" || a.auxiliaryBackend() == nil
 		previous := a.preferences

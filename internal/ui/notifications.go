@@ -53,6 +53,7 @@ func (a *App) notifyCompletion(e agent.Event) {
 		default:
 		}
 		root.update(func() {
+			defer root.redrawSettings()
 			if err != nil {
 				root.notifyError = "无法显示完成通知，请检查系统通知权限：" + err.Error()
 			} else {
