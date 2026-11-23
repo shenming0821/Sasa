@@ -405,6 +405,7 @@ func TestP4CloseDirtyCancelAndDiscard(t *testing.T) {
 
 func TestP4TreeKeyboardAndSearch(t *testing.T) {
 	a, q, root := p4App(t)
+	a.preferences.Theme, a.preferences.ThemeID = "light", "claude"
 	a.historyOpen = true
 	a.rightTab = "files"
 	tt := native.NewTester(a.view, 1100, 760)
@@ -416,11 +417,25 @@ func TestP4TreeKeyboardAndSearch(t *testing.T) {
 	}
 	p4Wait(t, tt, q, func() bool { return len(w.children[dir]) > 0 })
 	tt.Advance(250 * time.Millisecond)
+	checkSelected := func(path string) {
+		t.Helper()
+		bounds, ok := tt.Find("文件树 " + path)
+		if !ok {
+			t.Fatalf("missing tree row %q", path)
+		}
+		pixel := tt.Image().RGBAAt(int(bounds.X+bounds.W-12), int(bounds.Y+bounds.H/2))
+		want := native.Hex("#e2e4f8")
+		if pixel.R != want.R || pixel.G != want.G || pixel.B != want.B {
+			t.Fatalf("selected tree row %q background = %v, want %v", path, pixel, want)
+		}
+	}
+	checkSelected(dir)
 	tt.Key(0, native.KeyRight)
 	tt.Frame()
 	if w.selected != filepath.Join(dir, "main.go") {
 		t.Fatal("tree right did not enter directory", w.selected)
 	}
+	checkSelected(w.selected)
 	tt.Key(0, native.KeyEnter)
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
 	if e := tt.Click("搜索文件内容"); e != nil {

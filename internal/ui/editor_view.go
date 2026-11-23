@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"os"
@@ -341,7 +342,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			return true
 		})
 		if w.selected == row.Path {
-			b.Background(t.SurfacePressed)
+			b.Background(cmp.Or(a.activePalette(t).pickerSelected, t.SurfacePressed))
 		}
 		if b.Clicked() {
 			w.selected = row.Path
