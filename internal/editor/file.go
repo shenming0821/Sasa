@@ -21,6 +21,7 @@ import (
 
 const MaxBytes = 16 << 20
 const EditBytes = 4 << 20
+const LargeFileReadOnly = "大文件只读模式"
 
 var ErrConflict = errors.New("文件已在外部更改")
 var recoveryMu sync.Mutex
@@ -114,7 +115,7 @@ func Read(path string) (File, error) {
 		f.Reason = "硬链接，当前只读"
 	}
 	if len(raw) > EditBytes || strings.Count(f.Text, "\n") >= 100000 {
-		f.Reason = "大文件只读模式"
+		f.Reason = LargeFileReadOnly
 	}
 	for _, line := range strings.Split(f.Text, "\n") {
 		if len(line) > 256<<10 {

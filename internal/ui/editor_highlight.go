@@ -15,32 +15,64 @@ import (
 )
 
 func (a *App) requestHighlight(d *filePage) {
+	a.requestHighlightAt(d, 0)
+}
+
+func (a *App) requestHighlightAt(d *filePage, height float32) {
 	if d.buffer == nil || d.highlighting || !a.canAsync() {
 		return
 	}
-	family := a.codeFontFamily()
-	path := d.path
 	buffer := d.buffer
 	snapshot := buffer.Snapshot()
+	refreshDocument := d.contentWidth == 0 || d.highlightVersion != snapshot.Version()
+	window := d.highlightWindow
+	if !refreshDocument && !window.active {
+		return
+	}
+	lineCount := snapshot.LineCount()
+	visibleFirst := min(lineCount-1, max(0, int(d.scroll.Y/20)))
+	visibleRows := editorHighlightViewRows
+	if height > 0 {
+		visibleRows = int(height/20) + 2
+	}
+	visibleLast := min(lineCount-1, visibleFirst+visibleRows-1)
+	if !refreshDocument && window.covers(visibleFirst, visibleLast, lineCount) {
+		return
+	}
+
+	family := a.codeFontFamily()
+	path := d.path
 	review := d.gitReview
-	decorate := d.kind == "file" && d.file.Reason == "" || d.kind == "diff" && len(d.gitRows) > 0
+	isFile := d.kind == "file"
+	largeReadOnly := isFile && d.file.Reason == editor.LargeFileReadOnly
+	decorate := isFile && (d.file.Reason == "" || largeReadOnly) || d.kind == "diff" && len(d.gitRows) > 0
+	useWindow := isFile && (!refreshDocument || largeReadOnly || lineCount > editorHighlightWholeLines || snapshot.ByteLen() > editor.EditBytes)
 	var leftText, rightText string
-	if review != nil {
+	if refreshDocument && review != nil {
 		leftText, rightText = diffPairText(d.gitPairs)
 	}
-	first := max(0, int(d.scroll.Y/20)-50)
-	last := min(snapshot.LineCount()-1, first+200)
-	lo, _ := snapshot.LineRange(first)
-	_, hi := snapshot.LineRange(last)
 	ctx, cancel := context.WithCancel(context.Background())
 	d.highlightCancel = cancel
 	d.highlighting = true
 	a.runHighlightTask(ctx, func() {
+		current := func() bool {
+			return a.files[d.id] == d && d.buffer == buffer && buffer.Version() == snapshot.Version() && d.path == path && family == a.codeFontFamily()
+		}
+		publishPreview := func(preview []syntaxToken, previewWindow editorHighlightWindow) {
+			a.update(func() {
+				if ctx.Err() == nil && current() {
+					d.highlights = preview
+					d.highlightVersion = snapshot.Version()
+					d.highlightWindow = previewWindow
+				}
+			})
+		}
 		var text string
 		var ranges []syntaxToken
 		var leftRanges, rightRanges []syntaxToken
 		var width float32
 		var leftWidth, rightWidth float32
+		var resultWindow editorHighlightWindow
 		defer func() {
 			valid := ctx.Err() == nil
 			cancel()
@@ -52,16 +84,17 @@ func (a *App) requestHighlight(d *filePage) {
 			a.update(func() {
 				d.highlighting = false
 				d.highlightCancel = nil
-				if !valid || a.files[d.id] != d || d.buffer != buffer || d.path != path || family != a.codeFontFamily() {
+				if !valid || !current() {
 					return
 				}
-				if d.buffer.Version() == snapshot.Version() {
-					d.highlights = ranges
-					d.highlightVersion = snapshot.Version()
+				d.highlights = ranges
+				d.highlightVersion = snapshot.Version()
+				d.highlightWindow = resultWindow
+				if refreshDocument {
 					d.contentWidth = width
 					d.gitLeftWidth, d.gitRightWidth = leftWidth, rightWidth
 					d.gitLeftHighlights, d.gitRightHighlights = leftRanges, rightRanges
-					d.modified = d.kind == "file" && text != d.savedText
+					d.modified = isFile && text != d.savedText
 				}
 			})
 		}()
@@ -69,29 +102,49 @@ func (a *App) requestHighlight(d *filePage) {
 			return
 		}
 		lexer := editorLexer(path)
-		if decorate && lexer != nil && snapshot.ByteLen() <= editor.EditBytes {
-			preview := highlightText(ctx, lexer, snapshot.Slice(lo, hi), lo)
-			if ctx.Err() != nil {
-				return
+		whole := decorate && lexer != nil && !useWindow && snapshot.ByteLen() <= editor.EditBytes
+		if whole {
+			first := max(0, visibleFirst-50)
+			last := min(lineCount-1, first+max(200, visibleRows+50))
+			lo, _ := snapshot.LineRange(first)
+			_, hi := snapshot.LineRange(last)
+			publishPreview(highlightText(ctx, lexer, snapshot.Slice(lo, hi), lo), editorHighlightWindow{})
+		}
+		if refreshDocument && ctx.Err() == nil {
+			text = snapshot.String()
+		}
+		if whole && ctx.Err() == nil {
+			var overflow bool
+			ranges, overflow = collectHighlightText(ctx, lexer, text, 0, editorHighlightTokenLimit)
+			if overflow {
+				ranges = nil
+				useWindow = isFile
 			}
-			a.update(func() {
-				if ctx.Err() == nil && a.files[d.id] == d && d.path == path && d.buffer == buffer && buffer.Version() == snapshot.Version() && family == a.codeFontFamily() {
-					d.highlights = preview
-					d.highlightVersion = snapshot.Version()
+		}
+		if decorate && lexer != nil && useWindow && ctx.Err() == nil {
+			sections := window.vueSections
+			if refreshDocument {
+				sections = nil
+				if strings.EqualFold(filepath.Ext(path), ".vue") {
+					sections = indexVueHighlightSections(ctx, text)
 				}
-			})
+			}
+			ranges, resultWindow = highlightViewport(ctx, lexer, snapshot, sections, visibleFirst, visibleLast)
+			resultWindow.startTokens, resultWindow.endTokens = window.startTokens, window.endTokens
+			if refreshDocument {
+				resultWindow.cacheDocumentEnds(ctx, lexer, snapshot)
+				publishPreview(ranges, resultWindow)
+			}
 		}
-		text = snapshot.String()
-		width = editorTextWidthForFont(ctx, text, family, 13, 90)
-		if review != nil {
-			leftWidth = editorTextWidthForFont(ctx, leftText, family, 12, 76)
-			rightWidth = editorTextWidthForFont(ctx, rightText, family, 12, 76)
-		}
-		if decorate && len(text) <= editor.EditBytes && lexer != nil {
-			ranges = highlightText(ctx, lexer, text, 0)
+		if refreshDocument {
+			width = editorTextWidthForFont(ctx, text, family, 13, 90)
 			if review != nil {
-				leftRanges = highlightText(ctx, lexer, leftText, 0)
-				rightRanges = highlightText(ctx, lexer, rightText, 0)
+				leftWidth = editorTextWidthForFont(ctx, leftText, family, 12, 76)
+				rightWidth = editorTextWidthForFont(ctx, rightText, family, 12, 76)
+				if whole {
+					leftRanges = highlightText(ctx, lexer, leftText, 0)
+					rightRanges = highlightText(ctx, lexer, rightText, 0)
+				}
 			}
 		}
 	})
@@ -116,25 +169,38 @@ func editorTextWidthForFont(ctx context.Context, text, family string, size, padd
 }
 
 func highlightText(ctx context.Context, lexer chroma.Lexer, text string, offset int) []syntaxToken {
+	ranges, overflow := collectHighlightText(ctx, lexer, text, offset, editorHighlightTokenLimit)
+	if overflow {
+		return nil
+	}
+	return ranges
+}
+
+const editorHighlightTokenLimit = 100_000
+
+func collectHighlightText(ctx context.Context, lexer chroma.Lexer, text string, offset, limit int) ([]syntaxToken, bool) {
+	if ctx.Err() != nil || text == "" {
+		return nil, false
+	}
 	iter, err := lexer.Tokenise(nil, text)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	var ranges []syntaxToken
 	for token := iter(); token != chroma.EOF; token = iter() {
 		if ctx.Err() != nil {
-			return nil
+			return nil, false
 		}
 		end := offset + utf8.RuneCountInString(token.Value)
 		if end > offset && token.Type != chroma.Text && token.Type != chroma.TextWhitespace {
+			if len(ranges) == limit {
+				return ranges, true
+			}
 			ranges = append(ranges, syntaxToken{Start: offset, End: end, Type: token.Type})
 		}
 		offset = end
-		if len(ranges) > 100000 {
-			return nil
-		}
 	}
-	return ranges
+	return ranges, false
 }
 func (a *App) showDiskComparison(source *filePage) {
 	if source.buffer == nil {

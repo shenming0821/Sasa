@@ -130,6 +130,7 @@ type filePage struct {
 	pendingLocation                                                     *fileLocation
 	highlights                                                          []syntaxToken
 	highlightVersion                                                    uint64
+	highlightWindow                                                     editorHighlightWindow
 	highlighting                                                        bool
 	highlightCancel                                                     context.CancelFunc
 	modified                                                            bool

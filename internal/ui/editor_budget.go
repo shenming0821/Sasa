@@ -37,7 +37,7 @@ func (a *App) trimEditorCaches() {
 		for _, s := range d.redo {
 			history += s.ByteLen()
 		}
-		colors += len(d.highlights) * 32
+		colors += (len(d.highlights) + len(d.highlightWindow.startTokens) + len(d.highlightWindow.endTokens)) * 32
 		if d.id != a.activeTab && d.loaded && !d.highlighting {
 			cache = append(cache, d)
 		}
@@ -49,9 +49,10 @@ func (a *App) trimEditorCaches() {
 	sort.Slice(hidden, func(i, j int) bool { return hidden[i].lastVisited.Before(hidden[j].lastVisited) })
 	for _, d := range cache {
 		if colors > 16<<20 {
-			colors -= len(d.highlights) * 32
+			colors -= (len(d.highlights) + len(d.highlightWindow.startTokens) + len(d.highlightWindow.endTokens)) * 32
 			d.highlights = nil
 			d.highlightVersion = 0
+			d.highlightWindow = editorHighlightWindow{}
 		}
 		if history > 32<<20 {
 			for _, s := range d.undo {
@@ -70,6 +71,7 @@ func (a *App) trimEditorCaches() {
 			d.buffer = nil
 			d.loaded = false
 			d.highlights = nil
+			d.highlightWindow = editorHighlightWindow{}
 			d.file.Text = ""
 			d.savedText = ""
 			d.observed = native.TextSnapshot{}

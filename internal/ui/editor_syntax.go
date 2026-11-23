@@ -17,6 +17,15 @@ type syntaxToken struct {
 	Type       chroma.TokenType
 }
 
+var vueEmbeddedLanguages = []struct{ tag, names, lexer string }{
+	{"script", "tsx", "tsx"},
+	{"script", "ts|typescript", "typescript"},
+	{"script", "jsx", "jsx"},
+	{"style", "scss", "scss"},
+	{"style", "sass", "sass"},
+	{"style", "less", "less"},
+}
+
 var editorVueLexer = sync.OnceValue(func() chroma.Lexer {
 	base := lexers.Get("vue").(*chroma.RegexLexer)
 	rules := base.MustRules().Clone()
@@ -28,15 +37,8 @@ var editorVueLexer = sync.OnceValue(func() chroma.Lexer {
 		}
 	}
 	var embedded []chroma.Rule
-	for _, section := range []struct{ tag, language, lexer string }{
-		{"script", "tsx", "tsx"},
-		{"script", "(?:ts|typescript)", "typescript"},
-		{"script", "jsx", "jsx"},
-		{"style", "scss", "scss"},
-		{"style", "sass", "sass"},
-		{"style", "less", "less"},
-	} {
-		pattern := `(?i)(<` + section.tag + `\b(?=[^>]*\blang\s*=\s*["']` + section.language + `["'])[^>]*>)(.*?)(</` + section.tag + `\s*>)`
+	for _, section := range vueEmbeddedLanguages {
+		pattern := `(?i)(<` + section.tag + `\b(?=[^>]*\blang\s*=\s*["'](?:` + section.names + `)["'])[^>]*>)(.*?)(</` + section.tag + `\s*>)`
 		embedded = append(embedded, chroma.Rule{Pattern: pattern, Type: chroma.ByGroups(chroma.UsingSelf("root"), chroma.Using(section.lexer), chroma.UsingSelf("root"))})
 	}
 	for _, section := range []struct{ tag, lexer string }{{"script", "javascript"}, {"style", "css"}} {

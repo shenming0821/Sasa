@@ -787,8 +787,12 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			return
 		}
 		a.observeFile(d)
-		if !d.highlighting && (d.contentWidth == 0 || d.highlightVersion != d.buffer.Version()) && time.Since(d.changedAt) > 200*time.Millisecond {
-			a.requestHighlight(d)
+		highlightScrollY := d.scroll.Y
+		if time.Since(d.changedAt) > 200*time.Millisecond {
+			a.requestHighlightAt(d, d.scroll.Bounds(c).H)
+		}
+		if d.highlightWindow.active && d.highlighting {
+			c.AnimationFrame()
 		}
 		if d.file.Reason != "" && (d.kind != "diff" || d.compare == "外部更改") {
 			native.Row(c).FillWidth().Padding(4, 14).Gap(8).AlignItems(native.Center).Children(func() {
@@ -902,9 +906,21 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			}
 			if d.highlightVersion == d.buffer.Version() {
 				first := max(0, int(d.scroll.Y/20)-2)
-				last := first + 100
+				last := min(first+editorHighlightDrawRows, snap.LineCount()-1)
 				lo, _ := snap.LineRange(first)
-				_, hi := snap.LineRange(min(last, snap.LineCount()-1))
+				_, hi := snap.LineRange(last)
+				window := d.highlightWindow
+				if window.active {
+					start, end := lo, hi
+					if d.caret == 0 {
+						start = 0
+					}
+					if d.caret == snap.Len() {
+						end = snap.Len()
+					}
+					area.TextRanges(palette.ranges(window.startTokens, start, hi)...)
+					area.TextRanges(palette.ranges(window.endTokens, lo, end)...)
+				}
 				area.TextRanges(palette.ranges(d.highlights, lo, hi)...)
 			}
 			composing := area.Composing()
@@ -985,6 +1001,10 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				a.paintBracketPair(p, r, d, snap, palette)
 			})
 			area.DrawOver(func(p *native.Painter, r native.Rect) {
+				if d.highlightWindow.active && d.scroll.Y != highlightScrollY {
+					a.requestHighlightAt(d, r.H)
+					c.AnimationFrame()
+				}
 				first := max(0, d.lines.At(d.scroll.Y-8)-1)
 				last := min(snap.LineCount(), d.lines.At(d.scroll.Y+r.H-8)+2)
 				for i := first; i < last; i++ {
