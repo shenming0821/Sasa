@@ -154,6 +154,7 @@ type Tab struct {
 	SessionID                          int
 	Caret                              int
 	ScrollY                            float32
+	Preview                            bool `json:",omitempty"`
 }
 
 type Store struct {

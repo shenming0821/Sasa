@@ -151,10 +151,7 @@ func (a *App) activatePaneTab(id, root string, move bool) {
 		}
 	}
 	layout := a.layoutFor(root)
-	target := focusedPane(layout)
-	if a.renderingPane != nil && slices.Contains(paneLeaves(layout.Root), a.renderingPane) {
-		target = a.renderingPane
-	}
+	target := a.tabTargetPane(layout)
 	for _, pane := range paneLeaves(layout.Root) {
 		if !slices.Contains(pane.Tabs, id) {
 			continue
@@ -191,6 +188,13 @@ func (a *App) activatePaneTab(id, root string, move bool) {
 	target.Active = id
 	layout.Focused = target.ID
 	a.layouts[root] = layout
+}
+
+func (a *App) tabTargetPane(layout storage.WorkspaceLayout) *storage.PaneNode {
+	if a.renderingPane != nil && slices.Contains(paneLeaves(layout.Root), a.renderingPane) {
+		return a.renderingPane
+	}
+	return focusedPane(layout)
 }
 
 func (a *App) paneTabs() []storage.Tab {
@@ -281,6 +285,9 @@ func (a *App) movePaneTab(root string, target *storage.PaneNode, source paneTabD
 	if origin == nil || origin == target {
 		return false
 	}
+	if d := a.files[source.Tab]; d != nil {
+		d.preview = false
+	}
 	a.focusPane(root, target)
 	a.activatePaneTab(source.Tab, root, true)
 	a.setPaneSelection(target)
@@ -330,6 +337,9 @@ func (a *App) movePaneTabAt(root string, target *storage.PaneNode, source paneTa
 	}
 	if index == len(target.Tabs) {
 		return a.movePaneTab(root, target, source)
+	}
+	if d := a.files[source.Tab]; d != nil {
+		d.preview = false
 	}
 	origin.Tabs = slices.DeleteFunc(origin.Tabs, func(id string) bool { return id == source.Tab })
 	if origin.Active == source.Tab {

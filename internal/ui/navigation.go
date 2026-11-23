@@ -245,12 +245,21 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 									native.Icon(tc, glyph).Size(12, 12).TextColor(t.TextMuted)
 								}
 								title := native.Text(tc, a.tabTitle(tab)).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+								if d := a.files[tab.ID]; d != nil && d.preview {
+									title.Italic()
+								}
 								if target != nil {
 									title.Grow(1)
 								}
 							})
 						})
-						if b.Clicked() {
+						clicked := b.Clicked()
+						if d := a.files[tab.ID]; d != nil && d.preview && b.DoubleClicked() {
+							d.preview = false
+							clicked = true
+							c.AnimationFrame()
+						}
+						if clicked {
 							a.selectWorkspaceTab(tab)
 							if d := a.currentFile(); d != nil {
 								d.focusOwner = a.tabHandles[tab.ID]

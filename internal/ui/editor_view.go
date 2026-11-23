@@ -131,7 +131,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 					}
 					count := len(w.contentSearch.Matches)
 					if k.Key == native.KeyEnter && !w.searchLoading && w.searchKey() == w.searchQuery && count > 0 {
-						a.openSearchMatch(w, w.contentSearch.Matches[min(w.searchIndex, count-1)])
+						a.openSearchMatch(w, w.contentSearch.Matches[min(w.searchIndex, count-1)], false)
 						return true
 					}
 					if count > 0 && (k.Key == native.KeyDown || k.Key == native.KeyUp) {
@@ -311,6 +311,12 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 			}
 			next := i
 			switch ev.Key {
+			case native.KeyEnter:
+				if !row.Dir {
+					a.openFile(w.root, row.Path)
+					return true
+				}
+				return false
 			case native.KeyDown:
 				next = min(len(rows)-1, i+1)
 			case native.KeyUp:
@@ -344,7 +350,8 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 		if w.selected == row.Path {
 			b.Background(cmp.Or(a.activePalette(t).pickerSelected, t.SurfacePressed))
 		}
-		if b.Clicked() {
+		clicked, double := b.Clicked(), !row.Dir && b.DoubleClicked()
+		if clicked || double {
 			w.selected = row.Path
 			if row.Dir {
 				a.toggleFileDirectory(w, row.Path)
@@ -353,10 +360,7 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 				}
 				c.AnimationFrame()
 			} else {
-				a.openFile(w.root, row.Path)
-				if d := a.currentFile(); d != nil {
-					d.focusOwner = w.rowHandles[row.Path]
-				}
+				a.openFileWithPreview(w.root, row.Path, !double)
 			}
 		}
 		b.Children(func() {
@@ -404,7 +408,7 @@ func (a *App) contentMatchRow(c *native.Context, w *workspacePage, m workspace.C
 		case native.KeyUp:
 			next = max(0, i-1)
 		case native.KeyEnter:
-			a.openSearchMatch(w, m)
+			a.openSearchMatch(w, m, false)
 			return true
 		default:
 			return false
@@ -437,12 +441,10 @@ func (a *App) contentMatchRow(c *native.Context, w *workspacePage, m workspace.C
 			native.RichText(rc, spans...).FontSize(11).SingleLine().Grow(1).MinWidth(0)
 		})
 	})
-	if b.Clicked() {
+	clicked, double := b.Clicked(), b.DoubleClicked()
+	if clicked || double {
 		w.selected, w.searchIndex = m.Path, i
-		a.openSearchMatch(w, m)
-		if d := a.currentFile(); d != nil {
-			d.focusOwner = w.rowHandles[key]
-		}
+		a.openSearchMatch(w, m, !double)
 	}
 	return b
 }
@@ -620,8 +622,8 @@ func (a *App) searchFileRow(c *native.Context, w *workspacePage, r searchRow, mo
 	})
 }
 
-func (a *App) openSearchMatch(w *workspacePage, m workspace.ContentMatch) {
-	a.openFile(w.root, m.Path)
+func (a *App) openSearchMatch(w *workspacePage, m workspace.ContentMatch, preview bool) {
+	a.openFileWithPreview(w.root, m.Path, preview)
 	if d := a.currentFile(); d != nil && d.root == w.root && d.path == m.Path {
 		d.pendingLocation = &fileLocation{line: m.Line, column: m.Col}
 		d.pinFrame = 0

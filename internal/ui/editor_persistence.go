@@ -87,7 +87,7 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 					return fmt.Errorf("文件标签路径损坏，保留原设置")
 				}
 				a.tabs = append(a.tabs, tab)
-				a.files[tab.ID] = &filePage{id: tab.ID, kind: tab.Kind, compare: tab.Compare, root: tab.Workspace, path: tab.Path, caret: tab.Caret, anchor: tab.Caret, resync: true, scroll: native.ScrollState{Y: tab.ScrollY}}
+				a.files[tab.ID] = &filePage{id: tab.ID, kind: tab.Kind, compare: tab.Compare, root: tab.Workspace, path: tab.Path, caret: tab.Caret, anchor: tab.Caret, resync: true, scroll: native.ScrollState{Y: tab.ScrollY}, preview: tab.Kind == "file" && tab.Preview}
 			default:
 				return fmt.Errorf("未知标签类型 %s，保留原设置", tab.Kind)
 			}
@@ -146,6 +146,7 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 		d.observed = d.buffer.Snapshot()
 		d.savedText = r.DiskText
 		d.modified = true
+		d.preview = false
 		d.loaded = true
 		d.conflict = true
 		d.err = "已恢复未保存编辑，请核对磁盘版本后保存"
@@ -202,6 +203,7 @@ func (a *App) snapshotWorkspaceTabs(s *storage.Snapshot) {
 			}
 			tab.Caret = d.caret
 			tab.ScrollY = d.scroll.Y
+			tab.Preview = d.preview && !d.dirty()
 		}
 		s.WorkspaceTabs = append(s.WorkspaceTabs, tab)
 		if folder, valid := a.tabFolder(tab); valid {

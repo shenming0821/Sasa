@@ -144,6 +144,7 @@ type filePage struct {
 	overwriteBase                                                       *editor.File
 	lastVisited                                                         time.Time
 	openedFrom                                                          string
+	preview                                                             bool
 	pinFrame                                                            uint64
 	pinY                                                                float32
 	turnReview                                                          *turnReview
@@ -282,6 +283,10 @@ func (a *App) selectWorkspace(root string) {
 }
 func (a *App) canAsync() bool { return a.win != nil || a.dispatch != nil }
 func (a *App) openFile(root, path string) {
+	a.openFileWithPreview(root, path, false)
+}
+
+func (a *App) openFileWithPreview(root, path string, preview bool) {
 	root = filepath.Clean(root)
 	path = filepath.Clean(path)
 	if !workspace.Contains(root, path) {
@@ -299,7 +304,7 @@ func (a *App) openFile(root, path string) {
 			existingInfo, existingErr := os.Lstat(existing.path)
 			if err == nil && statErr == nil && existingErr == nil &&
 				info.Mode()&os.ModeSymlink == 0 && existingInfo.Mode()&os.ModeSymlink == 0 && target == resolved {
-				a.selectFile(existing)
+				a.selectOpenedFile(existing, preview)
 				return
 			}
 		}
@@ -310,16 +315,71 @@ func (a *App) openFile(root, path string) {
 	}
 	d := a.files[id]
 	if d == nil {
-		d = &filePage{id: id, root: root, path: path, kind: "file", resync: true}
+		d = &filePage{id: id, root: root, path: path, kind: "file", resync: true, preview: preview}
+		tab := storage.Tab{ID: id, Kind: "file", Workspace: root, Path: path}
+		if preview {
+			a.placeFilePreview(d, tab)
+		} else {
+			a.tabs = append(a.tabs, tab)
+		}
 		a.files[id] = d
-		a.tabs = append(a.tabs, storage.Tab{ID: id, Kind: "file", Workspace: root, Path: path})
 	}
-	a.selectFile(d)
+	a.selectOpenedFile(d, preview)
+}
+
+func (a *App) placeFilePreview(d *filePage, tab storage.Tab) {
+	pane := a.tabTargetPane(a.layoutFor(a.workspaceRoot(d.root)))
+	for index, id := range pane.Tabs {
+		old := a.files[id]
+		if old == nil || !old.preview {
+			continue
+		}
+		if old.dirty() || old.saving || old.checkpointBusy {
+			old.preview = false
+			continue
+		}
+		a.cancelFileRead(old)
+		old.cancelFind()
+		if old.highlightCancel != nil {
+			old.highlightCancel()
+		}
+		delete(a.files, id)
+		delete(a.tabHandles, id)
+		*a.tabByID(id) = tab
+		pane.Tabs[index] = d.id
+		if pane.Active == id {
+			pane.Active = d.id
+		}
+		if a.activeTab == id {
+			a.activeTab = d.id
+			d.openedFrom = old.openedFrom
+		}
+		return
+	}
+	a.tabs = append(a.tabs, tab)
+	if index := slices.Index(pane.Tabs, pane.Active); index >= 0 && !a.isEmptyTab(pane.Active) {
+		pane.Tabs = slices.Insert(pane.Tabs, index+1, d.id)
+	}
+}
+
+func (a *App) selectOpenedFile(d *filePage, preview bool) {
+	if !preview {
+		d.preview = false
+	}
+	a.selectFileInPane(d, !preview)
+	if preview {
+		d.focus = false
+	}
 	if !d.loaded && !d.loading {
 		a.loadFile(d)
 	}
 }
+
 func (a *App) selectFile(d *filePage) {
+	a.selectFileInPane(d, !d.preview)
+}
+
+func (a *App) selectFileInPane(d *filePage, move bool) {
 	// Remember where the user came from so closing the file returns to
 	// that tab instead of whichever tab happens to sit next to it.
 	if a.activeTab != d.id {
@@ -328,7 +388,7 @@ func (a *App) selectFile(d *filePage) {
 	d.lastVisited = time.Now()
 	a.activeTab = d.id
 	a.selectWorkspace(d.root)
-	a.activatePaneTab(d.id, a.activeWorkspace, true)
+	a.activatePaneTab(d.id, a.activeWorkspace, move)
 	d.focus = true
 	d.focusOwner = nil
 	d.resync = true
@@ -463,6 +523,7 @@ func (d *filePage) observe() {
 	d.redo = nil
 	d.observed = now
 	d.modified = true
+	d.preview = false
 	d.changedAt = time.Now()
 }
 func (d *filePage) undoEdit(redo bool) {
@@ -488,6 +549,7 @@ func (d *filePage) undoEdit(redo bool) {
 	d.resync = true
 }
 func (a *App) saveFile(d *filePage, force, recreate bool, done func(bool)) {
+	d.preview = false
 	if d.buffer == nil || d.file.Reason != "" {
 		if done != nil {
 			done(false)
