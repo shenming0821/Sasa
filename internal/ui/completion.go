@@ -372,11 +372,11 @@ func (a *App) completionPanel(c *native.Context, editor native.Element, q comple
 						row.Padding(6, 8)
 						row.Children(func() {
 							native.Row(c).FillWidth().AlignItems(native.Center).Gap(8).Children(func() {
-								glyph := fileIcon
 								if item.dir {
-									glyph = folderIcon
+									native.Icon(c, folderIcon).Size(13, 13).Shrink(0).TextColor(t.TextMuted)
+								} else {
+									drawFileIcon(c, item.name, 13, false)
 								}
-								native.Icon(c, glyph).Size(13, 13).Shrink(0).TextColor(t.TextMuted)
 								native.Text(c, item.name).FontSize(13).SingleLine().Shrink(0)
 								native.Text(c, item.description).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 							})

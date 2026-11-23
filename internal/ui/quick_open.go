@@ -517,7 +517,7 @@ func (a *App) quickOpenRow(c *native.Context, item quickOpenItem, selected bool,
 	a.pickerRowFace(t, row, selected)
 	row.Children(func() {
 		native.Row(rc).FillWidth().AlignItems(native.Center).Gap(8).Children(func() {
-			native.Icon(rc, fileIcon).Size(13, 13).Shrink(0).TextColor(t.TextMuted)
+			drawFileIcon(rc, item.name, 13, false)
 			native.Text(rc, item.name).FontSize(13).SingleLine().Shrink(0)
 			native.Text(rc, item.parent).FontSize(11).TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 		})

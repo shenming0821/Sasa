@@ -235,6 +235,8 @@ func (a *App) sessionTabs(c *native.Context, leftShown, rightShown bool) {
 									native.Box(tc).Size(12, 16).Shrink(0).Center().Children(func() {
 										native.Icon(tc, launchTerminalIcon).Size(16, 16).Shrink(0).TextColor(t.TextMuted)
 									})
+								} else if tab.Kind == "file" {
+									drawFileIcon(tc, tab.Path, 12, false)
 								} else {
 									glyph := fileIcon
 									if tab.Kind == "diff" {

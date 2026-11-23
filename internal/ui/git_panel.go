@@ -419,7 +419,7 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 		})
 		b.Children(func() {
 			native.Row(c).Fill().Gap(6).AlignItems(native.Center).Children(func() {
-				native.Icon(c, fileIcon).Size(13, 13).TextColor(t.TextMuted)
+				drawFileIcon(c, entry.Path, 13, false)
 				native.Row(c.Key("name")).Grow(1).MinWidth(0).Gap(5).AlignItems(native.Center).Children(func() {
 					native.Text(c, filepath.Base(entry.Path)).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 					if parent := filepath.Dir(entry.Path); parent != "." {

@@ -304,3 +304,7 @@ Mayoi 当前声明 MyGo v0.6.0，但通过 replace 实际使用 `github.com/sorr
 固定源码为 Mayoi `6f2190e9297bbdd187ae0d28a80c191b2243d41b`，本地参考 `/tmp/mayoi-branch-review-20261117`。实际构建并运行 Mayoi，核对 Git 侧栏的 COMMITS、全部分支及双端点比较。Sasa 直接移植 `cmd/mayoi/graph.go` 的图布局与对应测试，并适配 `scm.go`、`committree.go`、`coauthors.go`、`commitactions.go`、`internal/git/git.go` 与 `internal/git/commitactions.go` 的引用解析、文件树、悬停统计、菜单、补丁及远端选择逻辑。MIT 原文保留在 `THIRD_PARTY_NOTICES/Mayoi-LICENSE`，适配文件标明来源。
 
 实现沿用 Sasa 的工作区、异步取消、文件保存、Diff 和冲突状态；范围为本地 Git COMMITS，未加入 GitHub PR、CI 状态或远程头像。自动化通过临时 Git 仓库和 MyGo 原生测试器独立核验，不以 Mayoi 自身运行结果替代 Sasa 验收。任务目录完成自动化后仍需主目录集成和公共 Preview 验收。
+
+## Mayoi 文件图标
+
+Sasa 的 `internal/ui/file_icons.go` 取自 [Mayoi `cmd/mayoi/icons.go`](https://github.com/sorrycc/Mayoi/blob/001c488a6e85245712695ffe0da6b18134cab20a/cmd/mayoi/icons.go) 的文件名和扩展名匹配、浅深色值及 Lucide 图形。未知文件和普通隐藏文件采用 Sasa 的次要文字色，普通锁文件使用该颜色的较低不透明度。目录图标跟随主题强调色，文件树中被 Git 忽略的条目图标降低透明度。许可见 [Mayoi MIT](../THIRD_PARTY_NOTICES/Mayoi-LICENSE) 和 [Lucide ISC / Feather MIT](../THIRD_PARTY_NOTICES/Lucide-LICENSE)。

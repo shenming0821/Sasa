@@ -209,6 +209,7 @@ def build():
         (resources / 'licenses').mkdir(parents=True)
         shutil.copy2(ROOT / 'internal/ui/fonts/OFL.txt', resources / 'licenses/MPLUSCodeLatin-OFL.txt')
         shutil.copy2(ROOT / 'THIRD_PARTY_NOTICES/Mayoi-LICENSE', resources / 'licenses/Mayoi-MIT.txt')
+        shutil.copy2(ROOT / 'THIRD_PARTY_NOTICES/Lucide-LICENSE', resources / 'licenses/Lucide-ISC-and-Feather-MIT.txt')
         run('python3', ROOT / 'scripts/prepare-ghostty.py', contents)
         package = 'github.com/shenming0821/Sasa/internal/release'
         flags = f'-X {package}.BuildID={build_id} -X {package}.SourceVersion={revision} -X {package}.SourceDigest={source_digest}'

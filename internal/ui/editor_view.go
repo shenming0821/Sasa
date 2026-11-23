@@ -365,10 +365,10 @@ func (a *App) filesPanel(c *native.Context, w *workspacePage) {
 					g := native.Icon(rc, chevron).Size(12, 12)
 					progress := animateDisclosure(g, "directory-open", w.expanded[row.Path])
 					g.Rotate(-90 * (1 - progress))
-					native.Icon(rc, folderIcon).Size(14, 14)
+					drawFileTreeFolderIcon(rc, 14, w.expanded[row.Path], row.Ignored)
 				} else {
 					native.Box(rc).Width(12)
-					native.Icon(rc, fileIcon).Size(14, 14).TextColor(t.TextMuted)
+					drawFileIcon(rc, row.Name, 14, row.Ignored)
 				}
 				col := t.Text
 				if row.Ignored {
@@ -609,7 +609,7 @@ func (a *App) searchFileRow(c *native.Context, w *workspacePage, r searchRow, mo
 	b.Children(func() {
 		native.Row(rc).Fill().Gap(5).AlignItems(native.Center).Children(func() {
 			native.Icon(rc, chevron).Size(12, 12).Rotate(-90 * (1 - progress))
-			native.Icon(rc, fileIcon).Size(14, 14).TextColor(t.TextMuted)
+			drawFileIcon(rc, name, 14, false)
 			native.Text(rc, name).FontSize(12).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 			native.Text(rc, dir).FontSize(10).TextColor(t.TextMuted.Alpha(.8)).SingleLine().Grow(1).MinWidth(0)
 			native.Box(rc.Key("count")).MinWidth(22).Height(18).Padding(0, 5).Radius(9).Background(t.TextMuted.Alpha(.1)).
