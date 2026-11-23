@@ -51,21 +51,18 @@ func TestThemePickerUpdatesOpenTerminals(t *testing.T) {
 	if err := tester.Click("设置分类 外观"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tester.Click("配色 Claude"); err != nil {
-		t.Fatal(err)
-	}
-	tester.Frame()
-	want := themeByID("claude").light.term
-	for _, connection := range connections {
-		if connection.colors != want || connection.dark || connection.closed.Load() {
-			t.Fatal("an open terminal did not receive the new light palette in place")
+	for _, choice := range themes[1:] {
+		if err := tester.Click("配色 " + choice.label); err != nil {
+			t.Fatal(err)
 		}
-	}
-	tester.SetDark(true)
-	want = themeByID("claude").dark.term
-	for _, connection := range connections {
-		if connection.colors != want || !connection.dark {
-			t.Fatal("an open terminal did not receive the dark palette")
+		for _, dark := range []bool{false, true} {
+			tester.SetDark(dark)
+			tester.Frame()
+			for _, connection := range connections {
+				if connection.colors != choice.paletteFor(dark).term || connection.dark != dark || connection.closed.Load() {
+					t.Fatalf("open terminal did not receive %s palette in place (dark=%v)", choice.label, dark)
+				}
+			}
 		}
 	}
 	if err := tester.Click("配色 默认"); err != nil {

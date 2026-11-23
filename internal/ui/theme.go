@@ -23,6 +23,7 @@ type palette struct {
 	text           native.Color
 	textMuted      native.Color
 	accent         native.Color
+	accentText     native.Color
 	accentHover    native.Color
 	accentPressed  native.Color
 	selection      native.Color
@@ -168,6 +169,8 @@ var themes = []themeDefinition{
 			},
 		},
 	},
+	{id: "qoder", label: "Qoder", light: qoderLightPalette(), dark: qoderDarkPalette()},
+	{id: "cursor", label: "Cursor", light: cursorLightPalette(), dark: cursorDarkPalette()},
 }
 
 // themeByID returns the definition of the theme with the given ID, or
@@ -206,6 +209,7 @@ func (p palette) apply(t *native.Theme) {
 	set(&t.Text, p.text)
 	set(&t.TextMuted, p.textMuted)
 	set(&t.Accent, p.accent)
+	set(&t.AccentText, p.accentText)
 	set(&t.AccentHover, p.accentHover)
 	set(&t.AccentPressed, p.accentPressed)
 	set(&t.Selection, p.selection)

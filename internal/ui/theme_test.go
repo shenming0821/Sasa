@@ -70,18 +70,18 @@ func TestThemePickChangesChromeHot(t *testing.T) {
 	tt.Frame()
 	tt.Click("设置分类 外观")
 	before := settleTheme(tt)
-	if err := tt.Click("配色 Claude"); err != nil {
-		t.Fatal(err)
-	}
-	if a.preferences.ThemeID != "claude" {
-		t.Fatal("theme pick not saved", a.preferences.ThemeID)
-	}
-	after := settleTheme(tt)
-	if after == before {
-		t.Fatal("picking a theme did not repaint the window")
-	}
-	if after != themeByID("claude").light.background {
-		t.Fatal("window background is not the Claude palette's", after)
+	for _, choice := range themes[1:] {
+		if err := tt.Click("配色 " + choice.label); err != nil {
+			t.Fatal(err)
+		}
+		if a.preferences.ThemeID != choice.id {
+			t.Fatal("theme pick not saved", a.preferences.ThemeID)
+		}
+		after := settleTheme(tt)
+		if after == before || after != choice.light.background {
+			t.Fatalf("%s window background = %v, want %v", choice.label, after, choice.light.background)
+		}
+		before = after
 	}
 	// Switching back repaints too: same appearance, different palette.
 	if err := tt.Click("配色 默认"); err != nil {
@@ -89,6 +89,39 @@ func TestThemePickChangesChromeHot(t *testing.T) {
 	}
 	if settleTheme(tt) != themeByID("").light.background {
 		t.Fatal("switching back did not restore the default palette")
+	}
+}
+
+func TestQoderAndCursorPaletteContrast(t *testing.T) {
+	for _, id := range []string{"qoder", "cursor"} {
+		for _, appearance := range []struct {
+			name string
+			base *native.Theme
+		}{{"light", native.LightTheme()}, {"dark", native.DarkTheme()}} {
+			t.Run(id+"/"+appearance.name, func(t *testing.T) {
+				theme := themeByID(id)
+				colors := theme.paletteFor(appearance.base.Dark)
+				editor := colors.editorFor(appearance.base.Dark)
+				if theme.id != id || editor.style.Name != id+"-"+appearance.name || editor.codeColors == nil {
+					t.Fatal("theme or syntax palette did not resolve")
+				}
+				chrome := *appearance.base
+				colors.apply(&chrome)
+				colors.status.apply(&chrome, chrome.Background, chrome.Surface, chrome.SurfaceHover)
+				for _, background := range []native.Color{chrome.Accent, chrome.AccentHover, chrome.AccentPressed} {
+					if ratio := contrast(chrome.AccentText, background); ratio < 4.5 {
+						t.Errorf("accent label contrast = %.2f", ratio)
+					}
+				}
+				for _, token := range []chroma.TokenType{chroma.Keyword, chroma.LiteralString, chroma.Comment, chroma.GenericInserted, chroma.GenericDeleted} {
+					for _, background := range []native.Color{editor.background, editor.selection, editor.addedBackground, editor.deletedBackground} {
+						if ratio := contrast(editor.syntaxColor(token), background); ratio < 4.5 {
+							t.Errorf("%s syntax contrast = %.2f against %v", token, ratio, background)
+						}
+					}
+				}
+			})
+		}
 	}
 }
 
@@ -200,16 +233,18 @@ func TestThemeStatusColorsFollowTheme(t *testing.T) {
 func TestThemeIDPersistsAcrossReload(t *testing.T) {
 	a := New(stubBackend{}, "test", "/workspace", nil)
 	store := imageStore(t, a)
-	a.preferences.ThemeID = "claude"
-	if err := a.persist(); err != nil {
-		t.Fatal(err)
-	}
 	restored := New(stubBackend{}, "test", "/workspace", nil)
-	if err := restored.AttachStore(store); err != nil {
-		t.Fatal(err)
-	}
-	if restored.preferences.ThemeID != "claude" {
-		t.Fatal("theme id not restored", restored.preferences.ThemeID)
+	for _, choice := range themes[1:] {
+		a.preferences.ThemeID = choice.id
+		if err := a.persist(); err != nil {
+			t.Fatal(err)
+		}
+		if err := restored.AttachStore(store); err != nil {
+			t.Fatal(err)
+		}
+		if restored.preferences.ThemeID != choice.id {
+			t.Fatalf("restored %q, want %q", restored.preferences.ThemeID, choice.id)
+		}
 	}
 	// An unknown stored id normalizes to the default theme.
 	restored.preferences.ThemeID = "bogus"
