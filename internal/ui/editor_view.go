@@ -1095,7 +1095,18 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			line := snap.LineAt(d.caret)
 			start, _ := snap.LineRange(line)
 			lang := strings.TrimPrefix(filepath.Ext(d.path), ".")
-			native.Text(c, fmt.Sprintf("%s · %d 行 · %d:%d", lang, snap.LineCount(), line+1, d.caret-start+1)).FontSize(10).TextColor(t.TextMuted)
+			position := fmt.Sprintf("%d:%d", line+1, d.caret-start+1)
+			native.Text(c, fmt.Sprintf("%s · %d 行", lang, snap.LineCount())).FontSize(10).TextColor(t.TextMuted)
+			if d.kind == "file" {
+				button := quietButton(c, "跳转到行").Tooltip("跳转到行（⌃G）").Padding(3, 6)
+				a.focusPressedPane(button)
+				button.Children(func() { native.Text(c, position).FontSize(10).TextColor(t.TextMuted) })
+				if button.Clicked() {
+					a.openQuickPicker(d)
+				}
+			} else {
+				native.Text(c, position).FontSize(10).TextColor(t.TextMuted)
+			}
 		})
 	})
 }

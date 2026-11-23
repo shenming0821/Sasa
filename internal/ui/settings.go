@@ -316,6 +316,7 @@ func (a *App) applicationMenu() *mygo.Menu {
 		}},
 		{Label: "文件", Submenu: []*mygo.MenuItem{
 			{ID: "quick-open", Label: "快速打开文件", Accelerator: "CmdOrCtrl+P", Click: func(*mygo.MenuItem, *mygo.Window) { a.update(a.openQuickOpen) }},
+			{ID: "go-to-line", Label: "跳转到行", Accelerator: "Ctrl+G", Click: func(*mygo.MenuItem, *mygo.Window) { a.update(a.openGoToLine) }},
 			{ID: "close-current-page", Label: "关闭当前页签", Accelerator: "CmdOrCtrl+W", Click: func(_ *mygo.MenuItem, w *mygo.Window) {
 				if w != nil && w == a.settingsWindow {
 					w.Close()

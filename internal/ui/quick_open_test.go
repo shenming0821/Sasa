@@ -1,12 +1,69 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/egoist/mygo"
 	native "github.com/egoist/mygo/ui"
 )
+
+func TestQuickOpenGoToLineInCurrentFile(t *testing.T) {
+	a, queue, root := p4App(t)
+	path := filepath.Join(root, "long.vue")
+	if err := os.WriteFile(path, []byte(strings.Repeat("你好世界\n", 4000)+"末行"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tt := native.NewTester(a.view, 1280, 800)
+	a.openFile(root, path)
+	p4Wait(t, tt, queue, func() bool {
+		return a.currentFile() != nil && a.currentFile().loaded
+	})
+	d := a.currentFile()
+	if err := tt.Click("文件内容 " + path); err != nil {
+		t.Fatal(err)
+	}
+	tt.Key(native.Ctrl, native.KeyG)
+	if !a.quickOpen.open || a.quickOpen.lineTarget != d {
+		t.Fatal("Ctrl+G did not open the line picker")
+	}
+	tt.Type("3500:3")
+	tt.Key(0, native.KeyEnter)
+	snapshot := d.buffer.Snapshot()
+	start, _ := snapshot.LineRange(3499)
+	p4Wait(t, tt, queue, func() bool { return d.caret == start+2 })
+	if a.quickOpen.open || d.anchor != d.caret || d.scroll.Y < 60000 || d.dirty() {
+		t.Fatalf("line jump did not reveal a collapsed caret: open=%v anchor=%d caret=%d scroll=%f dirty=%v",
+			a.quickOpen.open, d.anchor, d.caret, d.scroll.Y, d.dirty())
+	}
+	tt.Key(0, native.KeyRight)
+	if d.caret != start+3 {
+		t.Fatal("focus did not return to the editor after jumping")
+	}
+
+	if err := tt.Click("跳转到行"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Type("123:wrong")
+	tt.Key(0, native.KeyEnter)
+	if !a.quickOpen.open || d.caret != start+3 {
+		t.Fatal("invalid column changed the editor or dismissed the picker")
+	}
+	tt.Key(0, native.KeyEscape)
+	if a.quickOpen.open {
+		t.Fatal("Escape did not dismiss the line picker")
+	}
+
+	tt.Key(native.Cmd, native.KeyP)
+	tt.Type("：9999：9999")
+	tt.Key(0, native.KeyEnter)
+	p4Wait(t, tt, queue, func() bool { return d.caret == snapshot.Len() })
+	if a.quickOpen.open || a.currentFile() != d {
+		t.Fatal("quick open did not jump to the last position in the current file")
+	}
+}
 
 type testQuickOpenWindow struct {
 	closed      func()
@@ -61,6 +118,7 @@ func TestQuickOpenIndependentSurfaceDismissAndReopen(t *testing.T) {
 	}
 	a.quickOpen.files = files
 	a.quickOpen.filesVersion++
+	panel.Frame()
 	panel.Key(0, native.KeyEscape)
 	main.Frame()
 	if a.quickOpen.open || a.quickOpen.window != nil || !windows[0].destroyed {
@@ -75,10 +133,36 @@ func TestQuickOpenIndependentSurfaceDismissAndReopen(t *testing.T) {
 		t.Fatal("picker did not follow the parent size")
 	}
 	panel = native.NewTester(a.quickOpenWindowView, 1000, 700)
+	if err := panel.Click("快速打开文件"); err != nil {
+		t.Fatal(err)
+	}
+	panel.Type("README")
+	if !panel.HasText("README.md") {
+		t.Fatal("reopened picker did not render matching files")
+	}
 	panel.Key(native.Cmd, native.KeyW)
 	main.Frame()
 	if a.quickOpen.open || !windows[1].destroyed {
 		t.Fatal("Cmd+W did not dismiss the independent picker")
+	}
+}
+
+func TestQuickOpenReopenedSurfaceOwnsRecentList(t *testing.T) {
+	a, queue, root := p4App(t)
+	a.quickOpen.newWindow = func(_ mygo.FlyoutOptions, closed func()) quickOpenWindow {
+		return &testQuickOpenWindow{closed: closed}
+	}
+	main := native.NewTester(a.view, 1280, 800)
+	a.openFile(root, filepath.Join(root, "README.md"))
+	p4Wait(t, main, queue, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	for attempt := 0; attempt < 2; attempt++ {
+		main.Key(native.Cmd, native.KeyP)
+		panel := native.NewTester(a.quickOpenWindowView, 1280, 800)
+		if !panel.HasText("README.md") {
+			t.Fatal("picker surface did not show the recent file")
+		}
+		panel.Key(0, native.KeyEscape)
+		main.Frame()
 	}
 }
 

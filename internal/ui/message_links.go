@@ -164,10 +164,11 @@ func (d *filePage) resolveFileLocation(viewportHeight float32) {
 		return
 	}
 	snapshot := d.buffer.Snapshot()
-	start, end := snapshot.LineRange(d.pendingLocation.line - 1)
+	line := min(max(d.pendingLocation.line-1, 0), snapshot.LineCount()-1)
+	start, end := snapshot.LineRange(line)
 	caret := start + min(d.pendingLocation.column-1, end-start)
 	d.pendingSelection = &[2]int{caret, caret}
-	line := snapshot.LineAt(caret)
+	line = snapshot.LineAt(caret)
 	maxScroll := max(0, float32(snapshot.LineCount())*20+16-viewportHeight)
 	d.scroll.Y = min(maxScroll, max(0, 8+float32(line)*20+10-viewportHeight/2))
 	d.pinFrame = 0

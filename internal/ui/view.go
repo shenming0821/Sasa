@@ -56,6 +56,9 @@ func (a *App) view(c *native.Context) {
 	if c.Shortcut(native.Cmd, native.KeyP) {
 		a.openQuickOpen()
 	}
+	if c.Shortcut(native.Ctrl, native.KeyG) {
+		a.openGoToLine()
+	}
 	if c.Shortcut(native.Cmd, native.KeyW) {
 		a.closeCurrentPage()
 	}

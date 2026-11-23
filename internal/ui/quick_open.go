@@ -24,6 +24,7 @@ const quickOpenRowHeight = 30
 type quickOpenState struct {
 	open           bool
 	query          string
+	lineTarget     *filePage
 	root           string
 	selected       int
 	reveal         bool
@@ -61,6 +62,16 @@ type quickOpenQuery struct {
 }
 
 func (a *App) openQuickOpen() {
+	a.openQuickPicker(nil)
+}
+
+func (a *App) openGoToLine() {
+	if d := a.currentFile(); d != nil && d.kind == "file" && d.loaded && d.buffer != nil {
+		a.openQuickPicker(d)
+	}
+}
+
+func (a *App) openQuickPicker(target *filePage) {
 	if a.quitting || a.quitDialog || a.settingsOpen || a.sessionRenameOpen ||
 		a.worktreeRenameOpen || a.worktreeCreate != nil || a.fileAction.open || a.viewerOpen {
 		return
@@ -75,8 +86,13 @@ func (a *App) openQuickOpen() {
 	}
 	q.root = a.workspaceCwd()
 	q.open = true
+	q.lineTarget = target
 	q.query = ""
 	q.selected = 0
+	if target != nil {
+		q.query = ":"
+		return
+	}
 	if q.filesRoot != q.root {
 		q.files, q.filtered, q.filterKey = nil, nil, ""
 	}
@@ -163,8 +179,34 @@ func quickOpenNumber(s string) (int, bool) {
 			return 0, false
 		}
 	}
-	n, _ := strconv.Atoi(s)
-	return n, true
+	n, err := strconv.Atoi(s)
+	return n, err == nil
+}
+
+func quickOpenLineLocation(text string) (fileLocation, bool) {
+	text = strings.TrimPrefix(strings.TrimSpace(strings.ReplaceAll(text, "：", ":")), ":")
+	lineText, columnText, hasColumn := strings.Cut(strings.TrimSpace(text), ":")
+	line, valid := quickOpenNumber(strings.TrimSpace(lineText))
+	if !valid || line < 1 {
+		return fileLocation{}, false
+	}
+	column := 1
+	if hasColumn && strings.TrimSpace(columnText) != "" {
+		column, valid = quickOpenNumber(strings.TrimSpace(columnText))
+	}
+	return fileLocation{line: line, column: column}, valid && column > 0
+}
+
+func (a *App) acceptGoToLine(text string) {
+	q := &a.quickOpen
+	d := a.currentFile()
+	location, valid := quickOpenLineLocation(text)
+	if !valid || d == nil || d.kind != "file" || !d.loaded || d.buffer == nil || (q.lineTarget != nil && q.lineTarget != d) {
+		return
+	}
+	d.pendingLocation = &location
+	d.focus, d.focusOwner = true, nil
+	q.open = false
 }
 
 // quickOpenRecent lists the root's open file pages, most recently visited
@@ -300,6 +342,7 @@ func (a *App) syncQuickOpenWindow(c *native.Context) {
 	width, height := c.Size()
 	w, h := max(1, int(width)), max(1, int(height))
 	if q.window == nil {
+		q.list = native.ListState{}
 		create := q.newWindow
 		if create == nil {
 			create = func(opts mygo.FlyoutOptions, closed func()) quickOpenWindow {
@@ -316,6 +359,7 @@ func (a *App) syncQuickOpenWindow(c *native.Context) {
 		}, func() {
 			q.window = nil
 			q.open = false
+			q.lineTarget = nil
 			if page := a.terminals[q.returnTerminal]; page != nil && a.activeTab == page.id {
 				page.focus = true
 			}
@@ -337,6 +381,9 @@ func (a *App) quickOpenWindowView(c *native.Context) {
 	if c.Shortcut(native.Cmd, native.KeyP) {
 		a.openQuickOpen()
 	}
+	if c.Shortcut(native.Ctrl, native.KeyG) {
+		a.openGoToLine()
+	}
 	a.quickOpenPanel(c)
 	if !a.quickOpen.open && a.win != nil {
 		a.win.Invalidate()
@@ -356,13 +403,16 @@ func (a *App) quickOpenPanel(c *native.Context) {
 		panel.Margin(top, 0, 0, 0).Padding(10).Gap(8).Radius(10).Background(t.Background).
 			Border(1, t.Border.Alpha(.7)).Shadow(0, 10, 30, 0, native.RGBA(0, 0, 0, 0.3)).
 			MaxHeight(height - top - 32)
-		a.loadQuickOpenFiles(false)
 		native.Column(c).Width(min(width-64, 560)).Gap(8).Children(func() {
-			input := native.TextInput(c, &q.query).Label("快速打开文件").Placeholder("按文件名搜索（:行号 跳转）").AutoFocus().FillWidth()
-			query := parseQuickQuery(q.query)
-			items := a.quickOpenItems(query)
-			q.selected = min(max(q.selected, 0), max(len(items)-1, 0))
+			label, placeholder := "快速打开文件", "按文件名搜索（:行号 跳转）"
+			if q.lineTarget != nil {
+				label, placeholder = "跳转到行", "输入行号或行号:列号"
+			}
+			input := native.TextInput(c.Key("query"), &q.query).Label(label).Placeholder(placeholder).AutoFocus().FillWidth()
 			composing := input.Composing()
+			lineMode := func(text string) bool {
+				return q.lineTarget != nil || strings.IndexAny(strings.TrimSpace(text), ":：") == 0
+			}
 			input.OnTextKey(func(k native.TextKey) bool {
 				if composing {
 					return false
@@ -371,6 +421,12 @@ func (a *App) quickOpenPanel(c *native.Context) {
 				case native.KeyDown, native.KeyUp, native.KeyEnter, native.KeyTab:
 				default:
 					return false
+				}
+				if lineMode(k.Text()) {
+					if k.Key == native.KeyEnter {
+						a.acceptGoToLine(k.Text())
+					}
+					return true
 				}
 				// Keys can arrive before another frame. Read the editor's
 				// current text instead of accepting the previous frame's result.
@@ -396,6 +452,21 @@ func (a *App) quickOpenPanel(c *native.Context) {
 				}
 				return false
 			})
+			if lineMode(q.query) {
+				if input.Submitted() {
+					a.acceptGoToLine(q.query)
+				}
+				hint := "打开文件后可跳转到指定行"
+				if d := a.currentFile(); d != nil && d.kind == "file" && d.loaded && d.buffer != nil {
+					hint = fmt.Sprintf("输入行号（1–%d）或行号:列号，按回车跳转", d.buffer.Snapshot().LineCount())
+				}
+				native.Text(c, hint).FontSize(12).TextColor(t.TextMuted)
+				return
+			}
+			a.loadQuickOpenFiles(false)
+			query := parseQuickQuery(q.query)
+			items := a.quickOpenItems(query)
+			q.selected = min(max(q.selected, 0), max(len(items)-1, 0))
 			if input.Submitted() && len(items) > 0 {
 				a.acceptQuickOpen(items[q.selected], query)
 			}
