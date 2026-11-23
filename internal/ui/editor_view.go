@@ -955,6 +955,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				return false
 			}))
 			area.Draw(func(p *native.Painter, r native.Rect) {
+				if d.kind == "file" {
+					a.paintIndentGuides(p, r, d, snap, palette)
+				}
 				if d.kind == "diff" {
 					first := max(0, d.lines.At(d.scroll.Y-8)-1)
 					last := min(len(d.gitRows), d.lines.At(d.scroll.Y+r.H-8)+2)

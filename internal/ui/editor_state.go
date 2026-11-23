@@ -125,6 +125,7 @@ type filePage struct {
 	wordBlocked                                                         bool
 	wordBuffer                                                          *native.TextBuffer
 	wordVersion                                                         uint64
+	indentGuides                                                        editorIndentGuides
 	pendingSelection                                                    *[2]int
 	pendingLocation                                                     *fileLocation
 	highlights                                                          []syntaxToken
