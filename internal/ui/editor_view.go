@@ -1000,7 +1000,11 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 						}
 					}
 				}
-				a.paintWordMatches(p, r, d, snap, palette)
+				if d.kind == "file" || len(d.gitRows) > 0 {
+					blocked := d.findOpen && len(d.findMatches) > 0
+					font := native.Font{Family: a.codeFontFamily(), Size: 13}
+					d.wordMatchCache.paint(p, r, d.buffer, snap, [2]int{d.anchor, d.caret}, blocked, &d.lines, d.scroll.Y, 8, font, palette.text)
+				}
 				a.paintFileMatches(p, r, d, snap, search)
 				a.paintBracketPair(p, r, d, snap, palette)
 			})
@@ -1531,62 +1535,64 @@ func utf16Len(rs []rune) int {
 	return n
 }
 
-// matchWords caches the visible occurrences of the text selected on one
-// line, painted quietly by paintWordMatches. An open find with its own
-// matches wins.
-func (d *filePage) matchWords(snap native.TextSnapshot, first, last int) {
-	sel := [2]int{d.anchor, d.caret}
-	blocked := d.findOpen && len(d.findMatches) > 0
-	if d.wordBuffer == d.buffer && d.wordVersion == snap.Version() && d.wordSel == sel && d.wordFirst == first && d.wordLast == last && d.wordBlocked == blocked {
+type wordMatchCache struct {
+	words       []findMatch
+	buffer      *native.TextBuffer
+	version     uint64
+	selection   [2]int
+	first, last int
+	blocked     bool
+}
+
+func (cache *wordMatchCache) match(buffer *native.TextBuffer, snap native.TextSnapshot, sel [2]int, first, last int, blocked bool) {
+	if cache.buffer == buffer && cache.version == snap.Version() && cache.selection == sel && cache.first == first && cache.last == last && cache.blocked == blocked {
 		return
 	}
-	d.wordBuffer, d.wordVersion, d.wordSel = d.buffer, snap.Version(), sel
-	d.wordFirst, d.wordLast, d.wordBlocked = first, last, blocked
-	d.words = d.words[:0]
+	cache.buffer, cache.version, cache.selection = buffer, snap.Version(), sel
+	cache.first, cache.last, cache.blocked = first, last, blocked
+	cache.words = cache.words[:0]
 	a0, b0 := min(sel[0], sel[1]), max(sel[0], sel[1])
 	a0, b0 = min(a0, snap.Len()), min(b0, snap.Len())
-	if d.kind != "file" || blocked || a0 == b0 || b0-a0 > 200 || snap.LineAt(a0) != snap.LineAt(b0) {
+	if blocked || a0 == b0 || b0-a0 > 200 || snap.LineAt(a0) != snap.LineAt(b0) {
 		return
 	}
 	word := snap.Slice(a0, b0)
 	if strings.TrimSpace(word) == "" {
 		return
 	}
-	for i := first; i <= last && len(d.words) <= 400; i++ {
+	wordLength := b0 - a0
+	for i := first; i <= last && len(cache.words) < 400; i++ {
 		s, e := snap.LineRange(i)
 		if e-s > 2000 {
 			continue
 		}
 		text := snap.Slice(s, e)
-		for at := 0; ; {
+		for at := 0; len(cache.words) < 400; {
 			k := strings.Index(text[at:], word)
 			if k < 0 {
 				break
 			}
 			k += at
 			start := s + utf8.RuneCountInString(text[:k])
-			d.words = append(d.words, findMatch{start: start, end: start + utf8.RuneCountInString(word)})
+			cache.words = append(cache.words, findMatch{start: start, end: start + wordLength})
 			at = k + len(word)
 		}
 	}
 }
 
-// paintWordMatches fills the occurrences matchWords found with a quiet
-// text-tinted block, lighter than the find-match accent blocks.
-func (a *App) paintWordMatches(p *native.Painter, r native.Rect, d *filePage, snap native.TextSnapshot, palette editorPalette) {
-	first := max(0, d.lines.At(d.scroll.Y-8)-1)
-	last := min(snap.LineCount()-1, d.lines.At(d.scroll.Y+r.H-8)+2)
-	d.matchWords(snap, first, last)
-	if len(d.words) == 0 || d.wordBuffer != d.buffer || d.wordVersion != snap.Version() {
+func (cache *wordMatchCache) paint(p *native.Painter, r native.Rect, buffer *native.TextBuffer, snap native.TextSnapshot, sel [2]int, blocked bool, lines *native.TextLines, scrollY, topPadding float32, font native.Font, textColor native.Color) {
+	first := max(0, lines.At(scrollY-topPadding)-1)
+	last := min(snap.LineCount()-1, lines.At(scrollY+r.H-topPadding)+2)
+	cache.match(buffer, snap, sel, first, last, blocked)
+	if len(cache.words) == 0 {
 		return
 	}
 	textX := r.X + 58
-	font := native.Font{Family: a.codeFontFamily(), Size: 13}
-	sel0, sel1 := min(d.wordSel[0], d.wordSel[1]), max(d.wordSel[0], d.wordSel[1])
+	sel0, sel1 := min(sel[0], sel[1]), max(sel[0], sel[1])
 	line, lineStart, lineEnd := -1, 0, 0
 	var lineRunes []rune
 	var layout *native.TextLayout
-	for _, m := range d.words {
+	for _, m := range cache.words {
 		if sel0 != sel1 && m.start == sel0 && m.end == sel1 {
 			continue // the selection itself
 		}
@@ -1605,8 +1611,8 @@ func (a *App) paintWordMatches(p *native.Painter, r native.Rect, d *filePage, sn
 		if x1 <= textX {
 			continue
 		}
-		y := r.Y + 8 + d.lines.Top(l) - d.scroll.Y
-		p.Fill(native.Rect{X: max(x0, textX) - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}, palette.text.Alpha(.14), 3)
+		y := r.Y + topPadding + lines.Top(l) - scrollY
+		p.Fill(native.Rect{X: max(x0, textX) - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}, textColor.Alpha(.14), 3)
 	}
 }
 func (a *App) confirmFile(d *filePage, title, detail string, fn func()) {

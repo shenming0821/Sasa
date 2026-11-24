@@ -145,3 +145,56 @@ func TestDiffSourcePresentationAndNavigation(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitDiffSelectionHighlights(t *testing.T) {
+	for _, test := range []struct {
+		name, label string
+		split       bool
+		padding     float32
+	}{
+		{"inline", "文件内容 ", false, 8},
+		{"old version", "差异 原版本", true, 6},
+		{"new version", "差异 新版本", true, 6},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a, queue, root := p4App(t)
+			path := filepath.Join(root, "提交 abc1234")
+			patch := "@@ -1,3 +1,3 @@\n same first\n same second\n-old\n+new\n"
+			review := gitview.ParsePatch(patch)
+			review.Entry.Path = "sample.txt"
+			d := &filePage{id: "commit", root: root, path: path, kind: "diff", gitDiffState: gitDiffState{gitCommit: "abc1234", gitSplit: test.split}}
+			a.gitSetDiffText(d, patch, &review)
+			a.files = map[string]*filePage{d.id: d}
+			tester := native.NewTester(func(c *native.Context) {
+				native.Row(c).Fill().Children(func() { a.fileView(c, d, false, false) })
+			}, 1100, 600)
+			p4Wait(t, tester, queue, func() bool { return !d.highlighting && d.contentWidth > 0 })
+			label, cache := test.label, &d.gitSplitWords
+			if !test.split {
+				label, cache = label+path, &d.wordMatchCache
+			}
+			area, ok := tester.Find(label)
+			if !ok {
+				t.Fatalf("missing diff area %q", label)
+			}
+			matchX, matchY := int(area.X+62), int(area.Y+test.padding+36)
+			before := tester.Image().RGBAAt(matchX, matchY)
+			tester.ClickAt(area.X+58, area.Y+test.padding+10)
+			for range len("same") {
+				tester.Key(native.Shift, native.KeyRight)
+			}
+			tester.Frame()
+			if len(cache.words) != 2 || cache.words[1] != (findMatch{start: 11, end: 15}) {
+				t.Fatalf("missing matching word: %v (selection %v)", cache.words, cache.selection)
+			}
+			if tester.Image().RGBAAt(matchX, matchY) == before {
+				t.Fatal("matching word background was not painted")
+			}
+			tester.ClickAt(area.X+100, area.Y+test.padding+10)
+			tester.Frame()
+			if color := tester.Image().RGBAAt(matchX, matchY); len(cache.words) != 0 || color != before {
+				t.Fatalf("clearing the selection kept the match highlighted: words %v, selection %v, pixel %v, baseline %v", cache.words, cache.selection, color, before)
+			}
+		})
+	}
+}

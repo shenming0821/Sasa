@@ -254,7 +254,8 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 					if d.buffer != nil && d.highlightVersion == d.buffer.Version() {
 						area.TextRanges(palette.ranges(highlights, start, end)...)
 					}
-					_, caret := area.TextAnchorCaret()
+					anchor, caret := area.TextAnchorCaret()
+					focused := area.Focused()
 					if caret != d.gitSplitCaret[sideIndex] {
 						d.gitSplitCaret[sideIndex] = caret
 						line := side.buffer.Snapshot().LineAt(caret)
@@ -278,6 +279,10 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 									p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: height}, palette.accent, 0)
 								}
 							}
+						}
+						if focused {
+							font := native.Font{Family: a.codeFontFamily(), Size: 12}
+							d.gitSplitWords.paint(p, r, side.buffer, snapshot, [2]int{anchor, caret}, false, side.lines, side.scroll.Y, 6, font, palette.text)
 						}
 					})
 					area.DrawOver(func(p *native.Painter, r native.Rect) {

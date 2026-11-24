@@ -84,6 +84,7 @@ type treeRow struct {
 }
 type filePage struct {
 	gitDiffState
+	wordMatchCache
 	id, root, path, kind, compare                                       string
 	file                                                                editor.File
 	buffer                                                              *native.TextBuffer
@@ -119,12 +120,6 @@ type filePage struct {
 	bracketStart, bracketEnd, bracketCaret                              int
 	bracketBuffer                                                       *native.TextBuffer
 	bracketVersion                                                      uint64
-	words                                                               []findMatch
-	wordSel                                                             [2]int
-	wordFirst, wordLast                                                 int
-	wordBlocked                                                         bool
-	wordBuffer                                                          *native.TextBuffer
-	wordVersion                                                         uint64
 	indentGuides                                                        editorIndentGuides
 	pendingSelection                                                    *[2]int
 	pendingLocation                                                     *fileLocation

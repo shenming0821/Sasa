@@ -103,6 +103,7 @@ type gitDiffState struct {
 	gitRightWidth                         float32
 	gitSplitY                             float32
 	gitSplitCaret                         [2]int
+	gitSplitWords                         wordMatchCache
 	gitCommit                             string
 	gitCommitInfo                         gitview.CommitInfo
 	gitCommitFiles                        []gitview.Entry
@@ -592,6 +593,9 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	if review != nil && (!d.loaded || previous == nil || previous.Entry.Path != review.Entry.Path) {
 		d.gitHunk = 0
 		d.gitInitialCenter = [2]bool{len(review.Hunks) > 0, len(review.Hunks) > 0}
+		if previous != nil && previous.Entry.Path != review.Entry.Path {
+			d.anchor, d.caret, d.pendingSelection = 0, 0, nil
+		}
 	}
 	rows, pairs := diffCodeRows(review)
 	d.gitRows, d.gitPairs = rows, pairs
@@ -620,6 +624,7 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	d.loaded, d.resync = true, true
 	d.gitLeft, d.gitRight = nil, nil
 	d.gitLeftLines, d.gitRightLines = native.TextLines{}, native.TextLines{}
+	d.wordMatchCache, d.gitSplitWords = wordMatchCache{}, wordMatchCache{}
 }
 
 func (a *App) gitRefreshStats(w *workspacePage) {

@@ -81,6 +81,7 @@ func (a *App) trimEditorCaches() {
 			d.gitLeftLines, d.gitRightLines = native.TextLines{}, native.TextLines{}
 			d.gitRows, d.gitPairs = nil, nil
 			d.gitLeftHighlights, d.gitRightHighlights = nil, nil
+			d.wordMatchCache, d.gitSplitWords = wordMatchCache{}, wordMatchCache{}
 		}
 	}
 	// Release watchers once neither the selected workspace nor an open file uses them.
