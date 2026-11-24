@@ -289,6 +289,56 @@ func TestP4FindHighlightsAllMatchesAndSteps(t *testing.T) {
 	}
 }
 
+func TestP4FindBarArrowButtonsStepAndDisable(t *testing.T) {
+	a, q, root := p4App(t)
+	tt := native.NewTester(a.view, 1100, 760)
+	path := filepath.Join(root, "README.md")
+	a.openFile(root, path)
+	p4Wait(t, tt, q, func() bool { return a.currentFile() != nil && a.currentFile().loaded })
+	d := a.currentFile()
+	d.buffer.Set("sasa one\nsasa two\nSASA three\n")
+	d.observe()
+	d.findOpen = true
+	tt.Frame()
+	if _, ok := tt.Find("上一个匹配"); !ok {
+		t.Fatal("previous match arrow button missing")
+	}
+	if _, ok := tt.Find("下一个匹配"); !ok {
+		t.Fatal("next match arrow button missing")
+	}
+	d.query = "sasa"
+	p4Wait(t, tt, q, func() bool { return d.findScanned && len(d.findMatches) == 3 && d.findResult == "1/3" })
+	if err := tt.Click("下一个匹配"); err != nil {
+		t.Fatal(err)
+	}
+	if d.findIndex != 1 || d.findResult != "2/3" || d.anchor != 9 || d.caret != 13 {
+		t.Fatal("next arrow button did not advance to second match", d.findIndex, d.findResult, d.anchor, d.caret)
+	}
+	if err := tt.Click("上一个匹配"); err != nil {
+		t.Fatal(err)
+	}
+	if d.findIndex != 0 || d.findResult != "1/3" || d.anchor != 0 || d.caret != 4 {
+		t.Fatal("previous arrow button did not return to first match", d.findIndex, d.findResult, d.anchor, d.caret)
+	}
+	if err := tt.Click("上一个匹配"); err != nil {
+		t.Fatal(err)
+	}
+	if d.findIndex != 2 || d.findResult != "3/3" || d.anchor != 18 || d.caret != 22 {
+		t.Fatal("previous arrow button did not wrap to last match", d.findIndex, d.findResult, d.anchor, d.caret)
+	}
+	d.query = "nomatch"
+	p4Wait(t, tt, q, func() bool { return d.findScanned && d.findResult == "没有匹配" })
+	if err := tt.Click("上一个匹配"); err != nil {
+		t.Fatal(err)
+	}
+	if err := tt.Click("下一个匹配"); err != nil {
+		t.Fatal(err)
+	}
+	if d.findIndex != -1 || d.findResult != "没有匹配" {
+		t.Fatal("disabled arrow buttons mutated unmatched state", d.findIndex, d.findResult)
+	}
+}
+
 func TestP4FindSeedsSelectedWord(t *testing.T) {
 	a, q, root := p4App(t)
 	tt := native.NewTester(a.view, 1100, 760)

@@ -1032,7 +1032,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 			})
 			if d.findOpen {
-				native.Row(c).Attach(native.AnchorTopRight, native.AnchorTopRight).Top(6).Right(16).Padding(4, 10).Gap(8).AlignItems(native.Center).
+				native.Row(c.Key("editor-find")).Attach(native.AnchorTopRight, native.AnchorTopRight).Top(6).Right(16).Padding(4, 10).Gap(8).AlignItems(native.Center).
 					Background(t.Background).Border(1, t.Border.Alpha(.7)).Radius(t.Radius).Shadow(0, 2, 10, 0, native.RGBA(0, 0, 0, .08)).Children(func() {
 					searchField(c).Width(280).Children(func() {
 						input := native.TextInputBase(c, &d.query).Label("文件内查找").Placeholder("查找文本").Grow(1).MinWidth(0).FontSize(12).Padding(4)
@@ -1068,7 +1068,11 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 						d.findCase = !d.findCase
 						a.findInFile(d, false)
 					}
-					if actionButton(c, "下一个").Clicked() {
+					none := stale || len(d.findMatches) == 0
+					if gitIconButton(c.Key("find-prev"), "上一个匹配", upIcon, none, "上一个匹配（⇧⏎）").Clicked() {
+						a.findInFile(d, true)
+					}
+					if gitIconButton(c.Key("find-next"), "下一个匹配", downIcon, none, "下一个匹配（⏎）").Clicked() {
 						a.findInFile(d, false)
 					}
 					if quietIconButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
