@@ -339,7 +339,7 @@ func (a *App) modelPicker(c *native.Context) {
 
 func (a *App) modelMenu(c *native.Context) {
 	root := a.session
-	disabled := a.State.Busy || a.State.Disconnected || a.recovering || a.recoveryBlocked || a.forking
+	disabled := a.State.Disconnected || a.recovering || a.recoveryBlocked || a.writerOccupied || a.forking
 	if _, ok := a.sessionBackend().(modelSender); !ok {
 		disabled = true
 	}
@@ -366,6 +366,9 @@ func (a *App) modelMenu(c *native.Context) {
 				a.loadModels()
 			}
 		})
+		if a.State.Busy && !disabled {
+			native.Text(c, "选择的模型将在下一轮生效").FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 8)
+		}
 		row := func(label, value string) {
 			b := treeButton(c.Key(value), "选择模型 "+label).FillWidth().Padding(8).Disabled(disabled)
 			b.Children(func() {
@@ -424,7 +427,7 @@ func (a *App) modelMenu(c *native.Context) {
 				}
 			})
 		})
-		a.turnOptionsMenu(c, disabled)
+		a.turnOptionsMenu(c, disabled || a.State.Busy)
 		if root.modelsLoading && !root.modelsLoaded {
 			native.Text(c, "读取模型列表…").FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 8)
 		}
@@ -495,26 +498,27 @@ func modelHasTier(m *agent.Model, tier string) bool {
 	return false
 }
 
-// sendTurnOptions drops stored choices the loaded catalog no longer offers for
-// the selected model; without catalog evidence the stored value is sent as-is.
-func (a *App) sendTurnOptions() (effort, tier string) {
-	effort, tier = a.selectedEffort, a.selectedTier
+func (a *App) selectedTurnOptions() agent.TurnOptions {
+	return agent.TurnOptions{Model: a.selectedModel, Effort: a.selectedEffort, ServiceTier: a.selectedTier, Mode: a.selectedMode}
+}
+
+func (a *App) supportedTurnOptions(options agent.TurnOptions) agent.TurnOptions {
 	if !a.modelsLoaded {
-		return effort, tier
+		return options
 	}
 	for i := range a.models {
-		if a.models[i].Model != a.selectedModel {
+		if a.models[i].Model != options.Model {
 			continue
 		}
-		if effort != "" && !modelHasEffort(&a.models[i], effort) {
-			effort = ""
+		if options.Effort != "" && !modelHasEffort(&a.models[i], options.Effort) {
+			options.Effort = ""
 		}
-		if tier != "" && !modelHasTier(&a.models[i], tier) {
-			tier = ""
+		if options.ServiceTier != "" && !modelHasTier(&a.models[i], options.ServiceTier) {
+			options.ServiceTier = ""
 		}
 		break
 	}
-	return effort, tier
+	return options
 }
 
 func effortLabel(effort string) string {

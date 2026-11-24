@@ -220,17 +220,18 @@ func TestModelMenuSelectionIsolationPersistenceAndDetails(t *testing.T) {
 		t.Fatal("session lost selection")
 	}
 	a.State.Busy = true
+	a.State.Model = "provider/one"
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	tt.Click("选择模型 Model Two")
-	if a.selectedModel != "provider/one" {
-		t.Fatal("model changed during active turn")
+	if !tt.HasText("选择的模型将在下一轮生效") {
+		t.Fatal("model picker did not indicate when the choice takes effect")
 	}
-	a.State.Busy = false
-	tt.Frame()
 	if err := tt.Click("选择模型 Model Two"); err != nil {
 		t.Fatal(err)
+	}
+	if a.selectedModel != "provider/two" || a.State.Model != "provider/one" || !a.State.Busy {
+		t.Fatal("the next model selection changed the active turn")
 	}
 	restored := New(b, "test", "/workspace", nil)
 	if err := restored.AttachStore(store); err != nil {
@@ -239,6 +240,7 @@ func TestModelMenuSelectionIsolationPersistenceAndDetails(t *testing.T) {
 	if restored.selectedModel != "provider/two" {
 		t.Fatal("selection not restored", restored.selectedModel)
 	}
+	a.State.Busy = false
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
@@ -501,8 +503,8 @@ func TestStaleTurnOptionsFallBackToModelCapabilities(t *testing.T) {
 	a := New(&modelCaptureBackend{}, "test", "/workspace", nil)
 	a.selectedModel = "provider/one"
 	a.selectedEffort, a.selectedTier = "ultra", "flex"
-	if effort, tier := a.sendTurnOptions(); effort != "ultra" || tier != "flex" {
-		t.Fatal("unloaded catalog should not rewrite choices", effort, tier)
+	if options := a.supportedTurnOptions(a.selectedTurnOptions()); options.Effort != "ultra" || options.ServiceTier != "flex" {
+		t.Fatal("unloaded catalog should not rewrite choices", options)
 	}
 	a.modelsLoaded = true
 	a.models = []codex.Model{{
@@ -511,17 +513,17 @@ func TestStaleTurnOptionsFallBackToModelCapabilities(t *testing.T) {
 			{ReasoningEffort: "low"}, {ReasoningEffort: "high"}},
 		ServiceTiers: []agent.ModelServiceTier{{ID: "priority"}},
 	}}
-	if effort, tier := a.sendTurnOptions(); effort != "" || tier != "" {
-		t.Fatal("unsupported choices were sent", effort, tier)
+	if options := a.supportedTurnOptions(a.selectedTurnOptions()); options.Effort != "" || options.ServiceTier != "" {
+		t.Fatal("unsupported choices were sent", options)
 	}
 	a.selectedEffort, a.selectedTier = "high", "default"
-	if effort, tier := a.sendTurnOptions(); effort != "high" || tier != "default" {
-		t.Fatal("supported choices were dropped", effort, tier)
+	if options := a.supportedTurnOptions(a.selectedTurnOptions()); options.Effort != "high" || options.ServiceTier != "default" {
+		t.Fatal("supported choices were dropped", options)
 	}
 	a.selectedEffort, a.selectedTier = "ultra", "flex"
 	a.selectedModel = "provider/removed"
-	if effort, tier := a.sendTurnOptions(); effort != "ultra" || tier != "flex" {
-		t.Fatal("missing catalog entry rewrote choices", effort, tier)
+	if options := a.supportedTurnOptions(a.selectedTurnOptions()); options.Effort != "ultra" || options.ServiceTier != "flex" {
+		t.Fatal("missing catalog entry rewrote choices", options)
 	}
 }
 

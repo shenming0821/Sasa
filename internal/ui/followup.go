@@ -29,17 +29,16 @@ func (a *App) enqueueInput(text string, images []attachment.Image) {
 		return
 	}
 	identity[6], identity[8] = identity[6]&0x0f|0x40, identity[8]&0x3f|0x80
-	effort, tier := a.sendTurnOptions()
 	pending := storage.PendingInput{
 		CreatedAt: time.Now(),
 		ID:        fmt.Sprintf("%x-%x-%x-%x-%x", identity[:4], identity[4:6], identity[6:8], identity[8:10], identity[10:]),
 		Text:      text, Images: images, Skills: a.draftSkills(text), Status: "queued",
-		Options: agent.TurnOptions{Model: a.selectedModel, Effort: effort, ServiceTier: tier, Mode: a.selectedMode},
+		Options: a.supportedTurnOptions(a.selectedTurnOptions()),
+	}
+	if _, ok := a.sessionBackend().(agent.TurnSteerer); ok && a.State.Busy && a.usesActiveModel(pending.Options.Model) {
+		pending.TurnID = a.State.TurnID
 	}
 	a.pendingInputs = append(a.pendingInputs, pending)
-	if _, ok := a.sessionBackend().(agent.TurnSteerer); ok && a.State.Busy {
-		a.pendingInputs[len(a.pendingInputs)-1].TurnID = a.State.TurnID
-	}
 	a.restorePendingMessages()
 	draft, draftImages := a.State.Draft, a.State.DraftImages
 	a.State.Draft, a.State.DraftImages = "", nil
@@ -184,6 +183,10 @@ func (a *App) settleInputsFromHistory(turns []agent.HistoryTurn) error {
 	return nil
 }
 
+func (a *App) usesActiveModel(model string) bool {
+	return model == "" || model == a.activeModel
+}
+
 func (a *App) drainInputs() {
 	if a.edit != nil || a.followupSending || !a.canComposeTask() {
 		return
@@ -201,10 +204,6 @@ func (a *App) drainInputs() {
 			return
 		}
 		draft, images := a.State.Draft, a.State.DraftImages
-		model, effort, tier := a.selectedModel, a.selectedEffort, a.selectedTier
-		mode := a.selectedMode
-		a.selectedMode = pending.Options.Mode
-		a.selectedModel, a.selectedEffort, a.selectedTier = pending.Options.Model, pending.Options.Effort, pending.Options.ServiceTier
 		sequence := a.State.Sequence
 		for _, skill := range pending.Skills {
 			if a.completion.chosen == nil {
@@ -213,9 +212,7 @@ func (a *App) drainInputs() {
 			a.completion.chosen[skill.Name] = skill
 		}
 		a.pendingInputs = slices.Delete(a.pendingInputs, index, index+1)
-		a.sendInputForMessage(pending.Text, pending.Images, false, pending.ID)
-		a.selectedModel, a.selectedEffort, a.selectedTier = model, effort, tier
-		a.selectedMode = mode
+		a.sendInputForMessage(pending.Text, pending.Images, false, pending.ID, pending.Options)
 		a.State.Draft, a.State.DraftImages = draft, images
 		if a.State.Sequence == sequence || !a.State.Busy {
 			pending.Status, pending.Error = "failed", a.State.Error
@@ -227,7 +224,8 @@ func (a *App) drainInputs() {
 		return
 	}
 	sender, ok := a.sessionBackend().(agent.TurnSteerer)
-	if !ok || pending.Options.Mode != a.activeMode || a.State.TurnID == "" || a.submitCancel != nil || a.State.PendingSubmission() != nil {
+	if !ok || pending.Options.Mode != a.activeMode || !a.usesActiveModel(pending.Options.Model) ||
+		a.State.TurnID == "" || a.submitCancel != nil || a.State.PendingSubmission() != nil {
 		return
 	}
 	threadID, turnID := a.State.ThreadID, a.State.TurnID

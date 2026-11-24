@@ -36,6 +36,7 @@ type session struct {
 	selectedTier      string
 	selectedMode      agent.InteractionMode
 	activeMode        agent.InteractionMode
+	activeModel       string
 	executedPlanID    string
 	effortPin         string
 	modelResolving    bool

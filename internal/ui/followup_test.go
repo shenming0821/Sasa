@@ -178,6 +178,71 @@ func TestFollowupFallbackWaitsAndPreservesNewDraft(t *testing.T) {
 	}
 }
 
+type modelSteerBackend struct {
+	*modelCaptureBackend
+}
+
+func (*modelSteerBackend) Steer(context.Context, string, string, string, string, []agent.Skill, []attachment.Image) error {
+	return errors.New("a message for a different model must start a new turn")
+}
+
+func TestFollowupWithDifferentModelStartsNextTurn(t *testing.T) {
+	for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+		t.Run(string(kind), func(t *testing.T) {
+			capture := &modelCaptureBackend{request: make(chan modelRequest, 1)}
+			var backend Backend = stubBackend{}
+			if kind == agent.Codex {
+				backend = &modelSteerBackend{modelCaptureBackend: capture}
+			}
+			desktop := activeFollowupApp(backend)
+			if kind == agent.Claude {
+				if err := desktop.RegisterBackend(kind, "fixture", capture); err != nil {
+					t.Fatal(err)
+				}
+				desktop.kind, desktop.State.Agent, desktop.runtimeKey = kind, kind, "fixture"
+			}
+			store := imageStore(t, desktop)
+			updates := make(chan func(), 8)
+			desktop.dispatch = func(update func()) { updates <- update }
+			desktop.activeModel, desktop.State.Model = "provider/one", "provider/one"
+			desktop.selectedModel, desktop.selectedEffort = "provider/two", "high"
+			desktop.State.Draft = "next task"
+			desktop.send()
+			if len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].Status != "queued" ||
+				desktop.pendingInputs[0].TurnID != "" || desktop.followupSending || len(capture.request) != 0 {
+				t.Fatal("message was submitted to the active turn", desktop.pendingInputs)
+			}
+			desktop.selectedModel, desktop.selectedEffort = "provider/three", "low"
+			desktop.rememberModel(desktop.selectedModel)
+			event := agent.Event{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread","turn":{"id":"turn","status":"completed"}}`)}
+			if kind == agent.Claude {
+				event.Session = agent.SessionKey{Agent: kind, Runtime: "fixture", SessionID: "thread"}
+			}
+			desktop.applySessionBatch([]agent.Event{event})
+			select {
+			case request := <-capture.request:
+				if request.options.Model != "provider/two" || request.options.Effort != "high" {
+					t.Fatal("next turn lost the submitted options", request.options)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("queued message did not start a new turn")
+			}
+			snapshot, err := store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(snapshot.Sessions) != 1 || snapshot.Sessions[0].SelectedModel != "provider/three" || snapshot.Sessions[0].SelectedEffort != "low" {
+				t.Fatal("sending the queued message overwrote the saved model preference")
+			}
+			pumpUpdate(t, updates)
+			if !desktop.State.Busy || desktop.State.TurnID != "model-turn" || desktop.activeModel != "provider/two" ||
+				desktop.selectedModel != "provider/three" || desktop.lastModels[modelPreferenceKey(kind, desktop.runtimeKey)] != "provider/three" {
+				t.Fatal("the turn acknowledgement overwrote the next model selection")
+			}
+		})
+	}
+}
+
 func TestInterruptedFollowupQueueRemainsPaused(t *testing.T) {
 	desktop := activeFollowupApp(stubBackend{})
 	desktop.State.Draft = "later"

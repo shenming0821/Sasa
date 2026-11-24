@@ -274,10 +274,10 @@ func (a *App) send() {
 }
 
 func (a *App) sendInput(text string, images []attachment.Image, edited bool) {
-	a.sendInputForMessage(text, images, edited, "")
+	a.sendInputForMessage(text, images, edited, "", a.selectedTurnOptions())
 }
 
-func (a *App) sendInputForMessage(text string, images []attachment.Image, edited bool, messageID string) {
+func (a *App) sendInputForMessage(text string, images []attachment.Image, edited bool, messageID string, options agent.TurnOptions) {
 	if !a.canSubmitTask() || strings.TrimSpace(text) == "" && len(images) == 0 {
 		return
 	}
@@ -303,19 +303,17 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 		}
 	}
 	modelBackend, supportsModels := a.sessionBackend().(modelSender)
-	if a.selectedModel != "" && !supportsModels {
+	if options.Model != "" && !supportsModels {
 		a.modelError = "当前连接不支持切换模型"
 		return
 	}
-	selectedModel := a.selectedModel
-	selectedMode := a.selectedMode
-	if selectedMode != "" {
+	if options.Mode != "" {
 		if _, ok := a.sessionBackend().(optionSender); !ok {
 			a.State.Error = "当前连接不支持计划模式"
 			return
 		}
 	}
-	selectedEffort, selectedTier := a.sendTurnOptions()
+	options = a.supportedTurnOptions(options)
 	skills := a.draftSkills(text)
 	if edited {
 		chosen := make(map[string]agent.Skill)
@@ -334,7 +332,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 	a.State.DraftImages = images
 	a.titleConversationChanged(time.Now())
 	a.State.BeginMessage(text, messageID)
-	a.activeMode = selectedMode
+	a.activeMode, a.activeModel = options.Mode, options.Model
 	if edited {
 		a.State.Draft, a.State.DraftImages = draft, draftImages
 		message := a.State.Messages[len(a.State.Messages)-1]
@@ -358,10 +356,9 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 	a.submitStop = false
 	go func() {
 		defer cancel()
-		model := selectedModel
-		if supportsModels && model == "" {
+		if supportsModels && options.Model == "" {
 			var err error
-			model, err = modelBackend.DefaultModel(ctx, cwd)
+			options.Model, err = modelBackend.DefaultModel(ctx, cwd)
 			if err != nil {
 				a.update(func() {
 					if a.State.Sequence == sequence {
@@ -429,10 +426,9 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 		var err error
 		if supportsModels {
 			if sender, ok := modelBackend.(optionSender); ok {
-				turn, err = sender.SendWithOptions(ctx, threadID, text, skills, images,
-					agent.TurnOptions{Model: model, Effort: selectedEffort, ServiceTier: selectedTier, Mode: selectedMode})
+				turn, err = sender.SendWithOptions(ctx, threadID, text, skills, images, options)
 			} else {
-				turn, err = modelBackend.SendWithModel(ctx, threadID, text, skills, images, model)
+				turn, err = modelBackend.SendWithModel(ctx, threadID, text, skills, images, options.Model)
 			}
 		} else if sender, ok := a.sessionBackend().(imageSender); ok && len(images) > 0 {
 			turn, err = sender.SendWithImages(ctx, threadID, text, skills, images)
@@ -457,9 +453,12 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 						a.editSending = false
 					}
 				}
-				a.rememberModel(model)
-				if model != "" && a.kind.Normalized() != agent.Claude {
-					a.State.Model = model
+				a.activeModel = options.Model
+				if a.selectedModel == "" || a.selectedModel == options.Model {
+					a.rememberModel(options.Model)
+				}
+				if options.Model != "" && a.kind.Normalized() != agent.Claude {
+					a.State.Model = options.Model
 				}
 				if a.State.Busy {
 					stopping := a.State.Stopping()
