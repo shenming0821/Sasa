@@ -1042,10 +1042,12 @@ func (a *App) refreshGit(w *workspacePage) {
 		var s gitview.Status
 		var remotes []string
 		var operation string
+		var historyRefs string
 		err := ctx.Err()
 		if err == nil {
 			s, err = gitview.Read(ctx, w.root)
 			if err == nil {
+				historyRefs, _ = gitview.HistoryRefsFingerprint(ctx, w.root)
 				remotes, _ = gitview.Remotes(ctx, w.root)
 				operation = gitview.InProgress(ctx, w.root)
 			}
@@ -1073,16 +1075,19 @@ func (a *App) refreshGit(w *workspacePage) {
 				return
 			}
 			w.gitRemotes, w.gitOperation = remotes, operation
+			if historyRefs != "" && w.gitHistoryRefs != historyRefs {
+				w.gitHistoryRefs = historyRefs
+				w.invalidateGitHistory()
+			}
 			a.applyGitStatus(w, s)
 		})
 	})
 }
 
 func (a *App) applyGitStatus(w *workspacePage, status gitview.Status) {
-	if w.git.Head != status.Head || w.git.Upstream != status.Upstream || (!w.gitHistoryTime.IsZero() && time.Since(w.gitHistoryTime) > 5*time.Second) {
-		if !w.gitHistoryLoading {
-			w.gitHistoryLoaded = false
-		}
+	if w.git.Head != status.Head || w.git.Branch != status.Branch || w.git.Upstream != status.Upstream ||
+		w.git.Ahead != status.Ahead || w.git.Behind != status.Behind {
+		w.invalidateGitHistory()
 	}
 
 	w.gitError = ""

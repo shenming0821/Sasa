@@ -70,9 +70,12 @@ type gitWorkflow struct {
 	gitBranchBase                                  string
 	gitHistory                                     []gitview.CommitInfo
 	gitHistoryLoading, gitHistoryLoaded            bool
+	gitHistoryQuiet                                bool
+	gitHistorySnapshot                             bool
 	gitHistoryMore                                 bool
 	gitHistoryError                                string
-	gitHistoryTime                                 time.Time
+	gitHistoryRefs                                 string
+	gitHistoryRevision                             uint64
 	gitCommitTrees                                 map[string]*gitCommitTree
 	gitStats                                       map[string]gitview.Review
 	gitStatsLoading                                bool
@@ -186,7 +189,6 @@ func (a *App) gitAction(w *workspacePage, label string, fn func(context.Context)
 				}
 				return
 			}
-			w.gitHistoryLoaded = false
 			w.gitStatsFingerprint = ""
 			a.invalidateBranchCatalog(w.root)
 			a.refreshGit(w)
@@ -378,7 +380,17 @@ func (a *App) gitSelect(w *workspacePage, group string, entry gitview.Entry, mod
 
 const gitHistoryPage = 50
 
+func (w *workspacePage) invalidateGitHistory() {
+	w.gitHistoryLoaded = false
+	w.gitHistoryError = ""
+	w.gitHistoryRevision++
+}
+
 func (a *App) gitLoadHistory(w *workspacePage, more bool) {
+	a.gitReadHistory(w, more, false)
+}
+
+func (a *App) gitReadHistory(w *workspacePage, more, quiet bool) {
 	if w.gitHistoryLoading || !a.canAsync() || w.gitBusy != "" {
 		return
 	}
@@ -388,8 +400,10 @@ func (a *App) gitLoadHistory(w *workspacePage, more bool) {
 	}
 	all := a.preferences.CommitsAllBranches
 	w.gitHistoryLoading = true
+	w.gitHistoryQuiet = quiet
 	w.gitHistoryRequest++
 	request := w.gitHistoryRequest
+	revision := w.gitHistoryRevision
 	ctx, cancel := a.projectContext(15 * time.Second)
 	w.gitHistoryCancel = cancel
 	a.runGitTaskContext(ctx, func() {
@@ -412,14 +426,15 @@ func (a *App) gitLoadHistory(w *workspacePage, more bool) {
 			}
 			w.gitHistoryLoading = false
 			w.gitHistoryCancel = nil
-			w.gitHistoryTime = time.Now()
+			w.gitHistoryLoaded = w.gitHistoryRevision == revision
 			if err != nil {
-				w.gitHistoryError = err.Error()
-				w.gitHistoryLoaded = true
+				if w.gitHistoryLoaded {
+					w.gitHistoryError = err.Error()
+				}
 				return
 			}
 			w.gitHistoryError = ""
-			w.gitHistoryLoaded = true
+			w.gitHistorySnapshot = true
 			if w.gitHistoryAll != all {
 				w.gitList.ScrollTo(0, native.Start)
 				w.gitListRow = 0
@@ -455,8 +470,7 @@ func (a *App) gitToggleAllBranches(w *workspacePage) {
 	}
 	for _, other := range a.workspaces {
 		a.cancelGitHistory(other)
-		other.gitHistoryLoaded = false
-		other.gitHistoryError = ""
+		other.invalidateGitHistory()
 		other.gitHistoryLimit = gitHistoryPage
 	}
 	a.gitLoadHistory(w, false)

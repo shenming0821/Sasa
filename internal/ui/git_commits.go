@@ -39,7 +39,7 @@ func (a *App) gitCommitsRows(w *workspacePage) []gitCommitsRow {
 
 		}
 	}
-	if w.gitHistoryLoading || w.gitHistoryError != "" || len(w.gitHistory) == 0 {
+	if w.gitHistoryLoading && !w.gitHistoryQuiet || w.gitHistoryError != "" || len(w.gitHistory) == 0 {
 		rows = append(rows, gitCommitsRow{key: "commits:status", kind: "status"})
 	}
 	return rows
@@ -51,7 +51,7 @@ func (a *App) gitHistoryView(c *native.Context, w *workspacePage, busy bool, _ f
 }
 func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy bool) {
 	if commitsOpen(w) && !w.gitHistoryLoaded && !w.gitHistoryLoading && w.gitHistoryError == "" {
-		a.gitLoadHistory(w, false)
+		a.gitReadHistory(w, false, w.gitHistorySnapshot)
 	}
 	if w.gitGraph == nil && len(w.gitHistory) > 0 {
 		w.gitGraph = layoutGraph(w.gitHistory)
@@ -94,7 +94,7 @@ func (a *App) gitCommitsListBody(c *native.Context, w *workspacePage, busy bool)
 				if w.gitHistoryError != "" {
 					native.Text(c, w.gitHistoryError).FontSize(11).TextColor(c.Theme().Danger).MaxLines(3)
 				}
-				if w.gitHistoryLoading {
+				if w.gitHistoryLoading && !w.gitHistoryQuiet {
 					native.Text(c, "正在读取提交…").FontSize(11).TextColor(c.Theme().TextMuted)
 				} else if w.gitHistoryError != "" {
 					if actionButton(c, "重试读取提交").Clicked() {

@@ -2,11 +2,13 @@ package ui
 
 import (
 	"fmt"
-	native "github.com/egoist/mygo/ui"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	native "github.com/egoist/mygo/ui"
 )
 
 func gitHistoryTester(a *App, w *workspacePage) *native.Tester {
@@ -26,6 +28,68 @@ func waitGitHistory(t *testing.T, tt *native.Tester, q chan func(), condition fu
 		return condition()
 	})
 }
+
+func TestGitCommitsBackgroundRefreshKeepsVisibleHistory(t *testing.T) {
+	a, q, root, git := gitWorkflowApp(t)
+	w := a.workspace(root)
+	a.refreshGit(w)
+	tester := gitHistoryTester(a, w)
+	advanceGitHistory(tester)
+	if !tester.HasText("正在读取提交…") {
+		t.Fatal("initial load did not show progress")
+	}
+	waitGitHistory(t, tester, q, func() bool { return !w.gitLoading && w.gitHistoryLoaded && !w.gitHistoryLoading })
+	previous := w.gitHistory[0].Subject
+	request := w.gitHistoryRequest
+
+	a.refreshGit(w)
+	waitGitHistory(t, tester, q, func() bool { return !w.gitLoading })
+	if w.gitHistoryRequest != request {
+		t.Fatal("unchanged status reloaded history")
+	}
+	if err := os.WriteFile(filepath.Join(root, "draft.txt"), []byte("untracked"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a.refreshGit(w)
+	waitGitHistory(t, tester, q, func() bool { return !w.gitLoading })
+	if len(w.git.Entries) == 0 || w.gitHistoryRequest != request {
+		t.Fatal("worktree changes should refresh status only")
+	}
+
+	git("commit", "--allow-empty", "-m", "background refresh commit")
+	a.refreshGit(w)
+	waitGitHistory(t, tester, q, func() bool { return !w.gitLoading })
+	if !w.gitHistoryLoading {
+		t.Fatal("background refresh did not start")
+	}
+	if tester.HasText("正在读取提交…") || len(a.gitCommitsRows(w)) != len(w.gitHistory)+1 {
+		t.Fatal("background refresh added a loading row")
+	}
+	if !tester.HasText(previous) {
+		t.Fatal("background refresh hid existing commits")
+	}
+
+	waitGitHistory(t, tester, q, func() bool { return !w.gitHistoryLoading })
+	if !tester.HasText("background refresh commit") {
+		t.Fatal("background refresh did not show the new commit")
+	}
+
+	head := w.git.Head
+	request = w.gitHistoryRequest
+	git("tag", "refresh-test")
+	a.refreshGit(w)
+	waitGitHistory(t, tester, q, func() bool { return !w.gitLoading && w.gitHistoryLoaded && !w.gitHistoryLoading })
+	if w.git.Head != head || w.gitHistoryRequest != request+1 {
+		t.Fatal("tag change should reload history with HEAD unchanged")
+	}
+	for _, ref := range w.gitHistory[0].Refs {
+		if ref.Name == "refresh-test" {
+			return
+		}
+	}
+	t.Fatal("reloaded history did not contain the new tag")
+}
+
 func TestGitCommitsAutoPaginationAndStablePrefix(t *testing.T) {
 	a, q, root, g := gitWorkflowApp(t)
 	for i := range 104 {

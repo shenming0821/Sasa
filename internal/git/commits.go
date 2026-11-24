@@ -6,6 +6,7 @@ package git
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strconv"
@@ -135,6 +136,14 @@ func parseCommit(rec string) (CommitInfo, bool) {
 		c.Time = time.Unix(s, 0)
 	}
 	return c, true
+}
+
+func HistoryRefsFingerprint(ctx context.Context, root string) (string, error) {
+	out, err := run(ctx, root, "for-each-ref", "--sort=refname", "--format=%(refname)%00%(objectname)%00%(symref)", "refs/heads/", "refs/remotes/", "refs/tags/")
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(out)), nil
 }
 
 // ReadHistory rereads the published prefix, as Mayoi does. Appending a page
