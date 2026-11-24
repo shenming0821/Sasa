@@ -342,6 +342,48 @@ func TestModelMenuNarrowLayoutAndEscape(t *testing.T) {
 	}
 }
 
+func TestClaudeModelMenuHoverBackground(t *testing.T) {
+	for _, appearance := range []struct {
+		name string
+		dark bool
+		want native.Color
+	}{
+		{name: "light", want: native.Hex("#e9e1d6")},
+		{name: "dark", dark: true, want: native.Hex("#39332d")},
+	} {
+		t.Run(appearance.name, func(t *testing.T) {
+			a := New(&modelCaptureBackend{}, "test", "/workspace", nil)
+			a.preferences.ThemeID = "claude"
+			a.modelsLoaded = true
+			a.models = []codex.Model{{Model: "one", DisplayName: "Model One"}}
+			tester := native.NewTester(a.view, 640, 480)
+			tester.SetDark(appearance.dark)
+			if err := tester.Click("选择模型"); err != nil {
+				t.Fatal(err)
+			}
+			row, ok := tester.Find("选择模型 Model One")
+			if !ok {
+				t.Fatal("missing model row")
+			}
+			sampleX, sampleY := row.X+row.W/2, row.Y+row.H/2
+			background := func() native.Color {
+				pixel := tester.Image().RGBAAt(int(sampleX), int(sampleY))
+				return native.RGB(pixel.R, pixel.G, pixel.B)
+			}
+			tester.Move(0, 0)
+			idle := background()
+			tester.Move(sampleX, sampleY)
+			if got := background(); got != appearance.want || got == idle {
+				t.Fatalf("hover background = %v, want %v, idle = %v", got, appearance.want, idle)
+			}
+			tester.Move(0, 0)
+			if got := background(); got != idle {
+				t.Fatalf("background after pointer leaves = %v, want %v", got, idle)
+			}
+		})
+	}
+}
+
 func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	b := &modelCaptureBackend{request: make(chan modelRequest, 1)}
 	a := New(b, "test", "/workspace", nil)

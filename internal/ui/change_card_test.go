@@ -186,6 +186,43 @@ func TestChangeCardReviewSurvivesGitRefresh(t *testing.T) {
 	}
 }
 
+func TestClaudeChangeCardHoverBackground(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%v", dark), func(t *testing.T) {
+			a := New(nil, "test", "/workspace", nil)
+			a.preferences.ThemeID = "claude"
+			messages := cardFixture()
+			tester := native.NewTester(func(c *native.Context) {
+				a.applyAppearance(c)
+				native.Column(c).Fill().Children(func() { a.changeCard(c, messages) })
+			}, 700, 450)
+			tester.SetDark(dark)
+			tester.Advance(200 * time.Millisecond)
+			want := themeByID("claude").paletteFor(dark).actionRowHover
+			for _, label := range []string{"查看本轮差异 /workspace/internal/ui/file_0.go", "再显示 2 个文件"} {
+				row, ok := tester.Find(label)
+				if !ok {
+					t.Fatal("missing row", label)
+				}
+				sampleX, sampleY := row.X+row.W*.75, row.Y+row.H/2
+				background := func() native.Color {
+					pixel := tester.Image().RGBAAt(int(sampleX), int(sampleY))
+					return native.RGB(pixel.R, pixel.G, pixel.B)
+				}
+				idle := background()
+				tester.Move(sampleX, sampleY)
+				if got := background(); got != want || got == idle {
+					t.Fatalf("%s hover background = %v, want %v, idle = %v", label, got, want, idle)
+				}
+				tester.Move(0, 0)
+				if got := background(); got != idle {
+					t.Fatalf("%s background after pointer leaves = %v, want %v", label, got, idle)
+				}
+			}
+		})
+	}
+}
+
 func TestChangeSummaryIncompleteDisplayAndLongPaths(t *testing.T) {
 	a := New(nil, "test", "/workspace", nil)
 	path := "/workspace/" + strings.Repeat("long-directory/", 12) + strings.Repeat("中文文件名", 15) + ".go"

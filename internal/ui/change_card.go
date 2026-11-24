@@ -88,7 +88,7 @@ func (a *App) changeCard(c *native.Context, messages []*app.Message) {
 			native.Text(c, fmt.Sprintf("已编辑 %d 个文件", len(summary.Files))).FontSize(14).FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 		})
 		renderRow := func(i int, file app.ChangedFile) {
-			row := treeButton(c.Key(file.Path), "查看本轮差异 "+file.Path).FillWidth().MinWidth(0).Padding(10, 14).Gap(8).Radius(0)
+			row := a.emphasizedRowButton(c.Key(file.Path), "查看本轮差异 "+file.Path).FillWidth().MinWidth(0).Padding(10, 14).Gap(8).Radius(0)
 			row.Children(func() {
 				path := a.relativeChangePath(file.Path)
 				name := native.Row(c).Grow(1).MinWidth(0).AlignItems(native.Center)
@@ -119,7 +119,7 @@ func (a *App) changeCard(c *native.Context, messages []*app.Message) {
 			if *expanded {
 				label = "收起文件列表"
 			}
-			b := treeButton(c.Key("show-more"), label).FillWidth().Padding(10, 14).Gap(8).Radius(0).Justify(native.Start)
+			b := a.emphasizedRowButton(c.Key("show-more"), label).FillWidth().Padding(10, 14).Gap(8).Radius(0).Justify(native.Start)
 			if b.Clicked() {
 				*expanded = !*expanded
 				animateDisclosure(motion, "open", *expanded)

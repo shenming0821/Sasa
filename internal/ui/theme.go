@@ -32,6 +32,7 @@ type palette struct {
 	pickerHover    native.Color
 	pickerSelected native.Color
 	listRowHover   native.Color
+	actionRowHover native.Color
 	// status holds the session-state colors applyStatusTheme writes:
 	// the accent for a working session, the modified color for waiting
 	// on the user, danger for failure, and added for success.
@@ -128,6 +129,7 @@ var themes = []themeDefinition{
 			pickerHover:    native.Hex("#eeebe5"),
 			pickerSelected: native.Hex("#e2e4f8"),
 			listRowHover:   native.Hex("#f0ede7"),
+			actionRowHover: native.Hex("#e9e1d6"),
 			status:         statusPalette{accent: native.Hex("#c4613f"), modified: native.Hex("#966c1e"), danger: native.Hex("#ab2b3f"), added: native.Hex("#2c7a39")},
 			chat:           paletteChat{userBubble: native.Hex("#eeebe5"), composerCard: native.Hex("#fdfcfa")},
 			editor:         claudeEditorPalette(false),
@@ -155,6 +157,7 @@ var themes = []themeDefinition{
 			accentPressed:  native.Hex("#c05f3c"),
 			selection:      native.RGBA(177, 185, 247, 0.24),
 			focus:          native.RGBA(215, 119, 87, 0.6),
+			actionRowHover: native.Hex("#39332d"),
 			status:         statusPalette{accent: native.Hex("#d77757"), modified: native.Hex("#f2c14e"), danger: native.Hex("#ff6b80"), added: native.Hex("#4eba65")},
 			chat:           paletteChat{userBubble: native.Hex("#201f1d"), composerCard: native.Hex("#171615")},
 			editor:         claudeEditorPalette(true),

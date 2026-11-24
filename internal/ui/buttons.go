@@ -83,3 +83,13 @@ func (a *App) pickerRowFace(theme *native.Theme, row native.Element, selected bo
 func (a *App) listRowHover(theme *native.Theme) native.Color {
 	return cmp.Or(a.activePalette(theme).listRowHover, theme.SurfaceHover)
 }
+
+func (a *App) emphasizedRowButton(c *native.Context, label string) native.Element {
+	button := treeButton(c, label)
+	if button.Hovered() || button.FocusVisible() {
+		if hover := a.activePalette(c.Theme()).actionRowHover; hover != (native.Color{}) {
+			button.Background(hover)
+		}
+	}
+	return button
+}

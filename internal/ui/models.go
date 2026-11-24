@@ -370,7 +370,7 @@ func (a *App) modelMenu(c *native.Context) {
 			native.Text(c, "选择的模型将在下一轮生效").FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 8)
 		}
 		row := func(label, value string) {
-			b := treeButton(c.Key(value), "选择模型 "+label).FillWidth().Padding(8).Disabled(disabled)
+			b := a.emphasizedRowButton(c.Key(value), "选择模型 "+label).FillWidth().Padding(8).Disabled(disabled)
 			b.Children(func() {
 				native.Row(c).FillWidth().AlignItems(native.Center).Gap(8).Children(func() {
 					native.Text(c, label).FontSize(12).Grow(1).MinWidth(0).SingleLine()
@@ -442,7 +442,7 @@ func (a *App) modelMenu(c *native.Context) {
 			}
 		}
 		native.Box(c).FillWidth().Height(1).Background(c.Theme().Border)
-		details := treeButton(c, "运行详情…").FillWidth().Height(24).Padding(0, 8)
+		details := a.emphasizedRowButton(c, "运行详情…").FillWidth().Height(24).Padding(0, 8)
 		details.Children(func() {
 			native.Row(c).FillWidth().AlignItems(native.Center).Children(func() {
 				native.Text(c, "运行详情").FontSize(11).TextColor(c.Theme().TextMuted).Grow(1)
@@ -574,7 +574,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 		// A stable key keeps the trigger's state across the other picker
 		// opening and closing: without it the toggle rebuilds the trigger
 		// under a new id and drops the press that should open this popup.
-		trigger := treeButton(c.Key(label+"-trigger"), label+" "+display).Gap(4).Shrink(0).Padding(2, 6).Radius(6).Disabled(disabled)
+		trigger := a.emphasizedRowButton(c.Key(label+"-trigger"), label+" "+display).Gap(4).Shrink(0).Padding(2, 6).Radius(6).Disabled(disabled)
 		trigger.Children(func() {
 			native.Text(c, display).FontSize(11).SingleLine()
 			native.Icon(c, chevron).Size(12, 12)
@@ -590,7 +590,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			native.Column(c).FillWidth().Children(func() {
 				for _, option := range options {
 					value := option.ReasoningEffort
-					row := treeButton(c.Key(value), label+"选项 "+labelOf(value)).FillWidth().Padding(6).Justify(native.Start)
+					row := a.emphasizedRowButton(c.Key(value), label+"选项 "+labelOf(value)).FillWidth().Padding(6).Justify(native.Start)
 					v := value
 					row.Children(func() {
 						native.Row(c).FillWidth().AlignItems(native.Center).Gap(6).Children(func() {
