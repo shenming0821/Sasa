@@ -12,7 +12,7 @@ func (a *App) themeCards(c *native.Context) {
 	current := a.preferences.ThemeID
 	selection := max(0, slices.IndexFunc(themes, func(choice themeDefinition) bool { return choice.id == current }))
 	cards := native.SegmentedBase(c.Key("palettes"), &selection, len(themes))
-	cards.Track.Label("配色").FillWidth().Wrap().Gap(12).Children(func() {
+	cards.Track.Label("配色").FillWidth().Wrap().Gap(10).Children(func() {
 		for index, choice := range themes {
 			selected := choice.id == current
 			border := theme.Border
@@ -21,12 +21,13 @@ func (a *App) themeCards(c *native.Context) {
 				border = theme.Accent
 				weight = 600
 			}
-			tile := cards.Segment(index).Column().Label("配色 " + choice.label).Width(122).Shrink(0).
+			tile := cards.Segment(index).Column().Label("配色 " + choice.label).Width(104).Shrink(0).
 				AlignItems(native.Center).Padding(3).Gap(7).Radius(8)
 			settingsButtonBackground(tile, theme, native.Color{})
 			tile.Children(func() {
 				native.Box(c).FillWidth().Height(72).Radius(9).Border(2, border).Children(func() {
-					themeSample(c, choice.paletteFor(theme.Dark), theme.Dark)
+					previewDark := theme.Dark && choice.id != marsThemeID
+					themeSample(c, choice.paletteFor(previewDark), previewDark)
 					if selected {
 						native.Box(c).Absolute().Top(-4).Right(-4).Size(18, 18).Radius(9).
 							Background(theme.Accent).Border(1, theme.Surface).

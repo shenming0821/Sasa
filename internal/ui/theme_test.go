@@ -8,24 +8,13 @@ import (
 	"github.com/shenming0821/Sasa/internal/app"
 )
 
-// dominantPixel samples the frame and returns its most common color:
-// the theme's background by area, whatever corner rounding or sidebars
-// paint over.
-func dominantPixel(tt *native.Tester) native.Color {
-	img := tt.Image()
-	counts := map[native.Color]int{}
-	best, bestN := native.Color{}, -1
-	for y := 0; y < img.Bounds().Max.Y; y += 4 {
-		for x := 0; x < img.Bounds().Max.X; x += 4 {
-			p := img.RGBAAt(x, y)
-			c := native.Color{R: p.R, G: p.G, B: p.B, A: p.A}
-			counts[c]++
-			if counts[c] > bestN {
-				best, bestN = c, counts[c]
-			}
-		}
+func settingsHeaderBackground(tt *native.Tester) native.Color {
+	closeButton, ok := tt.Find("关闭设置")
+	if !ok {
+		return native.Color{}
 	}
-	return best
+	pixel := tt.Image().RGBAAt(int(closeButton.X-5), int(closeButton.Y+closeButton.H/2))
+	return native.Color{R: pixel.R, G: pixel.G, B: pixel.B, A: pixel.A}
 }
 
 // TestThemeRegistryCoversBothAppearances checks that every theme has a
@@ -48,10 +37,10 @@ func TestThemeRegistryCoversBothAppearances(t *testing.T) {
 // settleTheme advances frames until the window's background stops
 // changing, because a palette switch blends to its colors over frames.
 func settleTheme(tt *native.Tester) native.Color {
-	prev := dominantPixel(tt)
+	prev := settingsHeaderBackground(tt)
 	for i := 0; i < 30; i++ {
 		tt.Frame()
-		cur := dominantPixel(tt)
+		cur := settingsHeaderBackground(tt)
 		if cur == prev {
 			return cur
 		}
@@ -92,8 +81,8 @@ func TestThemePickChangesChromeHot(t *testing.T) {
 	}
 }
 
-func TestQoderAndCursorPaletteContrast(t *testing.T) {
-	for _, id := range []string{"qoder", "cursor"} {
+func TestCustomCodePaletteContrast(t *testing.T) {
+	for _, id := range []string{"qoder", "cursor", marsThemeID} {
 		for _, appearance := range []struct {
 			name string
 			base *native.Theme
@@ -121,6 +110,51 @@ func TestQoderAndCursorPaletteContrast(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+}
+
+func TestMarsSettingsCardKeepsLightColors(t *testing.T) {
+	app := New(stubBackend{}, "test", t.TempDir(), nil)
+	tester := native.NewTester(app.view, 1100, 800)
+	app.openSettings()
+	tester.Frame()
+	if err := tester.Click("设置分类 外观"); err != nil {
+		t.Fatal(err)
+	}
+	choice := themeByID(marsThemeID)
+	lightEditor := choice.light.editorFor(false)
+	darkEditor := choice.dark.editorFor(true)
+	lightKeyword := lightEditor.syntaxColor(chroma.Keyword)
+	darkKeyword := darkEditor.syntaxColor(chroma.Keyword)
+	label := "配色 " + choice.label
+	if err := tester.Click(label); err != nil {
+		t.Fatal(err)
+	}
+	for _, dark := range []bool{false, true} {
+		tester.SetDark(dark)
+		if got := settleTheme(tester); got != choice.paletteFor(dark).background {
+			t.Fatalf("dark=%v, window background = %v", dark, got)
+		}
+		bounds, found := tester.Find(label)
+		if !found {
+			t.Fatal("missing Mars theme card")
+		}
+		image := tester.Image()
+		lightPixels, darkPixels := 0, 0
+		for y := int(bounds.Y); y < int(bounds.Y+bounds.H); y++ {
+			for x := int(bounds.X); x < int(bounds.X+bounds.W); x++ {
+				pixel := image.RGBAAt(x, y)
+				switch native.RGB(pixel.R, pixel.G, pixel.B) {
+				case lightKeyword:
+					lightPixels++
+				case darkKeyword:
+					darkPixels++
+				}
+			}
+		}
+		if lightPixels == 0 || darkPixels != 0 {
+			t.Fatalf("dark=%v, keyword pixels: light=%d, dark=%d", dark, lightPixels, darkPixels)
 		}
 	}
 }

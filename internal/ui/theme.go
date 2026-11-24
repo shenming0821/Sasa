@@ -171,6 +171,7 @@ var themes = []themeDefinition{
 	},
 	{id: "qoder", label: "Qoder", light: qoderLightPalette(), dark: qoderDarkPalette()},
 	{id: "cursor", label: "Cursor", light: cursorLightPalette(), dark: cursorDarkPalette()},
+	{id: marsThemeID, label: "Mars", light: marsLightPalette(), dark: marsDarkPalette()},
 }
 
 // themeByID returns the definition of the theme with the given ID, or

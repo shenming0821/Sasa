@@ -43,7 +43,7 @@ func (a *App) settingsCategories() []settingsCategory {
 	}
 	return []settingsCategory{
 		{"外观", settingsAppearanceIcon, []settingsField{
-			{"配色", "主题 Claude 默认 theme palette", func(c *native.Context) {
+			{"配色", "主题 Claude 默认 火星乐园 Mars theme palette", func(c *native.Context) {
 				settingsFieldLabel(c, "配色", "应用、编辑器、差异视图和内置终端共用的颜色。")
 				a.themeCards(c)
 			}},
