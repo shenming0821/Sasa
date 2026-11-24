@@ -124,7 +124,7 @@ func (a *App) conversationNavigator(c *native.Context, entries []conversationEnt
 		move(0)
 	case area.Shortcut(0, native.KeyEnd):
 		move(len(entries) - 1)
-	case area.Shortcut(0, native.KeyEscape):
+	case !a.find.open && area.Shortcut(0, native.KeyEscape):
 		a.navigationID, a.navigationKeyboard = "", false
 		selected = -1
 	}

@@ -65,6 +65,19 @@ func TestConversationFindStepsAndEscapes(t *testing.T) {
 	if tt.HasText("会话内查找") {
 		t.Fatal("find bar still rendered after Escape")
 	}
+	for _, target := range []string{"任务输入", "对话定位导航"} {
+		tt.Key(native.Cmd, native.KeyF)
+		if err := tt.Click(target); err != nil {
+			t.Fatal(err)
+		}
+		if !tt.Focused(target) || !a.find.open {
+			t.Fatalf("expected %q to have focus while find is open", target)
+		}
+		tt.Key(0, native.KeyEscape)
+		if a.find.open || !tt.Focused("任务输入") {
+			t.Fatalf("Escape from %q did not close find and restore composer focus", target)
+		}
+	}
 }
 
 func TestSessionFindMarkedScopesToInlines(t *testing.T) {

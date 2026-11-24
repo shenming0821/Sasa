@@ -347,6 +347,17 @@ func TestP4EditorUndoFindAndCloseLastFile(t *testing.T) {
 	if d.findOpen {
 		t.Fatal("Escape did not close file find")
 	}
+	tt.Key(native.Cmd, native.KeyF)
+	if e := tt.Click("文件内容 " + path); e != nil {
+		t.Fatal(e)
+	}
+	if !d.findOpen || !tt.Focused("文件内容 "+path) {
+		t.Fatal("expected editor focus while file find is open")
+	}
+	tt.Key(0, native.KeyEscape)
+	if d.findOpen || !tt.Focused("文件内容 "+path) {
+		t.Fatal("Escape from editor did not close file find and restore editor focus")
+	}
 	a.saveFile(d, false, false, nil)
 	p4Wait(t, tt, q, func() bool { return !d.saving })
 	a.closeSession(a.session)

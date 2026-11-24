@@ -795,10 +795,6 @@ func (a *App) conversationFindBar(c *native.Context) {
 				if composing {
 					return false
 				}
-				if k.Key == native.KeyEscape {
-					a.closeSessionFind()
-					return true
-				}
 				if k.Key == native.KeyEnter {
 					a.sessionFindStep(k.Mods&native.Shift != 0)
 					return true

@@ -1048,12 +1048,6 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 							if composing {
 								return false
 							}
-							if k.Key == native.KeyEscape {
-								d.findOpen = false
-								d.cancelFind()
-								d.focus = true
-								return true
-							}
 							if k.Key == native.KeyEnter {
 								a.findInFile(d, k.Mods&native.Shift != 0)
 								return true
@@ -1078,9 +1072,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 						a.findInFile(d, false)
 					}
 					if quietIconButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
-						d.findOpen = false
-						d.cancelFind()
-						d.focus = true
+						d.closeFind()
 					}
 				})
 			}
@@ -1118,6 +1110,12 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		})
 	})
 }
+func (d *filePage) closeFind() {
+	d.findOpen = false
+	d.cancelFind()
+	d.focus = true
+}
+
 func (d *filePage) cancelFind() {
 	if d.findCancel != nil {
 		d.findCancel()
