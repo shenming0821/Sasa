@@ -602,7 +602,9 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	} else if review != nil && strings.HasPrefix(text, "diff --git ") {
 		text = "文件路径、权限或类型发生变化，无文本内容差异"
 	}
-	if d.loaded && d.buffer != nil && d.buffer.String() == text && previous != nil && review != nil && previous.Patch == review.Patch && previous.BeforeText == review.BeforeText && previous.BeforeKnown == review.BeforeKnown {
+	if d.loaded && d.buffer != nil && d.buffer.String() == text && previous != nil && review != nil &&
+		previous.Entry.Path == review.Entry.Path && previous.Patch == review.Patch &&
+		previous.BeforeText == review.BeforeText && previous.BeforeKnown == review.BeforeKnown {
 		return
 	}
 	if d.highlightCancel != nil {

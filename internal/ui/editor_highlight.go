@@ -43,6 +43,10 @@ func (a *App) requestHighlightAt(d *filePage, height float32) {
 	family := a.codeFontFamily()
 	path := d.path
 	review := d.gitReview
+	sourcePath := path
+	if d.gitCommit != "" && review != nil && review.Entry.Path != "" {
+		sourcePath = review.Entry.Path
+	}
 	isFile := d.kind == "file"
 	largeReadOnly := isFile && d.file.Reason == editor.LargeFileReadOnly
 	decorate := isFile && (d.file.Reason == "" || largeReadOnly) || d.kind == "diff" && len(d.gitRows) > 0
@@ -101,7 +105,7 @@ func (a *App) requestHighlightAt(d *filePage, height float32) {
 		if ctx.Err() != nil {
 			return
 		}
-		lexer := editorLexer(path)
+		lexer := editorLexer(sourcePath)
 		whole := decorate && lexer != nil && !useWindow && snapshot.ByteLen() <= editor.EditBytes
 		if whole {
 			first := max(0, visibleFirst-50)

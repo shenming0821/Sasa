@@ -134,11 +134,23 @@ func TestGitHistoryCommitExpandCollapseAndOpenChosenFile(t *testing.T) {
 		!strings.Contains(d.buffer.String(), "package chosen") || strings.Contains(d.buffer.String(), "history readme") {
 		t.Fatal("file click did not select the corresponding historical diff", d.err)
 	}
+	p4Wait(t, tt, q, func() bool { return !d.highlighting && d.highlightVersion == d.buffer.Version() })
+	if len(d.highlights) == 0 || len(d.gitLeftHighlights) == 0 || len(d.gitRightHighlights) == 0 {
+		t.Fatal("historical Go diff should have syntax tokens in both layouts")
+	}
+	a.gitOpenCommit(w, info, "README.md")
+	p4Wait(t, tt, q, func() bool { return !d.loading && !d.highlighting && d.highlightVersion == d.buffer.Version() })
+	if d.gitReview.Entry.Path != "README.md" || !strings.Contains(d.buffer.String(), "history readme") {
+		t.Fatal("switching files should update the historical diff")
+	}
 	a.gitOpenCommit(w, info, "README.md")
 	a.gitOpenCommit(w, info, "internal/main.go")
-	p4Wait(t, tt, q, func() bool { return !d.loading })
+	p4Wait(t, tt, q, func() bool { return !d.loading && !d.highlighting && d.highlightVersion == d.buffer.Version() })
 	if d.gitCommitFiles[d.gitCommitFile].Path != "internal/main.go" || !strings.Contains(d.buffer.String(), "package chosen") {
 		t.Fatal("late result replaced the last selected file")
+	}
+	if len(d.highlights) == 0 || len(d.gitLeftHighlights) == 0 || len(d.gitRightHighlights) == 0 {
+		t.Fatal("switching back should restore syntax tokens for the Go diff")
 	}
 	other := a.workspace(t.TempDir())
 	if len(other.gitCommitTrees) != 0 {
