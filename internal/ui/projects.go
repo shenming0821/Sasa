@@ -345,7 +345,7 @@ func (a *App) repositoryRow(c *native.Context, repo project.Repository) {
 							native.Row(wc).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
 								native.Text(wc, a.worktreeName(w.Path)).FontSize(13).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
 								if w.Main {
-									native.Text(wc, "主要").FontSize(9).TextColor(t.TextMuted).Padding(1, 4).BorderWidth(1).BorderColor(t.Border).Radius(3)
+									native.Text(wc, "主要").FontSize(9).TextColor(t.TextMuted).SingleLine().Shrink(0).Padding(1, 4).BorderWidth(1).BorderColor(t.Border).Radius(3)
 								}
 							})
 							label := w.Label()
