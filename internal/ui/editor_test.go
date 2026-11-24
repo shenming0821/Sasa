@@ -219,7 +219,7 @@ func TestP4ClickingPartlyVisibleTabRevealsWholeTab(t *testing.T) {
 	}
 }
 
-func TestP4NarrowEditorKeepsSaveAndFilePanelSeparate(t *testing.T) {
+func TestP4NarrowEditorStartsBelowFileTab(t *testing.T) {
 	a, q, root := p4App(t)
 	a.historyOpen, a.rightTab = true, "files"
 	a.repositories = []project.Repository{{Path: root, Name: "fixture", Worktrees: []project.Worktree{{Path: root, Branch: "feature/p4"}}}}
@@ -229,12 +229,13 @@ func TestP4NarrowEditorKeepsSaveAndFilePanelSeparate(t *testing.T) {
 	p4Wait(t, tt, q, func() bool { return a.currentFile().loaded })
 	for _, width := range []int{1280, 1000, 640} {
 		tt.SetSize(width, 480)
-		save, saveOK := tt.Find("保存")
+		_, saveOK := tt.Find("保存")
+		tab, tabOK := tt.Find("文件标签 " + path)
 		search, searchOK := tt.Find("搜索文件内容")
 		content, contentOK := tt.Find("文件内容 " + path)
-		if !saveOK || !searchOK || !contentOK || save.X < 0 || save.X+save.W > search.X ||
-			search.X+search.W > float32(width) || content.Y+content.H > 480 {
-			t.Fatalf("editor controls overlap or leave the viewport at %d: save=%+v search=%+v content=%+v", width, save, search, content)
+		if saveOK || !tabOK || !searchOK || !contentOK || content.Y-(tab.Y+tab.H) > 8 ||
+			content.X+content.W > search.X || search.X+search.W > float32(width) || content.Y+content.H > 480 {
+			t.Fatalf("unexpected editor layout at %d: save=%t tab=%+v search=%+v content=%+v", width, saveOK, tab, search, content)
 		}
 		if !tt.HasText("feature/p4") {
 			t.Fatal("file panel omitted the workspace branch")

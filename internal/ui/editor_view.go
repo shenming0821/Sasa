@@ -676,60 +676,62 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 			})
 		}
-		native.Row(c).Height(34).FillWidth().Padding(0, 16).Gap(8).AlignItems(native.Center).Children(func() {
-			path, _ := d.diffOpenTarget()
-			rel, _ := filepath.Rel(d.root, path)
-			if d.turnReview != nil {
-				names := make([]string, len(d.turnReview.files))
-				for i, f := range d.turnReview.files {
-					names[i] = a.relativeChangePath(f.Path)
-				}
-				current := names[d.turnReview.selected]
-				native.Select(c, &current, names).Label("本轮修改的文件").Grow(1).MinWidth(0).FontSize(11)
-				if current != names[d.turnReview.selected] {
-					for i, name := range names {
-						if name == current {
-							d.turnReview.selected = i
-							a.setTurnReviewFile(d)
-							break
+		var pendingSession *session
+		for _, s := range a.sessions {
+			if len(s.State.PendingInteractions()) > 0 {
+				pendingSession = s
+				break
+			}
+		}
+		if d.kind == "diff" || pendingSession != nil {
+			native.Row(c).Height(34).FillWidth().Padding(0, 16).Gap(8).AlignItems(native.Center).Children(func() {
+				switch {
+				case d.turnReview != nil:
+					names := make([]string, len(d.turnReview.files))
+					for i, f := range d.turnReview.files {
+						names[i] = a.relativeChangePath(f.Path)
+					}
+					current := names[d.turnReview.selected]
+					native.Select(c, &current, names).Label("本轮修改的文件").Grow(1).MinWidth(0).FontSize(11)
+					if current != names[d.turnReview.selected] {
+						for i, name := range names {
+							if name == current {
+								d.turnReview.selected = i
+								a.setTurnReviewFile(d)
+								break
+							}
 						}
 					}
-				}
-			} else {
-				native.ScrollHorizontal(c.Key("file-path")).Grow(1).FillHeight().MinWidth(0).Children(func() {
-					native.Row(c).FillHeight().Gap(5).AlignItems(native.Center).Children(func() {
-						native.Text(c, rel).FontSize(11).TextColor(t.TextMuted).SingleLine()
-						if d.kind == "diff" && d.gitReview != nil {
-							changeCounts(c, d.gitReview.Added, d.gitReview.Deleted, true)
-						}
+				case d.kind == "diff":
+					path, _ := d.diffOpenTarget()
+					rel, _ := filepath.Rel(d.root, path)
+					native.ScrollHorizontal(c.Key("file-path")).Grow(1).FillHeight().MinWidth(0).Children(func() {
+						native.Row(c).FillHeight().Gap(5).AlignItems(native.Center).Children(func() {
+							native.Text(c, rel).FontSize(11).TextColor(t.TextMuted).SingleLine()
+							if d.gitReview != nil {
+								changeCounts(c, d.gitReview.Added, d.gitReview.Deleted, true)
+							}
+						})
 					})
-				})
-			}
-			if d.turnReview != nil && d.gitReview != nil {
-				f := d.turnReview.files[d.turnReview.selected]
-				native.Row(c).Gap(5).Shrink(0).AlignItems(native.Center).Children(func() {
-					changeCounts(c, d.gitReview.Added, d.gitReview.Deleted, f.Exact)
-				})
-			}
-			for _, s := range a.sessions {
-				if len(s.State.PendingInteractions()) > 0 {
-					if actionButton(c, "返回待处理会话").Clicked() {
-						a.selectSession(s)
-					}
-					break
+				default:
+					native.Spacer(c)
 				}
-			}
-			if d.kind == "diff" && d.compare != "外部更改" && d.gitReview != nil {
-				native.Row(c).Gap(4).Shrink(0).AlignItems(native.Center).Children(func() {
-					a.gitDiffControls(c, d)
-				})
-			}
-			if d.kind != "diff" {
-				if actionButton(c, "保存").Disabled(!d.dirty() || d.saving || d.file.Reason != "").Clicked() {
-					a.saveFile(d, false, false, nil)
+				if d.turnReview != nil && d.gitReview != nil {
+					f := d.turnReview.files[d.turnReview.selected]
+					native.Row(c).Gap(5).Shrink(0).AlignItems(native.Center).Children(func() {
+						changeCounts(c, d.gitReview.Added, d.gitReview.Deleted, f.Exact)
+					})
 				}
-			}
-		})
+				if pendingSession != nil && actionButton(c, "返回待处理会话").Clicked() {
+					a.selectSession(pendingSession)
+				}
+				if d.kind == "diff" && d.compare != "外部更改" && d.gitReview != nil {
+					native.Row(c).Gap(4).Shrink(0).AlignItems(native.Center).Children(func() {
+						a.gitDiffControls(c, d)
+					})
+				}
+			})
+		}
 		if d.conflict || d.missing {
 			native.Row(c).FillWidth().Padding(10, 14).Gap(8).AlignItems(native.Center).Background(t.Surface).Children(func() {
 				message := "文件已在外部更改"
