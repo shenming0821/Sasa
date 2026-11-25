@@ -12,6 +12,19 @@ import (
 type Model = agent.Model
 
 func (c *Client) ListModels(ctx context.Context) ([]Model, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	cmd := c.process.Cmd
+	catalog, err := Start(ctx, cmd.Path, cmd.Dir)
+	if err != nil {
+		return nil, err
+	}
+	defer catalog.Close()
+	return catalog.readModelCatalog(ctx)
+}
+
+func (c *Client) readModelCatalog(ctx context.Context) ([]Model, error) {
 	started := time.Now()
 	for attempt := 0; attempt < 2; attempt++ {
 		models, err := c.listModels(ctx)
@@ -74,7 +87,7 @@ func (c *Client) DefaultModel(ctx context.Context, cwd string) (string, error) {
 	if result.Config.Model != "" {
 		return result.Config.Model, nil
 	}
-	models, err := c.ListModels(ctx)
+	models, err := c.readModelCatalog(ctx)
 	if err != nil {
 		return "", err
 	}

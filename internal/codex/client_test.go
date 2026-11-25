@@ -24,6 +24,14 @@ func TestProtocolHelper(t *testing.T) {
 	dec, enc := json.NewDecoder(os.Stdin), json.NewEncoder(os.Stdout)
 	var held envelope
 	var modelPage int
+	var snapshot []byte
+	if scenario == "models-snapshot" {
+		var err error
+		snapshot, err = os.ReadFile("catalog")
+		if err != nil {
+			os.Exit(28)
+		}
+	}
 	for {
 		var m envelope
 		if dec.Decode(&m) != nil {
@@ -33,6 +41,17 @@ func TestProtocolHelper(t *testing.T) {
 			os.Exit(0)
 		}
 		switch scenario {
+		case "models-snapshot":
+			switch m.Method {
+			case "initialize":
+				enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{}})
+			case "initialized":
+			case "model/list":
+				enc.Encode(map[string]any{"id": m.ID, "result": map[string]any{"data": []any{map[string]any{"model": string(snapshot)}}}})
+			default:
+				os.Exit(29)
+			}
+			continue
 		case "compact":
 			var params map[string]string
 			if m.Method != "thread/compact/start" || json.Unmarshal(m.Params, &params) != nil || len(params) != 1 || params["threadId"] != "thread" {

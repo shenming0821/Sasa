@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ func TestEmptyModelCatalogRetriesAndRecovers(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	client := fixture(t, "models-empty-recover")
-	models, err := client.ListModels(ctx)
+	models, err := client.readModelCatalog(ctx)
 	if err != nil || len(models) != 1 || models[0].Model != "recovered-model" {
 		t.Fatalf("models=%v err=%v", models, err)
 	}
@@ -29,7 +30,7 @@ func TestEmptyModelCatalogStopsAfterOneRetry(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	client := fixture(t, "models-empty")
-	if _, err := client.ListModels(ctx); err == nil || !strings.Contains(err.Error(), "Codex 未返回可用模型") {
+	if _, err := client.readModelCatalog(ctx); err == nil || !strings.Contains(err.Error(), "Codex 未返回可用模型") {
 		t.Fatal(err)
 	}
 	if client.nextID.Load() != 2 {
@@ -41,7 +42,7 @@ func TestEmptyModelCatalogRetryHonorsCancellation(t *testing.T) {
 	client := fixture(t, "models-empty")
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	if _, err := client.ListModels(ctx); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := client.readModelCatalog(ctx); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(err)
 	}
 	if client.nextID.Load() != 1 {
@@ -53,7 +54,7 @@ func TestEmptyModelCatalogReportsNativeRefreshTimeout(t *testing.T) {
 	client := fixture(t, "models-empty-timeout")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := client.ListModels(ctx)
+	_, err := client.readModelCatalog(ctx)
 	if err == nil || !strings.Contains(err.Error(), "请求超时") || strings.Contains(err.Error(), "secret-token") {
 		t.Fatal(err)
 	}
@@ -63,7 +64,7 @@ func TestModelCatalogDefaultAndMixedInput(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	c := fixture(t, "models")
-	models, err := c.ListModels(ctx)
+	models, err := c.readModelCatalog(ctx)
 	if err != nil || len(models) != 2 || models[0].Model != "wire-model" || models[0].ID == models[0].Model {
 		t.Fatal(models, err)
 	}
@@ -81,8 +82,40 @@ func TestModelCatalogDefaultAndMixedInput(t *testing.T) {
 		t.Fatal(model, err)
 	}
 	cycle := fixture(t, "models-cycle")
-	if _, err = cycle.ListModels(ctx); err == nil {
+	if _, err = cycle.readModelCatalog(ctx); err == nil {
 		t.Fatal("repeated cursor was accepted")
+	}
+}
+
+func TestListModelsRefreshesWithoutReplacingSessionServer(t *testing.T) {
+	cwd := t.TempDir()
+	executable := filepath.Join(cwd, "codex")
+	t.Setenv("SASA_CATALOG_TEST_EXECUTABLE", os.Args[0])
+	if err := os.WriteFile(executable, []byte("#!/bin/sh\nexec \"$SASA_CATALOG_TEST_EXECUTABLE\" -test.run='^TestProtocolHelper$' -- models-snapshot\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	writeModel := func(model string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(cwd, "catalog"), []byte(model), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeModel("previous")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client, err := Start(ctx, executable, cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(client.Close)
+	writeModel("current")
+	models, err := client.ListModels(ctx)
+	if err != nil || len(models) != 1 || models[0].Model != "current" {
+		t.Fatalf("refreshed models=%v err=%v", models, err)
+	}
+	models, err = client.readModelCatalog(ctx)
+	if err != nil || len(models) != 1 || models[0].Model != "previous" {
+		t.Fatalf("original server no longer responds with its own snapshot: models=%v err=%v", models, err)
 	}
 }
 

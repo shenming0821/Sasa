@@ -82,6 +82,7 @@ func TestModelPickerRefreshPreservesAvailableModels(t *testing.T) {
 	<-backend.requests
 	backend.results <- []agent.Model{{Model: "provider/one", DisplayName: "Model One"}}
 	pumpUpdate(t, jobs)
+	application.State.Busy = true
 	tester := native.NewTester(application.view, 1000, 760)
 	if err := tester.Click("选择模型"); err != nil {
 		t.Fatal(err)

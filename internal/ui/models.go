@@ -26,6 +26,10 @@ type modelCatalogEntry struct {
 }
 
 func (a *App) loadModels() {
+	a.loadModelCatalog(false)
+}
+
+func (a *App) loadModelCatalog(manual bool) {
 	owner, root := a.session, a.application()
 	key := owner.completionCacheKey()
 	if owner.modelsCwd != key.Cwd || owner.modelsRuntime != key.Runtime {
@@ -57,11 +61,11 @@ func (a *App) loadModels() {
 		entry = &modelCatalogEntry{}
 		root.modelCatalogs[key] = entry
 	}
-	if entry.loading || !owner.modelsLoaded && entry.loaded && entry.error == "" && time.Since(entry.checked) < completionCatalogTTL {
+	if entry.loading || !manual && !owner.modelsLoaded && entry.loaded && entry.error == "" && time.Since(entry.checked) < completionCatalogTTL {
 		root.applyModelCatalog(key, entry)
 		return
 	}
-	force := entry.error != "" || entry.loaded
+	force := manual || entry.error != "" || entry.loaded
 	entry.loading, entry.error = true, ""
 	root.applyModelCatalog(key, entry)
 	ctx, cancel := root.projectContext(30 * time.Second)
@@ -363,7 +367,7 @@ func (a *App) modelMenu(c *native.Context) {
 				}
 			})
 			if refresh.Clicked() {
-				a.loadModels()
+				a.loadModelCatalog(true)
 			}
 		})
 		if a.State.Busy && !disabled {
