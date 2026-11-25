@@ -234,6 +234,7 @@ def build():
     link.unlink(missing_ok=True)
     link.symlink_to('Sasa Preview.app/Contents/MacOS/Sasa')
     print(f'Preview 候选版本：{build_id}\n启动：./scripts/run-preview {build_id}\n发布：./scripts/promote {build_id}')
+    return build_id
 
 
 def candidate(build_id):
