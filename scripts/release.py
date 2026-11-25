@@ -233,8 +233,49 @@ def build():
         raise RuntimeError(f'保留既有文件，请手动处理：{link}')
     link.unlink(missing_ok=True)
     link.symlink_to('Sasa Preview.app/Contents/MacOS/Sasa')
+    prune_candidates({active_preview_id(), build_id})
     print(f'Preview 候选版本：{build_id}\n启动：./scripts/run-preview {build_id}\n发布：./scripts/promote {build_id}')
     return build_id
+
+
+def active_preview_id():
+    path = PREVIEW_APP / IDENTITY
+    return read_json(path)['buildID'] if path.is_file() else None
+
+
+def prune_candidates(keep):
+    for folder in CANDIDATES.iterdir():
+        if folder.name in keep or folder.name.startswith('.') or folder.is_symlink() or not folder.is_dir():
+            continue
+        if {entry.name for entry in folder.iterdir()} != {'candidate.json', PREVIEW_APP.name}:
+            continue
+        manifest = folder / 'candidate.json'
+        if manifest.is_symlink() or not manifest.is_file():
+            continue
+        try:
+            identity = read_json(manifest)['identity']
+        except (ValueError, KeyError, TypeError):
+            continue
+        if not isinstance(identity, dict):
+            continue
+        if identity.get('channel') == 'preview' and identity.get('buildID') == folder.name:
+            shutil.rmtree(folder)
+
+
+def link_active_candidate(build_id):
+    app, identity, files = candidate(build_id)
+    if app.is_symlink():
+        return
+    if read_json(PREVIEW_APP / IDENTITY) != identity or inventory(PREVIEW_APP) != files:
+        raise RuntimeError('公共 Preview 与候选产物不一致。')
+    with tempfile.TemporaryDirectory(prefix='.deduplicate-', dir=BIN) as temporary:
+        backup = Path(temporary) / app.name
+        app.rename(backup)
+        try:
+            app.symlink_to(os.path.relpath(PREVIEW_APP, app.parent), target_is_directory=True)
+        except BaseException:
+            backup.rename(app)
+            raise
 
 
 def candidate(build_id):
@@ -245,6 +286,8 @@ def candidate(build_id):
         raise RuntimeError('候选版本目录不能为符号链接。')
     manifest = read_json(folder / 'candidate.json')
     app = folder / 'Sasa Preview.app'
+    if app.is_symlink() and app.resolve() != PREVIEW_APP.resolve():
+        raise RuntimeError('候选版本链接必须指向公共 Preview。')
     if not app.exists():
         raise RuntimeError('此候选使用旧版应用命名，请重新构建 Sasa Preview。')
     if manifest['identity']['buildID'] != build_id or manifest['identity']['channel'] != 'preview':
@@ -509,19 +552,33 @@ def run_preview(build_id, timeout):
     source, identity, expected_files = candidate(build_id)
     platform = MacOS()
     with locked(BIN / 'preview.lock'):
-        with tempfile.TemporaryDirectory(prefix='.preview-', dir=BIN) as temporary:
-            stage = Path(temporary) / 'Sasa Preview.app'
-            shutil.copytree(source, stage)
-            if inventory(stage) != expected_files:
-                raise RuntimeError('复制期间候选产物发生变化，请重新核对候选版本。')
-            platform.stop(PREVIEW_APP, timeout)
-            if PREVIEW_APP.exists():
-                PREVIEW_APP.rename(Path(temporary) / 'previous.app')
-            stage.rename(PREVIEW_APP)
-            register(PREVIEW_APP)
+        previous_id = active_preview_id()
         logs = SUPPORT / 'Sasa Preview/release-logs'
         logs.mkdir(parents=True, mode=0o700, exist_ok=True)
-        platform.launch(PREVIEW_APP, SUPPORT / 'Sasa Preview', identity, timeout, logs)
+        with tempfile.TemporaryDirectory(prefix='.preview-', dir=BIN) as temporary:
+            stage = Path(temporary) / 'Sasa Preview.app'
+            previous = Path(temporary) / 'previous.app'
+            if not source.is_symlink():
+                shutil.copytree(source, stage)
+                if inventory(stage) != expected_files:
+                    raise RuntimeError('复制期间候选产物发生变化，请重新核对候选版本。')
+            platform.stop(PREVIEW_APP, timeout)
+            if stage.exists() and PREVIEW_APP.exists():
+                PREVIEW_APP.rename(previous)
+            try:
+                if stage.exists():
+                    stage.rename(PREVIEW_APP)
+                register(PREVIEW_APP)
+                platform.launch(PREVIEW_APP, SUPPORT / 'Sasa Preview', identity, timeout, logs)
+            except BaseException:
+                if not source.is_symlink() and PREVIEW_APP.exists() and not stage.exists():
+                    PREVIEW_APP.rename(stage)
+                if previous.exists():
+                    previous.rename(PREVIEW_APP)
+                raise
+        link_active_candidate(build_id)
+        if previous_id != build_id:
+            prune_candidates({build_id})
         print(f'Preview 已启动：{build_id}\n正式版继续运行。')
 
 
@@ -546,21 +603,25 @@ def main():
     args = parser.parse_args()
     if getattr(args, 'timeout', 1) <= 0:
         parser.error('--timeout 必须大于 0。')
-    if args.command == 'build':
-        with locked(BIN / 'build.lock'):
-            build()
-    elif args.command == 'run-preview':
-        build_id = args.build_id
-        if build_id is None:
-            entries = sorted(path.name for path in CANDIDATES.iterdir() if not path.name.startswith('.') and path.is_dir())
-            if not entries:
-                raise RuntimeError('请先执行 ./scripts/build preview。')
-            build_id = entries[-1]
-        run_preview(build_id, args.timeout)
-    elif args.command == 'promote':
-        promote(args.build_id, args.app.expanduser().absolute(), args.data_dir.expanduser().absolute(), args.check)
-    else:
+    if args.command == 'rollback':
         rollback(args.app.expanduser().absolute(), args.data_dir.expanduser().absolute(), args.timeout, args.restore_data)
+        return
+    with locked(BIN / 'build.lock'):
+        if args.command == 'build':
+            build()
+        elif args.command == 'run-preview':
+            build_id = args.build_id
+            if build_id is None:
+                entries = sorted(path.name for path in CANDIDATES.iterdir() if not path.name.startswith('.') and (path / 'candidate.json').is_file())
+                if not entries:
+                    raise RuntimeError('请先执行 ./scripts/build preview。')
+                active_id = active_preview_id()
+                if len(entries) == 2 and active_id in entries:
+                    entries.remove(active_id)
+                build_id = entries[-1]
+            run_preview(build_id, args.timeout)
+        else:
+            promote(args.build_id, args.app.expanduser().absolute(), args.data_dir.expanduser().absolute(), args.check)
 
 
 if __name__ == '__main__':

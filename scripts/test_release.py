@@ -2,6 +2,7 @@ import importlib.util
 from contextlib import closing
 from pathlib import Path
 import plistlib
+import shutil
 import sqlite3
 import struct
 import tempfile
@@ -193,6 +194,37 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual((self.data / 'draft').read_text(), 'unsaved draft')
         with (self.app / 'Contents/Info.plist').open('rb') as handle:
             self.assertEqual(plistlib.load(handle)['CFBundleIdentifier'], 'com.shenming.sasa')
+
+    def test_preview_reuses_one_bundle_across_restart_replacement_and_promotion(self):
+        with patch.object(release, 'SUPPORT', self.root), patch.object(release, 'MacOS') as platform:
+            release.run_preview(self.build_id, 1)
+            self.assertTrue(self.source.is_symlink())
+            self.assertEqual(self.source.resolve(), release.PREVIEW_APP.resolve())
+            second_id = 'candidate-2'
+            second = self.candidates / second_id / self.source.name
+            shutil.copytree(release.PREVIEW_APP, second)
+            identity = dict(self.identity, buildID=second_id)
+            release.configure_channel(second, identity, 'preview')
+            release.write_json(second.parent / 'candidate.json', {'identity': identity, 'files': release.inventory(second)})
+            obsolete = self.candidates / 'obsolete'
+            shutil.copytree(second.parent, obsolete)
+            release.write_json(obsolete / 'candidate.json', {'identity': dict(identity, buildID='obsolete')})
+            release.prune_candidates({second_id, release.active_preview_id()})
+            self.assertFalse(obsolete.exists())
+            release.run_preview(self.build_id, 1)
+            self.assertTrue(second.exists())
+            platform.return_value.launch.side_effect = RuntimeError('startup failed')
+            with self.assertRaisesRegex(RuntimeError, 'startup failed'):
+                release.run_preview(second_id, 1)
+            self.assertEqual(release.candidate(self.build_id)[1], self.identity)
+            self.assertEqual(release.candidate(second_id)[1], identity)
+            platform.return_value.launch.side_effect = None
+            release.run_preview(second_id, 1)
+            self.assertFalse(self.source.parent.exists())
+            bundles = [path for path in self.bin.rglob('Sasa Preview.app') if not path.is_symlink()]
+            self.assertEqual(bundles, [release.PREVIEW_APP])
+            release.promote(second_id, self.app, self.data)
+            self.assertEqual(release.read_json(self.app / release.IDENTITY)['buildID'], second_id)
 
     def test_new_brand_keeps_application_identity_and_data(self):
         with (self.app / 'Contents/Info.plist').open('rb') as handle:

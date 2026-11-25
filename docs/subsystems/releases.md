@@ -33,7 +33,7 @@ Preview 首次启动从现有环境配置根复制 Codex 的 `config.toml`、`au
 
 `scripts/build` 默认等同于 `preview`，不接受直接构建正式版。构建先写临时目录，再签名、核对构建前后源码摘要，完成后保存到 `bin/candidates/<构建ID>/`。摘要包含 Git 已跟踪、未提交、删除和未忽略的未跟踪文件；源码在构建期间变化时拒绝生成候选。
 
-`candidate.json` 保存身份、每个产物文件的 SHA-256 与权限，以及去除签名、归一化主程序 UUID 后的程序摘要。主程序 UUID 按 Bundle ID 和构建 ID 确定，同一候选的 Preview 与正式版使用不同 UUID，重复配置同一渠道保持一致。候选是验收与发布的固定来源，启动和晋升前都核对文件清单与签名；不在候选内写运行数据。再次开发产生新候选，不覆盖旧候选。
+`candidate.json` 保存身份、每个产物文件的 SHA-256 与权限，以及去除签名、归一化主程序 UUID 后的程序摘要。主程序 UUID 按 Bundle ID 和构建 ID 确定，同一候选的 Preview 与正式版使用不同 UUID，重复配置同一渠道保持一致。构建成功后保留当前公共 Preview 和本次待启动候选。新版通过窗口启动确认后，日常验收只保留 `bin/Sasa Preview.app` 一份实体；对应构建目录保存校验清单和指向公共 Preview 的链接，旧候选自动清理。按构建 ID 重启或晋升时仍校验文件清单、签名和包内身份。正式版回退使用安装时的独立备份。
 
 Preview 启动和回退重开通过 macOS Launch Services（`/usr/bin/open -n -a`）启动应用，使应用建立自己的启动域，避免直接创建进程时继承调用方已退出的 coalition。启动继续传递数据目录、一次性 token 和 ready 文件；以 ready 中的 PID 对照实际可执行路径，并核对构建、渠道和数据目录，再确认窗口初始化后进程仍存活。启动日志由 `open --stdout/--stderr` 保存；保留调用环境中的 PATH、CODEX_HOME、CLAUDE_CONFIG_DIR 路径配置。正式版晋升不启动应用，只交换安装目录，见下文。
 
