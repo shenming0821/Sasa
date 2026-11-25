@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -90,9 +91,6 @@ func SearchContent(ctx context.Context, root string, q ContentQuery) (ContentSea
 			if len(include) > 0 && !include.match(rel) {
 				return false, nil
 			}
-			if len(result.Matches) >= contentSearchMaxMatches {
-				return false, errSearchLimit
-			}
 			if err := ctx.Err(); err != nil {
 				return false, err
 			}
@@ -100,6 +98,9 @@ func SearchContent(ctx context.Context, root string, q ContentQuery) (ContentSea
 			result.Matches = append(result.Matches, matches...)
 			if incomplete {
 				result.Truncated = true
+				if len(result.Matches) == contentSearchMaxMatches {
+					return false, errSearchLimit
+				}
 			}
 			return false, nil
 		})
@@ -149,7 +150,10 @@ func searchContentRipgrep(ctx context.Context, root string, q ContentQuery) ([]C
 	if err != nil {
 		return nil, false, false
 	}
-	args := []string{"--json", "--max-count", fmt.Sprintf("%d", contentSearchMaxFileMatch+1)}
+	args := []string{"--json"}
+	if !q.WholeWord {
+		args = append(args, "--max-count", fmt.Sprint(contentSearchMaxFileMatch+1))
+	}
 	if !q.MatchCase {
 		args = append(args, "-i")
 	}
@@ -170,53 +174,67 @@ func searchContentRipgrep(ctx context.Context, root string, q ContentQuery) ([]C
 		args = append(args, "--iglob", "!"+p)
 	}
 	args = append(args, "-e", q.Text, ".")
-	cmd := exec.CommandContext(ctx, rg, args...)
+	searchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cmd := exec.CommandContext(searchCtx, rg, args...)
 	cmd.Dir = root
-	out, err := cmd.Output()
-	if err != nil {
-		if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
-			return nil, false, true // no matches
-		}
+	output, err := cmd.StdoutPipe()
+	if err != nil || cmd.Start() != nil {
 		return nil, false, false
 	}
+	decoder := json.NewDecoder(output)
 	var matches []ContentMatch
 	truncated := false
 	perFile := map[string]int{}
-	for _, raw := range bytes.Split(out, []byte{'\n'}) {
+	for {
 		var ev rgEvent
-		if len(raw) == 0 || json.Unmarshal(raw, &ev) != nil || ev.Type != "match" {
-			continue
+		if err := decoder.Decode(&ev); err != nil {
+			if err != io.EOF {
+				cancel()
+				_ = cmd.Wait()
+				return nil, false, false
+			}
+			break
 		}
-		path := filepath.Join(root, filepath.FromSlash(ev.Data.Path.Text))
-		if perFile[path] >= contentSearchMaxFileMatch {
-			truncated = true
+		if ev.Type != "match" {
 			continue
 		}
 		line := strings.TrimSuffix(ev.Data.Lines.Text, "\n")
 		var spans [][]int
 		for _, sm := range ev.Data.Submatches {
-			spans = append(spans, []int{sm.Start, sm.End})
-		}
-		if q.WholeWord {
-			var kept [][]int
-			for _, s := range spans {
-				if IsWholeWord(line, s[0], s[1]) {
-					kept = append(kept, s)
-				}
+			if sm.End > len(line) || q.WholeWord && (sm.Start == sm.End || !IsWholeWord(line, sm.Start, sm.End)) {
+				continue
 			}
-			spans = kept
+			spans = append(spans, []int{sm.Start, sm.End})
+			if q.WholeWord && len(spans) == contentSearchMaxLineRanges {
+				break
+			}
 		}
 		if len(spans) == 0 {
 			continue
 		}
 		if len(matches) >= contentSearchMaxMatches {
 			truncated = true
+			cancel()
 			break
+		}
+		path := filepath.Join(root, filepath.FromSlash(ev.Data.Path.Text))
+		if perFile[path] >= contentSearchMaxFileMatch {
+			truncated = true
+			continue
 		}
 		perFile[path]++
 		col := utf8.RuneCountInString(line[:spans[0][0]]) + 1
 		text, ranges := matchPreview(line, spans)
 		matches = append(matches, ContentMatch{Path: path, Line: ev.Data.LineNumber, Col: col, Text: text, Ranges: ranges})
+	}
+	if err := cmd.Wait(); err != nil && searchCtx.Err() == nil {
+		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+			return nil, false, false
+		}
+	}
+	if ctx.Err() != nil {
+		return nil, false, false
 	}
 	sortSearchMatches(matches, root)
 	return matches, truncated, true
@@ -491,11 +509,9 @@ func searchFileContent(path string, pattern *regexp.Regexp, wholeWord bool, limi
 	buf := make([]byte, 128*1024)
 	total := 0
 	flush := func() bool {
-		if lineNo > 0 && len(matches) < limit {
-			appendLineMatch(&matches, path, line.String(), lineNo, pattern, wholeWord)
-		}
+		appendLineMatch(&matches, path, line.String(), lineNo, pattern, wholeWord)
 		line.Reset()
-		return len(matches) >= limit
+		return len(matches) > limit
 	}
 	for {
 		n, readErr := f.Read(buf)
@@ -517,7 +533,7 @@ func searchFileContent(path string, pattern *regexp.Regexp, wholeWord bool, limi
 			chunk = chunk[i+1:]
 			lineNo++
 			if flush() {
-				return matches, true
+				return matches[:limit], true
 			}
 		}
 		if readErr != nil {
@@ -526,9 +542,11 @@ func searchFileContent(path string, pattern *regexp.Regexp, wholeWord bool, limi
 	}
 	if line.Len() > 0 {
 		lineNo++
-		flush()
+		if flush() {
+			return matches[:limit], true
+		}
 	}
-	return matches, len(matches) >= limit
+	return matches, false
 }
 
 // appendLineMatch decodes one raw line (valid UTF-8 only), applies the pattern
@@ -539,9 +557,16 @@ func appendLineMatch(matches *[]ContentMatch, path, raw string, lineNo int, patt
 		return false
 	}
 	var spans [][]int
-	for _, span := range pattern.FindAllStringIndex(line, contentSearchMaxLineRanges) {
+	candidates := contentSearchMaxLineRanges
+	if wholeWord {
+		candidates = -1
+	}
+	for _, span := range pattern.FindAllStringIndex(line, candidates) {
 		if span[1] > span[0] && (!wholeWord || IsWholeWord(line, span[0], span[1])) {
 			spans = append(spans, span)
+			if len(spans) == contentSearchMaxLineRanges {
+				break
+			}
 		}
 	}
 	if len(spans) == 0 {

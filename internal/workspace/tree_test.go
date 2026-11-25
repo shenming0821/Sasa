@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -177,6 +178,79 @@ func TestContentSearchOptionsAndGlobs(t *testing.T) {
 	}
 	if _, err := SearchContent(context.Background(), root, ContentQuery{Text: "x", Include: "{a,b"}); err == nil || !strings.Contains(err.Error(), "文件模式无效") {
 		t.Fatal("invalid glob accepted", err)
+	}
+}
+
+func TestWholeWordLimitsCountAcceptedMatches(t *testing.T) {
+	for _, backend := range []string{"ripgrep", "walker"} {
+		t.Run(backend, func(t *testing.T) {
+			if backend == "walker" {
+				t.Setenv("PATH", t.TempDir())
+			} else if _, err := exec.LookPath("rg"); err != nil {
+				t.Skip("ripgrep unavailable")
+			}
+			search := func(t *testing.T, root string) ContentSearchResult {
+				t.Helper()
+				query := ContentQuery{Text: "id", WholeWord: true}
+				if backend == "ripgrep" {
+					matches, truncated, ok := searchContentRipgrep(t.Context(), root, query)
+					if !ok {
+						t.Fatal("ripgrep search failed")
+					}
+					return ContentSearchResult{Matches: matches, Truncated: truncated}
+				}
+				result, err := SearchContent(t.Context(), root, query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return result
+			}
+			prefix := strings.Repeat("identifier\n", contentSearchMaxFileMatch+1)
+			longLine := strings.Repeat("id_ ", contentSearchMaxLineRanges+1) + "ID\u0301"
+			for _, test := range []struct {
+				name, text      string
+				hits, line, col int
+				truncated       bool
+			}{
+				{"late line", prefix + "id\n", 1, contentSearchMaxFileMatch + 2, 1, false},
+				{"late column", longLine, 1, 1, len(longLine) - len("ID\u0301") + 1, false},
+				{"exact limit", strings.Repeat("id\n", contentSearchMaxFileMatch) + prefix, contentSearchMaxFileMatch, 1, 1, false},
+				{"over limit", prefix + strings.Repeat("id\n", contentSearchMaxFileMatch+1), contentSearchMaxFileMatch, contentSearchMaxFileMatch + 2, 1, true},
+			} {
+				t.Run(test.name, func(t *testing.T) {
+					root := t.TempDir()
+					if err := os.WriteFile(filepath.Join(root, "input.txt"), []byte(test.text), 0600); err != nil {
+						t.Fatal(err)
+					}
+					result := search(t, root)
+					if len(result.Matches) != test.hits || result.Truncated != test.truncated {
+						t.Fatalf("got %d lines, truncated=%v; want %d, %v", len(result.Matches), result.Truncated, test.hits, test.truncated)
+					}
+					if first := result.Matches[0]; first.Line != test.line || first.Col != test.col {
+						t.Fatalf("first match at %d:%d, want %d:%d", first.Line, first.Col, test.line, test.col)
+					}
+				})
+			}
+			t.Run("workspace limit", func(t *testing.T) {
+				root := t.TempDir()
+				for count := 0; count < contentSearchMaxMatches; count += contentSearchMaxFileMatch {
+					size := min(contentSearchMaxFileMatch, contentSearchMaxMatches-count)
+					path := filepath.Join(root, fmt.Sprintf("matches-%04d.txt", count))
+					if err := os.WriteFile(path, []byte(strings.Repeat("id\n", size)), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				for _, extra := range []string{"", "id"} {
+					if err := os.WriteFile(filepath.Join(root, "tail.txt"), []byte(prefix+extra), 0600); err != nil {
+						t.Fatal(err)
+					}
+					result := search(t, root)
+					if len(result.Matches) != contentSearchMaxMatches || result.Truncated != (extra != "") {
+						t.Fatalf("extra=%q: got %d lines, truncated=%v", extra, len(result.Matches), result.Truncated)
+					}
+				}
+			})
+		})
 	}
 }
 
