@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -52,8 +53,15 @@ func (a *App) requestHighlightAt(d *filePage, height float32) {
 	decorate := isFile && (d.file.Reason == "" || largeReadOnly) || d.kind == "diff" && len(d.gitRows) > 0
 	useWindow := isFile && (!refreshDocument || largeReadOnly || lineCount > editorHighlightWholeLines || snapshot.ByteLen() > editor.EditBytes)
 	var leftText, rightText string
+	var diffRows []diffCodeRow
+	var leftRows, rightRows []diffCodeRow
 	if refreshDocument && review != nil {
 		leftText, rightText = diffPairText(d.gitPairs)
+		diffRows = slices.Clone(d.gitRows)
+		leftRows, rightRows = make([]diffCodeRow, len(d.gitPairs)), make([]diffCodeRow, len(d.gitPairs))
+		for index, pair := range d.gitPairs {
+			leftRows[index], rightRows[index] = pair.left, pair.right
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	d.highlightCancel = cancel
@@ -107,7 +115,7 @@ func (a *App) requestHighlightAt(d *filePage, height float32) {
 		}
 		lexer := editorLexer(sourcePath)
 		whole := decorate && lexer != nil && !useWindow && snapshot.ByteLen() <= editor.EditBytes
-		if whole {
+		if whole && isFile {
 			first := max(0, visibleFirst-50)
 			last := min(lineCount-1, first+max(200, visibleRows+50))
 			lo, _ := snapshot.LineRange(first)
@@ -118,11 +126,23 @@ func (a *App) requestHighlightAt(d *filePage, height float32) {
 			text = snapshot.String()
 		}
 		if whole && ctx.Err() == nil {
-			var overflow bool
-			ranges, overflow = collectHighlightText(ctx, lexer, text, 0, editorHighlightTokenLimit)
-			if overflow {
-				ranges = nil
-				useWindow = isFile
+			if review != nil {
+				leftSource, rightSource := diffHighlightSources(review)
+				leftTokens := highlightText(ctx, lexer, leftSource, 0)
+				rightTokens := highlightText(ctx, lexer, rightSource, 0)
+				inlineLeft, inlineRight := diffInlineHighlightRows(diffRows)
+				ranges = mergeDiffTokens(
+					projectDiffTokens(leftTokens, leftSource, inlineLeft),
+					projectDiffTokens(rightTokens, rightSource, inlineRight))
+				leftRanges = projectDiffTokens(leftTokens, leftSource, diffHighlightRows(leftRows, true))
+				rightRanges = projectDiffTokens(rightTokens, rightSource, diffHighlightRows(rightRows, false))
+			} else {
+				var overflow bool
+				ranges, overflow = collectHighlightText(ctx, lexer, text, 0, editorHighlightTokenLimit)
+				if overflow {
+					ranges = nil
+					useWindow = isFile
+				}
 			}
 		}
 		if decorate && lexer != nil && useWindow && ctx.Err() == nil {
@@ -145,10 +165,6 @@ func (a *App) requestHighlightAt(d *filePage, height float32) {
 			if review != nil {
 				leftWidth = editorTextWidthForFont(ctx, leftText, family, 12, 76)
 				rightWidth = editorTextWidthForFont(ctx, rightText, family, 12, 76)
-				if whole {
-					leftRanges = highlightText(ctx, lexer, leftText, 0)
-					rightRanges = highlightText(ctx, lexer, rightText, 0)
-				}
 			}
 		}
 	})
@@ -186,7 +202,7 @@ func collectHighlightText(ctx context.Context, lexer chroma.Lexer, text string, 
 	if ctx.Err() != nil || text == "" {
 		return nil, false
 	}
-	iter, err := lexer.Tokenise(nil, text)
+	iter, err := lexer.Tokenise(&chroma.TokeniseOptions{State: "root", EnsureLF: false}, text)
 	if err != nil {
 		return nil, false
 	}
