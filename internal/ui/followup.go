@@ -35,7 +35,7 @@ func (a *App) enqueueInput(text string, images []attachment.Image) {
 		Text:      text, Images: images, Skills: a.draftSkills(text), Status: "queued",
 		Options: a.supportedTurnOptions(a.selectedTurnOptions()),
 	}
-	if _, ok := a.sessionBackend().(agent.TurnSteerer); ok && a.State.Busy && a.usesActiveModel(pending.Options.Model) {
+	if _, ok := a.sessionBackend().(agent.TurnSteerer); ok && a.State.Busy && a.usesActiveOptions(pending.Options) {
 		pending.TurnID = a.State.TurnID
 	}
 	a.pendingInputs = append(a.pendingInputs, pending)
@@ -183,8 +183,11 @@ func (a *App) settleInputsFromHistory(turns []agent.HistoryTurn) error {
 	return nil
 }
 
-func (a *App) usesActiveModel(model string) bool {
-	return model == "" || model == a.activeModel
+func (a *App) usesActiveOptions(options agent.TurnOptions) bool {
+	if options.Model == "" {
+		options.Model = a.activeOptions.Model
+	}
+	return options == a.activeOptions
 }
 
 func (a *App) drainInputs() {
@@ -224,7 +227,7 @@ func (a *App) drainInputs() {
 		return
 	}
 	sender, ok := a.sessionBackend().(agent.TurnSteerer)
-	if !ok || pending.Options.Mode != a.activeMode || !a.usesActiveModel(pending.Options.Model) ||
+	if !ok || !a.usesActiveOptions(pending.Options) ||
 		a.State.TurnID == "" || a.submitCancel != nil || a.State.PendingSubmission() != nil {
 		return
 	}

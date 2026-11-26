@@ -218,7 +218,7 @@ func TestPlanExecuteIconSharesCopyToolbar(t *testing.T) {
 func TestPlanQueueCannotSteerAcrossModes(t *testing.T) {
 	backend := &followupBackend{calls: make(chan followupCall, 1), reply: make(chan error, 1)}
 	a := activeFollowupApp(backend)
-	a.activeMode = agent.ModePlan
+	a.activeOptions.Mode = agent.ModePlan
 	a.pendingInputs = []storage.PendingInput{{ID: "next", Text: "实施", Status: "queued", Options: agent.TurnOptions{Mode: agent.ModeDefault}}}
 	a.drainInputs()
 	select {

@@ -204,7 +204,7 @@ func TestFollowupWithDifferentModelStartsNextTurn(t *testing.T) {
 			store := imageStore(t, desktop)
 			updates := make(chan func(), 8)
 			desktop.dispatch = func(update func()) { updates <- update }
-			desktop.activeModel, desktop.State.Model = "provider/one", "provider/one"
+			desktop.activeOptions.Model, desktop.State.Model = "provider/one", "provider/one"
 			desktop.selectedModel, desktop.selectedEffort = "provider/two", "high"
 			desktop.State.Draft = "next task"
 			desktop.send()
@@ -235,9 +235,36 @@ func TestFollowupWithDifferentModelStartsNextTurn(t *testing.T) {
 				t.Fatal("sending the queued message overwrote the saved model preference")
 			}
 			pumpUpdate(t, updates)
-			if !desktop.State.Busy || desktop.State.TurnID != "model-turn" || desktop.activeModel != "provider/two" ||
+			if !desktop.State.Busy || desktop.State.TurnID != "model-turn" || desktop.activeOptions.Model != "provider/two" ||
 				desktop.selectedModel != "provider/three" || desktop.lastModels[modelPreferenceKey(kind, desktop.runtimeKey)] != "provider/three" {
 				t.Fatal("the turn acknowledgement overwrote the next model selection")
+			}
+		})
+	}
+}
+
+func TestFollowupWithChangedEffortOrSpeedStartsNextTurn(t *testing.T) {
+	for _, options := range []agent.TurnOptions{
+		{Model: "same", Effort: "high", ServiceTier: "default"},
+		{Model: "same", Effort: "medium", ServiceTier: "priority"},
+	} {
+		t.Run(options.Effort+"-"+options.ServiceTier, func(t *testing.T) {
+			capture := &modelCaptureBackend{request: make(chan modelRequest, 1)}
+			desktop := activeFollowupApp(&modelSteerBackend{capture})
+			updates := make(chan func(), 8)
+			desktop.dispatch = func(update func()) { updates <- update }
+			desktop.activeOptions = agent.TurnOptions{Model: "same", Effort: "medium", ServiceTier: "default"}
+			desktop.selectedModel, desktop.selectedEffort, desktop.selectedTier = options.Model, options.Effort, options.ServiceTier
+			desktop.State.Draft = "next task"
+			desktop.send()
+			if len(desktop.pendingInputs) != 1 || desktop.pendingInputs[0].TurnID != "" || desktop.followupSending {
+				t.Fatal("follow-up attached to active turn", desktop.pendingInputs)
+			}
+			desktop.selectedEffort, desktop.selectedTier = "low", "default"
+			desktop.applySessionBatch([]agent.Event{{Method: "turn/completed", Params: json.RawMessage(`{"threadId":"thread","turn":{"id":"turn","status":"completed"}}`)}})
+			pumpUpdate(t, updates)
+			if request := <-capture.request; request.options != options || desktop.activeOptions != options {
+				t.Fatal("next turn lost the submitted options", request.options, desktop.activeOptions)
 			}
 		})
 	}

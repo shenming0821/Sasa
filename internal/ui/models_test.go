@@ -398,6 +398,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	}
 	a.modelsLoaded = true
 	a.selectedModel = "provider/one"
+	a.State.Busy = true
 	tt := native.NewTester(a.view, 1000, 760)
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
@@ -529,6 +530,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 		f.Close()
 	}
 	tt.Key(0, native.KeyEscape)
+	a.State.Busy = false
 	a.State.ThreadID = "native"
 	a.State.Draft = "task"
 	queue := make(chan func(), 4)

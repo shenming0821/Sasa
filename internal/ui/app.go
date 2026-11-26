@@ -332,7 +332,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 	a.State.DraftImages = images
 	a.titleConversationChanged(time.Now())
 	a.State.BeginMessage(text, messageID)
-	a.activeMode, a.activeModel = options.Mode, options.Model
+	a.activeOptions = options
 	if edited {
 		a.State.Draft, a.State.DraftImages = draft, draftImages
 		message := a.State.Messages[len(a.State.Messages)-1]
@@ -453,7 +453,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 						a.editSending = false
 					}
 				}
-				a.activeModel = options.Model
+				a.activeOptions.Model = options.Model
 				if a.selectedModel == "" || a.selectedModel == options.Model {
 					a.rememberModel(options.Model)
 				}
@@ -643,7 +643,7 @@ func (a *App) applySessionBatch(batch []agent.Event) {
 				PermissionMode string                `json:"permissionMode"`
 			}
 			if json.Unmarshal(e.Params, &mode) == nil && mode.ThreadID == a.State.ThreadID && mode.Mode.Valid() && mode.Mode != "" {
-				a.selectedMode, a.activeMode = mode.Mode, mode.Mode
+				a.selectedMode, a.activeOptions.Mode = mode.Mode, mode.Mode
 				if mode.PermissionMode != "" {
 					raw, _ := json.Marshal(mode.PermissionMode)
 					a.State.Policy = string(raw)

@@ -431,7 +431,7 @@ func (a *App) modelMenu(c *native.Context) {
 				}
 			})
 		})
-		a.turnOptionsMenu(c, disabled || a.State.Busy)
+		a.turnOptionsMenu(c, disabled)
 		if root.modelsLoading && !root.modelsLoaded {
 			native.Text(c, "读取模型列表…").FontSize(11).TextColor(c.Theme().TextMuted).Padding(4, 8)
 		}
