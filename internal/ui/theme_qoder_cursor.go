@@ -111,6 +111,7 @@ func cursorDarkPalette() palette {
 func (colors palette) withCodeAndTerminal(name string, dark bool, text string, terminalBackground native.Color, syntax chroma.StyleEntries, ansi [16]uint32) palette {
 	editor := editorPalette{
 		background: colors.background, text: native.Hex(text), muted: colors.textMuted,
+		fill: colors.accent, fillText: colors.accentText,
 		border: colors.border, accent: colors.accent, added: colors.status.added, deleted: colors.status.danger,
 	}
 	editor.selection = colors.selection.Over(editor.background)

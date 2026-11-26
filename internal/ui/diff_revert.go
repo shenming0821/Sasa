@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	native "github.com/egoist/mygo/ui"
@@ -191,26 +192,31 @@ func (a *App) revertDiffBlock(d *filePage, row diffCodePair, appendLines bool) {
 	a.workspace(d.root).gitDecision = &gitDecision{title: fmt.Sprintf("%s · %s", verb, filepath.Base(d.path)), detail: "在编辑器中应用这处改动，可撤销，保存后写入磁盘。", labels: []string{"取消", verb}, actions: []func(){nil, openAndEdit}}
 }
 
+var (
+	diffRevertIcon = fileGlyph(`<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>`)
+	diffAppendIcon = fileGlyph(`<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>`)
+)
+
 func (a *App) diffArrow(c *native.Context, d *filePage, pair diffCodePair, x, y, size float32, palette editorPalette) {
 	btn := native.ButtonBase(c.Key(fmt.Sprintf("revert:%d:%d", pair.left.old, pair.right.next))).Absolute().Left(x).Top(y).Size(size, size).Radius(size/2).
 		AlignItems(native.Center).Justify(native.Center).Label("撤销此处更改").Tooltip("撤销此处更改；按住 Control 点击可追加原版本行").
 		Background(palette.background).Border(1, palette.border)
-	glyph, ink := "→", palette.muted
+	glyph, ink := diffRevertIcon, palette.muted
 	pose := native.Pose{}
 	if btn.Hovered() {
-		btn.Background(palette.accent).Border(1, palette.accent)
-		ink = palette.background
+		btn.Background(palette.fill).Border(1, palette.fill).Shadow(0, 1, 4, 0, native.RGBA(0, 0, 0, .18))
+		ink = palette.fillText
 		pose.Scale = 1.12
 		if c.Modifiers()&native.Ctrl != 0 {
-			glyph = "↓"
-			btn.Label("追加原版本行")
+			glyph = diffAppendIcon
+			btn.Label("追加原版本行").Tooltip("将原版本行追加到此处更改之后")
 		}
 	}
 	if btn.Pressed() {
 		pose.Scale = .88
 	}
-	btn.AnimatePose(pose, native.Snappy)
-	btn.Children(func() { native.Text(c, glyph).FontSize(size - 3).TextColor(ink) })
+	btn.Transition(native.ElementTransition{Colors: true, Duration: 120 * time.Millisecond}).AnimatePose(pose, native.Snappy)
+	btn.Children(func() { native.Icon(c, glyph).FontSize(size - 4).TextColor(ink) })
 	if btn.Clicked() {
 		a.revertDiffBlock(d, pair, btn.ClickModifiers()&native.Ctrl != 0)
 	}

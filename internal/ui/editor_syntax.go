@@ -83,7 +83,7 @@ func editorLexer(path string) chroma.Lexer {
 type editorPalette struct {
 	background, text, muted, selection, border         native.Color
 	added, deleted, addedBackground, deletedBackground native.Color
-	accent                                             native.Color
+	accent, fill, fillText                             native.Color
 	style                                              *chroma.Style
 	codeColors                                         *editor.Theme
 }
@@ -103,12 +103,14 @@ func claudeEditorPalette(dark bool) editorPalette {
 	styleName := "claude-light"
 	background, text, gutter := "#fdfcfa", "#1a1918", "#a9a7a1"
 	border, accent, added, deleted := "#dcdad4", "#c4613f", "#2c7a39", "#c8374f"
+	fillText := "#141413"
 	selection := native.RGBA(87, 105, 247, 0.16)
 	keyword, typeName, function := "#4c5ee0", "#0f6e6e", "#b0532f"
 	str, number, comment := "#2c7a39", "#966c1e", "#74726d"
 	operator, punctuation, builtin, tag := "#66645f", "#83817b", "#7a4fe0", "#c8207c"
 	if dark {
 		styleName = "claude-dark"
+		fillText = "#1a1918"
 		background, text, gutter = "#1a1917", "#ecebe6", "#5c5a55"
 		border, accent, added, deleted = "#34322f", "#d77757", "#4eba65", "#ff6b80"
 		selection = native.RGBA(177, 185, 249, 0.24)
@@ -119,6 +121,7 @@ func claudeEditorPalette(dark bool) editorPalette {
 	palette := editorPalette{
 		background: native.Hex(background), text: native.Hex(text), muted: native.Hex(gutter),
 		border: native.Hex(border), accent: native.Hex(accent),
+		fill: native.Hex("#d77757"), fillText: native.Hex(fillText),
 		added: native.Hex(added), deleted: native.Hex(deleted),
 		style: chroma.MustNewStyle(styleName, chroma.StyleEntries{
 			chroma.Text: text, chroma.Keyword: keyword, chroma.KeywordType: typeName,
@@ -166,6 +169,7 @@ func githubEditorPalette(dark bool) editorPalette {
 		return editorPalette{
 			background: native.Hex("#0d1117"), text: native.Hex("#e6edf3"), muted: native.Hex("#8b949e"),
 			selection: native.Hex("#264f78"), border: native.Hex("#30363d"), accent: native.Hex("#58a6ff"),
+			fill: native.Hex("#58a6ff"), fillText: native.Hex("#0d1117"),
 			added: native.Hex("#3fb950"), deleted: native.Hex("#f85149"),
 			addedBackground: native.Hex("#12261e"), deletedBackground: native.Hex("#2c171c"),
 			style: styles.Get("github-dark"),
@@ -174,6 +178,7 @@ func githubEditorPalette(dark bool) editorPalette {
 	return editorPalette{
 		background: native.Hex("#ffffff"), text: native.Hex("#1f2328"), muted: native.Hex("#57606a"),
 		selection: native.Hex("#b6d7fb"), border: native.Hex("#d0d7de"), accent: native.Hex("#0969da"),
+		fill: native.Hex("#0969da"), fillText: native.Hex("#ffffff"),
 		added: native.Hex("#1a7f37"), deleted: native.Hex("#cf222e"),
 		addedBackground: native.Hex("#dafbe1"), deletedBackground: native.Hex("#ffebe9"),
 		style: styles.Get("github"),
