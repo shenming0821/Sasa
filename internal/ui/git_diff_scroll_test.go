@@ -162,11 +162,10 @@ func TestGitDiffScrolledRowAlignment(t *testing.T) {
 				tester.Frame()
 				image := tester.Image()
 				palette := githubEditorPalette(false)
-				background, kind := palette.addedBackground, byte('+')
+				background := palette.addedBackground
 				if mode == "left" {
 					background = palette.deletedBackground
 				}
-				_ = kind
 				changedY := -1
 				for y := int(area.Y + padding); y < int(area.Y+area.H)-20; y++ {
 					pixel := image.RGBAAt(int(area.X+area.W-30), y)
@@ -182,34 +181,34 @@ func TestGitDiffScrolledRowAlignment(t *testing.T) {
 				if math.Abs(float64(textY-float32(changedY))) > 1 {
 					t.Fatalf("background and text differ at scroll %v: background=%v text=%v", scroll.Y, changedY, textY)
 				}
-				// The line number must sit on the same row as the text: its
-				// digits appear inside the row's band and nowhere a row above
-				// or below. Scan the gutter for the digit ink of the changed
-				// line's number and check its vertical center matches textY.
-				inked := -1
-				count := 0
-				for y := int(math.Ceil(float64(textY))) - 2; y < int(textY+22); y++ {
-					for x := int(area.X + 4); x < int(area.X+diffTextX-4); x++ {
-						px := image.RGBAAt(x, y)
+				numberEnd := int(area.X + 3 + 2*diffNumW)
+				if split {
+					numberEnd = int(area.X + 3 + diffNumW)
+				}
+				for _, column := range []struct {
+					name       string
+					start, end int
+				}{{"number", numberEnd - int(diffNumW) + 1, numberEnd}, {"mark", numberEnd + 7, numberEnd + 20}} {
+					first, last := -1, -1
+					for y := changedY; y < changedY+20; y++ {
 						bg := image.RGBAAt(int(area.X+area.W-30), y)
-						if px != bg {
+						for x := column.start; x < column.end; x++ {
+							px := image.RGBAAt(x, y)
 							dr := int(px.R) - int(bg.R)
 							dg := int(px.G) - int(bg.G)
 							db := int(px.B) - int(bg.B)
 							if dr*dr+dg*dg+db*db > 900 {
-								if inked < 0 {
-									inked = y
+								if first < 0 {
+									first = y
 								}
-								count++
+								last = y
+								break
 							}
 						}
 					}
-				}
-				if count == 0 {
-					t.Fatalf("no line-number digits near the changed row at scroll %v", scroll.Y)
-				}
-				if inked < int(textY)-1 || inked > int(textY)+4 {
-					t.Fatalf("line-number digits start at %v, row top %v, scroll %v", inked, textY, scroll.Y)
+					if first < 0 || math.Abs(float64(first+last+1)/2-float64(textY+10)) > 2 {
+						t.Fatalf("%s ink at %d..%d, row center %v, scroll %v", column.name, first, last, textY+10, scroll.Y)
+					}
 				}
 			}
 		})

@@ -1037,6 +1037,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				a.paintBracketPair(p, r, d, snap, palette)
 			})
 			area.DrawOver(func(p *native.Painter, r native.Rect) {
+				gutterText := measureGutterText(p, a.codeFontFamily(), 13)
 				if d.highlightWindow.active && d.scroll.Y != highlightScrollY {
 					a.requestHighlightAt(d, r.H)
 					c.AnimationFrame()
@@ -1046,7 +1047,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				for i := first; i < last; i++ {
 					y := r.Y + 8 + d.lines.Top(i) - d.scroll.Y
 					if y >= r.Y && y < r.Y+r.H {
-						number := i + 1
+						height := d.lines.Top(i+1) - d.lines.Top(i)
 						if d.kind == "diff" {
 							if i >= len(d.gitRows) {
 								continue
@@ -1054,14 +1055,12 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 							row := d.gitRows[i]
 							vx := r.X + d.hscroll.X
 							if row.hunkHeader() {
-								height := d.lines.Top(i+1) - d.lines.Top(i)
 								gutter := native.Rect{X: vx, Y: y, W: diffTextX - 4, H: height}
 								p.Fill(gutter, palette.text.Alpha(0.035).Over(palette.background), 0)
 								p.Fill(native.Rect{X: vx, Y: y, W: 3, H: height}, palette.muted.Alpha(0.45), 0)
 								diffSelection(snap, d.anchor, d.caret, area.Focused()).paint(p, native.Rect{X: vx, Y: y, W: r.W, H: height}, i, palette, true)
 								continue
 							}
-							height := d.lines.Top(i+1) - d.lines.Top(i)
 							// The gutter stays where the view's left is,
 							// as Mayoi's does: the draw pass scrolls
 							// with the text, so everything of it draws
@@ -1100,13 +1099,13 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 								}
 							}
 							p.Fill(native.Rect{X: vx, Y: y, W: 3, H: height}, rail, 0)
-							drawDiffLineNumber(p, vx+3, y, row, palette.lineTheme())
+							gutterText.drawDiff(p, vx+3, y, height, row.kind, palette.lineTheme(), row.old, row.next)
 							diffSelection(snap, d.anchor, d.caret, area.Focused()).paint(p, native.Rect{X: vx, Y: y, W: r.W, H: height}, i, palette, true)
 							continue
 						}
-						if number > 0 {
-							p.Text(r.X+10, y, fmt.Sprint(number), 11, palette.muted)
-						}
+						span := gutterText.span
+						span.Text, span.Color = fmt.Sprint(i+1), palette.muted
+						p.RichText(r.X+10, gutterText.centeredY(y, height), 0, span)
 					}
 				}
 			})

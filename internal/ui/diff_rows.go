@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	native "github.com/egoist/mygo/ui"
@@ -61,60 +61,42 @@ func (d *filePage) diffInlineTextX() float32 {
 	return editorTextX
 }
 
-// drawDiffLineNumber draws the two line-number columns of a unified diff
-// row, as Mayoi does: the old line right-aligned in the first column, the
-// new line right-aligned in the second, each skipped where its side has
-// none, and the +/- mark right after the second column. Numbers are
-// right-aligned by measuring, so the digit width need not be exact.
-func drawDiffLineNumber(p *native.Painter, x, y float32, row diffCodeRow, theme *native.Theme) {
-	numCol := theme.TextMuted
-	mark := byte(0)
-	markCol := theme.TextMuted
-	switch row.kind {
-	case '-':
-		numCol = theme.Danger
-		mark, markCol = '-', theme.Danger
-	case '+':
-		numCol = theme.Success
-		mark, markCol = '+', theme.Success
-	}
-	number := func(n int, right float32) {
-		if n <= 0 {
-			return
-		}
-		label := fmt.Sprint(n)
-		// Mayoi 用整数 digit 宽度右对齐：x 始终整数，文本按像素对齐，
-		// 不会退化成亚像素抗锯齿。diffNumW 的 7 与这里一致。
-		p.Text(right-float32(len(label))*7, y, label, 11, numCol)
-	}
-	number(row.old, x+diffNumW)
-	number(row.next, x+2*diffNumW)
-	if mark != 0 {
-		p.Text(x+2*diffNumW+8, y, string(mark), 11, markCol)
-	}
+type gutterTextMetrics struct {
+	span   native.Span
+	height float32
 }
 
-// drawDiffLineNumberSide draws the one line-number column of a split diff
-// side, right-aligned as the columns of the unified layout are, with the
-// +/- mark of a changed line after it.
-func drawDiffLineNumberSide(p *native.Painter, x, y float32, number int, kind byte, theme *native.Theme) {
-	numCol := theme.TextMuted
-	mark := byte(0)
-	markCol := theme.TextMuted
+func measureGutterText(p *native.Painter, family string, size float32) gutterTextMetrics {
+	span := native.Span{Font: family, Size: size, Text: "0"}
+	_, height := p.MeasureText(0, span)
+	return gutterTextMetrics{span: span, height: height}
+}
+
+func (g gutterTextMetrics) centeredY(y, rowHeight float32) float32 {
+	return y + (rowHeight-g.height)/2
+}
+
+func (g gutterTextMetrics) drawDiff(p *native.Painter, x, y, rowHeight float32, kind byte, theme *native.Theme, numbers ...int) {
+	span := g.span
+	span.Color = theme.TextMuted
 	switch kind {
 	case '-':
-		numCol = theme.Danger
-		mark, markCol = '-', theme.Danger
+		span.Color = theme.Danger
 	case '+':
-		numCol = theme.Success
-		mark, markCol = '+', theme.Success
+		span.Color = theme.Success
 	}
-	if number > 0 {
-		label := fmt.Sprint(number)
-		p.Text(x+diffNumW-float32(len(label))*7, y, label, 11, numCol)
+	y = g.centeredY(y, rowHeight)
+	for _, number := range numbers {
+		x += diffNumW
+		if number > 0 {
+			span.Text = strconv.Itoa(number)
+			width, _ := p.MeasureText(0, span)
+			p.RichText(x-width, y, 0, span)
+		}
 	}
-	if mark != 0 {
-		p.Text(x+diffNumW+8, y, string(mark), 11, markCol)
+	if kind == '+' || kind == '-' {
+		span.Text = string(kind)
+		p.RichText(x+8, y, 0, span)
 	}
 }
 

@@ -571,6 +571,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 						}
 					})
 					area.DrawOver(func(p *native.Painter, r native.Rect) {
+						gutterText := measureGutterText(p, a.codeFontFamily(), 12)
 						first := max(0, side.lines.At(side.scroll.Y-6)-1)
 						last := min(len(d.gitPairs), side.lines.At(side.scroll.Y+r.H-6)+2)
 						for index := first; index < last; index++ {
@@ -634,7 +635,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 							if sideIndex == 1 {
 								number = row.next
 							}
-							drawDiffLineNumberSide(p, vx+3, y, number, row.kind, palette.lineTheme())
+							gutterText.drawDiff(p, vx+3, y, height, row.kind, palette.lineTheme(), number)
 							paintCursor()
 						}
 					})
