@@ -46,11 +46,15 @@ func TestGitBranchCatalogSharedByPanelWorktreesAndCreateDialog(t *testing.T) {
 	if calls.Load() != 1 || a.branchCatalog(main.root) != a.branchCatalog(linked.root) {
 		t.Fatal("panel, dialog and worktrees did not share a single request", calls.Load())
 	}
-	if len(main.gitBranches) != 2 || len(linked.gitBranches) != 2 || len(a.worktreeCreate.sources) != 3 {
+	catalog := a.branchCatalog(main.root)
+	if len(catalog.branches) != 3 || len(a.worktreeCreate.sources) != 3 {
 		t.Fatal("local and remote projections were mixed")
 	}
-	if !main.gitBranches[0].Current || main.gitBranches[1].Current || linked.gitBranches[0].Current || !linked.gitBranches[1].Current {
-		t.Fatal("current branch leaked between worktrees", main.gitBranches, linked.gitBranches)
+	for _, state := range []*workspacePage{main, linked} {
+		choices, selected := gitBranchChoices(catalog.branches, state.git.Branch, "", true)
+		if selected != 1 || choices[selected].branch.Name != state.git.Branch {
+			t.Fatal("current branch leaked between worktrees", state.root, state.git.Branch, choices)
+		}
 	}
 	a.beginWorktreeCreate(repo)
 	if a.worktreeCreate.loading || len(a.worktreeCreate.sources) != 3 {
@@ -191,7 +195,7 @@ func TestGitBranchCatalogRefreshesAfterGitPanelBranchCreation(t *testing.T) {
 		return gitview.CreateBranch(ctx, state.root, "from-panel", "main")
 	}, nil)
 	p4Wait(t, tester, queue, func() bool {
-		return state.gitBusy == "" && !state.gitLoading && state.git.Branch == "from-panel" && len(state.gitBranches) == 3
+		return state.gitBusy == "" && !state.gitLoading && state.git.Branch == "from-panel" && len(a.branchCatalog(state.root).branches) == 3
 	})
 	a.beginWorktreeCreate(repo)
 	if a.worktreeCreate.loading || a.worktreeCreate.base != "refs/heads/from-panel" || len(a.worktreeCreate.sources) != 3 || calls.Load() != 2 {

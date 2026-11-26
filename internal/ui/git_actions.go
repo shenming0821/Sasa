@@ -60,14 +60,9 @@ type gitWorkflow struct {
 	gitAnchor                                      string
 	gitDecision                                    *gitDecision
 	gitArmed                                       *gitArm
-	gitBranches                                    []gitview.Branch
 	gitRemotes                                     []string
 	gitRemote                                      string
 	gitOperation                                   string
-	gitBranchPicker                                bool
-	gitBranchError                                 string
-	gitBranchName                                  string
-	gitBranchBase                                  string
 	gitHistory                                     []gitview.CommitInfo
 	gitHistoryLoading, gitHistoryLoaded            bool
 	gitHistoryQuiet                                bool

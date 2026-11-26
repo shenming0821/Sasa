@@ -4,7 +4,6 @@ import (
 	"context"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	gitview "github.com/shenming0821/Sasa/internal/git"
@@ -132,24 +131,6 @@ func (a *App) refreshBranchCatalog(root string) {
 
 func (a *App) publishBranchCatalog(root string, entry *branchCatalog) {
 	key := a.branchCatalogKey(root)
-	for _, state := range a.workspaces {
-		if a.branchCatalogKey(state.root) != key {
-			continue
-		}
-		state.gitBranchError = ""
-		if entry.err != nil {
-			state.gitBranchError = "分支刷新失败：" + entry.err.Error()
-		}
-		if entry.loaded {
-			state.gitBranches = make([]gitview.Branch, 0, len(entry.branches))
-			for _, branch := range entry.branches {
-				if !branch.Remote {
-					branch.Current = branch.Name == state.git.Branch
-					state.gitBranches = append(state.gitBranches, branch)
-				}
-			}
-		}
-	}
 	if draft := a.worktreeCreate; draft != nil && a.branchCatalogKey(draft.root) == key {
 		draft.loading = !entry.loaded && entry.err == nil
 		delete(draft.errors, "base")
@@ -184,10 +165,4 @@ func (a *App) branchMetadataChanged(root string, paths map[string]bool) bool {
 		}
 	}
 	return false
-}
-
-func (a *App) applyCurrentBranch(state *workspacePage) {
-	for index := range state.gitBranches {
-		state.gitBranches[index].Current = strings.TrimPrefix(state.git.Branch, "refs/heads/") == state.gitBranches[index].Name
-	}
 }

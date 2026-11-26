@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Root resolves the actual worktree, including linked worktrees.
@@ -78,6 +80,8 @@ type Branch struct {
 	Current                        bool
 	Ref                            string
 	Remote                         bool
+	Author, Subject                string
+	CommitTime                     time.Time
 }
 
 func Branches(ctx context.Context, root string) ([]Branch, error) {
@@ -92,18 +96,22 @@ func Branches(ctx context.Context, root string) ([]Branch, error) {
 }
 
 func RepositoryBranches(ctx context.Context, root string) ([]Branch, error) {
-	out, err := worktreeRun(ctx, root, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)%00%(symref)%00", "refs/heads/", "refs/remotes/")
+	out, err := worktreeRun(ctx, root, "for-each-ref", "--format=%(refname)%00%(objectname)%00%(upstream:short)%00%(worktreepath)%00%(HEAD)%00%(symref)%00%(committerdate:unix)%00%(authorname)%00%(subject)%00", "refs/heads/", "refs/remotes/")
 	if err != nil {
 		return nil, err
 	}
 	var result []Branch
 	fields := strings.Split(string(out), "\x00")
-	for len(fields) >= 6 {
+	for len(fields) >= 9 {
 		ref := strings.TrimPrefix(fields[0], "\n")
 		if fields[5] == "" {
-			result = append(result, Branch{Name: strings.TrimPrefix(strings.TrimPrefix(ref, "refs/heads/"), "refs/remotes/"), Hash: fields[1], Upstream: fields[2], Worktree: fields[3], Current: fields[4] == "*", Ref: ref, Remote: strings.HasPrefix(ref, "refs/remotes/")})
+			branch := Branch{Name: strings.TrimPrefix(strings.TrimPrefix(ref, "refs/heads/"), "refs/remotes/"), Hash: fields[1], Upstream: fields[2], Worktree: fields[3], Current: fields[4] == "*", Ref: ref, Remote: strings.HasPrefix(ref, "refs/remotes/"), Author: fields[7], Subject: fields[8]}
+			if stamp, err := strconv.ParseInt(fields[6], 10, 64); err == nil {
+				branch.CommitTime = time.Unix(stamp, 0)
+			}
+			result = append(result, branch)
 		}
-		fields = fields[6:]
+		fields = fields[9:]
 	}
 	return result, nil
 }
@@ -120,14 +128,26 @@ func Switch(ctx context.Context, root, branch string, create bool) error {
 }
 
 func CreateBranch(ctx context.Context, root, branch, base string) error {
+	if base != "" && base != "HEAD" {
+		base = "refs/heads/" + base
+	}
+	return CreateBranchFromRef(ctx, root, branch, base)
+}
+
+func CreateBranchFromRef(ctx context.Context, root, branch, base string) error {
 	if _, err := run(ctx, root, "check-ref-format", "--branch", branch); err != nil {
 		return fmt.Errorf("分支名称无效：%w", err)
 	}
 	args := []string{"switch", "-c", branch}
 	if base != "" && base != "HEAD" {
-		base = "refs/heads/" + base
+		if !strings.HasPrefix(base, "refs/heads/") && !strings.HasPrefix(base, "refs/remotes/") {
+			return fmt.Errorf("来源分支无效：%s", base)
+		}
 		if _, err := run(ctx, root, "check-ref-format", base); err != nil {
 			return fmt.Errorf("来源分支无效：%w", err)
+		}
+		if strings.HasPrefix(base, "refs/remotes/") {
+			args = append(args, "--no-track")
 		}
 	}
 	if base != "" {

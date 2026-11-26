@@ -805,7 +805,7 @@ func TestGitOccupiedBranchReportsSwitchFailureAndPreservesWorkspace(t *testing.T
 	original.State.Draft = "保留原工作区的输入"
 	w.gitMessage = "fix: original workspace"
 	tt := native.NewTester(a.view, 1600, 900)
-	p4Wait(t, tt, q, func() bool { return !w.gitLoading && len(w.gitBranches) == 2 })
+	p4Wait(t, tt, q, func() bool { return !w.gitLoading && len(a.branchCatalog(root).branches) == 2 })
 	if err := tt.Click("选择 Git 分支"); err != nil {
 		t.Fatal(err)
 	}
@@ -821,17 +821,21 @@ func TestGitOccupiedBranchReportsSwitchFailureAndPreservesWorkspace(t *testing.T
 		w.gitMessage != "fix: original workspace" || strings.TrimSpace(git("branch", "--show-current")) != "main" {
 		t.Fatal("occupied branch changed original worktree or lost its draft", a.State.Cwd, a.activeWorkspace)
 	}
-	if !strings.Contains(w.gitActionError, "other") || !w.gitBranchPicker {
-		t.Fatal("switch failure did not retain the picker and report the occupied branch", w.gitActionError)
+	if !strings.Contains(w.gitActionError, "other") || a.branchPicker != nil {
+		t.Fatal("switch failure did not close the picker and report the occupied branch", w.gitActionError)
 	}
 	git("branch", "available")
 	a.refreshGit(w)
-	p4Wait(t, tt, q, func() bool { return !w.gitLoading && len(w.gitBranches) == 3 })
+	p4Wait(t, tt, q, func() bool { return !w.gitLoading && len(a.branchCatalog(root).branches) == 3 })
+	if err := tt.Click("选择 Git 分支"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Advance(200 * time.Millisecond)
 	if err := tt.Click("切换分支 available"); err != nil {
 		t.Fatal(err)
 	}
 	p4Wait(t, tt, q, func() bool { return w.gitBusy == "" && w.git.Branch == "available" })
-	if a.State.Cwd != root || a.activeWorkspace != root || w.gitBranchPicker || strings.TrimSpace(git("branch", "--show-current")) != "available" {
+	if a.State.Cwd != root || a.activeWorkspace != root || a.branchPicker != nil || strings.TrimSpace(git("branch", "--show-current")) != "available" {
 		t.Fatal("branch click did not switch the original workspace")
 	}
 }

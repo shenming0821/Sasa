@@ -50,7 +50,7 @@ func (a *App) hideInactiveTerminals() {
 		if a.visibleTerms != nil {
 			visible = a.visibleTerms[page.id]
 		}
-		if page.connection != nil && (!visible || a.paneTabDragging || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil) {
+		if page.connection != nil && (!visible || a.paneTabDragging || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil || a.branchPicker != nil) {
 			page.connection.Hide()
 			if a.activeTab == page.id {
 				page.focus = true
@@ -188,7 +188,7 @@ func (a *App) terminalView(c *native.Context, page *terminalPage, leftShown, rig
 			c.AnimationFrame()
 			return
 		}
-		if a.paneTabDragging || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil {
+		if a.paneTabDragging || a.settingsOpen || a.viewerOpen || a.compactSidebar || a.worktreeRenameOpen || a.sessionRenameOpen || a.fileAction.open || a.worktreeCreate != nil || a.branchPicker != nil {
 			return
 		}
 		focus := page.focus && a.paneIsFocused() && !a.quickOpen.open

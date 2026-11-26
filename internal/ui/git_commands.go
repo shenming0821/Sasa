@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
-	native "github.com/egoist/mygo/ui"
 	gitview "github.com/shenming0821/Sasa/internal/git"
 )
 
@@ -41,92 +39,18 @@ func (a *App) gitRemoteAction(w *workspacePage, action string) {
 	}
 }
 
-func (a *App) gitBranchPickerView(c *native.Context, w *workspacePage) {
-	t := c.Theme()
-	branches := slices.Clone(w.gitBranches)
-	slices.SortStableFunc(branches, func(left, right gitview.Branch) int {
-		if left.Current == right.Current {
-			return 0
-		}
-		if left.Current {
-			return -1
-		}
-		return 1
-	})
-	native.Column(c).FillWidth().Padding(2, 12, 6, 12).Children(func() {
-		native.Column(c).Label("Git 分支面板").FillWidth().Padding(8).Gap(8).Radius(8).
-			Background(t.Surface).Border(1, t.Border).Children(func() {
-			if w.gitBranchError != "" {
-				native.Text(c, w.gitBranchError).FontSize(11).TextColor(t.Danger).FillWidth().MaxLines(3)
-			}
-			native.Row(c).FillWidth().Gap(6).AlignItems(native.Center).Children(func() {
-				native.Text(c, "基于分支").FontSize(11).TextColor(t.TextMuted).SingleLine().Shrink(0)
-				bases := []string{}
-				if w.git.Branch == "(detached)" {
-					bases = append(bases, "HEAD")
-				}
-				for _, branch := range branches {
-					bases = append(bases, branch.Name)
-				}
-				selection := native.SelectBase(c.Key("base"), &w.gitBranchBase)
-				trigger := selection.Trigger.Label("新分支基于分支").Grow(1).MinWidth(0).Height(28).
-					Padding(0, 8).Gap(6).Radius(6).Border(1, t.Border).AlignItems(native.Center).Disabled(w.gitBusy != "")
-				buttonFace(c, trigger, t.Surface, t.SurfaceHover, t.SurfacePressed, 6, 0)
-				trigger.Children(func() {
-					native.Text(c, w.gitBranchBase).FontSize(11).SingleLine().Grow(1).MinWidth(0)
-					native.Icon(c, chevron).Size(10, 10).Shrink(0).TextColor(t.TextMuted)
-				})
-				selection.Popup(func(panel native.Element) {
-					panel.Width(trigger.Bounds().W).Padding(4).Gap(2).Radius(8).Background(t.Surface).Border(1, t.Border)
-					native.Scroll(c.Key("base-options")).FillWidth().Height(min(168, float32(len(bases))*28)).Children(func() {
-						native.Column(c).FillWidth().Children(func() {
-							for _, base := range bases {
-								item := selection.Item(base).Label("来源分支 "+base).FillWidth().Height(28).Padding(0, 6).Radius(4).AlignItems(native.Center)
-								if item.Highlighted() {
-									item.Background(t.SurfaceHover)
-								}
-								item.Children(func() { native.Text(c, base).FontSize(11).SingleLine().Grow(1).MinWidth(0) })
-							}
-						})
-					})
-				})
-			})
-			native.Row(c).FillWidth().Gap(4).Children(func() {
-				native.TextInput(c, &w.gitBranchName).Label("新分支名称").Placeholder("新分支名称").FontSize(11).Grow(1).MinWidth(0)
-				if actionButton(c, "新建").Shrink(0).Disabled(w.gitBusy != "" || strings.TrimSpace(w.gitBranchName) == "").Clicked() {
-					a.gitSwitchBranch(w, w.gitBranchName, true)
-				}
-			})
-			native.Scroll(c.Key("list")).FillWidth().Height(min(180, float32(len(w.gitBranches))*28)).Children(func() {
-				native.Column(c).FillWidth().Gap(0).Children(func() {
-					for _, branch := range branches {
-						label := branch.Name
-						if branch.Current {
-							label += " · 当前"
-						}
-						b := treeButton(c.Key(branch.Name), "切换分支 "+branch.Name).FillWidth().Height(28).Padding(0, 6).Justify(native.Start).Disabled(w.gitBusy != "")
-						b.Children(func() { native.Text(c, label).FontSize(11).SingleLine().Shrink(1).MinWidth(0) })
-						if b.Clicked() && !branch.Current {
-							a.gitSwitchBranch(w, branch.Name, false)
-						}
-					}
-				})
-			})
-		})
-	})
+func (a *App) gitSwitchBranch(w *workspacePage, name string, create bool) {
+	a.gitChangeBranch(w, name, create, "")
 }
 
-func (a *App) gitSwitchBranch(w *workspacePage, name string, create bool) {
-	base := w.gitBranchBase
+func (a *App) gitChangeBranch(w *workspacePage, name string, create bool, base string) {
 	do := func() {
 		a.gitAction(w, "切换分支", func(ctx context.Context) error {
 			if create {
-				return gitview.CreateBranch(ctx, w.root, strings.TrimSpace(name), base)
+				return gitview.CreateBranchFromRef(ctx, w.root, strings.TrimSpace(name), base)
 			}
 			return gitview.Switch(ctx, w.root, strings.TrimSpace(name), false)
-		}, func() {
-			w.gitBranchPicker, w.gitBranchName, w.gitBranchBase = false, "", ""
-		})
+		}, nil)
 	}
 	// Switching changes disk contents, so unlike staging it cannot use disk
 	// while an editor still has unsaved changes.

@@ -1137,7 +1137,6 @@ func (a *App) applyGitStatus(w *workspacePage, status gitview.Status) {
 	w.gitFingerprint = fmt.Sprintf("%+v", status)
 	w.gitStatsFingerprint = ""
 	w.git = status
-	a.applyCurrentBranch(w)
 	if d := a.currentFile(); d != nil && d.kind == "diff" && d.root == w.root && d.compare != "外部更改" && d.turnReview == nil && !strings.HasPrefix(d.compare, "提交 ") {
 		rel, _ := filepath.Rel(w.root, d.path)
 		found := false

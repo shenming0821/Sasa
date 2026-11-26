@@ -49,7 +49,6 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 	disabled := w.gitPreparing || initialLoading || a.gitQuitPending || a.quitStopping ||
 		w.gitBusy != "" && !isGitIndexAction(w.gitBusy) && !isGitCheckAction(w.gitBusy)
 	busy := disabled || w.gitBusy != ""
-	var branchProgress float32
 	native.Row(c.Key("git-toolbar")).FillWidth().Height(36).Padding(0, 12).Gap(2).AlignItems(native.Center).Children(func() {
 		branch := w.git.Branch
 		if branch == "" {
@@ -58,24 +57,21 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 		if branch == "(detached)" && len(w.git.Head) >= 8 {
 			branch = w.git.Head[:8]
 		}
-		button := treeButton(c, "选择 Git 分支").Height(28).Padding(0, 4).Grow(1).MinWidth(0).Disabled(disabled)
-		if button.Clicked() && !busy {
-			w.gitBranchPicker = !w.gitBranchPicker
-			if w.gitBranchPicker {
-				w.gitBranchBase = w.git.Branch
-				if w.gitBranchBase == "(detached)" {
-					w.gitBranchBase = "HEAD"
-				}
-			}
+		button := native.ButtonBase(c.Key("branch")).Label("选择 Git 分支").Tooltip("切换分支…").
+			Height(24).Padding(0, 6).Radius(5).Gap(5).AlignItems(native.Center).Shrink(1).MinWidth(0).Disabled(disabled || w.gitOperation != "")
+		if button.Hovered() || button.Pressed() {
+			button.Background(t.SurfaceHover)
 		}
-		branchProgress = animateDisclosure(button, "branches-open", w.gitBranchPicker)
+		button.Transition(gitBranchHover)
+		if button.Clicked() && !busy {
+			a.openGitBranchPicker(w)
+		}
 		button.Children(func() {
-			native.Row(c).Fill().Gap(5).AlignItems(native.Center).Children(func() {
-				native.Icon(c, gitIcon).Size(13, 13)
-				native.Text(c, branch).FontSize(12).Bold().SingleLine().Shrink(1).MinWidth(0)
-				native.Icon(c, chevron).Label("Git 分支展开箭头").Size(10, 10).Shrink(0).Rotate(-90 * (1 - branchProgress))
-			})
+			native.Icon(c, gitIcon).Size(13, 13).Shrink(0).TextColor(t.TextMuted)
+			native.Text(c, branch).FontSize(12.5).FontWeight(500).TextColor(t.Text).SingleLine().Shrink(1).MinWidth(0)
+			native.Icon(c, chevron).Size(11, 11).Shrink(0).TextColor(t.TextMuted)
 		})
+		native.Spacer(c)
 		if len(w.gitRemotes) > 0 {
 			if gitIconButton(c.Key("fetch"), "获取远程更新", gitFetchIcon, disabled).Clicked() && !busy {
 				a.gitRemoteAction(w, "fetch")
@@ -104,10 +100,6 @@ func (a *App) gitPanel(c *native.Context, w *workspacePage) {
 			native.Text(c, fmt.Sprintf("%d↓ %d↑", w.git.Behind, w.git.Ahead)).FontSize(10).TextColor(t.TextMuted).SingleLine()
 		})
 	}
-	disclosurePanel(c, "branches-motion", w.gitBranchPicker, branchProgress, func() {
-		native.Column(c).Label("Git 分支展开区域").FillWidth().Shrink(0).
-			Children(func() { a.gitBranchPickerView(c.Key("branches"), w) })
-	})
 	if w.gitError != "" && w.gitFingerprint == "" {
 		message := "读取失败：" + w.gitError
 		if strings.Contains(w.gitError, "not a git repository") {

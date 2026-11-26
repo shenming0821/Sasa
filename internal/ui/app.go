@@ -35,6 +35,7 @@ type App struct {
 	terminalState
 	worktreeRenameState
 	branchCatalogState
+	branchPicker   *gitBranchPicker
 	worktreeCreate *worktreeCreation
 	sessionRenameState
 	quickOpen          quickOpenState

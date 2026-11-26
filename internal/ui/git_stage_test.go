@@ -54,7 +54,7 @@ func TestGitIndexActionsKeepHeaderPixelsSteady(t *testing.T) {
 				if err := tester.Click("选择 Git 分支"); err != nil {
 					t.Fatal(err)
 				}
-				if w.gitBranchPicker {
+				if a.branchPicker != nil {
 					t.Fatal("branch picker opened during index write")
 				}
 				if err := tester.Click("Git 提交信息"); err != nil {

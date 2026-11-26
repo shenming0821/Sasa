@@ -115,6 +115,7 @@ func (a *App) view(c *native.Context) {
 	a.sessionRenameView(c)
 	a.fileActionView(c)
 	a.quickOpenView(c)
+	a.gitBranchPickerView(c)
 	if a.auxiliaryNotice && a.auxiliaryError != "" && !a.settingsOpen {
 		native.Row(c).Absolute().Bottom(20).Left(20).Right(20).Gap(8).Padding(12).
 			Background(c.Theme().Surface).Border(1, c.Theme().Border).Radius(8).Children(func() {
