@@ -219,6 +219,20 @@ func (a *App) setTurnReviewFile(d *filePage) {
 	if f.DeletedFile {
 		review.Entry.XY = ".D"
 	}
+	if f.Exact && len(review.Hunks) > 0 {
+		review.BeforeText, review.BeforeKnown = f.BeforeText, f.BeforeKnown
+		if !review.BeforeKnown && !f.Unpositioned && !f.DeletedFile {
+			if disk, err := editor.Read(d.path); err == nil && disk.Stamp.Size <= editor.EditBytes && disk.Text != "" {
+				review.BeforeText, review.BeforeKnown = turnBaseFromResult(disk.Text, review.Hunks)
+			}
+			if review.BeforeKnown {
+				d.gitNote = "折叠区上下文来自当前文件，修改块已与本轮记录核对。"
+			}
+		}
+		if !review.BeforeKnown {
+			d.gitNote = "缺少可匹配的完整文件，仅能查看本轮记录中保存的行。"
+		}
+	}
 	a.gitSetDiffText(d, text, &review)
 	d.file.Path, d.file.Reason = d.path, "只读"
 	d.gitHunk, d.caret, d.anchor = 0, 0, 0
@@ -230,4 +244,49 @@ func (a *App) setTurnReviewFile(d *filePage) {
 			a.tabs[i].Path = d.path
 		}
 	}
+}
+
+func turnBaseFromResult(text string, hunks []gitview.Hunk) (string, bool) {
+	lines := strings.SplitAfter(text, "\n")
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	var before strings.Builder
+	at := 0
+	for _, hunk := range hunks {
+		start := hunk.NewStart
+		if hunk.NewCount > 0 {
+			start--
+		}
+		if start < at || start > len(lines) {
+			return "", false
+		}
+		for _, line := range lines[at:start] {
+			before.WriteString(line)
+		}
+		at = start
+		body := strings.Split(strings.TrimSuffix(hunk.Patch, "\n"), "\n")[1:]
+		for index, line := range body {
+			if len(line) == 0 || line[0] == '\\' {
+				continue
+			}
+			content := line[1:]
+			if index+1 == len(body) || !strings.HasPrefix(body[index+1], "\\ No newline") {
+				content += "\n"
+			}
+			if line[0] != '-' {
+				if at >= len(lines) || lines[at] != content {
+					return "", false
+				}
+				at++
+			}
+			if line[0] != '+' {
+				before.WriteString(content)
+			}
+		}
+	}
+	for _, line := range lines[at:] {
+		before.WriteString(line)
+	}
+	return before.String(), true
 }

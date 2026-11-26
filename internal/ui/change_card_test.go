@@ -25,6 +25,43 @@ func cardFixture() []*app.Message {
 	return result
 }
 
+func TestTurnReviewExpandsOmittedFileContent(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "edited.txt")
+	content := "first\n2\n3\n4\n5\n6\nnew\n8\n9\n10\n11\n12\nlast\n"
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := New(nil, "test", root, nil)
+	messages := []*app.Message{changeMessage("edit", "turn", path, "@@ -7 +7 @@\n-old\n+new\n")}
+	a.openTurnReview(messages, a.summarizeChanges(messages), 0)
+	for _, page := range a.files {
+		if !page.gitReview.BeforeKnown || page.gitReview.BeforeText != strings.Replace(content, "new", "old", 1) {
+			t.Fatal("missing original file for omitted lines")
+		}
+		for _, row := range page.gitRows {
+			if row.fold != nil {
+				if page.gitOpenFolds == nil {
+					page.gitOpenFolds = map[int]bool{}
+				}
+				page.gitOpenFolds[row.fold.start] = true
+			}
+		}
+		page.rebuildDiffRows()
+		got := diffRowsText(page.gitRows)
+		if !strings.Contains(got, "first") || !strings.Contains(got, "last") {
+			t.Fatal("file boundaries did not expand", got)
+		}
+		if err := os.WriteFile(path, []byte(strings.Replace(content, "new", "later", 1)), 0600); err != nil {
+			t.Fatal(err)
+		}
+		a.setTurnReviewFile(page)
+		if page.gitReview.BeforeKnown {
+			t.Fatal("conflicting workspace content accepted")
+		}
+	}
+}
+
 func TestChangeSummaryTurnPlacementAndAnchors(t *testing.T) {
 	a := New(nil, "test", "/workspace", nil)
 	one := changeMessage("one", "first", "a.go", "@@ -1 +1 @@\n-old\n+new\n")

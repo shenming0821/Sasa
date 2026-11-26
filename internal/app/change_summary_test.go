@@ -108,6 +108,16 @@ func TestTurnChangesPatchPreservesCoordinates(t *testing.T) {
 	}
 }
 
+func TestTurnChangesCommitStyleContext(t *testing.T) {
+	change := fileChangeMessage("a.go", `{"type":"update"}`,
+		"@@ -10,18 +10,19 @@\n a\n b\n c\n d\n-old\n+new\n+extra\n e\n f\n g\n h\n i\n j\n k\n l\n-last\n+final\n m\n n\n o\n p\n")
+	summary := SummarizeChanges("", []*Message{change})
+	want := "--- a/a.go\n+++ b/a.go\n@@ -11,7 +11,8 @@\n b\n c\n d\n-old\n+new\n+extra\n e\n f\n g\n@@ -20,7 +21,7 @@\n j\n k\n l\n-last\n+final\n m\n n\n o\n"
+	if got := summary.Files[0].Patch; got != want {
+		t.Fatalf("got patch:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestTurnChangesNormalizePathsAndKeepUnknownStats(t *testing.T) {
 	messages := []*Message{
 		fileChangeMessage("a.go", `{"type":"update"}`, "@@ -1 +1 @@\n-old\n+middle\n"),

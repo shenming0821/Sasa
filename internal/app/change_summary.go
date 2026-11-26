@@ -17,6 +17,8 @@ type ChangedFile struct {
 	Added, Deleted            int
 	Exact                     bool
 	DeletedFile               bool
+	BeforeText                string
+	BeforeKnown, Unpositioned bool
 }
 
 type ChangeSummary struct {
@@ -37,6 +39,7 @@ type patchFile struct {
 	next            int
 	exact, complete bool
 	deleted         bool
+	unpositioned    bool
 	raw             []string
 }
 
@@ -70,6 +73,7 @@ func SummarizeChanges(cwd string, messages []*Message) ChangeSummary {
 				f.exact = false
 			}
 			f.deleted = kind.Type == "delete"
+			f.unpositioned = f.unpositioned || kind.Region
 			if kind.MovePath != "" {
 				target := filepath.Clean(kind.MovePath)
 				if !filepath.IsAbs(target) && filepath.IsAbs(cwd) {
@@ -104,6 +108,24 @@ func SummarizeChanges(cwd string, messages []*Message) ChangeSummary {
 		item := ChangedFile{Path: f.path, PreviousPath: f.previous, Exact: f.exact, DeletedFile: f.deleted}
 		if f.exact {
 			item.Patch, item.Added, item.Deleted, item.Exact = f.netPatch()
+		}
+		item.Unpositioned = f.unpositioned
+		if item.Exact && f.complete && !f.unpositioned {
+			var base strings.Builder
+			item.BeforeKnown = true
+			for _, line := range f.base {
+				if !line.known {
+					item.BeforeKnown = false
+					break
+				}
+				base.WriteString(line.text)
+				if !line.noNewline {
+					base.WriteByte('\n')
+				}
+			}
+			if item.BeforeKnown {
+				item.BeforeText = base.String()
+			}
 		}
 		if !item.Exact {
 			item.Added, item.Deleted = 0, 0
@@ -317,6 +339,7 @@ func (f *patchFile) netPatch() (string, int, int, bool) {
 	fmt.Fprintf(&out, "--- a/%s\n+++ b/%s\n", beforePath, f.path)
 	oldAt, newAt, added, deleted := 0, 0, 0, 0
 	flush := func(oldEnd, newEnd int) bool {
+		regionStart := oldAt
 		old, new := f.base[oldAt:oldEnd], f.current[newAt:newEnd]
 		for len(old) > 0 && len(new) > 0 && old[0].known && new[0].known && samePatchLine(old[0], new[0]) {
 			old = old[1:]
@@ -350,27 +373,75 @@ func (f *patchFile) netPatch() (string, int, int, bool) {
 				}
 			}
 		}
-		startOld, startNew := oldAt+1, newAt+1
-		if len(old) == 0 {
-			startOld = oldAt
+		const contextLines = 3
+		prefix := min(contextLines, oldAt-regionStart)
+		suffix := min(contextLines, oldEnd-oldAt-len(old))
+		ops := make([]byte, prefix, prefix+len(old)+len(new)+suffix)
+		for index := range ops {
+			ops[index] = ' '
 		}
-		if len(new) == 0 {
-			startNew = newAt
-		}
-		fmt.Fprintf(&out, "@@ -%d,%d +%d,%d @@\n", startOld, len(old), startNew, len(new))
 		for i, j := 0, 0; i < len(old) || j < len(new); {
 			if i < len(old) && j < len(new) && samePatchLine(old[i], new[j]) {
-				writePatchLine(&out, " ", old[i])
+				ops = append(ops, ' ')
 				i++
 				j++
-			} else if j < len(new) && (i == len(old) || dp[i*cols+j+1] >= dp[(i+1)*cols+j]) {
-				writePatchLine(&out, "+", new[j])
+			} else if j < len(new) && (i == len(old) || dp[i*cols+j+1] > dp[(i+1)*cols+j]) {
+				ops = append(ops, '+')
 				j++
 				added++
 			} else {
-				writePatchLine(&out, "-", old[i])
+				ops = append(ops, '-')
 				i++
 				deleted++
+			}
+		}
+		for range suffix {
+			ops = append(ops, ' ')
+		}
+		oldPos, newPos := oldAt-prefix, newAt-prefix
+		for start := 0; start < len(ops); {
+			end := start
+			for end < len(ops) {
+				if ops[end] != ' ' {
+					end++
+					continue
+				}
+				gap := end
+				for end < len(ops) && ops[end] == ' ' {
+					end++
+				}
+				if end-gap > 2*contextLines {
+					end = gap + contextLines
+					break
+				}
+			}
+			oldStart, newStart := oldPos, newPos
+			var body strings.Builder
+			for _, op := range ops[start:end] {
+				if op == '+' {
+					writePatchLine(&body, "+", f.current[newPos])
+				} else {
+					writePatchLine(&body, string(op), f.base[oldPos])
+					oldPos++
+				}
+				if op != '-' {
+					newPos++
+				}
+			}
+			oldCount, newCount := oldPos-oldStart, newPos-newStart
+			if oldCount > 0 {
+				oldStart++
+			}
+			if newCount > 0 {
+				newStart++
+			}
+			fmt.Fprintf(&out, "@@ -%d,%d +%d,%d @@\n", oldStart, oldCount, newStart, newCount)
+			out.WriteString(body.String())
+			start = end
+			for start+contextLines < len(ops) && ops[start+contextLines] == ' ' {
+				start++
+				oldPos++
+				newPos++
 			}
 		}
 		return true
