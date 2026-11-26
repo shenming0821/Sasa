@@ -531,7 +531,7 @@ func (a *App) gitOpenCommit(w *workspacePage, info gitview.CommitInfo, path ...s
 	}
 	d := a.files[id]
 	if d == nil {
-		d = &filePage{id: id, root: w.root, path: filepath.Join(w.root, gitCommitLabel(info.Hash)), kind: "diff", compare: "提交 " + info.Hash, gitDiffState: gitDiffState{gitCommit: info.Hash}}
+		d = &filePage{id: id, root: w.root, path: filepath.Join(w.root, gitCommitLabel(info.Hash)), kind: "diff", compare: "提交 " + info.Hash, gitDiffState: gitDiffState{gitCommit: info.Hash, gitSplit: a.diffViewSplit()}}
 		a.files[id] = d
 		a.tabs = append(a.tabs, storage.Tab{ID: id, Kind: "diff", Workspace: w.root, Path: d.path, Compare: d.compare})
 	}

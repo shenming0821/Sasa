@@ -191,7 +191,7 @@ func (a *App) openTurnReview(messages []*app.Message, summary app.ChangeSummary,
 	}
 	d := a.files[id]
 	if d == nil {
-		d = &filePage{id: id, root: root, kind: "diff", compare: "本轮修改（历史记录）"}
+		d = &filePage{id: id, root: root, kind: "diff", compare: "本轮修改（历史记录）", gitDiffState: gitDiffState{gitSplit: a.diffViewSplit()}}
 		a.files[id] = d
 		a.tabs = append(a.tabs, storage.Tab{ID: id, Kind: "diff", Workspace: root, Path: root, Compare: d.compare})
 	}

@@ -87,7 +87,7 @@ func (a *App) restoreWorkspaceTabs(snapshot storage.Snapshot, cwd string) error 
 					return fmt.Errorf("文件标签路径损坏，保留原设置")
 				}
 				a.tabs = append(a.tabs, tab)
-				a.files[tab.ID] = &filePage{id: tab.ID, kind: tab.Kind, compare: tab.Compare, root: tab.Workspace, path: tab.Path, caret: tab.Caret, anchor: tab.Caret, resync: true, scroll: native.ScrollState{Y: tab.ScrollY}, preview: tab.Kind == "file" && tab.Preview}
+				a.files[tab.ID] = &filePage{id: tab.ID, kind: tab.Kind, compare: tab.Compare, root: tab.Workspace, path: tab.Path, caret: tab.Caret, anchor: tab.Caret, resync: true, scroll: native.ScrollState{Y: tab.ScrollY}, preview: tab.Kind == "file" && tab.Preview, gitDiffState: gitDiffState{gitSplit: tab.Kind == "diff" && a.diffViewSplit()}}
 			default:
 				return fmt.Errorf("未知标签类型 %s，保留原设置", tab.Kind)
 			}

@@ -1167,7 +1167,7 @@ func (a *App) openGitDiff(w *workspacePage, e gitview.Entry, staged bool) {
 	}
 	d := a.files[id]
 	if d == nil {
-		d = &filePage{id: id, root: w.root, path: filepath.Join(w.root, e.Path), kind: "diff", compare: kind}
+		d = &filePage{id: id, root: w.root, path: filepath.Join(w.root, e.Path), kind: "diff", compare: kind, gitDiffState: gitDiffState{gitSplit: a.diffViewSplit()}}
 		a.files[id] = d
 		a.tabs = append(a.tabs, storage.Tab{ID: id, Kind: "diff", Workspace: w.root, Path: d.path, Compare: kind})
 	}

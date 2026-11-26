@@ -18,6 +18,52 @@ var diffUnfoldIcon = icon(`<path d="M12 22v-6"/><path d="M12 8V2"/><path d="M4 1
 // where the bands joining each change's two sides run: Mayoi's diffMidW.
 const diffMidW = float32(40)
 
+const (
+	diffViewModeInline = "inline"
+	diffViewModeSplit  = "split"
+)
+
+func (a *App) diffViewSplit() bool {
+	return a.application().preferences.DiffViewMode == diffViewModeSplit
+}
+
+func (a *App) setDiffViewMode(d *filePage, split bool) {
+	d.gitSplit = split
+	root := a.application()
+	mode := diffViewModeInline
+	if split {
+		mode = diffViewModeSplit
+	}
+	if root.preferences.DiffViewMode == mode {
+		return
+	}
+	root.preferences.DiffViewMode = mode
+	_ = root.persist()
+}
+
+func (a *App) diffLayoutToggle(c *native.Context, d *filePage) {
+	layout := 0
+	if d.gitSplit {
+		layout = 1
+	}
+	parts := native.SegmentedBase(c.Key("layout"), &layout, 2)
+	t := c.Theme()
+	parts.Track.Label("差异布局").Padding(1).Gap(1).Radius(6).Background(t.Surface).Border(1, t.Border).Children(func() {
+		for index, glyph := range []*native.SVG{diffInlineIcon, diffSplitIcon} {
+			label := "行内"
+			if index == 1 {
+				label = "并排"
+			}
+			segment := parts.Segment(index).Label(label).Tooltip(label).Padding(3, 5).Radius(5).TextColor(t.TextMuted)
+			selectedButtonFace(c, segment, layout == index, 5, 0)
+			segment.Children(func() { native.Icon(c, glyph).Size(13, 13) })
+		}
+	})
+	if (layout == 1) != d.gitSplit {
+		a.setDiffViewMode(d, layout == 1)
+	}
+}
+
 // diffChangeRun is one visible change of a split diff: the run of pair
 // rows it covers, all of one hunk, and the continuous span of rows its
 // changed lines stand in on each side. The sides line up row by row, so
@@ -283,26 +329,7 @@ func (a *App) gitDiffControls(c *native.Context, d *filePage) {
 	if gitIconButton(c.Key("next-hunk"), "下一个修改", downIcon, total == 0).Clicked() {
 		a.gitStepHunk(d, 1)
 	}
-	layout := 0
-	if d.gitSplit {
-		layout = 1
-	}
-	parts := native.SegmentedBase(c.Key("layout"), &layout, 2)
-	t := c.Theme()
-	parts.Track.Label("差异布局").Padding(1).Gap(1).Radius(6).Background(t.Surface).Border(1, t.Border).Children(func() {
-		for index, glyph := range []*native.SVG{diffInlineIcon, diffSplitIcon} {
-			label := "行内"
-			if index == 1 {
-				label = "并排"
-			}
-			segment := parts.Segment(index).Label(label).Tooltip(label).Padding(3, 5).Radius(5).TextColor(t.TextMuted)
-			selectedButtonFace(c, segment, layout == index, 5, 0)
-			segment.Children(func() { native.Icon(c, glyph).Size(13, 13) })
-		}
-	})
-	if (layout == 1) != d.gitSplit {
-		d.gitSplit = layout == 1
-	}
+	a.diffLayoutToggle(c, d)
 	path, openable := d.diffOpenTarget()
 	if gitIconButton(c.Key("open-file"), "打开文件", gitOpenFileIcon, !openable).Clicked() {
 		a.openFile(d.root, path)
@@ -451,6 +478,10 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 		y = d.gitRightScroll.Y
 	}
 	d.gitSplitY, d.gitLeftScroll.Y, d.gitRightScroll.Y = y, y, y
+	leftName, rightName := "原版本", "新版本"
+	if d.compare == "外部更改" {
+		leftName, rightName = "本地编辑", "磁盘版本"
+	}
 	native.Row(c.Key("split")).FillWidth().Grow(1).MinHeight(0).Children(func() {
 		for sideIndex, side := range []struct {
 			name    string
@@ -460,7 +491,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 			hscroll *native.ScrollState
 			width   float32
 			color   native.Color
-		}{{"原版本", d.gitLeft, &d.gitLeftScroll, &d.gitLeftLines, &d.gitLeftHScroll, d.gitLeftWidth, palette.deletedBackground}, {"新版本", d.gitRight, &d.gitRightScroll, &d.gitRightLines, &d.gitRightHScroll, d.gitRightWidth, palette.addedBackground}} {
+		}{{leftName, d.gitLeft, &d.gitLeftScroll, &d.gitLeftLines, &d.gitLeftHScroll, d.gitLeftWidth, palette.deletedBackground}, {rightName, d.gitRight, &d.gitRightScroll, &d.gitRightLines, &d.gitRightHScroll, d.gitRightWidth, palette.addedBackground}} {
 			if sideIndex == 1 {
 				a.diffMidColumn(c, d, palette)
 			}

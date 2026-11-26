@@ -234,7 +234,7 @@ func (a *App) showDiskComparison(source *filePage) {
 		}
 		return
 	}
-	d := &filePage{id: id, root: source.root, path: source.path, kind: "diff", compare: "外部更改", loading: true}
+	d := &filePage{id: id, root: source.root, path: source.path, kind: "diff", compare: "外部更改", loading: true, gitDiffState: gitDiffState{gitSplit: a.diffViewSplit()}}
 	a.files[id] = d
 	a.tabs = append(a.tabs, storage.Tab{ID: id, Kind: "diff", Workspace: d.root, Path: d.path, Compare: d.compare})
 	a.selectFile(d)

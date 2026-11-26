@@ -130,8 +130,9 @@ type SleepBaseline struct {
 }
 
 type Preferences struct {
-	CommitsAllBranches     bool `json:",omitempty"`
-	CommitsTree            bool `json:",omitempty"`
+	CommitsAllBranches     bool   `json:",omitempty"`
+	CommitsTree            bool   `json:",omitempty"`
+	DiffViewMode           string `json:",omitempty"`
 	AuxiliaryRuntime       string
 	AuxiliaryModel         string
 	AuxiliaryModelName     string

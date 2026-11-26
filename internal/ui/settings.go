@@ -47,12 +47,15 @@ var settingsIcon = icon(`<path d="M9.59356 3.94014C9.68397 3.39768 10.1533 3.000
 // defaultPreferences sets the theme the app ships with: the default
 // palette and the appearance following the system.
 func defaultPreferences() storage.Preferences {
-	return storage.Preferences{KeepAwake: power.Never, Terminal: terminal.Ghostty, Theme: "system", EnglishFont: latinFont, ChineseFont: ".PingFang UI SC", CodeFont: latinFont, CompletionNotification: true}
+	return storage.Preferences{DiffViewMode: diffViewModeInline, KeepAwake: power.Never, Terminal: terminal.Ghostty, Theme: "system", EnglishFont: latinFont, ChineseFont: ".PingFang UI SC", CodeFont: latinFont, CompletionNotification: true}
 }
 
 func (a *App) normalizePreferences() {
 	p := &a.preferences
 	d := defaultPreferences()
+	if p.DiffViewMode != diffViewModeInline && p.DiffViewMode != diffViewModeSplit {
+		p.DiffViewMode = diffViewModeInline
+	}
 	p.KeepAwake = power.Normalize(p.KeepAwake)
 	p.Terminal = terminal.Normalize(p.Terminal)
 	if p.Theme != "light" && p.Theme != "dark" {

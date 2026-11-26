@@ -733,9 +733,13 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				if pendingSession != nil && actionButton(c, "返回待处理会话").Clicked() {
 					a.selectSession(pendingSession)
 				}
-				if d.kind == "diff" && d.compare != "外部更改" && d.gitReview != nil {
+				if d.kind == "diff" && d.gitReview != nil {
 					native.Row(c).Gap(4).Shrink(0).AlignItems(native.Center).Children(func() {
-						a.gitDiffControls(c, d)
+						if d.compare == "外部更改" {
+							a.diffLayoutToggle(c, d)
+						} else {
+							a.gitDiffControls(c, d)
+						}
 					})
 				}
 			})
