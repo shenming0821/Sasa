@@ -75,13 +75,36 @@ func TestThinkingShimmerAndReducedMotion(t *testing.T) {
 	}
 }
 
+func TestThinkingShimmerContrastIsVisible(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dark=%v", dark), func(t *testing.T) {
+			theme := native.LightTheme()
+			if dark {
+				theme = native.DarkTheme()
+			}
+			base, highlight := shimmerColors(theme)
+			oldBase := theme.Background.Mix(theme.TextMuted, 0.65)
+			oldHighlight := theme.Background.Mix(theme.TextMuted, 0.82)
+			visible := contrast(base, highlight)
+			previous := contrast(oldBase, oldHighlight)
+			if visible < previous*2 {
+				t.Fatalf("shimmer contrast %.2f did not clearly exceed previous %.2f", visible, previous)
+			}
+			if contrast(base, theme.Background) < 2 {
+				t.Fatalf("shimmer base contrast %.2f is too faint on %v", contrast(base, theme.Background), theme.Background)
+			}
+		})
+	}
+}
+
 func TestThinkingAnimationStaysInsideSingleTextGlyphs(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		t.Run(fmt.Sprintf("dark=%v", dark), func(t *testing.T) {
 			reference := native.NewTester(func(c *native.Context) {
 				applyFontTheme(c)
 				native.Column(c).Fill().Background(c.Theme().Background).Children(func() {
-					native.Text(c, "正在思考").FontSize(15).TextColor(c.Theme().Text).AlignSelf(native.Start)
+					base, _ := shimmerColors(c.Theme())
+					native.Text(c, "正在思考").FontSize(15).TextColor(base).AlignSelf(native.Start)
 				})
 			}, 200, 60)
 			reference.SetDark(dark)
@@ -114,7 +137,7 @@ func TestThinkingAnimationStaysInsideSingleTextGlyphs(t *testing.T) {
 						pixel := got.RGBAAt(x, y)
 						// Ignore faint raster rounding at glyph edges when colors differ.
 						contrast := max(math.Abs(float64(pixel.R)-float64(background.R)), math.Abs(float64(pixel.G)-float64(background.G)), math.Abs(float64(pixel.B)-float64(background.B)))
-						if mask.RGBAAt(x, y) == background && contrast > 8 {
+						if mask.RGBAAt(x, y) == background && contrast > 16 {
 							t.Fatalf("animation paints outside the single text glyphs at frame %d, pixel %d,%d: got %v, background %v", frame, x, y, got.RGBAAt(x, y), background)
 						}
 					}

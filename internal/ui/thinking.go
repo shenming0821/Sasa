@@ -36,8 +36,7 @@ func thinkingIndicator(c *native.Context) {
 // waiting indicator; reduce motion keeps the plain muted text.
 func shimmerText(c *native.Context, label string, size float32) native.Element {
 	t := c.Theme()
-	base := t.Background.Mix(t.TextMuted, 0.65)
-	highlight := t.Background.Mix(t.TextMuted, 0.82)
+	base, highlight := shimmerColors(t)
 	if c.Preferences().ReduceMotion {
 		return native.Text(c, label).FontSize(size).TextColor(base)
 	}
@@ -62,4 +61,8 @@ func shimmerText(c *native.Context, label string, size float32) native.Element {
 	// One shaped text run keeps the animation on the theme's glyphs and baseline.
 	indicator.Children(func() { native.RichText(c, spans...).FontSize(size).TextColor(base) })
 	return indicator
+}
+
+func shimmerColors(t *native.Theme) (base, highlight native.Color) {
+	return t.Background.Mix(t.TextMuted, 0.78), t.Background.Mix(t.Text, 0.9)
 }
