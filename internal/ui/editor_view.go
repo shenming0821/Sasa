@@ -31,7 +31,7 @@ func (a *App) rightPanel(c *native.Context) {
 			for _, tab := range []struct {
 				id, label string
 				glyph     *native.SVG
-			}{{"files", "文件", fileIcon}, {"history", "会话历史", historyTabIcon}, {"git", "Git", gitIcon}} {
+			}{{"files", "文件", fileIcon}, {"git", "Git", gitIcon}, {"history", "会话历史", historyTabIcon}} {
 				b := panelTabButton(c.Key(tab.id), tab.label, a.rightTab == tab.id)
 				b.Children(func() { native.Icon(c, tab.glyph).Size(18, 18) })
 				if b.Clicked() {
