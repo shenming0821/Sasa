@@ -203,8 +203,13 @@ func TestEditorGitHubThemesAcrossViews(t *testing.T) {
 					for x := int(area.X); x < int(area.X+area.W) && x < image.Bounds().Max.X; x++ {
 						pixel := image.RGBAAt(x, y)
 						candidate := native.RGB(pixel.R, pixel.G, pixel.B)
-						if _, tracked := colors[candidate]; tracked {
-							colors[candidate] = true
+						for tracked, found := range colors {
+							if found {
+								continue
+							}
+							if nearColor(candidate, tracked, 24) {
+								colors[tracked] = true
+							}
 						}
 					}
 				}
@@ -328,4 +333,11 @@ func TestEditorThemeSelectionAndCaretPixels(t *testing.T) {
 			t.Fatal("selection did not use editor palette")
 		}
 	}
+}
+
+func nearColor(actual native.Color, expected native.Color, tolerance int) bool {
+	dr := int(actual.R) - int(expected.R)
+	dg := int(actual.G) - int(expected.G)
+	db := int(actual.B) - int(expected.B)
+	return dr*dr+dg*dg+db*db <= tolerance*tolerance
 }

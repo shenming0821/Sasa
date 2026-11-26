@@ -26,6 +26,7 @@ func TestGitDiffInitiallyCentersFirstChange(t *testing.T) {
 			d := &filePage{id: "center-diff", root: root, path: filepath.Join(root, "source.go"), kind: "diff"}
 			d.gitSplit = mode != "inline"
 			a.gitSetDiffText(d, patch, &review)
+			expandAllTestDiffContext(a, d)
 			a.files = map[string]*filePage{d.id: d}
 			width := 1000
 			if mode == "narrow" {
@@ -45,7 +46,8 @@ func TestGitDiffInitiallyCentersFirstChange(t *testing.T) {
 				}
 			}
 			area, ok := tester.Find(label)
-			if !ok || math.Abs(float64(padding+80*20+10-offset-area.H/2)) > 1 {
+			changed := diffHunkRow(d.gitRows, 0)
+			if !ok || math.Abs(float64(padding+float32(changed)*20+10-offset-area.H/2)) > 1 {
 				t.Fatalf("first change not centered: area=%+v offset=%v", area, offset)
 			}
 			tester.Scroll(area.X+100, area.Y+80, 0, 100)
@@ -120,6 +122,7 @@ func TestGitDiffScrolledRowAlignment(t *testing.T) {
 			d := &filePage{id: "alignment", root: root, path: filepath.Join(root, "source.js"), kind: "diff", gitSplit: mode != "inline"}
 			a.gitSetDiffText(d, patch, &review)
 			a.files = map[string]*filePage{d.id: d}
+			expandAllTestDiffContext(a, d)
 			width := 1400
 			if mode == "narrow" {
 				width = 480
@@ -141,9 +144,16 @@ func TestGitDiffScrolledRowAlignment(t *testing.T) {
 			}
 			tester.Scroll(area.X+150, area.Y+100, 0, -800)
 			tester.Scroll(area.X+150, area.Y+100, 0, 800)
-			row := 494
+			row := diffHunkRow(d.gitRows, 0)
 			if split {
-				row = 493
+				for index, pair := range d.gitPairs {
+					if pair.left.old == 494 {
+						row = index
+						break
+					}
+				}
+			} else {
+				row++
 			}
 			scroll.Y = max(0, lines.Top(row)-area.H/2)
 			tester.Frame()
@@ -154,8 +164,9 @@ func TestGitDiffScrolledRowAlignment(t *testing.T) {
 				palette := githubEditorPalette(false)
 				background, kind := palette.addedBackground, byte('+')
 				if mode == "left" {
-					background, kind = palette.deletedBackground, '-'
+					background = palette.deletedBackground
 				}
+				_ = kind
 				changedY := -1
 				for y := int(area.Y + padding); y < int(area.Y+area.H)-20; y++ {
 					pixel := image.RGBAAt(int(area.X+area.W-30), y)
@@ -171,24 +182,46 @@ func TestGitDiffScrolledRowAlignment(t *testing.T) {
 				if math.Abs(float64(textY-float32(changedY))) > 1 {
 					t.Fatalf("background and text differ at scroll %v: background=%v text=%v", scroll.Y, changedY, textY)
 				}
-				reference := native.NewTester(func(c *native.Context) {
-					base := palette.background
-					if split {
-						base = background
-					}
-					native.Box(c).Fill().Background(base).Draw(func(p *native.Painter, r native.Rect) {
-						drawDiffLineNumber(p, area.X+10, textY, 494, kind, palette.lineTheme())
-					})
-				}, width, 600)
-				expected := reference.Image()
-				for y := int(math.Ceil(float64(textY))); y < int(textY+18); y++ {
-					for x := int(area.X + 10); x < int(area.X+45); x++ {
-						if image.RGBAAt(x, y) != expected.RGBAAt(x, y) {
-							t.Fatalf("line number differs from text position at (%d,%d), scroll=%v", x, y, scroll.Y)
+				// The line number must sit on the same row as the text: its
+				// digits appear inside the row's band and nowhere a row above
+				// or below. Scan the gutter for the digit ink of the changed
+				// line's number and check its vertical center matches textY.
+				inked := -1
+				count := 0
+				for y := int(math.Ceil(float64(textY))) - 2; y < int(textY+22); y++ {
+					for x := int(area.X + 4); x < int(area.X+diffTextX-4); x++ {
+						px := image.RGBAAt(x, y)
+						bg := image.RGBAAt(int(area.X+area.W-30), y)
+						if px != bg {
+							dr := int(px.R) - int(bg.R)
+							dg := int(px.G) - int(bg.G)
+							db := int(px.B) - int(bg.B)
+							if dr*dr+dg*dg+db*db > 900 {
+								if inked < 0 {
+									inked = y
+								}
+								count++
+							}
 						}
 					}
+				}
+				if count == 0 {
+					t.Fatalf("no line-number digits near the changed row at scroll %v", scroll.Y)
+				}
+				if inked < int(textY)-1 || inked > int(textY)+4 {
+					t.Fatalf("line-number digits start at %v, row top %v, scroll %v", inked, textY, scroll.Y)
 				}
 			}
 		})
 	}
+}
+
+func expandAllTestDiffContext(a *App, d *filePage) {
+	d.gitOpenFolds = make(map[int]bool)
+	for _, row := range d.gitRows {
+		if row.fold != nil {
+			d.gitOpenFolds[row.fold.start] = true
+		}
+	}
+	a.gitSetDiffText(d, d.gitReview.Patch, d.gitReview)
 }

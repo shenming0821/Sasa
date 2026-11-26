@@ -102,7 +102,12 @@ type gitDiffState struct {
 	gitLeftWidth                          float32
 	gitRightWidth                         float32
 	gitSplitY                             float32
+	gitSplitHeader                        float32
 	gitSplitCaret                         [2]int
+	gitSplitFocus                         *[2]int
+	gitFocusSide                          int
+	gitCursorSide                         int
+	gitRowSelection                       diffLineSelection
 	gitSplitWords                         wordMatchCache
 	gitCommit                             string
 	gitCommitInfo                         gitview.CommitInfo
@@ -110,8 +115,14 @@ type gitDiffState struct {
 	gitCommitFile                         int
 	gitRows                               []diffCodeRow
 	gitPairs                              []diffCodePair
+	gitOpenFolds                          map[int]bool
+	gitToggleFold                         *diffFold
+	gitFocusFold                          *diffFold
+	gitOpenLine                           bool
 	gitNote                               string
 	gitLeftHighlights, gitRightHighlights []syntaxToken
+	gitMidHover                           int // 1-based change index the pointer hovers, 0 none
+	gitMidGlow                            map[int]float32
 }
 
 func gitKey(group, path string) string { return group + "\x00" + path }
@@ -597,18 +608,21 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 			d.anchor, d.caret, d.pendingSelection = 0, 0, nil
 		}
 	}
-	rows, pairs := diffCodeRows(review)
-	d.gitRows, d.gitPairs = rows, pairs
-	if len(rows) > 0 {
-		text = diffRowsText(rows)
+	sameReview := previous != nil && review != nil && previous.Entry.Path == review.Entry.Path &&
+		previous.Patch == review.Patch && previous.BeforeText == review.BeforeText && previous.BeforeKnown == review.BeforeKnown
+	if !sameReview {
+		d.gitOpenFolds, d.gitToggleFold = nil, nil
+		d.gitFocusFold, d.gitOpenLine = nil, false
+	}
+	d.rebuildDiffRows()
+	if len(d.gitRows) > 0 {
+		text = diffRowsText(d.gitRows)
 	} else if review != nil && review.Binary {
 		text = "二进制文件内容发生变化"
 	} else if review != nil && strings.HasPrefix(text, "diff --git ") {
 		text = "文件路径、权限或类型发生变化，无文本内容差异"
 	}
-	if d.loaded && d.buffer != nil && d.buffer.String() == text && previous != nil && review != nil &&
-		previous.Entry.Path == review.Entry.Path && previous.Patch == review.Patch &&
-		previous.BeforeText == review.BeforeText && previous.BeforeKnown == review.BeforeKnown {
+	if sameReview && d.loaded && d.buffer != nil && d.buffer.String() == text {
 		return
 	}
 	if d.highlightCancel != nil {

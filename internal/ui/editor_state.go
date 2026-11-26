@@ -90,6 +90,7 @@ type filePage struct {
 	buffer                                                              *native.TextBuffer
 	loaded, loading, saving, checking, conflict, missing, focus, resync bool
 	readContext                                                         context.Context
+	afterDiffRead                                                       func()
 	readCancel                                                          context.CancelFunc
 	checkContext                                                        context.Context
 	checkCancel                                                         context.CancelFunc
@@ -444,6 +445,8 @@ func (a *App) readFile(d *filePage, discard bool) {
 				return
 			}
 			d.readContext, d.readCancel = nil, nil
+			afterDiffRead := d.afterDiffRead
+			d.afterDiffRead = nil
 			d.loading = false
 			if errors.Is(err, context.Canceled) {
 				return
@@ -477,6 +480,9 @@ func (a *App) readFile(d *filePage, discard bool) {
 			d.highlights = nil
 			d.highlightVersion = 0
 			d.resync = true
+			if afterDiffRead != nil {
+				afterDiffRead()
+			}
 			a.requestHighlight(d)
 		})
 	})
@@ -995,6 +1001,7 @@ func (a *App) closeWorkspaceResources() {
 }
 
 func (a *App) cancelFileRead(d *filePage) {
+	d.afterDiffRead = nil
 	d.checkPending = false
 	if d.readCancel != nil {
 		d.readCancel()

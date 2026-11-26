@@ -147,13 +147,13 @@ func TestEditorDiffCopyPathWithLineNumber(t *testing.T) {
 	if !ok {
 		t.Fatal("diff area not found")
 	}
-	// 行序：ctx1(next=1)、del(old=2)、add1(next=2)、ctx3(next=3)、tail(next=4)
+	// 行序：hunk 头、ctx1(next=1)、del(old=2)、add1(next=2)、ctx3(next=3)、tail(next=4)
 	for _, tc := range []struct {
 		row, want int
 	}{
-		{2, 2}, // 新增行取新文件行号
-		{1, 2}, // 删除行取旧文件行号
-		{0, 1}, // 上下文行
+		{3, 2}, // 新增行取新文件行号
+		{2, 2}, // 删除行取旧文件行号
+		{1, 1}, // 上下文行
 	} {
 		tester.RightClickAt(r.X+24, r.Y+8+float32(tc.row)*20+10)
 		if err := tester.ChooseMenuItem("复制路径和行号"); err != nil {

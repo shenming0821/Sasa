@@ -899,7 +899,7 @@ func TestP4DiskComparisonPreservesSnapshotUntilRefresh(t *testing.T) {
 	p4Wait(t, tt, q, func() bool { return a.currentFile() != source && a.currentFile().loaded })
 	d := a.currentFile()
 	before := d.buffer.String()
-	if !strings.Contains(before, "local version") || !strings.Contains(before, "disk version") || d.file.Reason == "" || len(d.gitRows) != 2 || d.gitRows[0].kind != '-' || d.gitRows[1].kind != '+' {
+	if !strings.Contains(before, "local version") || !strings.Contains(before, "disk version") || d.file.Reason == "" || len(d.gitRows) != 3 || d.gitRows[1].kind != '-' || d.gitRows[2].kind != '+' {
 		t.Fatal("comparison is not read-only unified diff", before)
 	}
 	source.buffer.Set("local version two\n")

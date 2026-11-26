@@ -630,6 +630,10 @@ func (a *App) openSearchMatch(w *workspacePage, m workspace.ContentMatch, previe
 	}
 }
 func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
+	if fold := d.gitToggleFold; fold != nil && d.gitReview != nil {
+		d.gitToggleFold = nil
+		a.gitToggleRange(d, fold)
+	}
 	if d.pinFrame != 0 {
 		d.scroll.Y = d.pinY
 		d.pinFrame--
@@ -833,6 +837,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		}
 		snap := d.buffer.Snapshot()
 		d.centerInitialDiff(false, d.scroll.Bounds(c).H)
+		a.gitPlaceFoldFocus(d, false, d.scroll.Bounds(c).H)
 		viewY = d.scroll.Y
 		if d.gitInitialCenter[0] {
 			c.AnimationFrame()
@@ -854,7 +859,8 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		palette := a.activeEditorPalette(t)
 		search := a.activePalette(t).searchFor(palette.accent, .45)
 		native.ScrollHorizontal(c.Key("editor-horizontal")).TrackScroll(&d.hscroll).FillWidth().Grow(1).MinHeight(0).Background(palette.background).Children(func() {
-			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, 58).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
+			leftPad := d.diffInlineTextX()
+			area := palette.area(native.TextAreaBufferBase(c.Key("source"), d.buffer)).Label("文件内容 "+d.path).Font(a.codeFontFamily()).FontSize(13).FixedLineHeight(20).Width(width).Shrink(0).FillHeight().Padding(8, 24, 8, leftPad).NoWrap().TrackLines(&d.lines).TrackScroll(&d.scroll).ReadOnly(d.kind != "file" || d.file.Reason != "")
 			var lineAtClick func() int
 			switch {
 			case d.kind == "file":
@@ -972,8 +978,23 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					d.observed = d.buffer.Snapshot()
 					return true
 				}
+				if d.kind == "diff" && k.Mods == 0 && len(d.gitRows) > 0 && k.Key == native.KeyEnter {
+					row := snap.LineAt(d.caret)
+					if row < len(d.gitRows) && d.gitRows[row].foldMarker() {
+						a.gitToggleRange(d, d.gitRows[row].fold)
+						return true
+					}
+					a.gitOpenFoldFileAt(d, row, false)
+					return true
+				}
 				return false
 			}))
+			if d.kind == "diff" && len(d.gitRows) > 0 && area.Shortcut(0, native.KeyZ) {
+				row := snap.LineAt(d.caret)
+				if row < len(d.gitRows) && d.gitRows[row].fold != nil {
+					a.gitToggleRange(d, d.gitRows[row].fold)
+				}
+			}
 			area.Draw(func(p *native.Painter, r native.Rect) {
 				if d.kind == "file" {
 					a.paintIndentGuides(p, r, d, snap, palette)
@@ -983,6 +1004,13 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					last := min(len(d.gitRows), d.lines.At(d.scroll.Y+r.H-8)+2)
 					for i := first; i < last; i++ {
 						row := d.gitRows[i]
+						y := r.Y + 8 + d.lines.Top(i) - d.scroll.Y
+						height := d.lines.Top(i+1) - d.lines.Top(i)
+						if row.hunkHeader() {
+							p.Fill(native.Rect{X: r.X, Y: y, W: r.W, H: height}, palette.text.Alpha(0.035), 0)
+							p.Fill(native.Rect{X: r.X, Y: y, W: 3, H: height}, palette.muted.Alpha(0.45), 0)
+							continue
+						}
 						var color native.Color
 						if row.kind == '+' {
 							color = palette.addedBackground
@@ -991,19 +1019,15 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 							color = palette.deletedBackground
 						}
 						if color.A != 0 {
-							y := r.Y + 8 + d.lines.Top(i) - d.scroll.Y
-							height := d.lines.Top(i+1) - d.lines.Top(i)
-							p.Fill(native.Rect{X: r.X + 48, Y: y, W: r.W - 48, H: height}, color, 0)
-							if row.hunk == d.gitHunk {
-								p.Fill(native.Rect{X: r.X + 50, Y: y, W: 2, H: height}, palette.accent, 0)
-							}
+							p.Fill(native.Rect{X: r.X, Y: y, W: r.W, H: height}, color, 0)
+							row.paintWords(p, native.Rect{X: r.X + d.diffInlineTextX(), Y: y, H: height}, native.Font{Family: a.codeFontFamily(), Size: 13}, palette)
 						}
 					}
 				}
 				if d.kind == "file" || len(d.gitRows) > 0 {
 					blocked := d.findOpen && len(d.findMatches) > 0
 					font := native.Font{Family: a.codeFontFamily(), Size: 13}
-					d.wordMatchCache.paint(p, r, d.buffer, snap, [2]int{d.anchor, d.caret}, blocked, &d.lines, d.scroll.Y, 8, font, palette.text)
+					d.wordMatchCache.paint(p, r, d.buffer, snap, [2]int{d.anchor, d.caret}, blocked, &d.lines, d.scroll.Y, 8, d.diffInlineTextX(), font, palette.text)
 				}
 				a.paintFileMatches(p, r, d, snap, search)
 				a.paintBracketPair(p, r, d, snap, palette)
@@ -1024,11 +1048,56 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 								continue
 							}
 							row := d.gitRows[i]
-							number = row.next
-							if row.kind == '-' {
-								number = row.old
+							vx := r.X + d.hscroll.X
+							if row.hunkHeader() {
+								height := d.lines.Top(i+1) - d.lines.Top(i)
+								gutter := native.Rect{X: vx, Y: y, W: diffTextX - 4, H: height}
+								p.Fill(gutter, palette.text.Alpha(0.035).Over(palette.background), 0)
+								p.Fill(native.Rect{X: vx, Y: y, W: 3, H: height}, palette.muted.Alpha(0.45), 0)
+								diffSelection(snap, d.anchor, d.caret, area.Focused()).paint(p, native.Rect{X: vx, Y: y, W: r.W, H: height}, i, palette, true)
+								continue
 							}
-							drawDiffLineNumber(p, r.X+10, y, number, row.kind, palette.lineTheme())
+							height := d.lines.Top(i+1) - d.lines.Top(i)
+							// The gutter stays where the view's left is,
+							// as Mayoi's does: the draw pass scrolls
+							// with the text, so everything of it draws
+							// the scroll's width to the right, back at
+							// the view's edge, and covers the text
+							// scrolling under it with the row's backing.
+							gutter := native.Rect{X: vx, Y: y, W: diffTextX - 4, H: height}
+							// The text scrolls sideways under the DrawOver
+							// pass: cover it with the row's own backing, as
+							// Mayoi's gutter does, so the numbers stay in
+							// place over whatever moved beneath them.
+							rowbg := palette.background
+							if row.kind == '+' {
+								rowbg = palette.addedBackground
+							}
+							if row.kind == '-' {
+								rowbg = palette.deletedBackground
+							}
+							p.Fill(gutter, rowbg, 0)
+							rail := palette.muted.Alpha(0.45)
+							ink := byte(0)
+							if row.kind == '+' {
+								ink = '+'
+							}
+							if row.kind == '-' {
+								ink = '-'
+							}
+							if ink != 0 {
+								tint := palette.lineTheme().Success
+								if ink == '-' {
+									tint = palette.lineTheme().Danger
+								}
+								rail = tint.Mix(palette.background, 0.55)
+								if row.hunk == d.gitHunk {
+									rail = tint
+								}
+							}
+							p.Fill(native.Rect{X: vx, Y: y, W: 3, H: height}, rail, 0)
+							drawDiffLineNumber(p, vx+3, y, row, palette.lineTheme())
+							diffSelection(snap, d.anchor, d.caret, area.Focused()).paint(p, native.Rect{X: vx, Y: y, W: r.W, H: height}, i, palette, true)
 							continue
 						}
 						if number > 0 {
@@ -1037,6 +1106,29 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					}
 				}
 			})
+			if d.kind == "diff" && d.gitReview != nil {
+				d.diffFoldButtons(c, palette, false, true, &d.lines, &d.scroll, d.hscroll.X, available)
+				if d.canRevertDiff() {
+					first := max(0, d.lines.At(d.scroll.Y-8)-1)
+					last := min(len(d.gitRows), d.lines.At(d.scroll.Y+d.scroll.Bounds(c).H)+2)
+					for index := first; index < last; index++ {
+						row := d.gitRows[index]
+						if row.kind != '+' && row.kind != '-' {
+							continue
+						}
+						if index > 0 {
+							prev := d.gitRows[index-1]
+							if prev.hunk == row.hunk && (prev.kind == '+' || prev.kind == '-') {
+								continue
+							}
+						}
+						y := 8 + d.lines.Top(index) - d.scroll.Y + 3.5
+						if y >= 0 {
+							a.diffArrow(c, d, diffCodePair{left: row, right: row}, d.hscroll.X+3, y, 13, palette)
+						}
+					}
+				}
+			}
 			if d.findOpen {
 				native.Row(c.Key("editor-find")).Attach(native.AnchorTopRight, native.AnchorTopRight).Top(6).Right(16).Padding(4, 10).Gap(8).AlignItems(native.Center).
 					Background(t.Background).Border(1, t.Border.Alpha(.7)).Radius(t.Radius).Shadow(0, 2, 10, 0, native.RGBA(0, 0, 0, .08)).Children(func() {
@@ -1340,7 +1432,7 @@ func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, sn
 	if !d.findScanned || len(d.findMatches) == 0 || d.findBuffer != d.buffer || d.findVersion != snap.Version() {
 		return
 	}
-	textX := r.X + 58
+	textX := r.X + d.diffInlineTextX()
 	first := max(0, d.lines.At(d.scroll.Y-8)-1)
 	last := min(snap.LineCount()-1, d.lines.At(d.scroll.Y+r.H-8)+2)
 	lo, _ := snap.LineRange(first)
@@ -1506,7 +1598,7 @@ func (a *App) paintBracketPair(p *native.Painter, r native.Rect, d *filePage, sn
 	first := max(0, d.lines.At(d.scroll.Y-8)-1)
 	last := min(snap.LineCount()-1, d.lines.At(d.scroll.Y+r.H-8)+2)
 	font := native.Font{Family: a.codeFontFamily(), Size: 13}
-	textX := r.X + 58
+	textX := r.X + d.diffInlineTextX()
 	for _, pos := range [2]int{d.bracketStart, d.bracketEnd} {
 		line := snap.LineAt(pos)
 		if line < first || line > last {
@@ -1580,14 +1672,14 @@ func (cache *wordMatchCache) match(buffer *native.TextBuffer, snap native.TextSn
 	}
 }
 
-func (cache *wordMatchCache) paint(p *native.Painter, r native.Rect, buffer *native.TextBuffer, snap native.TextSnapshot, sel [2]int, blocked bool, lines *native.TextLines, scrollY, topPadding float32, font native.Font, textColor native.Color) {
+func (cache *wordMatchCache) paint(p *native.Painter, r native.Rect, buffer *native.TextBuffer, snap native.TextSnapshot, sel [2]int, blocked bool, lines *native.TextLines, scrollY, topPadding, inset float32, font native.Font, textColor native.Color) {
 	first := max(0, lines.At(scrollY-topPadding)-1)
 	last := min(snap.LineCount()-1, lines.At(scrollY+r.H-topPadding)+2)
 	cache.match(buffer, snap, sel, first, last, blocked)
 	if len(cache.words) == 0 {
 		return
 	}
-	textX := r.X + 58
+	textX := r.X + inset
 	sel0, sel1 := min(sel[0], sel[1]), max(sel[0], sel[1])
 	line, lineStart, lineEnd := -1, 0, 0
 	var lineRunes []rune

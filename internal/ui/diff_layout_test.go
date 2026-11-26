@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"math"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -84,7 +85,7 @@ func TestDiffContentFillsViewportAndScrollsHorizontally(t *testing.T) {
 					scroll := &d.hscroll
 					if split && width >= 520 {
 						label = "差异 新版本"
-						paneWidth = float32(width-1) / 2
+						paneWidth = (float32(width) - diffMidW) / 2
 						scroll = &d.gitRightHScroll
 					}
 					r, ok := tt.Find(label)
@@ -125,5 +126,63 @@ func TestDiffContentFillsViewportAndScrollsHorizontally(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+func TestDiffGutterStaysOverScrolledText(t *testing.T) {
+	for _, split := range []bool{false, true} {
+		t.Run(fmt.Sprint("split=", split), func(t *testing.T) {
+			a, queue, root := p4App(t)
+			long := strings.Repeat("wide ", 40) + "end"
+			patch := "@@ -1,3 +1,3 @@\n same first\n same second\n-old " + long + "\n+new " + long + "\n"
+			review := gitview.ParsePatch(patch)
+			review.Entry.Path = "sample.txt"
+			review.BeforeText = "same first\nsame second\nold " + long + "\n"
+			review.BeforeKnown = true
+			d := &filePage{id: "commit", root: root, path: filepath.Join(root, "sample.txt"), kind: "diff",
+				gitDiffState: gitDiffState{gitCommit: "abc1234", gitSplit: split}}
+			a.gitSetDiffText(d, patch, &review)
+			a.files = map[string]*filePage{d.id: d}
+			tester := native.NewTester(func(c *native.Context) {
+				native.Row(c).Fill().Children(func() { a.fileView(c, d, false, false) })
+			}, 1100, 400)
+			p4Wait(t, tester, queue, func() bool { return !d.highlighting && d.contentWidth > 0 })
+			label, padding, inset, scroll := "文件内容 "+d.path, float32(8), diffTextX, &d.hscroll
+			if split {
+				label, padding, inset, scroll = "差异 原版本", 6, diffSideTextX, &d.gitLeftHScroll
+			}
+			area, ok := tester.Find(label)
+			if !ok {
+				t.Fatalf("missing diff area %q", label)
+			}
+			// The ink map of the gutter on the deleted line's row: the
+			// rail, the number's digits and the '-' mark. Whatever the
+			// horizontal scroll, the text passing under it must never add
+			// ink inside it, as Mayoi's gutter stays in place.
+			inkMap := func() string {
+				y := int(area.Y + padding + 3*20 + 10)
+				bg := tester.Image().RGBAAt(int(area.X+5), y)
+				var ink strings.Builder
+				for x := int(area.X); x < int(area.X)+int(inset)+10; x++ {
+					if tester.Image().RGBAAt(x, y) != bg {
+						ink.WriteByte('#')
+					} else {
+						ink.WriteByte('.')
+					}
+				}
+				return ink.String()
+			}
+			before := inkMap()
+			scroll.X = 150
+			tester.Frame()
+			after := inkMap()
+			// No ink may appear inside the gutter beyond what the number
+			// and its mark drew before the scroll, past their reach.
+			for x := 44; x < int(inset)-8 && x < len(after); x++ {
+				if after[x] == '#' && (x >= len(before) || before[x] != '#') {
+					t.Fatalf("scrolled text bled into the gutter at x+%d:\nbefore %s\nafter  %s", x, before, after)
+				}
+			}
+		})
 	}
 }

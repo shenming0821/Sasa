@@ -436,6 +436,67 @@ func TestGitDiscardRechecksConfirmationAndProtectsUnsavedEditor(t *testing.T) {
 	}
 }
 
+func TestDiffRevertSingleRunIntoEditor(t *testing.T) {
+	a, queue, root, git := gitWorkflowApp(t)
+	path := filepath.Join(root, "text.txt")
+	base := "旧一\n间隔\n旧二"
+	work := "新一\n间隔\n新二"
+	if err := os.WriteFile(path, []byte(base), 0600); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "text.txt")
+	git("commit", "-m", "text baseline")
+	if err := os.WriteFile(path, []byte(work), 0600); err != nil {
+		t.Fatal(err)
+	}
+	tester := native.NewTester(a.view, 1600, 820)
+	w := a.workspace(root)
+	p4Wait(t, tester, queue, func() bool { return len(gitEntries(w, "更改")) == 1 })
+	if err := tester.Click("Git 更改 text.txt"); err != nil {
+		t.Fatal(err)
+	}
+	p4Wait(t, tester, queue, func() bool { return a.currentFile() != nil && a.currentFile().gitReview != nil })
+	diff := a.currentFile()
+	if len(diff.gitReview.Hunks) != 1 {
+		t.Fatal("expected two changes in one Git hunk")
+	}
+	diff.gitSplit = true
+	tester.Frame()
+	tester.Frame()
+	if _, ok := tester.Find("撤销此处更改"); !ok {
+		t.Fatal("missing split arrow")
+	}
+	runs := diffChangeRuns(diff.gitPairs)
+	if len(runs) != 2 {
+		t.Fatal(runs)
+	}
+	a.revertDiffBlock(diff, diff.gitPairs[runs[1].from], false)
+	if w.gitDecision == nil {
+		t.Fatal("missing confirmation")
+	}
+	confirm := w.gitDecision.actions[1]
+	w.gitDecision = nil
+	confirm()
+	p4Wait(t, tester, queue, func() bool { return a.currentFile() != nil && a.currentFile().dirty() })
+	doc := a.currentFile()
+	if got := doc.buffer.String(); got != "新一\n间隔\n旧二" {
+		t.Fatal(got)
+	}
+	doc.undoEdit(false)
+	if doc.buffer.String() != work || doc.dirty() {
+		t.Fatal("undo did not restore original editor text")
+	}
+	disk, err := os.ReadFile(path)
+	if err != nil || string(disk) != work || git("show", ":text.txt") != base {
+		t.Fatal("disk or index changed", err)
+	}
+	a.revertDiffBlock(diff, diff.gitPairs[runs[0].from], true)
+	p4Wait(t, tester, queue, func() bool { return doc.dirty() })
+	if got := doc.buffer.String(); got != "新一\n旧一\n间隔\n新二" {
+		t.Fatal(got)
+	}
+}
+
 func TestGitGroupDiscardAllRestoresEveryUnstagedChange(t *testing.T) {
 	a, q, root, git := gitWorkflowApp(t)
 	os.WriteFile(filepath.Join(root, "README.md"), []byte("changed readme\n"), 0600)
