@@ -88,6 +88,7 @@ type gitDiffState struct {
 	gitHunk                               int
 	gitInitialCenter                      [2]bool
 	gitSplit                              bool
+	gitSplitShown                         bool
 	gitLeft, gitRight                     *native.TextBuffer
 	gitLeftScroll                         native.ScrollState
 	gitRightScroll                        native.ScrollState
@@ -98,8 +99,11 @@ type gitDiffState struct {
 	gitRightWidth                         float32
 	gitSplitY                             float32
 	gitSplitHeader                        float32
+	gitSplitAnchor                        [2]int
 	gitSplitCaret                         [2]int
 	gitSplitFocus                         *[2]int
+	gitSplitPendingSelection              *[2]int
+	gitSplitPendingSide                   int
 	gitFocusSide                          int
 	gitCursorSide                         int
 	gitRowSelection                       diffLineSelection
@@ -601,6 +605,8 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 		d.gitInitialCenter = [2]bool{len(review.Hunks) > 0, len(review.Hunks) > 0}
 		if previous != nil && previous.Entry.Path != review.Entry.Path {
 			d.anchor, d.caret, d.pendingSelection = 0, 0, nil
+			d.gitSplitAnchor, d.gitSplitCaret = [2]int{}, [2]int{}
+			d.gitSplitPendingSelection = nil
 		}
 	}
 	sameReview := previous != nil && review != nil && previous.Entry.Path == review.Entry.Path &&
@@ -632,6 +638,7 @@ func (a *App) gitSetDiffText(d *filePage, text string, review *gitview.Review) {
 	d.observed = d.buffer.Snapshot()
 	d.loaded, d.resync = true, true
 	d.gitLeft, d.gitRight = nil, nil
+	d.gitSplitPendingSelection = nil
 	d.gitLeftLines, d.gitRightLines = native.TextLines{}, native.TextLines{}
 	d.wordMatchCache, d.gitSplitWords = wordMatchCache{}, wordMatchCache{}
 }

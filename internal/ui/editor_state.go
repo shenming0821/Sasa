@@ -116,9 +116,12 @@ type filePage struct {
 	findIndex                                                           int
 	findStep                                                            int
 	findKey                                                             string
+	findScanKey                                                         string
 	findBuffer                                                          *native.TextBuffer
+	findScanBuffer                                                      *native.TextBuffer
 	findVersion                                                         uint64
 	findScanned                                                         bool
+	findTargetFocused                                                   bool
 	bracketStart, bracketEnd, bracketCaret                              int
 	bracketBuffer                                                       *native.TextBuffer
 	bracketVersion                                                      uint64

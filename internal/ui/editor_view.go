@@ -839,7 +839,9 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 			}
 			available -= a.effectiveRightPanelWidth(total) + 1
 		}
-		if d.kind == "diff" && d.gitSplit && d.gitReview != nil && len(d.gitReview.Hunks) > 0 && available >= 520 {
+		split := d.diffSplitActive(available)
+		d.gitSplitShown = split
+		if split {
 			a.gitSplitView(c, d, available)
 			return
 		}
@@ -854,15 +856,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 		if d.pendingLocation != nil {
 			c.AnimationFrame()
 		}
-		spec := a.activeFileSearch(d)
-		stale := !d.findScanned || d.findKey != spec.key || d.findBuffer != d.buffer || d.findVersion != snap.Version()
-		if spec.key == "" {
-			d.cancelFind()
-			d.findMatches, d.findScanned, d.findKey = nil, false, ""
-			d.findIndex, d.findResult = -1, ""
-		} else if stale && d.findCancel == nil && time.Since(d.changedAt) > 150*time.Millisecond {
-			a.scanFileMatches(d, spec)
-		}
+		stale := a.syncFileSearch(d)
 		width := max(available, d.contentWidth)
 		palette := a.activeEditorPalette(t)
 		search := a.activePalette(t).searchFor(palette.accent, .45)
@@ -922,6 +916,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 				}
 				d.focus = false
 			}
+			d.findTargetFocused = area.Focused() && !d.findFocus
 			if d.highlightVersion == d.buffer.Version() {
 				first := max(0, int(d.scroll.Y/20)-2)
 				last := min(first+editorHighlightDrawRows, snap.LineCount()-1)
@@ -967,13 +962,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					return true
 				}
 				if k.Mods == native.Cmd && k.Key == native.KeyF {
-					if d.anchor != d.caret {
-						if text := d.buffer.Slice(d.anchor, d.caret); text != "" && len(text) < 200 && !strings.Contains(text, "\n") {
-							d.query = text
-						}
-					}
-					d.findOpen = true
-					d.findFocus = true
+					a.openFileFindFromArea(d, d.buffer, d.anchor, d.caret)
 					return true
 				}
 				if k.Mods == native.Cmd && k.Key == native.KeyW {
@@ -1033,7 +1022,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					}
 				}
 				if d.kind == "file" || len(d.gitRows) > 0 {
-					blocked := d.findOpen && len(d.findMatches) > 0
+					blocked := d.findOpen && len(d.findMatches) > 0 && d.findBuffer == d.buffer
 					font := native.Font{Family: a.codeFontFamily(), Size: 13}
 					d.wordMatchCache.paint(p, r, d.buffer, snap, [2]int{d.anchor, d.caret}, blocked, &d.lines, d.scroll.Y, 8, d.diffInlineTextX(), font, palette.text)
 				}
@@ -1136,49 +1125,7 @@ func (a *App) fileView(c *native.Context, d *filePage, left, right bool) {
 					}
 				}
 			}
-			if d.findOpen {
-				native.Row(c.Key("editor-find")).Attach(native.AnchorTopRight, native.AnchorTopRight).Top(6).Right(16).Padding(4, 10).Gap(8).AlignItems(native.Center).
-					Background(t.Background).Border(1, t.Border.Alpha(.7)).Radius(t.Radius).Shadow(0, 2, 10, 0, native.RGBA(0, 0, 0, .08)).Children(func() {
-					searchField(c).Width(280).Children(func() {
-						input := native.TextInputBase(c, &d.query).Label("文件内查找").Placeholder("查找文本").Grow(1).MinWidth(0).FontSize(12).Padding(4)
-						if d.findFocus {
-							input.Focus()
-							input.SetTextSelection(0, len([]rune(d.query)))
-							d.findFocus = false
-						}
-						composing := input.Composing()
-						input.OnTextKey(func(k native.TextKey) bool {
-							if composing {
-								return false
-							}
-							if k.Key == native.KeyEnter {
-								a.findInFile(d, k.Mods&native.Shift != 0)
-								return true
-							}
-							return false
-						})
-						native.Text(c, d.findResult).FontSize(11).TextColor(t.TextMuted).Padding(0, 4)
-					})
-					caseButton := native.ButtonBase(c).Label("区分大小写").Size(28, 26).
-						Tooltip("区分大小写").Radius(8).TextColor(t.TextMuted)
-					selectedButtonFace(c, caseButton, d.findCase, 8, 0)
-					caseButton.Children(func() { native.Text(c, "Aa").FontSize(11) })
-					if caseButton.Clicked() {
-						d.findCase = !d.findCase
-						a.findInFile(d, false)
-					}
-					none := stale || len(d.findMatches) == 0
-					if gitIconButton(c.Key("find-prev"), "上一个匹配", upIcon, none, "上一个匹配（⇧⏎）").Clicked() {
-						a.findInFile(d, true)
-					}
-					if gitIconButton(c.Key("find-next"), "下一个匹配", downIcon, none, "下一个匹配（⏎）").Clicked() {
-						a.findInFile(d, false)
-					}
-					if quietIconButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
-						d.closeFind()
-					}
-				})
-			}
+			a.editorFindBar(c, d, stale, "")
 		})
 		native.Row(c).FillWidth().Height(27).Padding(0, 14).Gap(12).AlignItems(native.Center).BorderWidth(1, 0, 0, 0).BorderColor(t.Border.Alpha(.5)).Children(func() {
 			state := "UTF-8"
@@ -1225,10 +1172,149 @@ func (d *filePage) cancelFind() {
 		d.findCancel = nil
 		d.findGeneration++
 	}
+	d.findScanBuffer = nil
+	d.findScanKey = ""
 	d.findStep = 0
 	if d.findResult == "正在查找…" {
 		d.findResult = ""
 	}
+}
+
+func (d *filePage) diffSplitActive(available float32) bool {
+	return d.kind == "diff" && d.gitSplit && d.gitReview != nil && len(d.gitReview.Hunks) > 0 && available >= 520
+}
+
+func (d *filePage) findTarget() (*native.TextBuffer, int, int, bool, int) {
+	if d.gitSplitShown {
+		side := 0
+		if d.gitCursorSide == 1 {
+			side = 1
+		}
+		if side == 1 {
+			return d.gitRight, d.gitSplitAnchor[1], d.gitSplitCaret[1], true, 1
+		}
+		return d.gitLeft, d.gitSplitAnchor[0], d.gitSplitCaret[0], true, 0
+	}
+	return d.buffer, d.anchor, d.caret, false, -1
+}
+
+func (a *App) openFileFind(d *filePage) {
+	if d == nil || !d.loaded {
+		return
+	}
+	buffer, anchor, caret, _, _ := d.findTarget()
+	if d.findTargetFocused && buffer != nil && anchor != caret {
+		start, end := min(anchor, caret), max(anchor, caret)
+		if text := buffer.Slice(start, end); text != "" && len(text) < 200 && !strings.Contains(text, "\n") {
+			d.query = text
+		}
+	}
+	d.findOpen = true
+	d.findFocus = true
+	d.findTargetFocused = false
+	if strings.TrimSpace(d.query) == "" {
+		return
+	}
+	if buffer == nil {
+		return
+	}
+	spec := a.activeFileSearch(d)
+	if d.findScanned && d.findKey == spec.key && d.findBuffer == buffer && d.findVersion == buffer.Version() && len(d.findMatches) > 0 && d.findIndex < 0 {
+		idx := sort.Search(len(d.findMatches), func(i int) bool { return d.findMatches[i].end > min(anchor, caret) })
+		if idx == len(d.findMatches) {
+			idx = 0
+		}
+		a.revealFileMatch(d, idx)
+	}
+}
+
+func (a *App) openFileFindFromArea(d *filePage, buffer *native.TextBuffer, anchor, caret int) {
+	if buffer != nil && anchor != caret {
+		start, end := min(anchor, caret), max(anchor, caret)
+		if text := buffer.Slice(start, end); text != "" && len(text) < 200 && !strings.Contains(text, "\n") {
+			d.query = text
+		}
+	}
+	a.openFileFind(d)
+}
+
+func (a *App) syncFileSearch(d *filePage) bool {
+	buffer, _, _, _, _ := d.findTarget()
+	if buffer == nil {
+		return false
+	}
+	spec := a.activeFileSearch(d)
+	stale := !d.findScanned || d.findKey != spec.key || d.findBuffer != buffer || d.findVersion != buffer.Version()
+	if spec.key == "" {
+		d.cancelFind()
+		d.findMatches, d.findScanned, d.findKey = nil, false, ""
+		d.findIndex, d.findResult = -1, ""
+		return false
+	}
+	if stale && (d.findCancel == nil || d.findScanBuffer != buffer || d.findScanKey != spec.key) && time.Since(d.changedAt) > 150*time.Millisecond {
+		a.scanFileMatches(d, spec)
+	}
+	return stale
+}
+
+func (a *App) editorFindBar(c *native.Context, d *filePage, stale bool, scope string) {
+	if !d.findOpen {
+		return
+	}
+	t := c.Theme()
+	fieldWidth := float32(280)
+	placeholder := "查找文本"
+	if scope != "" {
+		fieldWidth = 240
+		placeholder = "查找" + scope
+	}
+	native.Row(c.Key("editor-find")).Attach(native.AnchorTopRight, native.AnchorTopRight).Top(6).Right(16).Padding(4, 10).Gap(8).AlignItems(native.Center).
+		Background(t.Background).Border(1, t.Border.Alpha(.7)).Radius(t.Radius).Shadow(0, 2, 10, 0, native.RGBA(0, 0, 0, .08)).Children(func() {
+		if scope != "" {
+			native.Row(c.Key("find-scope")).Padding(3, 7).Radius(6).Background(t.Surface).Border(1, t.Border.Alpha(.5)).Children(func() {
+				native.Text(c, scope).FontSize(11).TextColor(t.TextMuted).SingleLine()
+			})
+		}
+		searchField(c).Width(fieldWidth).Children(func() {
+			input := native.TextInputBase(c, &d.query).Label("文件内查找").Placeholder(placeholder).Grow(1).MinWidth(0).FontSize(12).Padding(4)
+			a.focusPressedPane(input)
+			if d.findFocus {
+				input.Focus()
+				input.SetTextSelection(0, len([]rune(d.query)))
+				d.findFocus = false
+			}
+			composing := input.Composing()
+			input.OnTextKey(a.paneTextKey(func(k native.TextKey) bool {
+				if composing {
+					return false
+				}
+				if k.Key == native.KeyEnter {
+					a.findInFile(d, k.Mods&native.Shift != 0)
+					return true
+				}
+				return false
+			}))
+			native.Text(c, d.findResult).FontSize(11).TextColor(t.TextMuted).Padding(0, 4)
+		})
+		caseButton := native.ButtonBase(c).Label("区分大小写").Size(28, 26).
+			Tooltip("区分大小写").Radius(8).TextColor(t.TextMuted)
+		selectedButtonFace(c, caseButton, d.findCase, 8, 0)
+		caseButton.Children(func() { native.Text(c, "Aa").FontSize(11) })
+		if caseButton.Clicked() {
+			d.findCase = !d.findCase
+			a.findInFile(d, false)
+		}
+		none := stale || len(d.findMatches) == 0
+		if gitIconButton(c.Key("find-prev"), "上一个匹配", upIcon, none, "上一个匹配（⇧⏎）").Clicked() {
+			a.findInFile(d, true)
+		}
+		if gitIconButton(c.Key("find-next"), "下一个匹配", downIcon, none, "下一个匹配（⏎）").Clicked() {
+			a.findInFile(d, false)
+		}
+		if quietIconButton(c, "关闭查找").Size(26, 26).Children(func() { native.Icon(c, tabCloseIcon).Size(12, 12) }).Clicked() {
+			d.closeFind()
+		}
+	})
 }
 
 // findMatch is one keyword match in a file buffer, as rune offsets.
@@ -1304,26 +1390,31 @@ func scanBufferContentMatches(ctx context.Context, snap native.TextSnapshot, q w
 // or staying put over a rescan of the same query.
 func (a *App) scanFileMatches(d *filePage, spec fileSearchSpec) {
 	d.cancelFind()
-	if !a.canAsync() || d.buffer == nil {
+	buffer, _, _, _, _ := d.findTarget()
+	if !a.canAsync() || buffer == nil {
 		return
 	}
 	if spec.step != 0 {
 		d.findStep = spec.step
 	}
-	buffer := d.buffer
 	snapshot := buffer.Snapshot()
 	d.findGeneration++
 	generation := d.findGeneration
 	ctx, cancel := a.projectContext(5 * time.Second)
 	d.findCancel = cancel
+	d.findScanBuffer = buffer
+	d.findScanKey = spec.key
 	a.runBackgroundFileTaskContext(ctx, func() {
 		defer cancel()
 		matches, err := scanBufferContentMatches(ctx, snapshot, spec.q)
 		a.update(func() {
 			if generation == d.findGeneration {
 				d.findCancel = nil
+				d.findScanBuffer = nil
+				d.findScanKey = ""
 			}
-			if a.files[d.id] != d || d.buffer != buffer || generation != d.findGeneration || d.buffer.Version() != snapshot.Version() {
+			currentBuf, curAnchor, curCaret, _, _ := d.findTarget()
+			if a.files[d.id] != d || currentBuf != buffer || generation != d.findGeneration || buffer.Version() != snapshot.Version() {
 				return
 			}
 			if err != nil {
@@ -1333,6 +1424,7 @@ func (a *App) scanFileMatches(d *filePage, spec fileSearchSpec) {
 				return
 			}
 			queryChanged := d.findKey != spec.key
+			bufferChanged := d.findBuffer != buffer
 			d.findMatches = matches
 			d.findKey, d.findBuffer, d.findVersion, d.findScanned = spec.key, buffer, snapshot.Version(), true
 			if !spec.find || !d.findOpen || d.query != spec.q.Text || d.findCase != spec.q.MatchCase {
@@ -1346,12 +1438,12 @@ func (a *App) scanFileMatches(d *filePage, spec fileSearchSpec) {
 			if d.findStep != 0 {
 				var idx int
 				if d.findStep > 0 {
-					idx = sort.Search(n, func(i int) bool { return matches[i].start >= d.caret })
+					idx = sort.Search(n, func(i int) bool { return matches[i].start >= curCaret })
 					if idx == n {
 						idx = 0
 					}
 				} else {
-					idx = sort.Search(n, func(i int) bool { return matches[i].end > d.anchor }) - 1
+					idx = sort.Search(n, func(i int) bool { return matches[i].end > curAnchor }) - 1
 					if idx < 0 {
 						idx = n - 1
 					}
@@ -1360,8 +1452,20 @@ func (a *App) scanFileMatches(d *filePage, spec fileSearchSpec) {
 				a.revealFileMatch(d, idx)
 				return
 			}
-			if queryChanged || d.findIndex < 0 || d.findIndex >= n {
-				d.findIndex = sort.Search(n, func(i int) bool { return matches[i].end > min(d.anchor, d.caret) })
+			if bufferChanged && !queryChanged && d.findTargetFocused {
+				sel0, sel1 := min(curAnchor, curCaret), max(curAnchor, curCaret)
+				idx := sort.Search(n, func(i int) bool { return matches[i].end >= sel0 })
+				if idx < n && matches[idx].start <= sel1 && sel0 <= matches[idx].end {
+					d.findIndex = idx
+					d.findResult = fmt.Sprintf("%d/%d", idx+1, n)
+				} else {
+					d.findIndex = -1
+					d.findResult = fmt.Sprintf("%d 处", n)
+				}
+				return
+			}
+			if queryChanged || bufferChanged || d.findIndex < 0 || d.findIndex >= n {
+				d.findIndex = sort.Search(n, func(i int) bool { return matches[i].end > min(curAnchor, curCaret) })
 				if d.findIndex == n {
 					d.findIndex = 0
 				}
@@ -1376,7 +1480,8 @@ func (a *App) scanFileMatches(d *filePage, spec fileSearchSpec) {
 // findInFile is the find bar's Enter or step button: with fresh matches it
 // steps, else it asks the scan in flight or a new one to reveal a match.
 func (a *App) findInFile(d *filePage, previous bool) {
-	if d.query == "" || d.buffer == nil {
+	buffer, _, _, _, _ := d.findTarget()
+	if d.query == "" || buffer == nil {
 		return
 	}
 	spec := fileSearchSpec{
@@ -1388,11 +1493,11 @@ func (a *App) findInFile(d *filePage, previous bool) {
 	if previous {
 		spec.step = -1
 	}
-	if d.findScanned && d.findKey == spec.key && d.findBuffer == d.buffer && d.findVersion == d.buffer.Version() {
+	if d.findScanned && d.findKey == spec.key && d.findBuffer == buffer && d.findVersion == buffer.Version() {
 		a.stepFileMatch(d, previous)
 		return
 	}
-	if d.findCancel != nil {
+	if d.findCancel != nil && d.findScanBuffer == buffer && d.findScanKey == spec.key {
 		// A scan for this query is on its way: it applies the step itself.
 		d.findStep = spec.step
 	} else {
@@ -1408,10 +1513,18 @@ func (a *App) stepFileMatch(d *filePage, previous bool) {
 		d.findIndex, d.findResult = -1, "没有匹配"
 		return
 	}
+	_, anchor, caret, _, _ := d.findTarget()
 	if d.findIndex < 0 || d.findIndex >= n {
-		d.findIndex = sort.Search(n, func(i int) bool { return d.findMatches[i].end > min(d.anchor, d.caret) })
-		if d.findIndex == n {
-			d.findIndex = 0
+		if previous {
+			d.findIndex = sort.Search(n, func(i int) bool { return d.findMatches[i].start >= min(anchor, caret) }) - 1
+			if d.findIndex < 0 {
+				d.findIndex = n - 1
+			}
+		} else {
+			d.findIndex = sort.Search(n, func(i int) bool { return d.findMatches[i].end > min(anchor, caret) })
+			if d.findIndex == n {
+				d.findIndex = 0
+			}
 		}
 	} else {
 		by := 1
@@ -1427,26 +1540,39 @@ func (a *App) stepFileMatch(d *filePage, previous bool) {
 func (a *App) revealFileMatch(d *filePage, i int) {
 	m := d.findMatches[i]
 	d.findIndex = i
+	d.pinFrame = 0
+	d.gitInitialCenter = [2]bool{false, false}
+	d.findResult = fmt.Sprintf("%d/%d", i+1, len(d.findMatches))
+	if _, _, _, split, side := d.findTarget(); split {
+		d.gitSplitPendingSelection = &[2]int{m.start, m.end}
+		d.gitSplitPendingSide = side
+		d.gitSplitAnchor[side], d.gitSplitCaret[side] = m.start, m.end
+		return
+	}
 	d.pendingSelection = &[2]int{m.start, m.end}
 	d.anchor, d.caret = m.start, m.end
-	d.findResult = fmt.Sprintf("%d/%d", i+1, len(d.findMatches))
 }
 
 // paintFileMatches draws the searched keywords under the text, the way
 // Mayoi's find does: every match filled, the match under the selection
 // stronger with a ring.
 func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, snap native.TextSnapshot, search searchPalette) {
-	if !d.findScanned || len(d.findMatches) == 0 || d.findBuffer != d.buffer || d.findVersion != snap.Version() {
+	a.paintBufferMatches(p, r, d, d.buffer, snap, &d.lines, d.scroll.Y, 8, d.diffInlineTextX(), 13, [2]int{d.anchor, d.caret}, search)
+}
+
+func (a *App) paintBufferMatches(p *native.Painter, r native.Rect, d *filePage, buffer *native.TextBuffer, snap native.TextSnapshot, lines *native.TextLines, scrollY, topPadding, inset, fontSize float32, sel [2]int, search searchPalette) {
+	activeBuf, _, _, _, _ := d.findTarget()
+	if !d.findScanned || len(d.findMatches) == 0 || activeBuf != buffer || d.findBuffer != buffer || d.findVersion != snap.Version() {
 		return
 	}
-	textX := r.X + d.diffInlineTextX()
-	first := max(0, d.lines.At(d.scroll.Y-8)-1)
-	last := min(snap.LineCount()-1, d.lines.At(d.scroll.Y+r.H-8)+2)
+	textX := r.X + inset
+	first := max(0, lines.At(scrollY-topPadding)-1)
+	last := min(snap.LineCount()-1, lines.At(scrollY+r.H-topPadding)+2)
 	lo, _ := snap.LineRange(first)
 	_, hi := snap.LineRange(last)
 	i := sort.Search(len(d.findMatches), func(i int) bool { return d.findMatches[i].end > lo })
-	font := native.Font{Family: a.codeFontFamily(), Size: 13}
-	sel0, sel1 := min(d.anchor, d.caret), max(d.anchor, d.caret)
+	font := native.Font{Family: a.codeFontFamily(), Size: fontSize}
+	sel0, sel1 := min(sel[0], sel[1]), max(sel[0], sel[1])
 	line, lineStart, lineEnd := -1, 0, 0
 	var lineRunes []rune
 	var layout *native.TextLayout
@@ -1477,7 +1603,7 @@ func (a *App) paintFileMatches(p *native.Painter, r native.Rect, d *filePage, sn
 			if x1 <= textX {
 				continue
 			}
-			y := r.Y + 8 + d.lines.Top(l) - d.scroll.Y
+			y := r.Y + topPadding + lines.Top(l) - scrollY
 			box := native.Rect{X: max(x0, textX) - 1, Y: y + 1, W: max(x1-x0, 2) + 2, H: 18}
 			if cur {
 				p.Fill(box, search.current, 3)

@@ -69,8 +69,13 @@ func (a *App) view(c *native.Context) {
 		if a.find.open && c.Shortcut(0, native.KeyEscape) {
 			a.closeSessionFind()
 		}
-	} else if document := a.currentFile(); document != nil && document.findOpen && c.Shortcut(0, native.KeyEscape) {
-		document.closeFind()
+	} else if document := a.currentFile(); document != nil {
+		if document.loaded && c.Shortcut(native.Cmd, native.KeyF) {
+			a.openFileFind(document)
+		}
+		if document.findOpen && c.Shortcut(0, native.KeyEscape) {
+			document.closeFind()
+		}
 	}
 	width, _ := c.Size()
 	a.sidebarWidth = max(a.sidebarWidth, 200)

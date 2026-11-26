@@ -82,6 +82,9 @@ func (a *App) trimEditorCaches() {
 			d.gitRows, d.gitPairs = nil, nil
 			d.gitLeftHighlights, d.gitRightHighlights = nil, nil
 			d.wordMatchCache, d.gitSplitWords = wordMatchCache{}, wordMatchCache{}
+			d.findBuffer, d.findScanBuffer = nil, nil
+			d.findMatches, d.findScanned = nil, false
+			d.gitSplitPendingSelection = nil
 		}
 	}
 	// Release watchers once neither the selected workspace nor an open file uses them.

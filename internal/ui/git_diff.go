@@ -450,6 +450,7 @@ func (d *filePage) centerInitialDiff(split bool, viewportHeight float32) {
 func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 	t := c.Theme()
 	palette := a.activeEditorPalette(t)
+	search := a.activePalette(t).searchFor(palette.accent, .45)
 	_, height := c.Size()
 	if d.gitLeft == nil || d.gitRight == nil {
 		if d.gitPairs == nil {
@@ -482,6 +483,23 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 	if d.compare == "外部更改" {
 		leftName, rightName = "本地编辑", "磁盘版本"
 	}
+	if d.gitSplitPendingSelection != nil && viewport > 0 {
+		targetBuf := d.gitLeft
+		if d.gitSplitPendingSide == 1 {
+			targetBuf = d.gitRight
+		}
+		if targetBuf != nil {
+			snap := targetBuf.Snapshot()
+			line := snap.LineAt(d.gitSplitPendingSelection[0])
+			top := float32(6) + float32(line)*20
+			if top < d.gitSplitY+6 || top+20 > d.gitSplitY+viewport-6 {
+				maxScroll := max(0, float32(len(d.gitPairs))*20+12-viewport)
+				offset := min(maxScroll, max(0, top+10-viewport/2))
+				d.gitSplitY, d.gitLeftScroll.Y, d.gitRightScroll.Y = offset, offset, offset
+			}
+		}
+	}
+	focusedSide := -1
 	native.Row(c.Key("split")).FillWidth().Grow(1).MinHeight(0).Children(func() {
 		for sideIndex, side := range []struct {
 			name    string
@@ -503,6 +521,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 				native.ScrollHorizontal(c.Key("horizontal")).TrackScroll(side.hscroll).FillWidth().Grow(1).MinHeight(0).Children(func() {
 					area := palette.area(native.TextAreaBufferBase(c, side.buffer)).Label("差异 "+side.name).ReadOnly(true).Font(a.codeFontFamily()).FontSize(12).
 						FixedLineHeight(20).NoWrap().Width(max((available-diffMidW)/2, side.width)).Shrink(0).FillHeight().Padding(6, 10, 6, diffSideTextX).TrackScroll(side.scroll).TrackLines(side.lines)
+					a.focusPressedPane(area)
 					highlights := d.gitLeftHighlights
 					if sideIndex == 1 {
 						highlights = d.gitRightHighlights
@@ -518,18 +537,49 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 					focused := area.Focused()
 					if focused {
 						d.gitCursorSide = sideIndex
+						focusedSide = sideIndex
 					}
 					if d.gitSplitFocus != nil && d.gitFocusSide == sideIndex {
 						area.SetTextSelection(d.gitSplitFocus[0], d.gitSplitFocus[1])
 						if !focused {
 							area.Focus()
 							focused = true
+							focusedSide = sideIndex
 						}
 						anchor, caret = d.gitSplitFocus[0], d.gitSplitFocus[1]
+						d.gitCursorSide = sideIndex
+						d.gitSplitAnchor[sideIndex] = anchor
 						d.gitSplitCaret[sideIndex] = caret
 						d.gitSplitFocus = nil
 					}
-					area.OnTextKey(func(k native.TextKey) bool {
+					if d.gitSplitPendingSelection != nil && d.gitSplitPendingSide == sideIndex {
+						area.SetTextSelection(d.gitSplitPendingSelection[0], d.gitSplitPendingSelection[1])
+						anchor, caret = d.gitSplitPendingSelection[0], d.gitSplitPendingSelection[1]
+						d.gitSplitPendingSelection = nil
+					}
+					if d.focus && a.paneIsFocused() && d.gitCursorSide == sideIndex {
+						if d.focusOwner == nil || d.focusOwner.Focused(c) {
+							area.Focus()
+							focused = true
+							focusedSide = sideIndex
+						}
+						d.focus = false
+					}
+					d.gitSplitAnchor[sideIndex] = anchor
+					composing := area.Composing()
+					area.OnTextKey(a.paneTextKey(func(k native.TextKey) bool {
+						if composing {
+							return false
+						}
+						if k.Mods == native.Cmd && k.Key == native.KeyF {
+							d.gitCursorSide = sideIndex
+							a.openFileFindFromArea(d, side.buffer, d.gitSplitAnchor[sideIndex], d.gitSplitCaret[sideIndex])
+							return true
+						}
+						if k.Mods == native.Cmd && k.Key == native.KeyW {
+							a.closeCurrentPage()
+							return true
+						}
 						if k.Mods != 0 {
 							return false
 						}
@@ -544,7 +594,7 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 							return true
 						}
 						return false
-					})
+					}))
 					if area.Shortcut(0, native.KeyZ) {
 						row := snapshot.LineAt(d.gitSplitCaret[sideIndex])
 						if row < len(d.gitPairs) && d.gitPairs[row].left.fold != nil {
@@ -598,8 +648,10 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 						}
 						if focused {
 							font := native.Font{Family: a.codeFontFamily(), Size: 12}
-							d.gitSplitWords.paint(p, r, side.buffer, snapshot, [2]int{anchor, caret}, false, side.lines, side.scroll.Y, 6, diffSideTextX, font, palette.text)
+							blocked := d.findOpen && len(d.findMatches) > 0 && d.findBuffer == side.buffer
+							d.gitSplitWords.paint(p, r, side.buffer, snapshot, [2]int{anchor, caret}, blocked, side.lines, side.scroll.Y, 6, diffSideTextX, font, palette.text)
 						}
+						a.paintBufferMatches(p, r, d, side.buffer, snapshot, side.lines, side.scroll.Y, 6, diffSideTextX, 12, [2]int{anchor, caret}, search)
 					})
 					area.DrawOver(func(p *native.Painter, r native.Rect) {
 						gutterText := measureGutterText(p, a.codeFontFamily(), 12)
@@ -676,7 +728,14 @@ func (a *App) gitSplitView(c *native.Context, d *filePage, available float32) {
 				})
 			})
 		}
+		d.findTargetFocused = focusedSide == d.gitCursorSide && !d.findFocus
+		stale := a.syncFileSearch(d)
 		d.diffSplitFoldButtons(c, palette, available)
+		scope := leftName
+		if d.gitCursorSide == 1 {
+			scope = rightName
+		}
+		a.editorFindBar(c, d, stale, scope)
 	})
 }
 
