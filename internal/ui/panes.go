@@ -185,6 +185,9 @@ func (a *App) activatePaneTab(id, root string, move bool) {
 	} else if !slices.Contains(target.Tabs, id) {
 		target.Tabs = append(target.Tabs, id)
 	}
+	if previous := a.files[target.Active]; previous != nil && previous.id != id {
+		a.cancelPendingPreview(previous)
+	}
 	target.Active = id
 	layout.Focused = target.ID
 	a.layouts[root] = layout

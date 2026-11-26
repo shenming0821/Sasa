@@ -75,6 +75,30 @@ func TestFilePreviewTreeTabAndEdit(t *testing.T) {
 	}
 }
 
+func TestFilePreviewReplacementKeepsContentUntilReadCompletes(t *testing.T) {
+	a, queue, root := p4App(t)
+	tester := native.NewTester(a.view, 1280, 800)
+	first := filepath.Join(root, "README.md")
+	last := filepath.Join(root, "internal", "main.go")
+	a.openFileWithPreview(root, first, true)
+	p4Wait(t, tester, queue, func() bool { return a.currentFile().loaded })
+	a.openFileWithPreview(root, filepath.Join(root, "missing"), true)
+	a.openFileWithPreview(root, last, true)
+	tester.Frame()
+	if _, ok := tester.Find("文件内容 " + first); !ok || a.currentFile().path != first {
+		t.Fatal("replacing a preview removed the current document before the next was ready")
+	}
+	p4Wait(t, tester, queue, func() bool { return a.currentFile().path == last })
+	if _, ok := tester.Find("文件内容 " + last); !ok || !a.currentFile().loaded {
+		t.Fatal("replacement tab appeared before its content")
+	}
+	a.openFileWithPreview(root, filepath.Join(root, "missing"), true)
+	p4Wait(t, tester, queue, func() bool { return a.currentFile().err != "" })
+	if a.currentFile().path != filepath.Join(root, "missing") {
+		t.Fatal("read error appeared on the previous file")
+	}
+}
+
 func TestFilePreviewIsolatedByPaneAndRestored(t *testing.T) {
 	a := New(stubBackend{}, "test", t.TempDir(), nil)
 	store := imageStore(t, a)

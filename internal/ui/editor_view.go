@@ -624,7 +624,11 @@ func (a *App) searchFileRow(c *native.Context, w *workspacePage, r searchRow, mo
 
 func (a *App) openSearchMatch(w *workspacePage, m workspace.ContentMatch, preview bool) {
 	a.openFileWithPreview(w.root, m.Path, preview)
-	if d := a.currentFile(); d != nil && d.root == w.root && d.path == m.Path {
+	d := a.currentFile()
+	if d != nil && d.pendingPreview != nil && d.pendingPreview.path == m.Path {
+		d = d.pendingPreview
+	}
+	if d != nil && d.root == w.root && d.path == m.Path {
 		d.pendingLocation = &fileLocation{line: m.Line, column: m.Col}
 		d.pinFrame = 0
 	}

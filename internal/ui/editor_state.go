@@ -90,6 +90,7 @@ type filePage struct {
 	buffer                                                              *native.TextBuffer
 	loaded, loading, saving, checking, conflict, missing, focus, resync bool
 	readContext                                                         context.Context
+	pendingPreview                                                      *filePage
 	afterDiffRead                                                       func()
 	readCancel                                                          context.CancelFunc
 	checkContext                                                        context.Context
@@ -288,6 +289,16 @@ func (a *App) openFileWithPreview(root, path string, preview bool) {
 	if !workspace.Contains(root, path) {
 		return
 	}
+	pane := a.tabTargetPane(a.layoutFor(a.workspaceRoot(root)))
+	previous := a.files[pane.Active]
+	if previous != nil && previous.pendingPreview != nil {
+		pending := previous.pendingPreview
+		if pending.path == path {
+			pending.preview = pending.preview && preview
+			return
+		}
+		a.cancelPendingPreview(previous)
+	}
 	// Keep the workspace's path spelling (/var and /private/var may alias).
 	// Resolve only for identity, never to move the displayed file outside its root.
 	if resolved, e := filepath.EvalSymlinks(path); e == nil {
@@ -313,6 +324,23 @@ func (a *App) openFileWithPreview(root, path string, preview bool) {
 	if d == nil {
 		d = &filePage{id: id, root: root, path: path, kind: "file", resync: true, preview: preview}
 		tab := storage.Tab{ID: id, Kind: "file", Workspace: root, Path: path}
+		if preview && previous != nil && previous.loaded && previous.preview && !previous.dirty() && a.canAsync() {
+			previous.pendingPreview = d
+			a.readFileThen(d, false, func() bool {
+				if previous.pendingPreview != d {
+					return false
+				}
+				previous.pendingPreview = nil
+				if a.currentFile() != previous || a.files[id] != nil || a.tabTargetPane(a.layoutFor(a.workspaceRoot(root))) != pane {
+					return false
+				}
+				a.placeFilePreview(d, tab)
+				a.files[id] = d
+				a.selectOpenedFile(d, d.preview)
+				return true
+			})
+			return
+		}
 		if preview {
 			a.placeFilePreview(d, tab)
 		} else {
@@ -421,6 +449,10 @@ func (a *App) reloadFile(d *filePage) {
 	a.readFile(d, true)
 }
 func (a *App) readFile(d *filePage, discard bool) {
+	a.readFileThen(d, discard, nil)
+}
+
+func (a *App) readFileThen(d *filePage, discard bool, place func() bool) {
 	if !a.canAsync() || d.loading {
 		return
 	}
@@ -441,7 +473,7 @@ func (a *App) readFile(d *filePage, discard bool) {
 			f, err = editor.Read(d.path)
 		}
 		a.update(func() {
-			if a.files[d.id] != d || d.diskEpoch != epoch || d.readContext != ctx {
+			if d.diskEpoch != epoch || d.readContext != ctx || place != nil && !place() || a.files[d.id] != d {
 				return
 			}
 			d.readContext, d.readCancel = nil, nil
@@ -1000,7 +1032,15 @@ func (a *App) closeWorkspaceResources() {
 	}
 }
 
+func (a *App) cancelPendingPreview(d *filePage) {
+	if pending := d.pendingPreview; pending != nil {
+		d.pendingPreview = nil
+		a.cancelFileRead(pending)
+	}
+}
+
 func (a *App) cancelFileRead(d *filePage) {
+	a.cancelPendingPreview(d)
 	d.afterDiffRead = nil
 	d.checkPending = false
 	if d.readCancel != nil {
