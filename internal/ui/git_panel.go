@@ -440,7 +440,7 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 			}
 		}
 		actions := func() {
-			strip := native.Row(c.Key("actions")).Width(72).FillHeight().AlignItems(native.Center)
+			strip := native.Row(c.Key("actions")).Width(72).FillHeight().AlignItems(native.Center).Justify(native.End)
 			strip.Children(func() {
 				if shown || b.FocusVisible() {
 					if gitIconButton(c.Key("open-file"), "打开文件 "+entry.Path, gitOpenFileIcon, gitStatusLabel(entry, staged) == "删除", "打开文件").Clicked() {
@@ -461,8 +461,6 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 								a.gitDiscardButton(w, key, a.gitChosen(w, group, entry))
 							}
 						}
-					} else {
-						native.Box(c).Width(24)
 					}
 					label, glyph := "暂存 "+entry.Path, gitPlusIcon
 					if staged {
@@ -502,31 +500,26 @@ func (a *App) gitFileRow(c *native.Context, w *workspacePage, group string, entr
 				native.Text(c, gitStatusCode(entry, staged)).FontSize(11).TextColor(color).SingleLine()
 			})
 		}
-		if group == "更改" {
-			// Both faces reserve the same width, including unusually large counts.
-			trailingWidth := float32(28)
-			if stat, ok := w.gitStats[gitKey("false", entry.Path)]; ok && !stat.Binary {
-				for i, count := range []int{stat.Added, stat.Deleted} {
-					if count > 0 {
-						sign := "+"
-						if i == 1 {
-							sign = "−"
-						}
-						width, _ := c.MeasureText(0, native.Span{Text: fmt.Sprintf("%s%d", sign, count), Size: 9})
-						trailingWidth += width + 4
+		// Both faces reserve the same width, including unusually large counts.
+		trailingWidth := float32(28)
+		if stat, ok := w.gitStats[gitKey(fmt.Sprint(staged), entry.Path)]; ok && !stat.Binary {
+			for i, count := range []int{stat.Added, stat.Deleted} {
+				if count > 0 {
+					sign := "+"
+					if i == 1 {
+						sign = "−"
 					}
+					width, _ := c.MeasureText(0, native.Span{Text: fmt.Sprintf("%s%d", sign, count), Size: 9})
+					trailingWidth += width + 4
 				}
 			}
-			native.Row(c.Key("trailing")).Width(max(72, trailingWidth)).Shrink(0).FillHeight().Justify(native.End).AlignItems(native.Center).Children(func() {
-				if shown || b.FocusVisible() {
-					actions()
-				} else {
-					summary()
-				}
-			})
-		} else {
-			actions()
-			summary()
 		}
+		native.Row(c.Key("trailing")).Width(max(72, trailingWidth)).Shrink(0).FillHeight().Justify(native.End).AlignItems(native.Center).Children(func() {
+			if shown || b.FocusVisible() {
+				actions()
+			} else {
+				summary()
+			}
+		})
 	})
 }

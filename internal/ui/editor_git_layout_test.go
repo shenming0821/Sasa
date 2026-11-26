@@ -74,6 +74,58 @@ func TestGitFileRowHoverKeepsGeometryAndActiveComparison(t *testing.T) {
 	}
 }
 
+func TestGitStagedRowHoverSwapsSummaryForRightAlignedActions(t *testing.T) {
+	a, _, root := p4App(t)
+	w := a.workspace(root)
+	entry := gitview.Entry{Path: "src/components/index.vue", XY: "A."}
+	w.gitStats = map[string]gitview.Review{gitKey("true", entry.Path): {Added: 387}}
+	for _, width := range []int{260, 360} {
+		tt := native.NewTester(func(c *native.Context) {
+			native.Column(c).Fill().Background(c.Theme().Surface).Children(func() {
+				a.gitFileRow(c.Key("file"), w, "已暂存的更改", entry, false)
+			})
+		}, width, 80)
+		tt.Move(float32(width-1), 70)
+		if _, ok := tt.Find("取消暂存 " + entry.Path); ok {
+			t.Fatal("actions visible before hover")
+		}
+		status, ok := tt.Find("A")
+		if !ok || status.X < float32(width-24) {
+			t.Fatal("status is not at the trailing edge", status)
+		}
+		count, ok := tt.Find("+387")
+		if !ok || count.X+count.W > status.X {
+			t.Fatal("line counts should directly precede the status", count, status)
+		}
+		before, _ := tt.Find("Git 已暂存的更改 " + entry.Path)
+		tt.Move(before.X+10, before.Y+14)
+		unstage, ok := tt.Find("取消暂存 " + entry.Path)
+		if !ok {
+			t.Fatal("unstage action missing on hover")
+		}
+		if unstage.X+unstage.W < float32(width-2) {
+			t.Fatal("unstage action is not right-aligned at the row edge", unstage, width)
+		}
+		open, openOK := tt.Find("打开文件 " + entry.Path)
+		if !openOK || open.X < before.X+before.W || open.X+open.W > float32(width) {
+			t.Fatal("open action missing or outside row", open)
+		}
+		if gap := unstage.X - (open.X + open.W); gap > 1 {
+			t.Fatal("unexpected gap between hover actions", open, unstage)
+		}
+		if tt.HasText("+387") || tt.HasText("A") {
+			t.Fatal("summary remains visible alongside hover actions")
+		}
+		if after, _ := tt.Find("Git 已暂存的更改 " + entry.Path); after != before {
+			t.Fatal("hover moved the filename target", before, after)
+		}
+		tt.Move(float32(width-1), 70)
+		if !tt.HasText("+387") || tt.HasText("取消暂存 "+entry.Path) {
+			t.Fatal("leaving the row did not restore the summary")
+		}
+	}
+}
+
 func TestGitFileRowPrioritizesFilenameBeforeDirectory(t *testing.T) {
 	for _, group := range []string{"更改", "已暂存的更改"} {
 		for _, width := range []int{240, 320, 520} {
