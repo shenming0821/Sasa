@@ -121,6 +121,42 @@ class TaskWorktreeTests(unittest.TestCase):
         self.assertTrue(text(self.root, 'rev-parse', 'task/example'))
         self.assertEqual(len(self.tasks.worktrees()), 1)
 
+    def test_readonly_cache_files_do_not_interrupt_removal(self):
+        self.integrate()
+        cache = self.task / '.cache/go/pkg'
+        cache.mkdir(parents=True)
+        (cache / 'vendored.go').write_text('package vendored\n')
+        (cache / 'vendored.go').chmod(0o444)
+        cache.chmod(0o555)
+        (self.task / '.cache/go').chmod(0o555)
+        self.cleanup_published()
+        self.assertFalse(self.task.exists())
+        self.assertEqual(self.records()['example']['state'], 'reclaimed')
+        self.assertEqual(len(self.tasks.worktrees()), 1)
+
+    def test_interrupted_removal_remnant_is_finished_after_publication(self):
+        self.integrate()
+        # Simulate an interrupted removal: the worktree marker is already
+        # deleted and only ignored caches remain, with no registration left.
+        git(self.root, 'worktree', 'remove', '--force', str(self.task))
+        self.task.mkdir()
+        (self.task / '.cache').mkdir()
+        (self.task / '.cache/data').write_text('cache')
+        self.assertEqual(len(self.tasks.worktrees()), 1)
+        self.cleanup_published()
+        self.assertFalse(self.task.exists())
+        self.assertEqual(self.records()['example']['state'], 'reclaimed')
+
+    def test_unpublished_remnant_is_retained(self):
+        old = self.identity()
+        self.integrate()
+        git(self.root, 'worktree', 'remove', '--force', str(self.task))
+        self.task.mkdir()
+        (self.task / '.cache').mkdir()
+        self.cleanup_published(old)
+        self.assertTrue(self.task.exists())
+        self.assertEqual(self.records()['example']['state'], 'integrated')
+
     def test_unpublished_and_developing_tasks_are_retained(self):
         old = self.identity()
         self.integrate()

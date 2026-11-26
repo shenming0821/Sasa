@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -167,6 +168,22 @@ class Tasks:
             path = Path(task['path'])
             reason = None
             entry = registered.get(str(path.resolve()))
+            remnant = not entry and path.parent == self.parent and path.name == name and not (path / '.git').exists()
+            if remnant:
+                # A previously interrupted removal already unregistered the
+                # worktree and deleted its marker, or finished without updating
+                # the registry. The publication check below still gates this;
+                # nothing but build caches can remain inside.
+                if git(self.main, 'merge-base', '--is-ancestor', task['integratedCommit'], commit, check=False).returncode:
+                    reason = '本次发布尚未包含登记的集成提交'
+                else:
+                    if path.exists():
+                        shutil.rmtree(path)
+                    task.update(state='reclaimed', publishedBuild=identity['buildID'], reclaimedAt=now())
+                    print(f'已回收 {name}：{path}；分支 {task["branch"]} 保留。')
+                if reason:
+                    print(f'保留 {name}：{reason}')
+                continue
             if path != self.parent / name or not entry:
                 reason = '目录位置或 Git worktree 登记不匹配'
             elif entry.get('branch') != 'refs/heads/' + task['branch']:
@@ -182,14 +199,22 @@ class Tasks:
             if reason:
                 print(f'保留 {name}：{reason}')
                 continue
+            # MyGo's build cache vendors read-only files and directories that
+            # Git's removal cannot unlink. Make everything writable first:
+            # otherwise a failed removal may already have deleted the worktree
+            # marker, so a plain retry cannot recognize it anymore.
+            subprocess.run(['chmod', '-R', 'u+w', str(path)], check=False)
             result = git(self.main, 'worktree', 'remove', str(path), check=False)
             if result.returncode:
-                # MyGo's build cache vendors read-only files that Git's
-                # removal cannot unlink; make everything writable first.
-                subprocess.run(['chmod', '-R', 'u+w', str(path)], check=False)
-                result = git(self.main, 'worktree', 'remove', str(path), check=False)
-                if result.returncode:
-                    print(f'保留 {name}：{result.stderr.decode().strip()}')
+                stderr = result.stderr.decode().strip()
+                if 'is not a working tree' in stderr and not (path / '.git').exists():
+                    # A previous interrupted removal already unregistered the
+                    # worktree and deleted its marker; finish the remaining
+                    # files (build caches) and prune the administrative entry.
+                    shutil.rmtree(path)
+                    git(self.main, 'worktree', 'prune')
+                else:
+                    print(f'保留 {name}：{stderr}')
                     continue
             task.update(state='reclaimed', publishedBuild=identity['buildID'], reclaimedAt=now())
             print(f'已回收 {name}：{path}；分支 {task["branch"]} 保留。')
