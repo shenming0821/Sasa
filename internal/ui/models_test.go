@@ -857,10 +857,13 @@ func TestModelDisplayNameCacheIsScoped(t *testing.T) {
 	if application.selectedModelDisplayName() != "SWE-2 · Provider" {
 		t.Fatal("selected model display name was not cached")
 	}
+	application.State.Cwd = "/other"
+	if application.selectedModelDisplayName() != "SWE-2 · Provider" {
+		t.Fatal("new Codex folder lost the remembered display name")
+	}
 	for _, key := range []agent.CacheKey{
 		{Agent: agent.Claude, Cwd: "/workspace"},
 		{Agent: agent.Codex, Runtime: "/other", Cwd: "/workspace"},
-		{Agent: agent.Codex, Cwd: "/other"},
 	} {
 		bound := application.forSession(&session{kind: key.Agent, runtimeKey: key.Runtime, selectedModel: "provider/swe-2"})
 		bound.State.Cwd = key.Cwd

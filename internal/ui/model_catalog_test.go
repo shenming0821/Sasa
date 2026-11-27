@@ -107,19 +107,17 @@ func TestSendUsesCachedModelWhenDefaultLookupIsUnavailable(t *testing.T) {
 	backend := &modelCaptureBackend{request: make(chan modelRequest, 1), defaultErr: context.DeadlineExceeded}
 	a := New(backend, "test", "/project", nil)
 	a.applyModelDiskCache([]storage.Catalog{
-		{Key: agent.CacheKey{Agent: agent.Codex, Cwd: "/elsewhere"}, Models: []agent.Model{{Model: "foreign", IsDefault: true}}},
+		{Key: agent.CacheKey{Agent: agent.Claude, Cwd: "/elsewhere"}, Models: []agent.Model{{Model: "foreign", IsDefault: true}}},
 		{Key: a.completionCacheKey(), Models: []agent.Model{{
 			Model: "cached", IsDefault: true,
 			SupportedReasoningEfforts: []agent.ReasoningEffortOption{{ReasoningEffort: "high"}},
 			ServiceTiers:              []agent.ModelServiceTier{{ID: "priority"}},
 		}}},
 	})
-	owner := a.session
 	a.newSession("/uncached")
-	if a.turnModel() != "" || a.modelsLoaded {
-		t.Fatal("cached catalog leaked into a different directory")
+	if a.turnModel() != "cached" || !a.modelsLoaded {
+		t.Fatal("new Codex directory did not restore the shared catalog")
 	}
-	a.selectSession(owner)
 	a.selectedEffort, a.selectedTier = "high", "priority"
 	a.State.ThreadID, a.State.Draft = "native", "send while refreshing"
 	jobs := make(chan func(), 8)
@@ -262,30 +260,29 @@ func TestModelPrewarmSharesPendingAndCompletedCatalogs(t *testing.T) {
 		t.Fatal("wrong prewarm directory", cwd)
 	}
 	first := a.session
-	a.newSession("/first")
+	a.newSession("/second")
 	second := a.session
 	a.loadModels()
 	if !first.modelsLoading || !second.modelsLoading || len(b.requests) != 0 {
-		t.Fatal("same-directory sessions duplicated in-flight model request")
+		t.Fatal("Codex sessions duplicated an in-flight model request")
 	}
 	b.results <- []agent.Model{{Model: "one"}}
 	pumpUpdate(t, jobs)
 	if !first.modelsLoaded || !second.modelsLoaded || first.models[0].Model != "one" {
 		t.Fatal("model result did not reach both owners")
 	}
-	a.newSession("/first")
+	a.newSession("/third")
 	a.loadModels()
-	if !a.modelsLoaded || len(b.requests) != 0 {
+	if !a.modelsLoaded || a.modelsLoading || a.modelCatalogs[a.completionCacheKey().ModelCatalogKey()].loading || len(b.requests) != 0 {
 		t.Fatal("new session did not reuse completed model catalog")
 	}
-	a.newSession("/second")
-	a.loadModels()
-	if cwd := <-b.requests; cwd != "/second" {
-		t.Fatal("model cache crossed directories")
+	a.loadModelCatalog(true)
+	if cwd := <-b.requests; cwd != "/third" {
+		t.Fatal("manual refresh did not use the active folder", cwd)
 	}
 	b.results <- []agent.Model{{Model: "two"}}
 	pumpUpdate(t, jobs)
-	if a.models[0].Model != "two" || first.models[0].Model != "one" {
-		t.Fatal("directory-specific model results were mixed")
+	if a.models[0].Model != "two" || first.models[0].Model != "two" {
+		t.Fatal("manual refresh did not update both Codex folders")
 	}
 }

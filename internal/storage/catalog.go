@@ -84,7 +84,11 @@ func (s *Store) saveCatalog(cacheDir string, record Catalog) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	key, _ := json.Marshal(record.Key)
+	cacheKey := record.Key
+	if cacheDir == "model-catalog-cache" {
+		cacheKey = cacheKey.ModelCatalogKey()
+	}
+	key, _ := json.Marshal(cacheKey)
 	path := filepath.Join(dir, fmt.Sprintf("%x.json", sha256.Sum256(key)))
 	if len(record.Models) > 0 {
 		if info, err := os.Stat(path); err == nil && info.ModTime().After(record.Checked) {

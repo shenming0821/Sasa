@@ -36,7 +36,8 @@ func (a *App) loadModels() {
 
 func (a *App) loadModelCatalog(manual bool) {
 	owner, root := a.session, a.application()
-	key := owner.completionCacheKey()
+	requestKey := owner.completionCacheKey()
+	key := requestKey.ModelCatalogKey()
 	a.bindModelCatalog()
 	entry := root.modelCatalogs[key]
 	if entry != nil && entry.loading {
@@ -45,7 +46,7 @@ func (a *App) loadModelCatalog(manual bool) {
 		return
 	}
 	backend, ok := a.sessionBackend().(modelCatalog)
-	if !ok || owner.State.Disconnected || key.Cwd == "" {
+	if !ok || owner.State.Disconnected || requestKey.Cwd == "" {
 		return
 	}
 	if root.modelCatalogs == nil {
@@ -85,11 +86,11 @@ func (a *App) loadModelCatalog(manual bool) {
 		if reloader, ok := backend.(interface {
 			ReloadModelsForDirectory(context.Context, string) ([]agent.Model, error)
 		}); force && ok {
-			models, err = reloader.ReloadModelsForDirectory(ctx, key.Cwd)
+			models, err = reloader.ReloadModelsForDirectory(ctx, requestKey.Cwd)
 		} else if scoped, ok := backend.(interface {
 			ListModelsForDirectory(context.Context, string) ([]agent.Model, error)
 		}); ok {
-			models, err = scoped.ListModelsForDirectory(ctx, key.Cwd)
+			models, err = scoped.ListModelsForDirectory(ctx, requestKey.Cwd)
 		} else {
 			models, err = backend.ListModels(ctx)
 		}
@@ -107,9 +108,10 @@ func (a *App) loadModelCatalog(manual bool) {
 				entry.error = "读取模型失败：" + err.Error()
 			} else {
 				entry.models, entry.loaded = models, true
+				entry.cachedDefaultModel = catalogDefaultModel(models)
 				entry.cachedAt = entry.checked
 				if root.store != nil {
-					record := storage.Catalog{Key: key, Models: models, Checked: entry.checked}
+					record := storage.Catalog{Key: requestKey, Models: models, Checked: entry.checked}
 					root.catalogWrites.Add(1)
 					go func() {
 						defer root.catalogWrites.Done()
@@ -126,14 +128,23 @@ func availableModel(model agent.Model) bool {
 	return model.Model != "" && !model.Hidden
 }
 
+func catalogDefaultModel(models []agent.Model) string {
+	for _, model := range models {
+		if model.IsDefault && availableModel(model) {
+			return model.Model
+		}
+	}
+	return ""
+}
+
 func (a *App) bindModelCatalog() {
 	owner, key := a.session, a.completionCacheKey()
 	if owner.modelsCwd != key.Cwd || owner.modelsRuntime != key.Runtime {
 		owner.models, owner.modelsLoaded, owner.modelsLoading, owner.modelsError = nil, false, false, ""
 		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
 	}
-	if entry := a.application().modelCatalogs[key]; entry != nil && !owner.modelsLoaded {
-		a.application().applyModelCatalog(key, entry)
+	if entry := a.application().modelCatalogs[key.ModelCatalogKey()]; entry != nil && !owner.modelsLoaded {
+		a.application().applyModelCatalog(key.ModelCatalogKey(), entry)
 	}
 }
 
@@ -145,39 +156,36 @@ func (a *App) applyModelDiskCache(records []storage.Catalog) {
 		if !slices.ContainsFunc(record.Models, availableModel) {
 			continue
 		}
-		entry := a.modelCatalogs[record.Key]
+		key := record.Key.ModelCatalogKey()
+		entry := a.modelCatalogs[key]
 		if entry == nil {
 			if len(a.modelCatalogs) >= completionCatalogLimit {
 				continue
 			}
 			entry = &modelCatalogEntry{}
-			a.modelCatalogs[record.Key] = entry
+			a.modelCatalogs[key] = entry
 		}
 		if entry.loaded {
 			continue
 		}
 		entry.models, entry.loaded, entry.cachedAt = record.Models, true, record.Checked
-		for _, model := range record.Models {
-			if model.IsDefault && availableModel(model) {
-				entry.cachedDefaultModel = model.Model
-				break
-			}
-		}
-		a.applyModelCatalog(record.Key, entry)
+		entry.cachedDefaultModel = catalogDefaultModel(record.Models)
+		a.applyModelCatalog(key, entry)
 	}
 	a.prewarmModels()
 }
 
 func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
+	key = key.ModelCatalogKey()
 	var selected []*session
 	for _, owner := range a.sessions {
-		if owner.completionCacheKey() != key {
+		if owner.completionCacheKey().ModelCatalogKey() != key {
 			if owner.kind.Normalized() == key.Agent && owner.modelsRuntime == key.Runtime && owner.modelsCwd == key.Cwd {
 				owner.models, owner.modelsLoaded, owner.modelsLoading, owner.modelsError = nil, false, false, ""
 			}
 			continue
 		}
-		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
+		owner.modelsCwd, owner.modelsRuntime = owner.State.Cwd, key.Runtime
 		owner.models, owner.modelsLoaded = entry.models, entry.loaded
 		owner.modelsLoading = entry.loading && (entry.manual || !entry.loaded)
 		owner.modelsError = ""
@@ -227,7 +235,7 @@ func (a *App) prewarmModels() {
 	if a.anyBusy() {
 		return
 	}
-	entry := a.application().modelCatalogs[a.completionCacheKey()]
+	entry := a.application().modelCatalogs[a.completionCacheKey().ModelCatalogKey()]
 	expired := false
 	if entry != nil && !entry.loading {
 		ttl := completionCatalogTTL
@@ -272,7 +280,7 @@ func (a *App) rememberModelDisplayName(model string) {
 		if root.modelDisplayNames == nil {
 			root.modelDisplayNames = map[string]string{}
 		}
-		root.modelDisplayNames[modelDisplayNameKey(a.completionCacheKey(), model)] = entry.DisplayName
+		root.modelDisplayNames[modelDisplayNameKey(a.completionCacheKey().ModelCatalogKey(), model)] = entry.DisplayName
 		return
 	}
 }
@@ -284,7 +292,12 @@ func (a *App) selectedModelDisplayName() string {
 			return entry.DisplayName
 		}
 	}
-	if name := a.application().modelDisplayNames[modelDisplayNameKey(a.completionCacheKey(), model)]; name != "" {
+	key := a.completionCacheKey()
+	names := a.application().modelDisplayNames
+	if name := names[modelDisplayNameKey(key.ModelCatalogKey(), model)]; name != "" {
+		return name
+	}
+	if name := names[modelDisplayNameKey(key, model)]; name != "" {
 		return name
 	}
 	if a.modelsLoaded {
@@ -315,6 +328,15 @@ func (a *App) rememberModelEffort(model, effort string) {
 	root.modelEfforts[modelEffortKey(a.kind, a.runtimeKey, model)] = effort
 }
 
+func defaultModelFromCatalog(ctx context.Context, backend modelSender, cwd string, models []agent.Model) (string, error) {
+	if reader, ok := backend.(interface {
+		DefaultModelWithCatalog(context.Context, string, []agent.Model) (string, error)
+	}); ok && len(models) > 0 {
+		return reader.DefaultModelWithCatalog(ctx, cwd, models)
+	}
+	return backend.DefaultModel(ctx, cwd)
+}
+
 func (a *App) resolveInitialModel() {
 	if a.selectedModel != "" || a.modelResolving || a.modelResolvedCwd == a.State.Cwd {
 		return
@@ -324,11 +346,12 @@ func (a *App) resolveInitialModel() {
 		return
 	}
 	s, cwd, kind, runtime := a.session, a.State.Cwd, a.kind.Normalized(), a.runtimeKey
+	models := a.models
 	a.modelResolving = true
 	go func() {
 		ctx, cancel := agent.RequestContext()
 		defer cancel()
-		model, err := backend.DefaultModel(ctx, cwd)
+		model, err := defaultModelFromCatalog(ctx, backend, cwd, models)
 		a.update(func() {
 			if s.kind.Normalized() != kind || s.runtimeKey != runtime {
 				return
@@ -391,7 +414,7 @@ func (a *App) modelPicker(c *native.Context) {
 	if trigger.Clicked() {
 		a.modelMenuOpen = !a.modelMenuOpen
 		if a.modelMenuOpen {
-			entry := a.application().modelCatalogs[root.completionCacheKey()]
+			entry := a.application().modelCatalogs[root.completionCacheKey().ModelCatalogKey()]
 			if !root.modelsLoaded || root.modelsError != "" || entry != nil && time.Since(entry.checked) >= completionCatalogTTL {
 				a.loadModels()
 			}
@@ -578,7 +601,7 @@ func (a *App) chosenModelEffort() string {
 
 func (a *App) turnModel() string {
 	if a.selectedModel == "" && a.kind.Normalized() == agent.Codex {
-		if entry := a.application().modelCatalogs[a.completionCacheKey()]; entry != nil {
+		if entry := a.application().modelCatalogs[a.completionCacheKey().ModelCatalogKey()]; entry != nil {
 			return entry.cachedDefaultModel
 		}
 	}

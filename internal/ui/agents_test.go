@@ -173,8 +173,8 @@ func TestModelCatalogCallbackKeepsAgentAndSessionOwner(t *testing.T) {
 	a.loadModelCatalog(true)
 	a.State.Cwd = "/moved"
 	pumpUpdate(t, queue)
-	if codexSession.modelsLoaded || len(codexSession.models) != 0 {
-		t.Fatal("旧 cwd 的模型响应进入新目录缓存")
+	if !codexSession.modelsLoaded || len(codexSession.models) == 0 || codexSession.modelsCwd != "/moved" {
+		t.Fatal("同一 Codex Runtime 的模型响应未更新切换目录后的会话")
 	}
 }
 

@@ -62,6 +62,13 @@ type CacheKey struct {
 	Cwd     string
 }
 
+func (key CacheKey) ModelCatalogKey() CacheKey {
+	if key.Agent == Codex {
+		key.Cwd = ""
+	}
+	return key
+}
+
 const (
 	MaxFrameBytes      = 16 * 1024 * 1024
 	MaxQueueBytes      = 4 * 1024 * 1024

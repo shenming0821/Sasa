@@ -10,6 +10,37 @@ import (
 	"github.com/shenming0821/Sasa/internal/agent"
 )
 
+func TestModelCatalogFileSharedAcrossCodexFolders(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	now := time.Now()
+	for _, kind := range []agent.AgentKind{agent.Codex, agent.Claude} {
+		for index, cwd := range []string{"/first", "/second"} {
+			err := store.SaveModelCatalog(Catalog{
+				Key: agent.CacheKey{Agent: kind, Cwd: cwd}, Models: []agent.Model{{Model: cwd}},
+				Checked: now.Add(time.Duration(index) * time.Minute),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	records := store.LoadModelCatalogs()
+	counts := map[agent.AgentKind]int{}
+	for _, record := range records {
+		counts[record.Key.Agent]++
+		if record.Key.Agent == agent.Codex && record.Models[0].Model != "/second" {
+			t.Fatal("stale Codex catalog on disk", record)
+		}
+	}
+	if counts[agent.Codex] != 1 || counts[agent.Claude] != 2 {
+		t.Fatal("unexpected model catalog count", counts)
+	}
+}
+
 func TestCatalogCachePersistsMetadataWithBoundsAndIgnoresDamage(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(dir)

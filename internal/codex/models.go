@@ -76,6 +76,10 @@ func (c *Client) listModels(ctx context.Context) ([]Model, error) {
 }
 
 func (c *Client) DefaultModel(ctx context.Context, cwd string) (string, error) {
+	return c.DefaultModelWithCatalog(ctx, cwd, nil)
+}
+
+func (c *Client) DefaultModelWithCatalog(ctx context.Context, cwd string, models []Model) (string, error) {
 	var result struct {
 		Config struct {
 			Model string `json:"model"`
@@ -87,9 +91,12 @@ func (c *Client) DefaultModel(ctx context.Context, cwd string) (string, error) {
 	if result.Config.Model != "" {
 		return result.Config.Model, nil
 	}
-	models, err := c.readModelCatalog(ctx)
-	if err != nil {
-		return "", err
+	if models == nil {
+		var err error
+		models, err = c.readModelCatalog(ctx)
+		if err != nil {
+			return "", err
+		}
 	}
 	for _, m := range models {
 		if m.IsDefault {

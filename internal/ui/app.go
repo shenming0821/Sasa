@@ -353,6 +353,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 		a.list.ScrollToEnd()
 	}
 	sequence, cwd, threadID := a.State.Sequence, a.State.Cwd, a.State.ThreadID
+	models := a.models
 	ctx, cancel := agent.RequestContext()
 	a.submitCancel = cancel
 	a.submitStop = false
@@ -360,7 +361,7 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 		defer cancel()
 		if supportsModels && options.Model == "" {
 			var err error
-			options.Model, err = modelBackend.DefaultModel(ctx, cwd)
+			options.Model, err = defaultModelFromCatalog(ctx, modelBackend, cwd, models)
 			if err != nil {
 				a.update(func() {
 					if a.State.Sequence == sequence {
