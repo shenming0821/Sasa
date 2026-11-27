@@ -38,7 +38,7 @@ func (a *App) sessionMenu(target *session) func(*native.Menu) {
 		if job := a.application().titleJob; job != nil && job.target == target {
 			menu.Item("正在生成标题…").Disabled(true)
 		}
-		if menu.Item("重新自动生成标题").Disabled(target == nil || target.State.ThreadID == "" || a.quitting || a.quitDialog || target.State.Busy || target.recovering || target.releasing).Chosen() {
+		if menu.Item("自动生成标题").Disabled(target == nil || target.State.ThreadID == "" || a.quitting || a.quitDialog || target.State.Busy || target.recovering || target.releasing).Chosen() {
 			a.requestSessionTitle(target)
 		}
 		if menu.Item("删除会话").Disabled(!a.canDeleteSession(target)).Chosen() {

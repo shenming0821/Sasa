@@ -20,7 +20,7 @@ func TestSessionRenameMenuSaveCancelAndRestart(t *testing.T) {
 		if err := tt.RightClick("会话标签 1"); err != nil {
 			t.Fatal(err)
 		}
-		if !slices.Equal(tt.Menu(), []string{"复制会话ID", "重命名", "重新自动生成标题", "删除会话"}) {
+		if !slices.Equal(tt.Menu(), []string{"复制会话ID", "重命名", "自动生成标题", "删除会话"}) {
 			t.Fatal("missing session actions", tt.Menu())
 		}
 		if err := tt.ChooseMenuItem("重命名"); err != nil {
