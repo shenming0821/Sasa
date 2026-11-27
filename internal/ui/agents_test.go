@@ -170,7 +170,7 @@ func TestModelCatalogCallbackKeepsAgentAndSessionOwner(t *testing.T) {
 		t.Fatal("模型目录跨会话或 Agent 写回")
 	}
 	a.selectSession(codexSession)
-	a.loadModels()
+	a.loadModelCatalog(true)
 	a.State.Cwd = "/moved"
 	pumpUpdate(t, queue)
 	if codexSession.modelsLoaded || len(codexSession.models) != 0 {

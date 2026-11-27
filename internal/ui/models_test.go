@@ -543,7 +543,7 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	}
 }
 
-func TestStaleTurnOptionsFallBackToModelCapabilities(t *testing.T) {
+func TestStaleTurnOptionsKeepEffortAndValidateServiceTier(t *testing.T) {
 	a := New(&modelCaptureBackend{}, "test", "/workspace", nil)
 	a.selectedModel = "provider/one"
 	a.selectedEffort, a.selectedTier = "ultra", "flex"
@@ -557,8 +557,8 @@ func TestStaleTurnOptionsFallBackToModelCapabilities(t *testing.T) {
 			{ReasoningEffort: "low"}, {ReasoningEffort: "high"}},
 		ServiceTiers: []agent.ModelServiceTier{{ID: "priority"}},
 	}}
-	if options := a.supportedTurnOptions(a.selectedTurnOptions()); options.Effort != "" || options.ServiceTier != "" {
-		t.Fatal("unsupported choices were sent", options)
+	if options := a.supportedTurnOptions(a.selectedTurnOptions()); options.Effort != "ultra" || options.ServiceTier != "" {
+		t.Fatal("last effort was lost or unsupported service tier was sent", options)
 	}
 	a.selectedEffort, a.selectedTier = "high", "default"
 	if options := a.supportedTurnOptions(a.selectedTurnOptions()); options.Effort != "high" || options.ServiceTier != "default" {
@@ -595,8 +595,8 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
 	}
-	if !tt.HasText("推理强度 …") {
-		t.Fatal("missing effort picker trigger")
+	if !tt.HasText("推理强度 选择强度") || tt.HasText("model 默认") {
+		t.Fatal("missing effort picker or invented default effort label")
 	}
 	if tt.HasText("速度") {
 		t.Fatal("service tier row rendered without catalog tiers")
@@ -606,7 +606,7 @@ func TestClaudeModelMenuShowsEffortOptionsAndSendsThem(t *testing.T) {
 			t.Fatal("effort shown before any pick or catalog default", label)
 		}
 	}
-	if err := tt.Click("推理强度 …"); err != nil {
+	if err := tt.Click("推理强度 选择强度"); err != nil {
 		t.Fatal(err)
 	}
 	for _, label := range []string{"low", "medium", "high", "xhigh", "max"} {

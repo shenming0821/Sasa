@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
 	native "github.com/egoist/mygo/ui"
 	"github.com/shenming0821/Sasa/internal/agent"
+	"github.com/shenming0821/Sasa/internal/storage"
 )
 
 type modelSender = agent.ModelSender
@@ -18,11 +20,14 @@ type optionSender = agent.OptionSender
 type modelCatalog = agent.ModelCatalog
 
 type modelCatalogEntry struct {
-	models  []agent.Model
-	loading bool
-	loaded  bool
-	error   string
-	checked time.Time
+	models             []agent.Model
+	loading            bool
+	loaded             bool
+	manual             bool
+	error              string
+	checked            time.Time
+	cachedAt           time.Time
+	cachedDefaultModel string
 }
 
 func (a *App) loadModels() {
@@ -32,24 +37,26 @@ func (a *App) loadModels() {
 func (a *App) loadModelCatalog(manual bool) {
 	owner, root := a.session, a.application()
 	key := owner.completionCacheKey()
-	if owner.modelsCwd != key.Cwd || owner.modelsRuntime != key.Runtime {
-		owner.models, owner.modelsLoaded = nil, false
-		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
+	a.bindModelCatalog()
+	entry := root.modelCatalogs[key]
+	if entry != nil && entry.loading {
+		entry.manual = entry.manual || manual
+		root.applyModelCatalog(key, entry)
+		return
 	}
 	backend, ok := a.sessionBackend().(modelCatalog)
-	if !ok || owner.State.Disconnected {
+	if !ok || owner.State.Disconnected || key.Cwd == "" {
 		return
 	}
 	if root.modelCatalogs == nil {
 		root.modelCatalogs = make(map[agent.CacheKey]*modelCatalogEntry)
 	}
-	entry := root.modelCatalogs[key]
 	if entry == nil {
 		if len(root.modelCatalogs) >= completionCatalogLimit {
 			var oldest agent.CacheKey
 			var candidate *modelCatalogEntry
 			for k, e := range root.modelCatalogs {
-				if !e.loading && (candidate == nil || e.checked.Before(candidate.checked)) {
+				if !e.loading && (candidate == nil || e.cachedAt.Before(candidate.cachedAt)) {
 					oldest, candidate = k, e
 				}
 			}
@@ -58,15 +65,17 @@ func (a *App) loadModelCatalog(manual bool) {
 			}
 			delete(root.modelCatalogs, oldest)
 		}
-		entry = &modelCatalogEntry{}
+		entry = &modelCatalogEntry{cachedAt: time.Now()}
+		if owner.modelsLoaded {
+			entry.models, entry.loaded = owner.models, true
+		}
 		root.modelCatalogs[key] = entry
 	}
-	if entry.loading || !manual && !owner.modelsLoaded && entry.loaded && entry.error == "" && time.Since(entry.checked) < completionCatalogTTL {
-		root.applyModelCatalog(key, entry)
+	if !manual && entry.loaded && entry.error == "" && time.Since(entry.checked) < completionCatalogTTL {
 		return
 	}
 	force := manual || entry.error != "" || entry.loaded
-	entry.loading, entry.error = true, ""
+	entry.loading, entry.manual, entry.error = true, manual, ""
 	root.applyModelCatalog(key, entry)
 	ctx, cancel := root.projectContext(30 * time.Second)
 	go func() {
@@ -84,17 +93,8 @@ func (a *App) loadModelCatalog(manual bool) {
 		} else {
 			models, err = backend.ListModels(ctx)
 		}
-		if err == nil {
-			available := false
-			for _, model := range models {
-				if model.Model != "" && !model.Hidden {
-					available = true
-					break
-				}
-			}
-			if !available {
-				err = errors.New("当前运行时未返回可用模型，请刷新模型列表重试")
-			}
+		if err == nil && !slices.ContainsFunc(models, availableModel) {
+			err = errors.New("当前运行时未返回可用模型，请刷新模型列表重试")
 		}
 		select {
 		case <-root.shutdown:
@@ -107,10 +107,65 @@ func (a *App) loadModelCatalog(manual bool) {
 				entry.error = "读取模型失败：" + err.Error()
 			} else {
 				entry.models, entry.loaded = models, true
+				entry.cachedAt = entry.checked
+				if root.store != nil {
+					record := storage.Catalog{Key: key, Models: models, Checked: entry.checked}
+					root.catalogWrites.Add(1)
+					go func() {
+						defer root.catalogWrites.Done()
+						_ = root.store.SaveModelCatalog(record)
+					}()
+				}
 			}
 			root.applyModelCatalog(key, entry)
 		})
 	}()
+}
+
+func availableModel(model agent.Model) bool {
+	return model.Model != "" && !model.Hidden
+}
+
+func (a *App) bindModelCatalog() {
+	owner, key := a.session, a.completionCacheKey()
+	if owner.modelsCwd != key.Cwd || owner.modelsRuntime != key.Runtime {
+		owner.models, owner.modelsLoaded, owner.modelsLoading, owner.modelsError = nil, false, false, ""
+		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
+	}
+	if entry := a.application().modelCatalogs[key]; entry != nil && !owner.modelsLoaded {
+		a.application().applyModelCatalog(key, entry)
+	}
+}
+
+func (a *App) applyModelDiskCache(records []storage.Catalog) {
+	if a.modelCatalogs == nil {
+		a.modelCatalogs = make(map[agent.CacheKey]*modelCatalogEntry)
+	}
+	for _, record := range records {
+		if !slices.ContainsFunc(record.Models, availableModel) {
+			continue
+		}
+		entry := a.modelCatalogs[record.Key]
+		if entry == nil {
+			if len(a.modelCatalogs) >= completionCatalogLimit {
+				continue
+			}
+			entry = &modelCatalogEntry{}
+			a.modelCatalogs[record.Key] = entry
+		}
+		if entry.loaded {
+			continue
+		}
+		entry.models, entry.loaded, entry.cachedAt = record.Models, true, record.Checked
+		for _, model := range record.Models {
+			if model.IsDefault && availableModel(model) {
+				entry.cachedDefaultModel = model.Model
+				break
+			}
+		}
+		a.applyModelCatalog(record.Key, entry)
+	}
+	a.prewarmModels()
 }
 
 func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
@@ -118,25 +173,36 @@ func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
 	for _, owner := range a.sessions {
 		if owner.completionCacheKey() != key {
 			if owner.kind.Normalized() == key.Agent && owner.modelsRuntime == key.Runtime && owner.modelsCwd == key.Cwd {
-				owner.models, owner.modelsLoaded, owner.modelsLoading = nil, false, false
+				owner.models, owner.modelsLoaded, owner.modelsLoading, owner.modelsError = nil, false, false, ""
 			}
 			continue
 		}
 		owner.modelsCwd, owner.modelsRuntime = key.Cwd, key.Runtime
 		owner.models, owner.modelsLoaded = entry.models, entry.loaded
-		owner.modelsLoading, owner.modelsError = entry.loading, entry.error
+		owner.modelsLoading = entry.loading && (entry.manual || !entry.loaded)
+		owner.modelsError = ""
+		if entry.manual || !entry.loaded {
+			owner.modelsError = entry.error
+		}
 		a.forSession(owner).rememberModelDisplayName(owner.selectedModel)
-		if key.Agent != agent.Claude || !entry.loaded || len(entry.models) == 0 || entry.loading {
+		if key.Agent != agent.Claude || !entry.loaded {
 			continue
 		}
 		if owner.selectedModel == "" || owner.selectedModel == "default" || strings.HasSuffix(owner.selectedModel, "[1m]") {
-			owner.selectedModel = entry.models[0].Model
+			fallback := ""
 			for _, model := range entry.models {
-				if !model.Hidden && (owner.State.Model != "" && model.DisplayName == owner.State.Model || model.Model == a.lastModels[modelPreferenceKey(key.Agent, key.Runtime)]) {
-					owner.selectedModel = model.Model
+				if !availableModel(model) {
+					continue
+				}
+				if fallback == "" {
+					fallback = model.Model
+				}
+				if owner.State.Model != "" && model.DisplayName == owner.State.Model || model.Model == a.lastModels[modelPreferenceKey(key.Agent, key.Runtime)] {
+					fallback = model.Model
 					break
 				}
 			}
+			owner.selectedModel = fallback
 			if owner.selectedEffort == "" {
 				owner.selectedEffort = a.rememberedModelEffort(owner.kind, owner.runtimeKey, owner.selectedModel)
 			}
@@ -154,7 +220,11 @@ func (a *App) applyModelCatalog(key agent.CacheKey, entry *modelCatalogEntry) {
 }
 
 func (a *App) prewarmModels() {
-	if a.session == nil || !a.open || a.State.Cwd == "" || a.State.Disconnected || a.anyBusy() || !a.canAsync() || a.quitting || a.quitStopping {
+	if a.session == nil || !a.open || a.State.Cwd == "" || a.State.Disconnected || !a.canAsync() || a.quitting || a.quitStopping {
+		return
+	}
+	a.bindModelCatalog()
+	if a.anyBusy() {
 		return
 	}
 	entry := a.application().modelCatalogs[a.completionCacheKey()]
@@ -208,16 +278,17 @@ func (a *App) rememberModelDisplayName(model string) {
 }
 
 func (a *App) selectedModelDisplayName() string {
+	model := a.turnModel()
 	for _, entry := range a.models {
-		if entry.Model == a.selectedModel && entry.DisplayName != "" && !entry.Hidden {
+		if entry.Model == model && entry.DisplayName != "" && !entry.Hidden {
 			return entry.DisplayName
 		}
 	}
-	if name := a.application().modelDisplayNames[modelDisplayNameKey(a.completionCacheKey(), a.selectedModel)]; name != "" {
+	if name := a.application().modelDisplayNames[modelDisplayNameKey(a.completionCacheKey(), model)]; name != "" {
 		return name
 	}
 	if a.modelsLoaded {
-		return a.selectedModel
+		return model
 	}
 	return ""
 }
@@ -282,10 +353,7 @@ func (a *App) resolveInitialModel() {
 
 func (a *App) modelPicker(c *native.Context) {
 	root := a.session
-	if root.modelsCwd != root.State.Cwd || root.modelsRuntime != root.runtimeKey {
-		root.models, root.modelsLoaded, root.modelsError = nil, false, ""
-		root.modelsCwd, root.modelsRuntime = root.State.Cwd, root.runtimeKey
-	}
+	a.bindModelCatalog()
 	if !a.State.Disconnected && (a.win != nil || a.dispatch != nil) {
 		if a.kind.Normalized() == agent.Claude {
 			if !root.modelsLoaded && !root.modelsLoading && root.modelsError == "" {
@@ -301,13 +369,10 @@ func (a *App) modelPicker(c *native.Context) {
 	} else if root.modelsLoading {
 		model = "读取模型…"
 	}
-	effort := a.selectedEffort
+	effort := a.chosenModelEffort()
 	for i := range root.models {
-		if root.models[i].Model != a.selectedModel {
+		if root.models[i].Model != a.turnModel() {
 			continue
-		}
-		if effort != "" && !modelHasEffort(&root.models[i], effort) {
-			effort = ""
 		}
 		if effort == "" {
 			effort = root.models[i].DefaultReasoningEffort
@@ -378,7 +443,7 @@ func (a *App) modelMenu(c *native.Context) {
 			b.Children(func() {
 				native.Row(c).FillWidth().AlignItems(native.Center).Gap(8).Children(func() {
 					native.Text(c, label).FontSize(12).Grow(1).MinWidth(0).SingleLine()
-					if a.selectedModel == value {
+					if a.turnModel() == value {
 						native.Text(c, "✓").FontSize(12)
 					}
 				})
@@ -481,15 +546,6 @@ func modelDisplayName(models []agent.Model, model string) string {
 	return model
 }
 
-func modelHasEffort(m *agent.Model, effort string) bool {
-	for _, option := range m.SupportedReasoningEfforts {
-		if option.ReasoningEffort == effort {
-			return true
-		}
-	}
-	return false
-}
-
 func modelHasTier(m *agent.Model, tier string) bool {
 	if tier == "default" {
 		return true
@@ -503,7 +559,23 @@ func modelHasTier(m *agent.Model, tier string) bool {
 }
 
 func (a *App) selectedTurnOptions() agent.TurnOptions {
-	return agent.TurnOptions{Model: a.selectedModel, Effort: a.selectedEffort, ServiceTier: a.selectedTier, Mode: a.selectedMode}
+	return agent.TurnOptions{Model: a.turnModel(), Effort: a.chosenModelEffort(), ServiceTier: a.selectedTier, Mode: a.selectedMode}
+}
+
+func (a *App) chosenModelEffort() string {
+	if a.selectedEffort != "" {
+		return a.selectedEffort
+	}
+	return a.rememberedModelEffort(a.kind, a.runtimeKey, a.turnModel())
+}
+
+func (a *App) turnModel() string {
+	if a.selectedModel == "" && a.kind.Normalized() == agent.Codex {
+		if entry := a.application().modelCatalogs[a.completionCacheKey()]; entry != nil {
+			return entry.cachedDefaultModel
+		}
+	}
+	return a.selectedModel
 }
 
 func (a *App) supportedTurnOptions(options agent.TurnOptions) agent.TurnOptions {
@@ -513,9 +585,6 @@ func (a *App) supportedTurnOptions(options agent.TurnOptions) agent.TurnOptions 
 	for i := range a.models {
 		if a.models[i].Model != options.Model {
 			continue
-		}
-		if options.Effort != "" && !modelHasEffort(&a.models[i], options.Effort) {
-			options.Effort = ""
 		}
 		if options.ServiceTier != "" && !modelHasTier(&a.models[i], options.ServiceTier) {
 			options.ServiceTier = ""
@@ -533,12 +602,12 @@ func effortLabel(effort string) string {
 // the catalog. Picks apply to every send of this session; unset inherits the
 // runtime default.
 func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
-	if _, ok := a.sessionBackend().(optionSender); !ok {
+	if _, ok := a.sessionBackend().(optionSender); !ok && !a.State.Disconnected {
 		return
 	}
 	var current *agent.Model
 	for i := range a.session.models {
-		if a.session.models[i].Model == a.selectedModel {
+		if a.session.models[i].Model == a.turnModel() {
 			current = &a.session.models[i]
 			break
 		}
@@ -570,11 +639,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 	// closes this popup and opens its own in one click. The popover needs
 	// no key: an unused key would leak onto the next element while the
 	// popup is closed, shifting element ids and dropping that press.
-	picker := func(label, current string, open, other *bool, options []agent.ReasoningEffortOption, labelOf func(string) string, pick func(value string)) {
-		display := current
-		if display == "" {
-			display = "…"
-		}
+	picker := func(label, current, display string, open, other *bool, options []agent.ReasoningEffortOption, labelOf func(string) string, pick func(value string)) {
 		// A stable key keeps the trigger's state across the other picker
 		// opening and closing: without it the toggle rebuilds the trigger
 		// under a new id and drops the press that should open this popup.
@@ -613,19 +678,20 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 		})
 	}
 	if len(current.SupportedReasoningEfforts) > 0 {
-		effort := a.selectedEffort
-		if effort != "" && !modelHasEffort(current, effort) {
-			effort = ""
-		}
+		effort := a.chosenModelEffort()
 		if effort == "" {
 			effort = current.DefaultReasoningEffort
 		}
+		display := effortLabel(effort)
+		if display == "" {
+			display = "选择强度"
+		}
 		effortPick := func(value string) {
 			previousEffort := a.selectedEffort
-			key := modelEffortKey(a.kind, a.runtimeKey, a.selectedModel)
+			key := modelEffortKey(a.kind, a.runtimeKey, current.Model)
 			previousRemembered, hadRemembered := a.application().modelEfforts[key]
 			a.selectedEffort = value
-			a.rememberModelEffort(a.selectedModel, value)
+			a.rememberModelEffort(current.Model, value)
 			if err := a.persist(); err != nil {
 				a.selectedEffort = previousEffort
 				if hadRemembered {
@@ -639,7 +705,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			a.modelError = ""
 		}
 		optionRow("推理强度", func() {
-			picker("推理强度", effortLabel(effort), &a.session.effortPickerOpen, &a.session.tierPickerOpen, current.SupportedReasoningEfforts, effortLabel, effortPick)
+			picker("推理强度", effort, display, &a.session.effortPickerOpen, &a.session.tierPickerOpen, current.SupportedReasoningEfforts, effortLabel, effortPick)
 		})
 		if a.session.effortPin != "" {
 			native.Text(c, "已被 CLAUDE_CODE_EFFORT_LEVEL 固定为 "+a.session.effortPin+"，选择不会生效").FontSize(11).TextColor(t.Danger).Padding(0, 8)
@@ -666,7 +732,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			return value
 		}
 		optionRow("速度", func() {
-			picker("速度", tierLabel(tier), &a.session.tierPickerOpen, &a.session.effortPickerOpen, tierOptions, tierLabel,
+			picker("速度", tier, tierLabel(tier), &a.session.tierPickerOpen, &a.session.effortPickerOpen, tierOptions, tierLabel,
 				func(value string) { choose(&a.selectedTier, value, "速度") })
 		})
 	}

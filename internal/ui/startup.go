@@ -112,6 +112,7 @@ func (a *App) installRuntime(result RuntimeConnection) {
 		a.threadList.reload = true
 	}
 	a.recoverSelectedSession()
+	a.prewarmModels()
 	if a.historyOpen {
 		a.loadThreadList()
 	}

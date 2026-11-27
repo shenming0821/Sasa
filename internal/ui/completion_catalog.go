@@ -154,13 +154,14 @@ func (a *App) restoreCompletionCatalogs() {
 	a.applyCompletionDiskCache(a.store.LoadCatalogs())
 }
 
-func (a *App) loadCompletionDiskCache() {
+func (a *App) loadCatalogDiskCaches() {
 	if a.store == nil {
 		return
 	}
 	a.catalogWrites.Add(1)
 	go func() {
 		defer a.catalogWrites.Done()
+		models := a.store.LoadModelCatalogs()
 		records := a.store.LoadCatalogs()
 		select {
 		case <-a.shutdown:
@@ -172,6 +173,7 @@ func (a *App) loadCompletionDiskCache() {
 			case <-a.shutdown:
 				return
 			default:
+				a.applyModelDiskCache(models)
 				a.applyCompletionDiskCache(records)
 			}
 		})

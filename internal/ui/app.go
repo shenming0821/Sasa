@@ -170,7 +170,7 @@ func (a *App) Run() (runErr error) {
 		a.installLifecycle()
 		a.installSettingsMenu()
 		a.installNotificationActions()
-		a.loadCompletionDiskCache()
+		a.loadCatalogDiskCaches()
 		a.refreshProjects()
 		if a.backend != nil {
 			go a.receive()
@@ -455,6 +455,9 @@ func (a *App) sendInputForMessage(text string, images []attachment.Image, edited
 					}
 				}
 				a.activeOptions.Model = options.Model
+				if a.rememberedModelEffort(a.kind, a.runtimeKey, options.Model) == "" {
+					a.rememberModelEffort(options.Model, options.Effort)
+				}
 				if a.selectedModel == "" || a.selectedModel == options.Model {
 					a.rememberModel(options.Model)
 				}

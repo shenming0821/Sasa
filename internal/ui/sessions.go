@@ -145,6 +145,7 @@ func (a *App) selectSession(s *session) {
 	s.open = true
 	s.stopOnClose = false
 	a.session = s
+	a.bindModelCatalog()
 	a.activeTab = sessionTabID(s.id)
 	a.selectWorkspace(a.workspaceRoot(s.State.Cwd))
 	a.ensureSessionTab(s)

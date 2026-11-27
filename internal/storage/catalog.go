@@ -20,15 +20,24 @@ type Catalog struct {
 	Key      agent.CacheKey
 	Skills   []agent.Skill
 	Commands []agent.Command
+	Models   []agent.Model `json:",omitempty"`
 	Checked  time.Time
 }
 
 // Catalogs are replaceable metadata. Corrupt, oversized or foreign entries
 // never prevent the application index from opening.
 func (s *Store) LoadCatalogs() []Catalog {
+	return s.loadCatalogs("catalog-cache")
+}
+
+func (s *Store) LoadModelCatalogs() []Catalog {
+	return s.loadCatalogs("model-catalog-cache")
+}
+
+func (s *Store) loadCatalogs(cacheDir string) []Catalog {
 	s.catalogMu.Lock()
 	defer s.catalogMu.Unlock()
-	dir := filepath.Join(s.dir, "catalog-cache")
+	dir := filepath.Join(s.dir, cacheDir)
 	files, _ := os.ReadDir(dir)
 	var records []Catalog
 	for _, file := range files {
@@ -51,24 +60,37 @@ func (s *Store) LoadCatalogs() []Catalog {
 }
 
 func (s *Store) SaveCatalog(record Catalog) error {
+	return s.saveCatalog("catalog-cache", record)
+}
+
+func (s *Store) SaveModelCatalog(record Catalog) error {
+	return s.saveCatalog("model-catalog-cache", record)
+}
+
+func (s *Store) saveCatalog(cacheDir string, record Catalog) error {
 	if record.Key.Agent.Validate() != nil || !filepath.IsAbs(record.Key.Cwd) || record.Checked.IsZero() {
-		return fmt.Errorf("技能目录缓存身份或时间无效")
+		return fmt.Errorf("目录缓存身份或时间无效")
 	}
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return err
 	}
 	if len(raw) > catalogDiskBytes {
-		return fmt.Errorf("技能目录缓存超过 1 MiB")
+		return fmt.Errorf("目录缓存超过 1 MiB")
 	}
 	s.catalogMu.Lock()
 	defer s.catalogMu.Unlock()
-	dir := filepath.Join(s.dir, "catalog-cache")
+	dir := filepath.Join(s.dir, cacheDir)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 	key, _ := json.Marshal(record.Key)
 	path := filepath.Join(dir, fmt.Sprintf("%x.json", sha256.Sum256(key)))
+	if len(record.Models) > 0 {
+		if info, err := os.Stat(path); err == nil && info.ModTime().After(record.Checked) {
+			return nil
+		}
+	}
 	file, err := os.CreateTemp(dir, ".catalog-*")
 	if err != nil {
 		return err
@@ -81,6 +103,11 @@ func (s *Store) SaveCatalog(record Catalog) error {
 	}
 	if closeErr != nil {
 		return closeErr
+	}
+	if len(record.Models) > 0 {
+		if err := os.Chtimes(file.Name(), record.Checked, record.Checked); err != nil {
+			return err
+		}
 	}
 	if err := os.Rename(file.Name(), path); err != nil {
 		return err
