@@ -79,6 +79,7 @@ type Snapshot struct {
 	DeletedThreads     []DeletedThread
 	LastClaudeModels   map[string]string
 	ModelEfforts       map[string]string
+	ModelTiers         map[string]string
 	ModelDisplayNames  map[string]string
 	DefaultAgent       agent.AgentKind
 	Preferences        *Preferences

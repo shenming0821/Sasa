@@ -56,6 +56,7 @@ type App struct {
 	defaultAgent       agent.AgentKind
 	lastModels         map[string]string
 	modelEfforts       map[string]string
+	modelTiers         map[string]string
 	modelDisplayNames  map[string]string
 	version            string
 	win                *mygo.Window

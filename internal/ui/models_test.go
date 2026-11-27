@@ -476,8 +476,8 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("选择模型 Model One"); err != nil {
 		t.Fatal(err)
 	}
-	if a.selectedEffort != "high" || a.selectedTier != "" || !tt.HasText("Model One high") {
-		t.Fatal("remembered model effort was not restored or tier leaked", a.selectedEffort, a.selectedTier)
+	if a.selectedEffort != "high" || a.selectedTier != "priority" || !tt.HasText("Model One high") {
+		t.Fatal("remembered model options were not restored", a.selectedEffort, a.selectedTier)
 	}
 	if err := tt.Click("选择模型"); err != nil {
 		t.Fatal(err)
@@ -512,11 +512,8 @@ func TestModelMenuEffortAndSpeedOptionsSendAndPersist(t *testing.T) {
 	if err := tt.Click("推理强度选项 high"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tt.Click("速度 default"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tt.Click("速度选项 Fast"); err != nil {
-		t.Fatal(err)
+	if !tt.HasText("速度 Fast") {
+		t.Fatal("remembered speed was not displayed")
 	}
 	if output := os.Getenv("SASA_OPTIONS_SCREENSHOT"); output != "" {
 		tt.Frame()

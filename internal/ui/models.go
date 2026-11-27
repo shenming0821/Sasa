@@ -456,7 +456,7 @@ func (a *App) modelMenu(c *native.Context) {
 				a.selectedModel, a.modelError = value, ""
 				if value != previous {
 					a.selectedEffort = a.rememberedModelEffort(a.kind, a.runtimeKey, value)
-					a.selectedTier = ""
+					a.selectedTier = a.application().modelTiers[modelEffortKey(a.kind, a.runtimeKey, value)]
 				}
 				a.rememberModel(value)
 				if err := a.persist(); err != nil {
@@ -559,7 +559,14 @@ func modelHasTier(m *agent.Model, tier string) bool {
 }
 
 func (a *App) selectedTurnOptions() agent.TurnOptions {
-	return agent.TurnOptions{Model: a.turnModel(), Effort: a.chosenModelEffort(), ServiceTier: a.selectedTier, Mode: a.selectedMode}
+	return agent.TurnOptions{Model: a.turnModel(), Effort: a.chosenModelEffort(), ServiceTier: a.chosenModelTier(), Mode: a.selectedMode}
+}
+
+func (a *App) chosenModelTier() string {
+	if a.selectedTier != "" {
+		return a.selectedTier
+	}
+	return a.application().modelTiers[modelEffortKey(a.kind, a.runtimeKey, a.turnModel())]
 }
 
 func (a *App) chosenModelEffort() string {
@@ -617,11 +624,22 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 	}
 	t := c.Theme()
 	native.Box(c).FillWidth().Height(1).Background(t.Border)
-	choose := func(dst *string, value, what string) {
+	choose := func(dst *string, remembered *map[string]string, value, what string) {
+		key := modelEffortKey(a.kind, a.runtimeKey, current.Model)
+		previousRemembered, existed := (*remembered)[key]
 		previous := *dst
 		*dst = value
+		if *remembered == nil {
+			*remembered = map[string]string{}
+		}
+		(*remembered)[key] = value
 		if err := a.persist(); err != nil {
 			*dst = previous
+			if existed {
+				(*remembered)[key] = previousRemembered
+			} else {
+				delete(*remembered, key)
+			}
 			a.modelError = "保存" + what + "失败：" + err.Error()
 			return
 		}
@@ -687,22 +705,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 			display = "选择强度"
 		}
 		effortPick := func(value string) {
-			previousEffort := a.selectedEffort
-			key := modelEffortKey(a.kind, a.runtimeKey, current.Model)
-			previousRemembered, hadRemembered := a.application().modelEfforts[key]
-			a.selectedEffort = value
-			a.rememberModelEffort(current.Model, value)
-			if err := a.persist(); err != nil {
-				a.selectedEffort = previousEffort
-				if hadRemembered {
-					a.application().modelEfforts[key] = previousRemembered
-				} else {
-					delete(a.application().modelEfforts, key)
-				}
-				a.modelError = "保存推理强度失败：" + err.Error()
-				return
-			}
-			a.modelError = ""
+			choose(&a.selectedEffort, &a.application().modelEfforts, value, "推理强度")
 		}
 		optionRow("推理强度", func() {
 			picker("推理强度", effort, display, &a.session.effortPickerOpen, &a.session.tierPickerOpen, current.SupportedReasoningEfforts, effortLabel, effortPick)
@@ -712,8 +715,8 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 		}
 	}
 	if len(current.ServiceTiers) > 0 {
-		tier := a.selectedTier
-		if tier == "" {
+		tier := a.chosenModelTier()
+		if tier == "" || !modelHasTier(current, tier) {
 			tier = current.DefaultServiceTier
 		}
 		if tier == "" {
@@ -733,7 +736,7 @@ func (a *App) turnOptionsMenu(c *native.Context, disabled bool) {
 		}
 		optionRow("速度", func() {
 			picker("速度", tier, tierLabel(tier), &a.session.tierPickerOpen, &a.session.effortPickerOpen, tierOptions, tierLabel,
-				func(value string) { choose(&a.selectedTier, value, "速度") })
+				func(value string) { choose(&a.selectedTier, &a.application().modelTiers, value, "速度") })
 		})
 	}
 }

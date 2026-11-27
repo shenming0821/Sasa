@@ -45,6 +45,7 @@ func TestModelCatalogRestoresOptionsAndRefreshesSilently(t *testing.T) {
 			pumpUpdate(t, jobs)
 			first.catalogWrites.Wait()
 			first.rememberModelEffort("cached", "high")
+			first.modelTiers = map[string]string{modelEffortKey(kind, first.runtimeKey, "cached"): "priority"}
 			if err := first.persist(); err != nil {
 				t.Fatal(err)
 			}
@@ -67,13 +68,13 @@ func TestModelCatalogRestoresOptionsAndRefreshesSilently(t *testing.T) {
 			if err := tester.Click("选择模型"); err != nil {
 				t.Fatal(err)
 			}
-			if !tester.HasText("推理强度 high") || !tester.HasText("速度 default") {
+			if !tester.HasText("推理强度 high") || !tester.HasText("速度 Fast") {
 				t.Fatal("cached options were hidden before runtime connection")
 			}
 			restored.installRuntime(RuntimeConnection{Kind: kind, Runtime: first.runtimeKey, Backend: backend})
 			<-backend.requests
 			options := restored.selectedTurnOptions()
-			if restored.modelsLoading || options.Model != "cached" || options.Effort != "high" {
+			if restored.modelsLoading || options.Model != "cached" || options.Effort != "high" || options.ServiceTier != "priority" {
 				t.Fatal("background refresh hid the cached model")
 			}
 			backend.results <- nil

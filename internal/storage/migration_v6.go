@@ -169,6 +169,7 @@ func retiredAgentSettings(tx *sql.Tx, sessions map[int]bool, homes map[string]bo
 	})
 	snapshot.LastClaudeModels = withoutRetiredKeys(snapshot.LastClaudeModels, homes)
 	snapshot.ModelEfforts = withoutRetiredKeys(snapshot.ModelEfforts, nil)
+	snapshot.ModelTiers = withoutRetiredKeys(snapshot.ModelTiers, nil)
 	snapshot.ModelDisplayNames = withoutRetiredKeys(snapshot.ModelDisplayNames, nil)
 
 	deletedTabs := map[string]bool{}

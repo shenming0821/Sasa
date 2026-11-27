@@ -65,6 +65,20 @@ func (a *App) AttachStore(store *storage.Store) (resultErr error) {
 		}
 	}
 	a.modelEfforts = maps.Clone(snapshot.ModelEfforts)
+	a.modelTiers = maps.Clone(snapshot.ModelTiers)
+	if a.modelTiers == nil {
+		a.modelTiers = map[string]string{}
+		for _, saved := range snapshot.Sessions {
+			kind := saved.Agent.Normalized()
+			if saved.SelectedTier == "" || saved.SelectedModel == "" || saved.SelectedModel == "default" || (saved.ModelAgent != "" && saved.ModelAgent.Normalized() != kind) {
+				continue
+			}
+			key := modelEffortKey(kind, saved.Runtime, saved.SelectedModel)
+			if a.modelTiers[key] == "" || saved.ID == snapshot.Selected {
+				a.modelTiers[key] = saved.SelectedTier
+			}
+		}
+	}
 	a.modelDisplayNames = maps.Clone(snapshot.ModelDisplayNames)
 	if a.modelEfforts == nil {
 		a.modelEfforts = map[string]string{}
@@ -218,6 +232,7 @@ func (a *App) snapshot() storage.Snapshot {
 		DeletedThreads:    slices.Clone(a.deletedThreads),
 		LastClaudeModels:  maps.Clone(a.lastModels),
 		ModelEfforts:      maps.Clone(a.modelEfforts),
+		ModelTiers:        maps.Clone(a.modelTiers),
 		ModelDisplayNames: maps.Clone(a.modelDisplayNames),
 		DefaultAgent:      a.defaultAgent.Normalized(),
 		Preferences:       &a.preferences,

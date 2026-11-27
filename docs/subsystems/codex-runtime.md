@@ -38,7 +38,7 @@ Codex 0.166.0 的 App Server 可能在进程内复用自定义模型目录。Sas
 
 `internal/codex/skills.go` 使用 `skills/list(cwds=[当前目录], forceReload=true)` 读取原生技能与加载错误，UI 筛除 disabled 技能并优先使用 interface 展示信息。选中技能后的 `turn/start` 保留 text 输入，并追加独立的 `type=skill`、`name`、`path` 输入；普通发送仍只有 text。接口由本机 0.163.0 schema 核验。
 
-`model/list` 返回每个模型的 `supportedReasoningEfforts`、`defaultReasoningEffort` 与 `serviceTiers`、`defaultServiceTier`；模型菜单按所选模型渲染“推理强度”和“速度”选项，选择随会话持久化，推理强度同时按模型绑定记录在 `ModelEfforts` 中供后续选择自动恢复，速度档位在切换模型时重置。`turn/start` 以 `effort` 与 `serviceTierForTurn`（`"default"` 为标准速度）透传，未选择时省略参数、沿用原生配置；不改动 thread 持久档位。已加载目录确认所选模型不再提供已存档位时，按钮与菜单回退目录默认、发送同样省略参数回退原生默认。参数字段由本机 0.166.0 `app-server generate-ts` schema 及真实 `model/list` 核验。
+`model/list` 返回每个模型的 `supportedReasoningEfforts`、`defaultReasoningEffort` 与 `serviceTiers`、`defaultServiceTier`。模型菜单按所选模型渲染“推理强度”和“速度”选项。选择随会话保存，切回模型或在新会话使用同一模型时恢复最近选择的强度和速度。`turn/start` 以 `effort` 与 `serviceTierForTurn`（`"default"` 为标准速度）透传，未选择时省略参数、沿用原生配置；不改动 thread 持久档位。已加载目录确认所选模型不再提供已存速度时，菜单显示目录默认速度，发送时省略速度参数。参数字段由本机 0.166.0 `app-server generate-ts` schema 及真实 `model/list` 核验。
 
 工具投影位于 `internal/app/tools.go`，命令展示位于 `internal/ui/commands.go`，其他工具与审批卡片位于 `internal/ui/activity.go`。同一 turn 内连续命令合并为轻量折叠组；正文、审批、提问和其他工具分隔命令组。默认仅显示摘要，展开后每条命令占一行，长脚本以省略号结束。组标题显示当前运行、待确认或失败状态，完成后显示“执行了命令”；全部拒绝则显示“命令已拒绝”。轮次未结束时，最后一个命令组继续显示“正在执行命令”并套用与等待指示相同的渐变高亮动画，轮次到达终态或出现更新的命令组后恢复终态文案。组标题箭头紧接摘要文字，间距 8 DIP；长摘要单行省略并为箭头保留空间。命令行详情箭头位于行尾。箭头在鼠标悬停或键盘焦点可见时显示，整行支持点击、Enter / Space 切换。原生 CollapsibleBase 提供 200 ms 高度裁切、内容淡入淡出和箭头旋转，并响应系统减少动态效果设置。单条命令进一步展开可查看完整命令、目录、进程、退出码、耗时与输入/输出，并可复制命令；详情使用最高 180 DIP 的独立滚动区。其他工具保留卡片及“展开输出”等入口。
 
